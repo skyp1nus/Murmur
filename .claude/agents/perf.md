@@ -1,6 +1,8 @@
 ---
 name: perf
 description: Measures Murmur performance (startup, CPU, RAM, transcription speed) against the budgets in docs/PLAN.md. Use at the end of every phase and whenever a hot path changes.
+model: sonnet
+effort: medium
 tools: Read, Write, Edit, Glob, Grep, Bash
 ---
 

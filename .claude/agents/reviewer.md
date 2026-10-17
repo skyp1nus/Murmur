@@ -1,6 +1,8 @@
 ---
 name: reviewer
 description: Read-only code reviewer for Murmur. Checks a finished task against the architecture, Native AOT rules, hot-path allocations and CLAUDE.md. Use after every coder task, before merge.
+model: opus
+effort: high
 tools: Read, Glob, Grep, Bash
 ---
 

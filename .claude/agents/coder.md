@@ -1,6 +1,8 @@
 ---
 name: coder
 description: Implements one scoped task from the current Murmur phase inside a single module, with tests. Use for any code-writing task the architect delegates.
+model: sonnet
+effort: high
 tools: Read, Write, Edit, Glob, Grep, Bash
 ---
 

@@ -1,6 +1,8 @@
 ---
 name: ui
 description: Builds Murmur Avalonia screens and controls strictly from docs/design and the design tokens. Use for any task in Murmur.App views, styles or custom controls.
+model: sonnet
+effort: high
 tools: Read, Write, Edit, Glob, Grep, Bash
 ---
 

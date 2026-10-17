@@ -1,6 +1,8 @@
 ---
 name: tester
 description: Writes and runs unit and integration tests for a Murmur task and reports results. Use after the reviewer approves a task, or when a phase needs an end-to-end check.
+model: sonnet
+effort: medium
 tools: Read, Write, Edit, Glob, Grep, Bash
 ---
 
