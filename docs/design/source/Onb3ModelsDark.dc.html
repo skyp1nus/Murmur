@@ -1,0 +1,152 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Onboarding Dark — 3 Models</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&amp;family=Geist+Mono:wght@300;400&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;color-scheme:dark}
+*{box-sizing:border-box}
+a{color:#f5f3f1;text-decoration:none}
+button{font-family:inherit}
+.orb{background:radial-gradient(circle at 32% 26%,#fff1e8 0%,rgba(255,241,232,0) 30%),radial-gradient(circle at 74% 70%,#0447ff 0%,rgba(4,71,255,0) 58%),radial-gradient(circle at 20% 80%,#ff4704 0%,rgba(255,71,4,0) 55%),radial-gradient(circle at 72% 20%,#f4a6c8 0%,rgba(244,166,200,0) 50%),#d8c8f0}
+.btn-primary:hover{background:#e3dfda}
+.btn-text:hover{background:#1e1c1a}
+.mcard:hover{background:#1e1c1a}
+.stripe{background:#f5f3f1;animation:pulse 1.6s ease-in-out infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.6}}
+@media (prefers-reduced-motion: reduce){.stripe{animation:none}}
+</style>
+</helmet>
+<div data-name="Onboarding Dark / 3 Models" style="width: 1280px; height: 800px; background: #141312; color: #f5f3f1; font-family: Inter, ui-sans-serif, system-ui, 'Segoe UI', sans-serif; font-size: 14px; letter-spacing: 0.01em; display: flex; flex-direction: column; padding: 32px 48px 40px">
+
+  <header data-name="Onboarding Dark / 3 Models / Top bar" style="height: 40px; display: grid; grid-template-columns: 1fr auto 1fr; align-items: center">
+    <div data-name="Onboarding / Wordmark" style="display: flex; align-items: center; gap: 8px">
+      <span class="orb" aria-hidden="true" style="width: 18px; height: 18px; border-radius: 9999px"></span>
+      <span style="font-size: 15px; font-weight: 600; letter-spacing: -0.01em">Murmur</span>
+    </div>
+    <div data-name="Onboarding / Step indicator" role="group" aria-label="Step 3 of 5" style="display: flex; align-items: center; gap: 14px">
+      <span data-name="Onboarding / Step indicator / Label" style="font-family: 'Geist Mono', ui-monospace, monospace; font-size: 13px; color: #a59f97">3 / 5</span>
+      <div data-name="Onboarding / Progress segments" aria-hidden="true" style="display: flex; gap: 6px">
+        <span data-name="Progress segment – done" style="width: 32px; height: 3px; border-radius: 9999px; background: #f5f3f1"></span>
+        <span data-name="Progress segment – done" style="width: 32px; height: 3px; border-radius: 9999px; background: #f5f3f1"></span>
+        <span data-name="Progress segment – current" style="width: 32px; height: 3px; border-radius: 9999px; background: #f5f3f1"></span>
+        <span data-name="Progress segment – upcoming" style="width: 32px; height: 3px; border-radius: 9999px; background: #2b2825"></span>
+        <span data-name="Progress segment – upcoming" style="width: 32px; height: 3px; border-radius: 9999px; background: #2b2825"></span>
+      </div>
+    </div>
+    <div></div>
+  </header>
+
+  <main data-name="Onboarding Dark / 3 Models / Content" style="flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 36px">
+    <div data-name="Onboarding Dark / 3 Models / Text" style="display: flex; flex-direction: column; gap: 12px; align-items: center; text-align: center">
+      <h1 data-name="Onboarding Dark / 3 Models / Headline" style="margin: 0; font-size: 44px; font-weight: 300; line-height: 1.1; letter-spacing: -0.02em">Download the brains.</h1>
+      <p data-name="Onboarding Dark / 3 Models / Subline" style="margin: 0; font-size: 16px; line-height: 1.5; color: #a59f97">Models run on your PC. Pick what fits your hardware.</p>
+    </div>
+
+    <div style="width: 760px; display: flex; flex-direction: column; gap: 14px">
+
+      <section data-name="Onboarding Dark / 3 Models / Model card – downloading" style="border: 1px solid #2b2825; border-radius: 20px; padding: 20px 24px; display: flex; flex-direction: column; gap: 14px">
+        <div style="display: flex; align-items: center; justify-content: space-between; gap: 16px">
+          <div style="display: flex; flex-direction: column; gap: 3px">
+            <div style="display: flex; align-items: center; gap: 8px">
+              <span style="font-size: 15px; font-weight: 500">Transcription · Parakeet v3</span>
+              <span data-name="Tag – Required" style="font-size: 11px; font-weight: 500; padding: 2px 8px; border-radius: 9999px; border: 1px solid #33302c; color: #d6d1cb">Required</span>
+            </div>
+            <span style="font-size: 13px; color: #a59f97">Speech to text · 25 European languages</span>
+          </div>
+          <span style="font-family: 'Geist Mono', ui-monospace, monospace; font-size: 13px; color: #d6d1cb">0.67 GB</span>
+        </div>
+        <div data-name="Progress bar" role="progressbar" aria-valuenow="46" aria-valuemin="0" aria-valuemax="100" aria-label="Parakeet download" style="height: 4px; border-radius: 9999px; background: #2b2825; overflow: hidden">
+          <div class="stripe" style="width: 46%; height: 100%; border-radius: 9999px"></div>
+        </div>
+        <div style="display: flex; justify-content: space-between; font-size: 13px; color: #a59f97">
+          <span>Downloading…</span>
+          <span style="font-family: 'Geist Mono', ui-monospace, monospace">0.31 / 0.67 GB</span>
+        </div>
+      </section>
+
+      <div style="display: flex; align-items: baseline; justify-content: space-between; padding: 6px 4px 0">
+        <span style="font-size: 13px; font-weight: 500">AI assistant</span>
+        <span style="font-size: 13px; color: #a59f97">Search, chat and summaries</span>
+      </div>
+
+      <div role="radiogroup" aria-label="AI model" style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px">
+        <sc-for list="{{models}}" as="m" hint-placeholder-count="2">
+          <button type="button" role="radio" aria-checked="{{m.on}}" onClick="{{m.pick}}" data-name="Onboarding Dark / 3 Models / Model card – {{m.stateName}}" class="mcard" style="text-align: left; border-radius: 20px; padding: 20px 22px; background: #141312; border: {{m.border}}; color: #f5f3f1; display: flex; gap: 14px; align-items: flex-start; cursor: pointer">
+            <span aria-hidden="true" style="width: 18px; height: 18px; flex: none; margin-top: 2px; border-radius: 9999px; border: {{m.ring}}; display: flex; align-items: center; justify-content: center">
+              <sc-if value="{{m.on}}" hint-placeholder-val="{{ false }}"><span style="width: 8px; height: 8px; border-radius: 9999px; background: #f5f3f1"></span></sc-if>
+            </span>
+            <span style="flex: 1; display: flex; flex-direction: column; gap: 4px">
+              <span style="font-size: 15px; font-weight: 500">{{m.name}}</span>
+              <span style="font-size: 13px; color: #a59f97">{{m.desc}}</span>
+            </span>
+            <span style="font-family: 'Geist Mono', ui-monospace, monospace; font-size: 13px; color: #d6d1cb">{{m.size}}</span>
+          </button>
+        </sc-for>
+      </div>
+
+      <div style="display: flex; align-items: center; justify-content: space-between; padding: 0 4px">
+        <button type="button" role="radio" aria-checked="{{skipOn}}" onClick="{{pickSkip}}" data-name="Onboarding Dark / 3 Models / Option – Skip AI for now" class="btn-text" style="height: 40px; padding: 0 14px; margin-left: -14px; border-radius: 9999px; border: 0; background: transparent; color: #f5f3f1; display: flex; align-items: center; gap: 10px; font-size: 14px; font-weight: 500; cursor: pointer">
+          <span aria-hidden="true" style="width: 18px; height: 18px; border-radius: 9999px; border: {{skipRing}}; display: flex; align-items: center; justify-content: center">
+            <sc-if value="{{skipOn}}" hint-placeholder-val="{{ false }}"><span style="width: 8px; height: 8px; border-radius: 9999px; background: #f5f3f1"></span></sc-if>
+          </span>
+          Skip AI for now
+        </button>
+        <span data-name="Onboarding Dark / 3 Models / Note" style="font-size: 13px; color: #a59f97">Downloads continue in the background.</span>
+      </div>
+    </div>
+  </main>
+
+  <footer data-name="Onboarding Dark / 3 Models / Bottom bar" style="height: 48px; display: flex; align-items: center; justify-content: space-between">
+    <div style="display: flex; gap: 4px">
+      <a href="Onb2AudioDark.dc.html" data-name="Onboarding / Button / Text – Back" class="btn-text" style="height: 44px; padding: 0 16px; border-radius: 9999px; display: flex; align-items: center; gap: 6px; font-size: 14px; font-weight: 500; color: #f5f3f1">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg>
+        Back
+      </a>
+      <a href="Onb4PreferencesDark.dc.html" data-name="Onboarding / Button / Text – Skip" class="btn-text" style="height: 44px; padding: 0 16px; border-radius: 9999px; display: flex; align-items: center; font-size: 14px; font-weight: 500; color: #a59f97">Skip</a>
+    </div>
+    <a href="Onb4PreferencesDark.dc.html" data-name="Onboarding / Button / Primary – Continue" class="btn-primary" style="height: 44px; padding: 0 24px; border-radius: 9999px; background: #f5f3f1; color: #141312; display: flex; align-items: center; font-size: 14px; font-weight: 500">Continue</a>
+  </footer>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":800}}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.state = { ai: 'e4b' };
+  }
+  renderVals() {
+    var self = this;
+    var list = [
+      { id: 'e4b', name: 'Gemma 4 E4B', desc: 'Recommended for your PC', size: '[X.X] GB' },
+      { id: '26b', name: 'Gemma 4 26B', desc: 'Best quality, needs GPU', size: '[XX] GB' }
+    ];
+    var models = list.map(function (m) {
+      var on = self.state.ai === m.id;
+      return {
+        name: m.name, desc: m.desc, size: m.size, on: on,
+        stateName: on ? 'selected' : 'default',
+        border: on ? '1.5px solid #f5f3f1' : '1px solid #2b2825',
+        ring: on ? '1.5px solid #f5f3f1' : '1.5px solid #45413c',
+        pick: function () { self.setState({ ai: m.id }); }
+      };
+    });
+    var skipOn = this.state.ai === 'skip';
+    return {
+      models: models,
+      skipOn: skipOn,
+      skipRing: skipOn ? '1.5px solid #f5f3f1' : '1.5px solid #45413c',
+      pickSkip: function () { self.setState({ ai: 'skip' }); }
+    };
+  }
+}
+</script>
+</body>
+</html>

@@ -12,11 +12,11 @@
 | 4 · AI-чат | `Chat.dc.html` | `ChatDark.dc.html` |
 | 5 · Налаштування | `Settings.dc.html` | `SettingsDark.dc.html` |
 | Онбординг 1 · Welcome | `Onb1Welcome.dc.html` | `Onb1WelcomeDark.dc.html` |
-| Онбординг 2 · Audio | `Onb2Audio.dc.html` | — (взяти зі світлої + `colorDark`) |
-| Онбординг 3 · Models | `Onb3Models.dc.html`, `Onb3ModelsReady.dc.html` | — |
-| Онбординг 4 · Preferences | `Onb4Preferences.dc.html` | — |
-| Онбординг 5 · First recording | `Onb5FirstRecording.dc.html` | — |
-| Онбординг · компоненти | `OnbComponents.dc.html` | — |
+| Онбординг 2 · Audio | `Onb2Audio.dc.html` | `Onb2AudioDark.dc.html` |
+| Онбординг 3 · Models | `Onb3Models.dc.html`, `Onb3ModelsReady.dc.html` | `Onb3ModelsDark.dc.html`, `Onb3ModelsReadyDark.dc.html` |
+| Онбординг 4 · Preferences | `Onb4Preferences.dc.html` | `Onb4PreferencesDark.dc.html` |
+| Онбординг 5 · First recording | `Onb5FirstRecording.dc.html` | `Onb5FirstRecordingDark.dc.html` |
+| Онбординг · компоненти | `OnbComponents.dc.html` | `OnbComponentsDark.dc.html` |
 
 ## Правила для агентів
 - Макет HTML → Avalonia: відтворюй структуру, відступи й розміри; кольори й шрифти — лише через ресурси з `tokens.json` (`color` для світлої, `colorDark` для темної теми). Жодних hex у XAML-views.
