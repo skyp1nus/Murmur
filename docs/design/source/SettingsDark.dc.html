@@ -1,0 +1,251 @@
+<!doctype html>
+<html lang="uk">
+<head>
+<meta charset="utf-8">
+<title>Murmur — Налаштування (темна)</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&amp;family=Geist+Mono:wght@300;400&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#141312;color-scheme:dark}
+*{box-sizing:border-box}
+a{color:#f5f3f1;text-decoration:none}a:hover{color:#d6d1cb}
+button,input,select{font-family:inherit}
+.orb{background:radial-gradient(circle at 32% 26%,#fff1e8 0%,rgba(255,241,232,0) 30%),radial-gradient(circle at 74% 70%,#0447ff 0%,rgba(4,71,255,0) 58%),radial-gradient(circle at 20% 80%,#ff4704 0%,rgba(255,71,4,0) 55%),radial-gradient(circle at 72% 20%,#f4a6c8 0%,rgba(244,166,200,0) 50%),#d8c8f0}
+.nav{color:#d6d1cb}
+.nav:hover{background:#1e1c1a;color:#f5f3f1}
+.nav.on{background:#1e1c1a;color:#f5f3f1;font-weight:500}
+.ghost:hover{background:#2b2825}
+.ink:hover{background:#e3dfda;color:#141312}
+</style>
+</helmet>
+<div style="min-height: 100vh; display: flex; flex-wrap: wrap; background: #141312; color: #f5f3f1; font-family: Inter, ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif; font-size: 14px; letter-spacing: 0.01em">
+
+<nav aria-label="Головна навігація" style="flex: 1 1 240px; padding: 20px 16px; border-right: 1px solid #2b2825; display: flex; flex-direction: column; gap: 24px">
+  <div style="display: flex; align-items: center; gap: 10px; padding: 4px 10px">
+    <div class="orb" aria-hidden="true" style="width: 22px; height: 22px; border-radius: 9999px"></div>
+    <span style="font-size: 17px; font-weight: 600; letter-spacing: -0.01em">Murmur</span>
+  </div>
+  <a href="RecordingDark.dc.html" class="ink" style="height: 44px; border-radius: 9999px; background: #f5f3f1; color: #141312; display: flex; align-items: center; justify-content: center; gap: 10px; font-weight: 500">
+    <span aria-hidden="true" style="width: 8px; height: 8px; border-radius: 9999px; background: #141312"></span>
+    Новий запис
+  </a>
+  <div style="display: flex; flex-direction: column; gap: 2px">
+    <a href="MainDark.dc.html" class="nav" style="height: 40px; padding: 0 12px; border-radius: 9999px; display: flex; align-items: center; gap: 10px">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 5h16M4 12h16M4 19h10"/></svg>
+      Бібліотека
+    </a>
+    <a href="ChatDark.dc.html" class="nav" style="height: 40px; padding: 0 12px; border-radius: 9999px; display: flex; align-items: center; gap: 10px">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z"/><path d="M19 16v4M17 18h4"/></svg>
+      Запитати AI
+    </a>
+    <a href="SettingsDark.dc.html" class="nav on" aria-current="page" style="height: 40px; padding: 0 12px; border-radius: 9999px; display: flex; align-items: center; gap: 10px">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/></svg>
+      Налаштування
+    </a>
+  </div>
+  <div style="display: flex; flex-direction: column; gap: 2px">
+    <div style="padding: 0 12px 6px; font-size: 12px; color: #a59f97">Розділи</div>
+    <a href="#models" class="nav" style="height: 36px; padding: 0 12px; border-radius: 9999px; display: flex; align-items: center; font-size: 13px">Моделі</a>
+    <a href="#devices" class="nav" style="height: 36px; padding: 0 12px; border-radius: 9999px; display: flex; align-items: center; font-size: 13px">Пристрої</a>
+    <a href="#storage" class="nav" style="height: 36px; padding: 0 12px; border-radius: 9999px; display: flex; align-items: center; font-size: 13px">Сховище</a>
+    <a href="#hotkeys" class="nav" style="height: 36px; padding: 0 12px; border-radius: 9999px; display: flex; align-items: center; font-size: 13px">Гарячі клавіші</a>
+    <a href="#about" class="nav" style="height: 36px; padding: 0 12px; border-radius: 9999px; display: flex; align-items: center; font-size: 13px">Про програму</a>
+  </div>
+</nav>
+
+<main style="flex: 999 1 560px; min-width: 0; display: flex; flex-direction: column">
+  <header style="min-height: 60px; padding: 12px 32px; display: flex; align-items: center; font-size: 14px; color: #d6d1cb">Налаштування</header>
+
+  <div style="width: 100%; max-width: 980px; margin: 0 auto; padding: 16px 32px 96px; display: flex; flex-direction: column; gap: 48px">
+    <h1 style="margin: 0; font-size: 36px; font-weight: 300; line-height: 1.17; letter-spacing: -0.02em">Налаштування</h1>
+
+    <section id="models" style="display: flex; gap: 24px 40px; flex-wrap: wrap">
+      <div style="flex: 1 1 220px; display: flex; flex-direction: column; gap: 6px">
+        <h2 style="margin: 0; font-size: 18px; font-weight: 500; letter-spacing: 0">Моделі</h2>
+        <p style="margin: 0; font-size: 13px; line-height: 1.55; color: #a59f97">Усе працює локально. Моделі завантажуються лише коли потрібні й вивантажуються після роботи.</p>
+      </div>
+      <div style="flex: 999 1 460px; min-width: 0; display: flex; flex-direction: column; gap: 16px">
+        <div style="border: 1px solid #2b2825; border-radius: 20px; overflow: hidden">
+          <div style="display: flex; align-items: center; gap: 16px; padding: 18px 20px; flex-wrap: wrap">
+            <div style="flex: 1 1 220px; display: flex; flex-direction: column; gap: 3px">
+              <div style="font-size: 15px; font-weight: 500">Parakeet TDT v3 · int8</div>
+              <div style="font-size: 13px; color: #a59f97">Транскрипція · 25 європейських мов · CPU</div>
+            </div>
+            <span style="font-family: 'Geist Mono', ui-monospace, monospace; font-size: 12px; color: #a59f97">0,67 ГБ</span>
+            <span style="display: flex; align-items: center; gap: 6px; height: 30px; padding: 0 12px; border-radius: 9999px; background: #1e1c1a; font-size: 12px; font-weight: 500">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12l5 5L20 7"/></svg>
+              Встановлено
+            </span>
+          </div>
+          <div style="display: flex; align-items: center; gap: 16px; padding: 18px 20px; border-top: 1px solid #2b2825; flex-wrap: wrap">
+            <div style="flex: 1 1 220px; display: flex; flex-direction: column; gap: 3px">
+              <div style="font-size: 15px; font-weight: 500">Silero VAD + діаризація</div>
+              <div style="font-size: 13px; color: #a59f97">Розбиття на фрагменти й спікерів</div>
+            </div>
+            <span style="display: flex; align-items: center; gap: 6px; height: 30px; padding: 0 12px; border-radius: 9999px; background: #1e1c1a; font-size: 12px; font-weight: 500">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12l5 5L20 7"/></svg>
+              Встановлено
+            </span>
+          </div>
+          <div style="display: flex; align-items: center; gap: 16px; padding: 18px 20px; border-top: 1px solid #2b2825; flex-wrap: wrap">
+            <div style="flex: 1 1 220px; display: flex; flex-direction: column; gap: 6px">
+              <div style="display: flex; align-items: center; gap: 8px"><span style="font-size: 15px; font-weight: 500">Gemma 4 E4B</span><span style="font-size: 11px; padding: 2px 8px; border-radius: 9999px; border: 1px solid #33302c; color: #d6d1cb">За замовчуванням</span></div>
+              <div style="font-size: 13px; color: #a59f97">AI-чат, резюме, action items · GGUF Q4</div>
+              <div style="display: flex; align-items: center; gap: 10px; margin-top: 2px">
+                <div aria-hidden="true" style="flex: 0 1 220px; height: 4px; border-radius: 9999px; background: #2b2825; overflow: hidden"><div style="width: 42%; height: 100%; border-radius: 9999px; background: #f5f3f1"></div></div>
+                <span style="font-family: 'Geist Mono', ui-monospace, monospace; font-size: 12px; color: #d6d1cb">42%</span>
+              </div>
+            </div>
+            <button type="button" class="ghost" style="height: 36px; padding: 0 14px; border-radius: 9999px; border: 1px solid #33302c; background: #141312; color: #f5f3f1; font-size: 13px; font-weight: 500; cursor: pointer">Скасувати</button>
+          </div>
+          <div style="display: flex; align-items: center; gap: 16px; padding: 18px 20px; border-top: 1px solid #2b2825; flex-wrap: wrap">
+            <div style="flex: 1 1 220px; display: flex; flex-direction: column; gap: 3px">
+              <div style="font-size: 15px; font-weight: 500">Gemma 4 26B A4B</div>
+              <div style="font-size: 13px; color: #a59f97">Для потужних ПК · точніші відповіді</div>
+            </div>
+            <button type="button" class="ghost" style="height: 36px; padding: 0 14px; border-radius: 9999px; border: 1px solid #33302c; background: #141312; color: #f5f3f1; display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 500; cursor: pointer">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v11M7 10l5 5 5-5M5 20h14"/></svg>
+              Завантажити
+            </button>
+          </div>
+          <div style="display: flex; align-items: center; gap: 16px; padding: 18px 20px; border-top: 1px solid #2b2825; flex-wrap: wrap">
+            <div style="flex: 1 1 220px; display: flex; flex-direction: column; gap: 3px">
+              <div style="font-size: 15px; font-weight: 500">EmbeddingGemma</div>
+              <div style="font-size: 13px; color: #a59f97">Семантичний пошук по транскриптах</div>
+            </div>
+            <span style="display: flex; align-items: center; gap: 6px; height: 30px; padding: 0 12px; border-radius: 9999px; background: #1e1c1a; font-size: 12px; font-weight: 500">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12l5 5L20 7"/></svg>
+              Встановлено
+            </span>
+          </div>
+        </div>
+
+        <div style="background: #1e1c1a; border-radius: 20px; padding: 18px 20px; display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap">
+          <div style="display: flex; flex-direction: column; gap: 3px">
+            <div style="font-size: 14px; font-weight: 500">Прискорення</div>
+            <div style="font-size: 13px; color: #a59f97">GPU пришвидшує Gemma; Parakeet добре працює й на CPU</div>
+          </div>
+          <div role="radiogroup" aria-label="Прискорення" style="display: flex; gap: 4px; padding: 4px; border-radius: 9999px; background: #141312; border: 1px solid #2b2825">
+            <sc-for list="{{accels}}" as="a" hint-placeholder-count="3">
+              <button type="button" role="radio" aria-checked="{{a.on}}" onClick="{{a.pick}}" style="height: 32px; padding: 0 14px; border-radius: 9999px; border: 0; background: {{a.bg}}; color: {{a.fg}}; font-size: 13px; font-weight: 500; cursor: pointer">{{a.label}}</button>
+            </sc-for>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <div style="height: 1px; background: #2b2825"></div>
+
+    <section id="devices" style="display: flex; gap: 24px 40px; flex-wrap: wrap">
+      <div style="flex: 1 1 220px; display: flex; flex-direction: column; gap: 6px">
+        <h2 style="margin: 0; font-size: 18px; font-weight: 500">Пристрої</h2>
+        <p style="margin: 0; font-size: 13px; line-height: 1.55; color: #a59f97">Мікрофон стає доріжкою «Я», системний звук — «Інші».</p>
+      </div>
+      <div style="flex: 999 1 460px; min-width: 0; display: flex; flex-direction: column; gap: 16px">
+        <div style="display: flex; flex-direction: column; gap: 6px">
+          <label for="mic" style="font-size: 13px; font-weight: 500">Мікрофон</label>
+          <select id="mic" style="height: 40px; padding: 0 12px; border-radius: 4px; border: 1px solid #2b2825; background: #1e1c1a; font-size: 14px; color: #f5f3f1"><option>Мікрофон (USB Audio Device)</option></select>
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 6px">
+          <label for="sys" style="font-size: 13px; font-weight: 500">Системний звук</label>
+          <select id="sys" style="height: 40px; padding: 0 12px; border-radius: 4px; border: 1px solid #2b2825; background: #1e1c1a; font-size: 14px; color: #f5f3f1"><option>Динаміки (Realtek Audio) · loopback</option></select>
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 6px">
+          <label for="scr" style="font-size: 13px; font-weight: 500">Запис екрана</label>
+          <select id="scr" style="height: 40px; padding: 0 12px; border-radius: 4px; border: 1px solid #2b2825; background: #1e1c1a; font-size: 14px; color: #f5f3f1"><option>Весь монітор · 1080p30 · апаратний H.264</option><option>Вибране вікно</option></select>
+        </div>
+      </div>
+    </section>
+
+    <div style="height: 1px; background: #2b2825"></div>
+
+    <section id="storage" style="display: flex; gap: 24px 40px; flex-wrap: wrap">
+      <div style="flex: 1 1 220px; display: flex; flex-direction: column; gap: 6px">
+        <h2 style="margin: 0; font-size: 18px; font-weight: 500">Сховище</h2>
+        <p style="margin: 0; font-size: 13px; line-height: 1.55; color: #a59f97">Аудіо, відео та база пошуку лежать в одній папці.</p>
+      </div>
+      <div style="flex: 999 1 460px; min-width: 0; display: flex; align-items: center; gap: 12px; flex-wrap: wrap">
+        <div style="flex: 1 1 260px; min-width: 0; height: 40px; padding: 0 12px; border-radius: 4px; border: 1px solid #2b2825; background: #1e1c1a; display: flex; align-items: center; gap: 10px">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#a59f97" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>
+          <span style="font-family: 'Geist Mono', ui-monospace, monospace; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">C:\Users\[USER]\Murmur</span>
+        </div>
+        <button type="button" class="ghost" style="height: 40px; padding: 0 16px; border-radius: 9999px; border: 1px solid #33302c; background: #141312; color: #f5f3f1; font-size: 13px; font-weight: 500; cursor: pointer">Змінити</button>
+        <button type="button" class="ghost" style="height: 40px; padding: 0 16px; border-radius: 9999px; border: 1px solid transparent; background: transparent; color: #d6d1cb; font-size: 13px; font-weight: 500; cursor: pointer">Відкрити в Провіднику</button>
+      </div>
+    </section>
+
+    <div style="height: 1px; background: #2b2825"></div>
+
+    <section id="hotkeys" style="display: flex; gap: 24px 40px; flex-wrap: wrap">
+      <div style="flex: 1 1 220px; display: flex; flex-direction: column; gap: 6px">
+        <h2 style="margin: 0; font-size: 18px; font-weight: 500">Гарячі клавіші</h2>
+        <p style="margin: 0; font-size: 13px; line-height: 1.55; color: #a59f97">Працюють, навіть коли вікно згорнуте.</p>
+      </div>
+      <div style="flex: 999 1 460px; min-width: 0; border: 1px solid #2b2825; border-radius: 20px; overflow: hidden">
+        <div style="display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 20px">
+          <span style="font-size: 14px">Почати / зупинити запис</span>
+          <button type="button" class="ghost" style="height: 32px; padding: 0 12px; border-radius: 8px; border: 1px solid #2b2825; background: #1e1c1a; font-family: 'Geist Mono', ui-monospace, monospace; font-size: 12px; color: #f5f3f1; cursor: pointer">Ctrl Shift R</button>
+        </div>
+        <div style="display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 20px; border-top: 1px solid #2b2825">
+          <span style="font-size: 14px">Пауза</span>
+          <button type="button" class="ghost" style="height: 32px; padding: 0 12px; border-radius: 8px; border: 1px solid #2b2825; background: #1e1c1a; font-family: 'Geist Mono', ui-monospace, monospace; font-size: 12px; color: #f5f3f1; cursor: pointer">Ctrl Shift P</button>
+        </div>
+        <div style="display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 20px; border-top: 1px solid #2b2825">
+          <span style="font-size: 14px">Перемкнути запис екрана</span>
+          <button type="button" class="ghost" style="height: 32px; padding: 0 12px; border-radius: 8px; border: 1px solid #2b2825; background: #1e1c1a; font-family: 'Geist Mono', ui-monospace, monospace; font-size: 12px; color: #f5f3f1; cursor: pointer">Ctrl Shift S</button>
+        </div>
+        <div style="display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 20px; border-top: 1px solid #2b2825">
+          <span style="font-size: 14px">Відкрити Murmur</span>
+          <button type="button" class="ghost" style="height: 32px; padding: 0 12px; border-radius: 8px; border: 1px solid #2b2825; background: #1e1c1a; font-family: 'Geist Mono', ui-monospace, monospace; font-size: 12px; color: #f5f3f1; cursor: pointer">Ctrl Shift M</button>
+        </div>
+      </div>
+    </section>
+
+    <div style="height: 1px; background: #2b2825"></div>
+
+    <section id="about" style="display: flex; gap: 24px 40px; flex-wrap: wrap">
+      <div style="flex: 1 1 220px; display: flex; flex-direction: column; gap: 6px">
+        <h2 style="margin: 0; font-size: 18px; font-weight: 500">Про програму</h2>
+        <p style="margin: 0; font-size: 13px; line-height: 1.55; color: #a59f97">Безкоштовно, без акаунтів і хмари.</p>
+      </div>
+      <div style="flex: 999 1 460px; min-width: 0; background: #1e1c1a; border-radius: 20px; padding: 24px; display: flex; gap: 20px; align-items: flex-start; flex-wrap: wrap">
+        <div class="orb" aria-hidden="true" style="width: 56px; height: 56px; flex: none; border-radius: 9999px; box-shadow: 0 0 32px rgba(4,71,255,0.25)"></div>
+        <div style="flex: 1 1 260px; display: flex; flex-direction: column; gap: 8px">
+          <div style="display: flex; align-items: baseline; gap: 10px"><span style="font-size: 20px; font-weight: 300; letter-spacing: -0.02em">Murmur</span><span style="font-family: 'Geist Mono', ui-monospace, monospace; font-size: 12px; color: #a59f97">[ВЕРСІЯ]</span></div>
+          <div style="font-size: 13px; line-height: 1.6; color: #d6d1cb">Ліцензія проєкту — [ЛІЦЕНЗІЯ]<br>Parakeet TDT v3 — NVIDIA, CC-BY-4.0<br>Gemma 4 та EmbeddingGemma — Google, Apache 2.0</div>
+        </div>
+      </div>
+    </section>
+  </div>
+</main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1560}}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.state = { accel: 'CPU' };
+  }
+  renderVals() {
+    var self = this;
+    var accels = ['CPU', 'DirectML', 'CUDA'].map(function (k) {
+      var on = self.state.accel === k;
+      return {
+        label: k,
+        on: on,
+        bg: on ? '#f5f3f1' : 'transparent',
+        fg: on ? '#141312' : '#d6d1cb',
+        pick: function () { self.setState({ accel: k }); }
+      };
+    });
+    return { accels: accels };
+  }
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,223 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Onboarding — Components</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&amp;family=Geist+Mono:wght@300;400&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+*{box-sizing:border-box}
+a{color:#000;text-decoration:none}
+button{font-family:inherit}
+</style>
+</helmet>
+<div data-name="Onboarding / Components" style="width: 1280px; height: 1600px; background: #fdfcfc; color: #000; font-family: Inter, ui-sans-serif, system-ui, 'Segoe UI', sans-serif; font-size: 14px; letter-spacing: 0.01em; padding: 56px; display: flex; flex-direction: column; gap: 40px">
+
+  <div style="display: flex; flex-direction: column; gap: 8px">
+    <h1 style="margin: 0; font-size: 36px; font-weight: 300; line-height: 1.17; letter-spacing: -0.02em">Onboarding components</h1>
+    <p style="margin: 0; font-size: 14px; color: #777169">States for the Avalonia controls used across the five onboarding steps.</p>
+  </div>
+
+  <section data-name="Components / Step indicator" style="display: flex; gap: 40px; padding-top: 32px; border-top: 1px solid #ebe8e4">
+    <h2 style="margin: 0; width: 200px; flex: none; font-size: 14px; font-weight: 500">Step indicator<br><span style="font-weight: 400; color: #777169">+ progress segments</span></h2>
+    <div style="flex: 1; display: flex; gap: 56px; align-items: flex-start; flex-wrap: wrap">
+      <div style="display: flex; flex-direction: column; gap: 10px">
+        <div data-name="Components / Step indicator – step 1" style="display: flex; align-items: center; gap: 14px">
+          <span style="font-family: 'Geist Mono', ui-monospace, monospace; font-size: 13px; color: #777169">1 / 5</span>
+          <div style="display: flex; gap: 6px"><span style="width: 32px; height: 3px; border-radius: 9999px; background: #000"></span><span style="width: 32px; height: 3px; border-radius: 9999px; background: #ebe8e4"></span><span style="width: 32px; height: 3px; border-radius: 9999px; background: #ebe8e4"></span><span style="width: 32px; height: 3px; border-radius: 9999px; background: #ebe8e4"></span><span style="width: 32px; height: 3px; border-radius: 9999px; background: #ebe8e4"></span></div>
+        </div>
+        <span style="font-size: 12px; color: #777169">Step 1</span>
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 10px">
+        <div data-name="Components / Step indicator – step 3" style="display: flex; align-items: center; gap: 14px">
+          <span style="font-family: 'Geist Mono', ui-monospace, monospace; font-size: 13px; color: #777169">3 / 5</span>
+          <div style="display: flex; gap: 6px"><span style="width: 32px; height: 3px; border-radius: 9999px; background: #000"></span><span style="width: 32px; height: 3px; border-radius: 9999px; background: #000"></span><span style="width: 32px; height: 3px; border-radius: 9999px; background: #000"></span><span style="width: 32px; height: 3px; border-radius: 9999px; background: #ebe8e4"></span><span style="width: 32px; height: 3px; border-radius: 9999px; background: #ebe8e4"></span></div>
+        </div>
+        <span style="font-size: 12px; color: #777169">Step 3</span>
+      </div>
+      <div style="display: flex; gap: 24px">
+        <div style="display: flex; flex-direction: column; gap: 10px"><span data-name="Components / Progress segment – done/current" style="width: 32px; height: 3px; margin-top: 8px; border-radius: 9999px; background: #000"></span><span style="font-size: 12px; color: #777169">Done, current · #000000</span></div>
+        <div style="display: flex; flex-direction: column; gap: 10px"><span data-name="Components / Progress segment – upcoming" style="width: 32px; height: 3px; margin-top: 8px; border-radius: 9999px; background: #ebe8e4"></span><span style="font-size: 12px; color: #777169">Upcoming · #ebe8e4</span></div>
+      </div>
+    </div>
+  </section>
+
+  <section data-name="Components / Buttons" style="display: flex; gap: 40px; padding-top: 32px; border-top: 1px solid #ebe8e4">
+    <h2 style="margin: 0; width: 200px; flex: none; font-size: 14px; font-weight: 500">Buttons</h2>
+    <div style="flex: 1; display: grid; grid-template-columns: 120px repeat(3, minmax(0, 1fr)); row-gap: 20px; column-gap: 24px; align-items: center">
+      <span></span>
+      <span style="font-size: 12px; color: #777169">Default</span>
+      <span style="font-size: 12px; color: #777169">Hover</span>
+      <span style="font-size: 12px; color: #777169">Disabled</span>
+
+      <span style="font-size: 13px; color: #44403b">Primary</span>
+      <div><button type="button" data-name="Components / Button / Primary – default" style="height: 44px; padding: 0 24px; border-radius: 9999px; border: 0; background: #000; color: #fff; font-size: 14px; font-weight: 500">Continue</button></div>
+      <div><button type="button" data-name="Components / Button / Primary – hover" style="height: 44px; padding: 0 24px; border-radius: 9999px; border: 0; background: #262422; color: #fff; font-size: 14px; font-weight: 500">Continue</button></div>
+      <div><button type="button" disabled data-name="Components / Button / Primary – disabled" style="height: 44px; padding: 0 24px; border-radius: 9999px; border: 0; background: #ebe8e4; color: #a59f97; font-size: 14px; font-weight: 500">Continue</button></div>
+
+      <span style="font-size: 13px; color: #44403b">Secondary</span>
+      <div><button type="button" data-name="Components / Button / Secondary – default" style="height: 44px; padding: 0 20px; border-radius: 9999px; border: 1px solid #e5e5e5; background: #fdfcfc; color: #000; font-size: 14px; font-weight: 500">Change</button></div>
+      <div><button type="button" data-name="Components / Button / Secondary – hover" style="height: 44px; padding: 0 20px; border-radius: 9999px; border: 1px solid #e5e5e5; background: #f5f3f1; color: #000; font-size: 14px; font-weight: 500">Change</button></div>
+      <div><button type="button" disabled data-name="Components / Button / Secondary – disabled" style="height: 44px; padding: 0 20px; border-radius: 9999px; border: 1px solid #ebe8e4; background: #fdfcfc; color: #a59f97; font-size: 14px; font-weight: 500">Change</button></div>
+
+      <span style="font-size: 13px; color: #44403b">Text</span>
+      <div><button type="button" data-name="Components / Button / Text – default" style="height: 44px; padding: 0 16px; border-radius: 9999px; border: 0; background: transparent; color: #000; font-size: 14px; font-weight: 500">Back</button></div>
+      <div><button type="button" data-name="Components / Button / Text – hover" style="height: 44px; padding: 0 16px; border-radius: 9999px; border: 0; background: #f5f3f1; color: #000; font-size: 14px; font-weight: 500">Back</button></div>
+      <div><button type="button" disabled data-name="Components / Button / Text – disabled" style="height: 44px; padding: 0 16px; border-radius: 9999px; border: 0; background: transparent; color: #a59f97; font-size: 14px; font-weight: 500">Back</button></div>
+    </div>
+  </section>
+
+  <section style="display: flex; gap: 40px; padding-top: 32px; border-top: 1px solid #ebe8e4">
+    <h2 style="margin: 0; width: 200px; flex: none; font-size: 14px; font-weight: 500">Device dropdown<br><span style="font-weight: 400; color: #777169">+ level meter</span></h2>
+    <div style="flex: 1; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 32px; align-items: start">
+      <div style="display: flex; flex-direction: column; gap: 20px">
+        <div style="display: flex; flex-direction: column; gap: 8px">
+          <span style="font-size: 12px; color: #777169">Default</span>
+          <button type="button" data-name="Components / Device dropdown – default" aria-haspopup="listbox" style="height: 40px; padding: 0 12px; border-radius: 4px; border: 1px solid #ebe8e4; background: #fdfcfc; color: #000; display: flex; align-items: center; justify-content: space-between; font-size: 14px">
+            Microphone (USB Audio Device)
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#777169" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
+          </button>
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 8px">
+          <span style="font-size: 12px; color: #777169">Open</span>
+          <div data-name="Components / Device dropdown – open" style="display: flex; flex-direction: column; gap: 6px">
+            <button type="button" aria-haspopup="listbox" aria-expanded="true" style="height: 40px; padding: 0 12px; border-radius: 4px; border: 1.5px solid #000; background: #fdfcfc; color: #000; display: flex; align-items: center; justify-content: space-between; font-size: 14px">
+              Microphone (USB Audio Device)
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#000" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 15l6-6 6 6"/></svg>
+            </button>
+            <div role="listbox" data-name="Components / Device dropdown / List" style="border: 1px solid #ebe8e4; border-radius: 10px; padding: 4px; background: #fdfcfc; box-shadow: rgba(0,0,0,0.4) 0px 0px 1px 0px, rgba(0,0,0,0.04) 0px 1px 1px 0px, rgba(0,0,0,0.04) 0px 2px 4px 0px">
+              <div role="option" aria-selected="true" data-name="Components / Device dropdown / Item – selected" style="height: 36px; padding: 0 10px; border-radius: 6px; background: #f5f3f1; display: flex; align-items: center; justify-content: space-between; font-size: 14px">Microphone (USB Audio Device)<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12l5 5L20 7"/></svg></div>
+              <div role="option" aria-selected="false" data-name="Components / Device dropdown / Item" style="height: 36px; padding: 0 10px; border-radius: 6px; display: flex; align-items: center; font-size: 14px">Headset Microphone (Bluetooth)</div>
+              <div role="option" aria-selected="false" data-name="Components / Device dropdown / Item" style="height: 36px; padding: 0 10px; border-radius: 6px; display: flex; align-items: center; font-size: 14px">Microphone Array (Realtek Audio)</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 20px">
+        <div style="display: flex; flex-direction: column; gap: 8px">
+          <span style="font-size: 12px; color: #777169">Level meter – idle</span>
+          <div data-name="Components / Level meter – idle" aria-hidden="true" style="height: 32px; display: flex; align-items: center; gap: 3px">
+            <sc-for list="{{idle}}" as="b" hint-placeholder-count="40"><span style="flex: 1; height: 3px; border-radius: 9999px; background: #ebe8e4"></span></sc-for>
+          </div>
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 8px">
+          <span style="font-size: 12px; color: #777169">Level meter – live</span>
+          <div data-name="Components / Level meter – live" aria-hidden="true" style="height: 32px; display: flex; align-items: center; gap: 3px">
+            <sc-for list="{{live}}" as="b" hint-placeholder-count="40"><span style="flex: 1; height: {{b.h}}px; border-radius: 9999px; background: #000"></span></sc-for>
+          </div>
+        </div>
+        <p style="margin: 0; font-size: 12px; line-height: 1.6; color: #777169">40 bars · 3 px gap · ink #000000 · idle bars #ebe8e4 at 3 px</p>
+      </div>
+    </div>
+  </section>
+
+  <section data-name="Components / Model card" style="display: flex; gap: 40px; padding-top: 32px; border-top: 1px solid #ebe8e4">
+    <h2 style="margin: 0; width: 200px; flex: none; font-size: 14px; font-weight: 500">Model card</h2>
+    <div style="flex: 1; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px">
+      <div style="display: flex; flex-direction: column; gap: 8px">
+        <span style="font-size: 12px; color: #777169">Default</span>
+        <button type="button" role="radio" aria-checked="false" data-name="Components / Model card – default" style="text-align: left; border-radius: 20px; padding: 20px 22px; background: #fdfcfc; border: 1px solid #ebe8e4; color: #000; display: flex; gap: 14px; align-items: flex-start">
+          <span aria-hidden="true" style="width: 18px; height: 18px; flex: none; margin-top: 2px; border-radius: 9999px; border: 1.5px solid #d6d1cb"></span>
+          <span style="flex: 1; display: flex; flex-direction: column; gap: 4px"><span style="font-size: 15px; font-weight: 500">Gemma 4 26B</span><span style="font-size: 13px; color: #777169">Best quality, needs GPU</span></span>
+          <span style="font-family: 'Geist Mono', ui-monospace, monospace; font-size: 13px; color: #44403b">[XX] GB</span>
+        </button>
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 8px">
+        <span style="font-size: 12px; color: #777169">Selected</span>
+        <button type="button" role="radio" aria-checked="true" data-name="Components / Model card – selected" style="text-align: left; border-radius: 20px; padding: 20px 22px; background: #fdfcfc; border: 1.5px solid #000; color: #000; display: flex; gap: 14px; align-items: flex-start">
+          <span aria-hidden="true" style="width: 18px; height: 18px; flex: none; margin-top: 2px; border-radius: 9999px; border: 1.5px solid #000; display: flex; align-items: center; justify-content: center"><span style="width: 8px; height: 8px; border-radius: 9999px; background: #000"></span></span>
+          <span style="flex: 1; display: flex; flex-direction: column; gap: 4px"><span style="font-size: 15px; font-weight: 500">Gemma 4 E4B</span><span style="font-size: 13px; color: #777169">Recommended for your PC</span></span>
+          <span style="font-family: 'Geist Mono', ui-monospace, monospace; font-size: 13px; color: #44403b">[X.X] GB</span>
+        </button>
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 8px">
+        <span style="font-size: 12px; color: #777169">Downloading</span>
+        <div data-name="Components / Model card – downloading" style="border-radius: 20px; padding: 20px 22px; border: 1px solid #ebe8e4; display: flex; flex-direction: column; gap: 12px">
+          <div style="display: flex; justify-content: space-between; gap: 12px"><span style="font-size: 15px; font-weight: 500">Parakeet v3</span><span style="font-family: 'Geist Mono', ui-monospace, monospace; font-size: 13px; color: #44403b">0.67 GB</span></div>
+          <div aria-hidden="true" style="height: 4px; border-radius: 9999px; background: #ebe8e4; overflow: hidden"><div style="width: 46%; height: 100%; border-radius: 9999px; background: #000"></div></div>
+          <div style="display: flex; justify-content: space-between; font-size: 13px; color: #777169"><span>Downloading…</span><span style="font-family: 'Geist Mono', ui-monospace, monospace">0.31 / 0.67 GB</span></div>
+        </div>
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 8px">
+        <span style="font-size: 12px; color: #777169">Done</span>
+        <div data-name="Components / Model card – done" style="border-radius: 20px; padding: 20px 22px; border: 1px solid #ebe8e4; display: flex; flex-direction: column; gap: 12px">
+          <div style="display: flex; justify-content: space-between; align-items: center; gap: 12px">
+            <span style="font-size: 15px; font-weight: 500">Parakeet v3</span>
+            <span style="display: flex; align-items: center; gap: 10px">
+              <span style="font-family: 'Geist Mono', ui-monospace, monospace; font-size: 13px; color: #44403b">0.67 GB</span>
+              <span style="height: 26px; padding: 0 10px; border-radius: 9999px; background: #f5f3f1; display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 500"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12l5 5L20 7"/></svg>Ready</span>
+            </span>
+          </div>
+          <div aria-hidden="true" style="height: 4px; border-radius: 9999px; background: #000"></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section style="display: flex; gap: 40px; padding-top: 32px; border-top: 1px solid #ebe8e4">
+    <h2 style="margin: 0; width: 200px; flex: none; font-size: 14px; font-weight: 500">Toggle, hotkey field,<br>timestamp chip</h2>
+    <div style="flex: 1; display: grid; grid-template-columns: 1fr 1.6fr 1fr; gap: 32px; align-items: start">
+      <div data-name="Components / Toggle" style="display: flex; flex-direction: column; gap: 14px">
+        <div style="display: flex; align-items: center; gap: 12px">
+          <span role="switch" aria-checked="false" aria-label="Off" data-name="Components / Toggle – off" style="width: 44px; height: 26px; padding: 3px; border-radius: 9999px; background: #ebe8e4; display: flex; align-items: center"><span style="width: 20px; height: 20px; border-radius: 9999px; background: #fdfcfc; box-shadow: rgba(0,0,0,0.2) 0px 1px 2px 0px"></span></span>
+          <span style="font-size: 12px; color: #777169">Off</span>
+        </div>
+        <div style="display: flex; align-items: center; gap: 12px">
+          <span role="switch" aria-checked="true" aria-label="On" data-name="Components / Toggle – on" style="width: 44px; height: 26px; padding: 3px; border-radius: 9999px; background: #000; display: flex; align-items: center; justify-content: flex-end"><span style="width: 20px; height: 20px; border-radius: 9999px; background: #fdfcfc"></span></span>
+          <span style="font-size: 12px; color: #777169">On</span>
+        </div>
+        <div style="display: flex; align-items: center; gap: 12px">
+          <span role="switch" aria-checked="false" aria-disabled="true" aria-label="Disabled" data-name="Components / Toggle – disabled" style="width: 44px; height: 26px; padding: 3px; border-radius: 9999px; background: #f5f3f1; display: flex; align-items: center"><span style="width: 20px; height: 20px; border-radius: 9999px; background: #fdfcfc; box-shadow: rgba(0,0,0,0.08) 0px 0px 0px 1px inset"></span></span>
+          <span style="font-size: 12px; color: #777169">Disabled</span>
+        </div>
+      </div>
+      <div data-name="Components / Hotkey field" style="display: flex; flex-direction: column; gap: 14px">
+        <div style="display: flex; flex-direction: column; gap: 6px">
+          <span style="font-size: 12px; color: #777169">Default</span>
+          <div data-name="Components / Hotkey field – default" style="height: 40px; padding: 0 8px; border-radius: 4px; border: 1px solid #ebe8e4; background: #fdfcfc; display: flex; align-items: center; gap: 6px">
+            <kbd style="font-family: 'Geist Mono', ui-monospace, monospace; font-size: 13px; padding: 3px 8px; border-radius: 6px; background: #f5f3f1">Ctrl</kbd><span style="font-family: 'Geist Mono', ui-monospace, monospace; font-size: 13px; color: #777169">+</span><kbd style="font-family: 'Geist Mono', ui-monospace, monospace; font-size: 13px; padding: 3px 8px; border-radius: 6px; background: #f5f3f1">Shift</kbd><span style="font-family: 'Geist Mono', ui-monospace, monospace; font-size: 13px; color: #777169">+</span><kbd style="font-family: 'Geist Mono', ui-monospace, monospace; font-size: 13px; padding: 3px 8px; border-radius: 6px; background: #f5f3f1">R</kbd>
+          </div>
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 6px">
+          <span style="font-size: 12px; color: #777169">Capturing</span>
+          <div data-name="Components / Hotkey field – capturing" style="height: 40px; padding: 0 12px; border-radius: 4px; border: 1.5px solid #000; background: #fdfcfc; display: flex; align-items: center; justify-content: space-between; font-size: 14px; color: #777169">
+            Press a new shortcut…
+            <span style="font-family: 'Geist Mono', ui-monospace, monospace; font-size: 12px; color: #777169">Esc to cancel</span>
+          </div>
+        </div>
+      </div>
+      <div data-name="Components / Timestamp chip" style="display: flex; flex-direction: column; gap: 14px">
+        <div style="display: flex; align-items: center; gap: 12px">
+          <span data-name="Components / Timestamp chip – default" style="height: 22px; padding: 0 8px; border-radius: 9999px; background: #f5f3f1; display: flex; align-items: center; gap: 4px; font-family: 'Geist Mono', ui-monospace, monospace; font-size: 12px"><svg width="8" height="8" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>00:03</span>
+          <span style="font-size: 12px; color: #777169">Default</span>
+        </div>
+        <div style="display: flex; align-items: center; gap: 12px">
+          <span data-name="Components / Timestamp chip – hover" style="height: 22px; padding: 0 8px; border-radius: 9999px; background: #ebe8e4; display: flex; align-items: center; gap: 4px; font-family: 'Geist Mono', ui-monospace, monospace; font-size: 12px"><svg width="8" height="8" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>00:03</span>
+          <span style="font-size: 12px; color: #777169">Hover</span>
+        </div>
+      </div>
+    </div>
+  </section>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":1600}}'>
+class Component extends DCLogic {
+  renderVals() {
+    var idle = [], live = [];
+    for (var i = 0; i < 40; i++) {
+      idle.push({ i: i });
+      var v = Math.abs(Math.sin(i * 0.8 + 0.7) * 0.6 + Math.sin(i * 2.1 + 2.1) * 0.4);
+      live.push({ h: Math.max(4, Math.round(v * 30)) });
+    }
+    return { idle: idle, live: live };
+  }
+}
+</script>
+</body>
+</html>

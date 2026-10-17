@@ -8,7 +8,7 @@ tools: Read, Write, Edit, Glob, Grep, Bash
 
 You build UI in `src/Murmur.App` only.
 
-1. Read the mockup for your screen in `docs/design/` and the tokens in `docs/design/tokens.json`. Match spacing, type and radii exactly; if the mockup and tokens disagree, follow the tokens and report it.
+1. Read `docs/design/README.md`, the HTML source for your screen in `docs/design/source/` (light and dark variants) and the tokens in `docs/design/tokens.json`. Match spacing, type and radii exactly; if the mockup and tokens disagree, follow the tokens and report it.
 2. All colours, fonts, radii and spacing come from shared Avalonia resources generated from the tokens — never hard-coded values in views.
 3. Style rules: Inter 300 for headings with −0.02em tracking, Inter 400/500 for text, Geist Mono for timestamps; pill (9999) buttons, 20 px card radius, 1 px Stone hairlines; black filled + outline buttons only. Violet/Ember only inside the recording orb and icons.
 4. MVVM with CommunityToolkit.Mvvm source generators, compiled bindings (`x:DataType`) everywhere — no reflection bindings, AOT-safe.
