@@ -27,7 +27,7 @@ internal readonly record struct H264EncoderSettings(PixelSize FrameSize, int Fra
 /// thread after <see cref="Create"/>.
 /// UNVERIFIED-ON-WINDOWS until the Windows-trait tests run in CI.
 /// </summary>
-internal sealed unsafe class H264SinkWriter : IDisposable
+internal sealed unsafe class H264SinkWriter : ISampleSink, IDisposable
 {
     private const int OpenAttempts = 10;
     private static readonly TimeSpan OpenRetryDelay = TimeSpan.FromMilliseconds(50);

@@ -36,17 +36,25 @@ namespace Murmur.Capture.Windows.Screen;
 /// there is no clean switch mid-file; frames resume as soon as samples come back.
 /// </para>
 /// <para>
-/// <b>Static screens.</b> WGC only delivers frames when the screen changes; the encoder thread repeats the last frame
-/// once a second while nothing arrives and once more at stop, so the file's timeline covers the whole segment (and
-/// fragments keep being written for crash safety). Repeats are only written while the segment accepts frames: after a
-/// fatal fault (display disconnected, frame pool or GPU failure) nothing extends the timeline any more and the tail stops
-/// at the fault time, so the file never shows a frozen frame as if it were live content (see <see cref="RepeatPolicy"/>).
+/// <b>Timeline.</b> The file has a variable frame rate and its timeline is wall-clock time: the fragmented-MP4 sink
+/// stores only sample durations (no base decode time), so the encoder thread holds the newest frame back and writes it
+/// once the next frame (or the end of the segment) tells how long it was on screen (see <see cref="HeldFrameTiming"/>).
+/// The first frame starts at 0, the last one ends at the stop time; a crash loses at most the held frame.
+/// </para>
+/// <para>
+/// <b>Static screens.</b> WGC only delivers frames when the screen changes; the encoder thread repeats the held frame
+/// once a second while nothing arrives, so fragments keep being written for crash safety (a repeat that finds no free
+/// sample is skipped and counted in <see cref="RepeatsSkipped"/>; the timeline stays right; a failed copy is a fatal
+/// fault like a failed captured frame). Repeats are only written
+/// while the segment accepts frames: after a fatal fault (display disconnected, frame pool or GPU failure) nothing
+/// extends the timeline any more and the last frame ends at the fault time, so the file never shows a frozen frame as
+/// if it were live content (see <see cref="RepeatPolicy"/>).
 /// </para>
 /// <para>
 /// <b>Segments without frames.</b> WGC may deliver no frame at all (headless or non-composited session, locked
 /// workstation). Media Foundation cannot finalize an MP4 without samples, so when nothing reached the encoder by the
-/// time the segment stops the encoder thread writes one opaque black frame at sample time 0 (see
-/// <see cref="PlaceholderFrame"/>), which normally makes the file a valid one-frame MP4. If Finalize still fails
+/// time the segment stops the encoder thread writes one opaque black frame at sample time 0 that lasts until the stop
+/// (see <see cref="PlaceholderFrame"/>), which normally makes the file a valid one-frame MP4. If Finalize still fails
 /// (MF_E_SINK_NO_SAMPLES_PROCESSED, or any failure of a segment without captured frames; the placeholder may have been
 /// rejected) the segment ends as an empty one: the writer is released, the partial file (not a valid MP4) is deleted and
 /// stopping does not throw (see <see cref="SegmentCompletion"/>). <see cref="ScreenRecorderStats.FramesCaptured"/>
@@ -98,6 +106,8 @@ internal sealed class WgcScreenRecorder : IScreenRecorder
     private long _placeholderFrames;
     private long _frameArrivedEvents;
     private long _framesPoolExhausted;
+    private long _repeatsSkipped;
+    private readonly int _cpuSampleLimit = MaximumCpuSamples;
     private volatile string? _gpuPathDisabled;
 
     public WgcScreenRecorder(ScreenCaptureOptions options)
@@ -122,7 +132,7 @@ internal sealed class WgcScreenRecorder : IScreenRecorder
     /// <summary>Frames WGC delivered above the target frame rate (diagnostics; not part of <see cref="Stats"/>).</summary>
     internal long FramesRateLimited => Interlocked.Read(ref _framesRateLimited);
 
-    /// <summary>Repeated frames written for static screens and the segment tail (diagnostics).</summary>
+    /// <summary>Repeated frames written for static screens (diagnostics).</summary>
     internal long FramesRepeated => Interlocked.Read(ref _framesRepeated);
 
     /// <summary>Black placeholder frames written for segments in which no frame reached the encoder (diagnostics).</summary>
@@ -162,6 +172,30 @@ internal sealed class WgcScreenRecorder : IScreenRecorder
 
     /// <summary>Tests only: use the CPU readback path even when a hardware encoder is available.</summary>
     internal bool ForceCpuReadback { get; init; }
+
+    /// <summary>
+    /// Tests only: after this many captured frames per segment, later WGC frames are ignored as if the screen had gone
+    /// static (0: no limit).
+    /// </summary>
+    internal int CapturedFrameLimit { get; init; }
+
+    /// <summary>Tests only: the most system-memory samples the CPU readback path may create (at least 1).</summary>
+    internal int CpuSampleLimit
+    {
+        get => _cpuSampleLimit;
+        init
+        {
+            ArgumentOutOfRangeException.ThrowIfLessThan(value, 1);
+            _cpuSampleLimit = value;
+        }
+    }
+
+    /// <summary>
+    /// Static-screen repeats that were skipped because no encoder sample was free (diagnostics; the timeline is
+    /// unaffected, the held frame just lasts longer, but the file grows less often). A failed copy is not a skip but a
+    /// fatal fault.
+    /// </summary>
+    internal long RepeatsSkipped => Interlocked.Read(ref _repeatsSkipped);
 
     /// <summary>True when the last stopped segment ended without a file (see <see cref="SegmentOutcome.Empty"/>).</summary>
     internal bool LastSegmentEmpty { get; private set; }
@@ -300,7 +334,7 @@ internal sealed class WgcScreenRecorder : IScreenRecorder
             segment.PoolSize = itemSize;
             segment.EncoderSize = EncoderGeometry.FitEncoderSize(itemSize.Width, itemSize.Height, _options.MaxHeight);
             LastEncoderSize = segment.EncoderSize;
-            FramePath = OpenEncoder(segment, gpu, path, new H264EncoderSettings(segment.EncoderSize, _options.FrameRate, _options.BitrateKbps), ForceCpuReadback, _gpuPathDisabled);
+            FramePath = OpenEncoder(segment, gpu, path, new H264EncoderSettings(segment.EncoderSize, _options.FrameRate, _options.BitrateKbps), ForceCpuReadback, _gpuPathDisabled, CpuSampleLimit);
             _encoder = segment.Writer!.Encoder;
 
             segment.Pool = Direct3D11CaptureFramePool.CreateFreeThreaded(gpu.WinRtDevice, DirectXPixelFormat.B8G8R8A8UIntNormalized, 2, itemSize);
@@ -445,7 +479,7 @@ internal sealed class WgcScreenRecorder : IScreenRecorder
     /// <see cref="FramePath"/> diagnostic.
     /// </summary>
     /// <exception cref="COMException">Not even the CPU readback configuration could be set up.</exception>
-    private static string OpenEncoder(Segment segment, GpuDevice gpu, string path, H264EncoderSettings settings, bool forceCpu, string? gpuDisabled)
+    private static string OpenEncoder(Segment segment, GpuDevice gpu, string path, H264EncoderSettings settings, bool forceCpu, string? gpuDisabled, int cpuSamples)
     {
         var skipGpu = forceCpu || gpuDisabled is not null;
         var hardwareEncoders = !skipGpu && gpu.HasVideoSupport && !gpu.IsSoftwareRenderer ? HardwareEncoders.CountH264() : 0;
@@ -478,7 +512,7 @@ internal sealed class WgcScreenRecorder : IScreenRecorder
             segment.Frames = null;
         }
 
-        segment.Frames = new CpuFrameCopier(gpu.Device, gpu.Context, settings.FrameSize, MediaFoundationSampleFactory.Instance, InitialCpuSamples, MaximumCpuSamples);
+        segment.Frames = new CpuFrameCopier(gpu.Device, gpu.Context, settings.FrameSize, MediaFoundationSampleFactory.Instance, Math.Min(InitialCpuSamples, cpuSamples), cpuSamples);
         segment.Writer = H264SinkWriter.Create(path, settings, EncoderInput.Cpu, 0);
         return reason;
     }
@@ -569,12 +603,18 @@ internal sealed class WgcScreenRecorder : IScreenRecorder
             return;
         }
 
+        if (CapturedFrameLimit > 0 && segment.CapturedAdmitted >= CapturedFrameLimit)
+        {
+            return; // tests: the screen "went static"
+        }
+
         if (!segment.Limiter.TryAccept(ticks))
         {
             Interlocked.Increment(ref _framesRateLimited);
             return;
         }
 
+        segment.CapturedAdmitted++;
         Interlocked.Increment(ref _framesCaptured);
         var frames = segment.Frames!;
         nint sample;
@@ -673,20 +713,6 @@ internal sealed class WgcScreenRecorder : IScreenRecorder
                     Repeat(segment, now);
                 }
             }
-
-            // Tail: extend the file to the stop time (or to the fault time) so its duration matches what was captured.
-            if (RepeatPolicy.TryGetTail(
-                segment.LastSample != 0,
-                segment.WriterHealthy,
-                segment.StopTicks,
-                Interlocked.Read(ref segment.FaultTicks),
-                segment.FrameDuration,
-                segment.Timeline.Start,
-                segment.Timeline.LastSampleTime,
-                out var tail))
-            {
-                Repeat(segment, tail);
-            }
         }
         catch (Exception ex)
         {
@@ -701,17 +727,29 @@ internal sealed class WgcScreenRecorder : IScreenRecorder
                 Interlocked.Increment(ref _framesDropped);
             }
 
+            // The held last frame lasts until the stop time (or the fault time): the file's duration is the segment's.
+            var end = RepeatPolicy.EndTicks(
+                Volatile.Read(ref segment.StopRequested),
+                segment.StopTicks,
+                Interlocked.Read(ref segment.FaultTicks),
+                MediaTime.Now());
+
             // Media Foundation cannot finalize a file without samples: give an empty segment a black frame at time 0.
-            if (PlaceholderFrame.ShouldWrite(segment.LastSample != 0, segment.WriterHealthy))
+            if (PlaceholderFrame.ShouldWrite(segment.AnySubmitted, segment.WriterHealthy))
             {
-                segment.Placeholder = WritePlaceholder(segment);
+                segment.Placeholder = WritePlaceholder(segment, end);
             }
-            else if (segment.LastSample == 0)
+            else
             {
-                segment.Placeholder = new PlaceholderOutcome(PlaceholderStage.SkippedWriterFailed, ScreenConstants.SOk);
+                if (!segment.AnySubmitted)
+                {
+                    segment.Placeholder = new PlaceholderOutcome(PlaceholderStage.SkippedWriterFailed, ScreenConstants.SOk);
+                }
+
+                CloseTimeline(segment, end);
             }
 
-            ComCall.Release(ref segment.LastSample);
+            ReleaseHeld(segment); // nothing is held unless the writer failed
             segment.FinalizeResult = segment.Writer is { } writer ? writer.FinalizeFile() : ScreenConstants.EFail;
         }
     }
@@ -728,34 +766,40 @@ internal sealed class WgcScreenRecorder : IScreenRecorder
                 continue;
             }
 
-            Write(segment, queued.Sample, queued.Ticks, SampleKind.Captured);
+            Submit(segment, queued.Sample, queued.Ticks, SampleKind.Captured);
         }
     }
 
+    /// <summary>
+    /// Repeats the held frame at <paramref name="ticks"/>: the held frame is written (lasting until now) and its copy is
+    /// held instead, so the file keeps growing by whole fragments on a static screen (crash safety). When no sample is
+    /// free the repeat is skipped and counted in <see cref="RepeatsSkipped"/>; the timeline stays right regardless, as
+    /// the held frame simply lasts longer. A failed allocation or copy (e.g. the device was removed) is a fatal fault,
+    /// like a failed captured frame: the held frame then ends at the fault time.
+    /// </summary>
     private void Repeat(Segment segment, long ticks)
     {
-        nint sample;
-        int hr;
-        lock (segment.CopyLock)
+        var frames = segment.Frames!;
+        var outcome = HeldSample.CopyForRepeat(frames, segment.CopyLock, segment.LastSample, out var sample, out var hr, out var failure);
+        switch (outcome)
         {
-            hr = segment.Frames!.AllocateSample(out sample);
-            if (hr >= 0 && sample != 0)
-            {
-                hr = segment.Frames.CopySample(sample, segment.LastSample);
-            }
+            case RepeatCopy.Copied:
+                Submit(segment, sample, ticks, SampleKind.Repeated);
+                break;
+            case RepeatCopy.PoolEmpty:
+                Interlocked.Increment(ref _repeatsSkipped);
+                break;
+            default:
+                RaiseFault(segment, HeldSample.RepeatFault(outcome, frames.Input, failure, hr), isFatal: true);
+                break;
         }
-
-        if (hr < 0 || sample == 0)
-        {
-            ComCall.Release(ref sample);
-            return;
-        }
-
-        Write(segment, sample, ticks, SampleKind.Repeated);
     }
 
-    /// <summary>Writes the black placeholder frame at sample time 0 (see <see cref="PlaceholderFrame"/>). Never throws.</summary>
-    private PlaceholderOutcome WritePlaceholder(Segment segment)
+    /// <summary>
+    /// Writes the black placeholder frame at sample time 0, lasting until <paramref name="end"/> (see
+    /// <see cref="PlaceholderFrame"/>). Never throws.
+    /// </summary>
+    private PlaceholderOutcome WritePlaceholder(Segment segment, long end)
     {
         nint sample = 0;
         try
@@ -788,8 +832,9 @@ internal sealed class WgcScreenRecorder : IScreenRecorder
             }
 
             var owned = sample;
-            sample = 0; // Write takes ownership
-            hr = Write(segment, owned, PlaceholderFrame.CaptureTicks(segment.Timeline), SampleKind.Placeholder);
+            sample = 0; // Submit takes ownership
+            Submit(segment, owned, PlaceholderFrame.CaptureTicks(segment.Timeline), SampleKind.Placeholder);
+            hr = CloseTimeline(segment, end);
             return new PlaceholderOutcome(hr < 0 ? PlaceholderStage.WriteFailed : PlaceholderStage.Written, hr);
         }
         catch (Exception ex)
@@ -800,27 +845,70 @@ internal sealed class WgcScreenRecorder : IScreenRecorder
         }
     }
 
-    /// <summary>Timestamps and writes one sample; takes ownership of <paramref name="sample"/>. Returns the WriteSample HRESULT.</summary>
-    private int Write(Segment segment, nint sample, long ticks, SampleKind kind)
+    /// <summary>
+    /// Puts a sample captured at <paramref name="ticks"/> on the timeline; takes ownership of <paramref name="sample"/>.
+    /// The frame held so far is written with its real duration (up to this sample, see <see cref="HeldFrameTiming"/>)
+    /// and this sample is held instead: it is written once the next sample or the end of the segment fixes its
+    /// duration. Allocation-free.
+    /// </summary>
+    private void Submit(Segment segment, nint sample, long ticks, SampleKind kind)
     {
         var time = segment.Timeline.ToSampleTime(ticks);
-        var step = "IMFSample::SetSampleTime";
-        var hr = IMFSample.SetSampleTime(sample, time);
-        if (hr >= 0)
+        if (segment.Timing.Advance(time, out var heldTime, out var heldDuration))
         {
-            step = "IMFSample::SetSampleDuration";
-            hr = IMFSample.SetSampleDuration(sample, segment.FrameDuration);
+            WriteHeld(segment, heldTime, heldDuration);
         }
 
-        if (hr >= 0)
+        if (!segment.WriterHealthy)
         {
-            step = "IMFSinkWriter::WriteSample";
-            hr = segment.Writer!.WriteSample(sample);
+            // Writing the held frame just failed (fault raised): nothing will be written any more.
+            segment.Timing.Discard();
+            ComCall.Release(ref sample);
+            if (kind == SampleKind.Captured)
+            {
+                Interlocked.Increment(ref _framesDropped);
+            }
+
+            return;
         }
 
+        segment.LastSample = sample;
+        segment.LastKind = kind;
+        segment.AnySubmitted = true;
+        segment.LastWriteTicks = MediaTime.Now();
+    }
+
+    /// <summary>
+    /// Writes the held frame so that it lasts until <paramref name="end"/> (capture time), ending the segment's
+    /// timeline. Returns the WriteSample HRESULT, S_OK when nothing was held, E_FAIL when the writer had failed before.
+    /// </summary>
+    private int CloseTimeline(Segment segment, long end)
+    {
+        if (!segment.Timing.Close(end - segment.Timeline.Start, out var heldTime, out var heldDuration))
+        {
+            return ScreenConstants.SOk;
+        }
+
+        if (!segment.WriterHealthy)
+        {
+            ReleaseHeld(segment);
+            return ScreenConstants.EFail;
+        }
+
+        return WriteHeld(segment, heldTime, heldDuration);
+    }
+
+    /// <summary>
+    /// Timestamps and writes the held sample (<see cref="Segment.LastSample"/>) and releases it on every path (see
+    /// <see cref="HeldSample.Write"/>). Returns the WriteSample HRESULT; a failure (a managed exception included) marks
+    /// the writer failed and raises a fatal fault. Never throws.
+    /// </summary>
+    private int WriteHeld(Segment segment, long time, long duration)
+    {
+        var kind = segment.LastKind;
+        var hr = HeldSample.Write(ref segment.LastSample, segment.Writer, time, duration, out var step, out var exception);
         if (hr < 0)
         {
-            ComCall.Release(ref sample);
             segment.WriterHealthy = false;
             segment.Accepting = false;
             if (kind == SampleKind.Captured)
@@ -828,7 +916,8 @@ internal sealed class WgcScreenRecorder : IScreenRecorder
                 Interlocked.Increment(ref _framesDropped);
             }
 
-            RaiseFault(segment, $"{step} failed ({FrameCopyNaming.Path(segment.Frames!.Input)} input): {ComHelpers.Describe(hr)}", isFatal: true);
+            var reason = exception is null ? ComHelpers.Describe(hr) : exception.Message;
+            RaiseFault(segment, $"{step} failed ({FrameCopyNaming.Path(segment.Frames!.Input)} input): {reason}", isFatal: true);
             return hr;
         }
 
@@ -846,10 +935,23 @@ internal sealed class WgcScreenRecorder : IScreenRecorder
                 break;
         }
 
-        ComCall.Release(ref segment.LastSample);
-        segment.LastSample = sample;
-        segment.LastWriteTicks = MediaTime.Now();
         return hr;
+    }
+
+    /// <summary>Releases a held sample that will not be written (a captured one counts as dropped).</summary>
+    private void ReleaseHeld(Segment segment)
+    {
+        if (segment.LastSample == 0)
+        {
+            return;
+        }
+
+        segment.Timing.Discard();
+        ComCall.Release(ref segment.LastSample);
+        if (segment.LastKind == SampleKind.Captured)
+        {
+            Interlocked.Increment(ref _framesDropped);
+        }
     }
 
     /// <summary>
@@ -858,7 +960,7 @@ internal sealed class WgcScreenRecorder : IScreenRecorder
     /// </summary>
     private void ReportPoolExhaustion(Segment segment, EncoderInput input, int drops, long elapsed)
     {
-        var limit = input == EncoderInput.Gpu ? MaximumSamples : (uint)MaximumCpuSamples;
+        var limit = input == EncoderInput.Gpu ? MaximumSamples : (uint)CpuSampleLimit;
         if (input == EncoderInput.Gpu)
         {
             _gpuPathDisabled = PoolExhaustionNaming.FallbackReason(input, limit);
@@ -904,7 +1006,7 @@ internal sealed class WgcScreenRecorder : IScreenRecorder
         public readonly Lock CopyLock = new();
         public readonly FrameRateLimiter Limiter = new(frameRate);
         public readonly SegmentTimeline Timeline = new();
-        public readonly long FrameDuration = MediaTime.FrameDuration(frameRate);
+        public readonly HeldFrameTiming Timing = new(HeldFrameTiming.SinkTimescale(frameRate));
 
         public GraphicsCaptureItem? Item;
         public TypedEventHandler<GraphicsCaptureItem, object>? ItemClosed;
@@ -923,8 +1025,12 @@ internal sealed class WgcScreenRecorder : IScreenRecorder
         public bool RecreatePending;
         public SizeInt32Abi PendingSize;
 
+        public int CapturedAdmitted;
+
         // Encoder thread
-        public nint LastSample;
+        public nint LastSample; // the newest frame, held back until the next one or the segment end fixes its duration
+        public SampleKind LastKind;
+        public bool AnySubmitted;
         public long LastWriteTicks;
         public volatile bool WriterHealthy = true;
         public long CapturedWritten;

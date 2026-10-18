@@ -139,36 +139,238 @@ public sealed class FrameTimingTests
     }
 
     [Fact]
-    public void Tail_ExtendsToStop_WhenNotFaulted()
+    public void End_IsTheStop_WhenNotFaulted()
     {
-        var frame = MediaTime.FrameDuration(30);
         const long start = 100 * Second;
         const long stop = start + (3600 * Second);
 
-        Assert.True(RepeatPolicy.TryGetTail(true, true, stop, RepeatPolicy.NoFault, frame, start, 5 * Second, out var tail));
-        Assert.Equal(stop - frame, tail);
+        Assert.Equal(stop, RepeatPolicy.EndTicks(stopRequested: true, stop, RepeatPolicy.NoFault, now: stop + Second));
 
-        // The last sample already reaches the end: no tail.
-        Assert.False(RepeatPolicy.TryGetTail(true, true, stop, RepeatPolicy.NoFault, frame, start, stop - start - frame, out _));
-        Assert.False(RepeatPolicy.TryGetTail(false, true, stop, RepeatPolicy.NoFault, frame, start, -1, out _));
-        Assert.False(RepeatPolicy.TryGetTail(true, false, stop, RepeatPolicy.NoFault, frame, start, 5 * Second, out _));
+        // The encoder thread failed (no stop request): its fault time wins, else "now".
+        Assert.Equal(stop + Second, RepeatPolicy.EndTicks(stopRequested: false, 0, RepeatPolicy.NoFault, now: stop + Second));
     }
 
     [Fact]
-    public void Tail_StopsAtTheFault_NotAtTheStop()
+    public void End_IsTheFault_NotTheStop()
     {
-        // Display unplugged 5 min into a 1 h segment: the file must end at ~5 min, not at 60 min.
-        var frame = MediaTime.FrameDuration(30);
+        // Display unplugged 5 min into a 1 h segment: the file must end at 5 min, not at 60 min.
         const long start = 100 * Second;
         const long stop = start + (3600 * Second);
         const long fault = start + (300 * Second);
 
-        Assert.True(RepeatPolicy.TryGetTail(true, true, stop, fault, frame, start, 290 * Second, out var tail));
-        Assert.Equal(fault - frame, tail);
+        Assert.Equal(fault, RepeatPolicy.EndTicks(stopRequested: true, stop, fault, now: stop));
+        Assert.Equal(fault, RepeatPolicy.EndTicks(stopRequested: false, 0, fault, now: stop));
 
-        // The last frame was written right before the fault: nothing to extend.
-        Assert.False(RepeatPolicy.TryGetTail(true, true, stop, fault, frame, start, 300 * Second - frame, out _));
+        // The last frame held at 290 s lasts until the fault.
+        var timing = new HeldFrameTiming(MediaTime.TicksPerSecond);
+        timing.Advance(0, out _, out _);
+        timing.Advance(290 * Second, out _, out _);
+        Assert.True(timing.Close(fault - start, out var time, out var duration));
+        Assert.Equal((290 * Second, 10 * Second), (time, duration));
     }
+
+    [Fact]
+    public void HeldTiming_StaticScreen_DurationsAddUpToWallClock()
+    {
+        // 600 s mostly static: 30 frames at 30 fps, then a repeat once a second, stop at 600 s. Before the fix every
+        // sample lasted 1/30 s and the file collapsed to about 23 s.
+        var frame = MediaTime.FrameDuration(30);
+        var timeline = new SegmentTimeline();
+        var timing = new HeldFrameTiming(MediaTime.TicksPerSecond);
+        const long start = 50 * Second;
+        timeline.Reset(start);
+        long total = 0, written = 0, expectedNext = 0;
+
+        void Take(long ticks)
+        {
+            if (timing.Advance(timeline.ToSampleTime(ticks), out var time, out var duration))
+            {
+                Assert.Equal(expectedNext, time); // contiguous: no gaps, no overlaps
+                Assert.True(duration >= 1);
+                expectedNext = time + duration;
+                total += duration;
+                written++;
+            }
+        }
+
+        for (var i = 0; i < 30; i++)
+        {
+            Take(start + (Second / 20) + (i * frame)); // the first frame arrives 50 ms after the start
+        }
+
+        for (var s = 2; s < 600; s++)
+        {
+            Take(start + (s * Second));
+        }
+
+        Assert.True(timing.Close(600 * Second, out var lastTime, out var lastDuration));
+        Assert.Equal(expectedNext, lastTime);
+        total += lastDuration;
+        written++;
+
+        Assert.Equal(30 + 598, written);
+        Assert.Equal(600 * Second, total);
+        Assert.False(timing.HasHeld);
+    }
+
+    [Fact]
+    public void HeldTiming_FirstFrameStartsAtZero_AndDurationsArePositive()
+    {
+        var timing = new HeldFrameTiming(MediaTime.TicksPerSecond);
+        Assert.False(timing.HasHeld);
+        Assert.Equal(HeldFrameTiming.None, timing.HeldTime);
+        Assert.False(timing.Close(10 * Second, out _, out _));
+
+        Assert.False(timing.Advance(2 * Second, out _, out _)); // first frame: nothing to write yet
+        Assert.Equal(0, timing.HeldTime);
+        Assert.True(timing.Advance(3 * Second, out var time, out var duration));
+        Assert.Equal((0L, 3 * Second), (time, duration));
+
+        // The end before the held frame (a fault raced the last frame): still a positive duration.
+        Assert.True(timing.Close(Second, out time, out duration));
+        Assert.Equal((3 * Second, 1L), (time, duration));
+        Assert.False(timing.HasHeld);
+
+        // Discard forgets the held frame; the next one starts at 0 again.
+        timing.Advance(5 * Second, out _, out _);
+        timing.Discard();
+        Assert.False(timing.HasHeld);
+        Assert.False(timing.Advance(7 * Second, out _, out _));
+        Assert.Equal(0, timing.HeldTime);
+    }
+
+    [Theory]
+    [InlineData(144, 30)] // vsync gaps of 4 and 5 refreshes: 833.33 and 1041.67 units, a fixed 1:4 pattern
+    [InlineData(144, 60)] // 2 and 3 refreshes
+    [InlineData(165, 30)]
+    [InlineData(120, 30)]
+    [InlineData(60, 30)]
+    [InlineData(75, 60)]
+    public void HeldTiming_OneHourOfVsyncPacedFrames_SinkRoundedTotalMatchesWallClock(int refreshHz, int fps)
+    {
+        // The sink rounds each duration on its own to its timescale. Raw tick gaps repeat in a fixed vsync pattern, so
+        // per-sample rounding errors pile up one way (about 0.7 s/h at 144 Hz); the quantized timeline must not drift.
+        var timescale = HeldFrameTiming.SinkTimescale(fps);
+        var limiter = new FrameRateLimiter(fps);
+        var timeline = new SegmentTimeline();
+        var timing = new HeldFrameTiming(timescale);
+        const long start = 1234 * Second;
+        const long length = 3600 * Second;
+        timeline.Reset(start);
+        long roundedUnits = 0, truncatedUnits = 0, naiveUnits = 0, samples = 0, previous = -1;
+
+        void Count(long duration)
+        {
+            roundedUnits += SinkRound(duration, timescale);
+            truncatedUnits += duration * timescale / Second;
+            samples++;
+        }
+
+        for (long k = 0; ; k++)
+        {
+            var ticks = start + (Second / 50) + (k * Second / refreshHz);
+            if (ticks - start >= length)
+            {
+                break;
+            }
+
+            if (!limiter.TryAccept(ticks))
+            {
+                continue;
+            }
+
+            var time = timeline.ToSampleTime(ticks);
+            if (previous >= 0)
+            {
+                naiveUnits += SinkRound(time - previous, timescale); // the raw gap, as the first fix wrote it
+            }
+
+            previous = time;
+            if (timing.Advance(time, out _, out var duration))
+            {
+                Count(duration);
+            }
+        }
+
+        Assert.True(timing.Close(length, out _, out var last));
+        Count(last);
+
+        var wallUnits = length * timescale / Second;
+        Assert.InRange(samples, ((long)fps * 3600) - fps, ((long)fps * 3600) + fps);
+        Assert.InRange(roundedUnits, wallUnits - 1, wallUnits + 1);
+        Assert.Equal(roundedUnits, truncatedUnits); // exact whether the sink rounds or truncates
+
+        // The raw gaps alone do drift on high-refresh displays (this is what the test guards against).
+        if (refreshHz == 144)
+        {
+            naiveUnits += SinkRound(length - previous, timescale);
+            Assert.True(Math.Abs(naiveUnits - wallUnits) > timescale / 4, $"raw gaps drifted only {naiveUnits - wallUnits} units");
+        }
+    }
+
+    [Fact]
+    public void HeldTiming_Quantized_StartsAndEndsOnWholeUnits_AndLastsAtLeastOneUnit()
+    {
+        var timescale = HeldFrameTiming.SinkTimescale(30);
+        Assert.Equal(30_000, timescale);
+        var timing = new HeldFrameTiming(timescale);
+        Assert.Equal(timescale, timing.Timescale);
+
+        Assert.False(timing.Advance(0, out _, out _));
+        Assert.True(timing.Advance(277_778, out var time, out var duration)); // 833.33 units -> 833
+        Assert.Equal(0, time);
+        Assert.Equal(833, SinkRound(duration, timescale));
+        Assert.Equal(timing.UnitsToTicks(833), timing.HeldTime);
+
+        // A repeat racing a captured frame 100 ns later: the repeat still lasts one unit, never zero.
+        Assert.True(timing.Advance(277_779, out time, out duration));
+        Assert.Equal(833, SinkRound(time, timescale));
+        Assert.Equal(1, SinkRound(duration, timescale));
+
+        // The next frame starts a unit late, and the timeline catches up at the following one.
+        Assert.True(timing.Advance(10 * Second, out time, out duration));
+        Assert.Equal(834, SinkRound(time, timescale));
+        Assert.Equal(300_000 - 834, SinkRound(duration, timescale));
+
+        // The end before the held frame (a fault raced the last frame): one unit.
+        Assert.True(timing.Close(Second, out time, out duration));
+        Assert.Equal(300_000, SinkRound(time, timescale));
+        Assert.Equal(1, SinkRound(duration, timescale));
+    }
+
+    [Theory]
+    [InlineData(1)]
+    [InlineData(15_000)]
+    [InlineData(30_000)]
+    [InlineData(60_000)]
+    [InlineData(144_000)]
+    [InlineData(240_000)]
+    [InlineData(10_000_000)]
+    public void HeldTiming_UnitsToTicks_ConvertsBackToTheSameUnits(long timescale)
+    {
+        var timing = new HeldFrameTiming(timescale);
+        foreach (var units in (long[])[0, 1, 2, 3, 7, 833, 1042, 999_999, 108_000_000, 2_592_000_000])
+        {
+            var ticks = timing.UnitsToTicks(units);
+            Assert.Equal(units, SinkRound(ticks, timescale));
+            Assert.Equal(units, ticks * timescale / Second); // truncating sinks agree
+            Assert.Equal(units, timing.TicksToUnits(ticks));
+        }
+
+        Assert.Equal(0, timing.TicksToUnits(-5));
+    }
+
+    [Fact]
+    public void HeldTiming_RejectsInvalidTimescales()
+    {
+        Assert.Throws<ArgumentOutOfRangeException>(() => new HeldFrameTiming(0));
+        Assert.Throws<ArgumentOutOfRangeException>(() => new HeldFrameTiming(Second + 1));
+        Assert.Throws<ArgumentOutOfRangeException>(() => HeldFrameTiming.SinkTimescale(0));
+        Assert.Equal(60_000, HeldFrameTiming.SinkTimescale(60));
+    }
+
+    /// <summary>How the FMPEG4 sink stores a duration: 100 ns ticks rounded to the nearest unit of its timescale.</summary>
+    private static long SinkRound(long ticks, long timescale) => ((ticks * timescale) + (Second / 2)) / Second;
 
     [Fact]
     public void FramePath_Helpers_DoNotAllocate()
@@ -176,6 +378,7 @@ public sealed class FrameTimingTests
         var limiter = new FrameRateLimiter(30);
         var timeline = new SegmentTimeline();
         var ring = new SpscRing<(nint, long)>(4);
+        var timing = new HeldFrameTiming(HeldFrameTiming.SinkTimescale(30));
         timeline.Reset(0);
         long sum = 0;
 
@@ -186,7 +389,8 @@ public sealed class FrameTimingTests
                 var ticks = k * Second / 60;
                 if (limiter.TryAccept(ticks) && ring.TryEnqueue((k, ticks)) && ring.TryDequeue(out var item))
                 {
-                    sum += timeline.ToSampleTime(item.Item2);
+                    timing.Advance(timeline.ToSampleTime(item.Item2), out var time, out var duration);
+                    sum += time + duration;
                 }
             }
         }

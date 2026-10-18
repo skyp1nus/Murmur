@@ -22,38 +22,74 @@ public sealed class RepeatPolicyEdgeTests
     }
 
     [Fact]
-    public void Tail_UsesTheEarlierOfStopAndFault()
+    public void End_UsesTheEarlierOfStopAndFault()
     {
-        var frame = MediaTime.FrameDuration(30);
-        const long start = 0;
-
-        // Fault after stop: stop wins.
-        Assert.True(RepeatPolicy.TryGetTail(true, true, 10 * Second, 20 * Second, frame, start, Second, out var tail));
-        Assert.Equal((10 * Second) - frame, tail);
+        Assert.Equal(10 * Second, RepeatPolicy.EndTicks(true, 10 * Second, 20 * Second, 30 * Second)); // fault after stop: stop wins
+        Assert.Equal(10 * Second, RepeatPolicy.EndTicks(true, 20 * Second, 10 * Second, 30 * Second));
     }
 
     [Fact]
-    public void Tail_IsSkippedWhenFaultPrecedesTheLastSample()
+    public void Close_WhenTheFaultPrecedesTheLastSample_StillGivesAPositiveDuration()
     {
-        var frame = MediaTime.FrameDuration(30);
-        Assert.False(RepeatPolicy.TryGetTail(true, true, 100 * Second, 10 * Second, frame, 0, 10 * Second, out _));
+        var timing = new HeldFrameTiming(MediaTime.TicksPerSecond);
+        timing.Advance(0, out _, out _);
+        timing.Advance(10 * Second, out _, out _);
+        Assert.True(timing.Close(RepeatPolicy.EndTicks(true, 100 * Second, 5 * Second, 100 * Second), out var time, out var duration));
+        Assert.Equal(10 * Second, time);
+        Assert.Equal(1, duration);
     }
 
     [Fact]
-    public void Tail_RequiresMoreThanHalfAFrameOfGap()
+    public void Advance_WithNonIncreasingTimes_KeepsTheTimelineContiguous()
     {
-        var frame = MediaTime.FrameDuration(30);
-        const long stop = 10 * Second;
-        var tailTime = stop - frame;
-        // last sample exactly half a frame before the tail: not enough.
-        Assert.False(RepeatPolicy.TryGetTail(true, true, stop, RepeatPolicy.NoFault, frame, 0, tailTime - (frame / 2), out _));
-        Assert.True(RepeatPolicy.TryGetTail(true, true, stop, RepeatPolicy.NoFault, frame, 0, tailTime - (frame / 2) - 1, out _));
+        // SegmentTimeline already makes times strictly increasing; the timing still never yields a gap or an overlap.
+        var timing = new HeldFrameTiming(MediaTime.TicksPerSecond);
+        timing.Advance(5 * Second, out _, out _);
+        Assert.True(timing.Advance(0, out var time, out var duration));
+        Assert.Equal((0L, 1L), (time, duration));
+        Assert.Equal(1, timing.HeldTime);
+        Assert.True(timing.Advance(Second, out time, out duration));
+        Assert.Equal((1L, Second - 1), (time, duration));
     }
 
     [Fact]
-    public void Tail_WithFaultAtSegmentStart_IsNotProduced()
+    public void Advance_AtThirtyFps_WritesOneFrameDurationPerFrame()
     {
         var frame = MediaTime.FrameDuration(30);
-        Assert.False(RepeatPolicy.TryGetTail(true, true, 100 * Second, 50 * Second, frame, 50 * Second, 0, out _));
+        var timing = new HeldFrameTiming(MediaTime.TicksPerSecond);
+        timing.Advance(0, out _, out _);
+        for (var i = 1; i <= 90; i++)
+        {
+            Assert.True(timing.Advance(i * frame, out var time, out var duration));
+            Assert.Equal((i - 1) * frame, time);
+            Assert.Equal(frame, duration);
+        }
+    }
+
+    [Fact]
+    public void Timing_DoesNotAllocate()
+    {
+        var timing = new HeldFrameTiming(MediaTime.TicksPerSecond);
+        long sum = 0;
+
+        void Run()
+        {
+            for (var i = 0; i < 1000; i++)
+            {
+                if (timing.Advance(i * Second, out _, out var duration))
+                {
+                    sum += duration;
+                }
+            }
+
+            timing.Close(1000 * Second, out _, out var last);
+            sum += last;
+        }
+
+        Run();
+        var before = GC.GetAllocatedBytesForCurrentThread();
+        Run();
+        Assert.Equal(0, GC.GetAllocatedBytesForCurrentThread() - before);
+        Assert.Equal(2000 * Second, sum);
     }
 }

@@ -127,10 +127,10 @@ internal sealed class SegmentTimeline
 }
 
 /// <summary>
-/// When the encoder thread may write repeated frames (static screens, segment tail). The rule: repeats only extend the
-/// timeline while the segment is accepting frames and has not faulted, and the tail never reaches past the moment of a
-/// fatal fault (display disconnected, frame pool or GPU copy failure). Otherwise a display unplugged 5 min into a 1 h
-/// meeting would leave 55 min of a frozen last frame that looks like real screen content.
+/// When the encoder thread may write repeated frames (static screens) and where a segment's video ends. The rule:
+/// repeats only extend the timeline while the segment is accepting frames and has not faulted, and the last frame never
+/// lasts past the moment of a fatal fault (display disconnected, frame pool or GPU copy failure). Otherwise a display
+/// unplugged 5 min into a 1 h meeting would leave 55 min of a frozen last frame that looks like real screen content.
 /// Pure and allocation-free.
 /// </summary>
 internal static class RepeatPolicy
@@ -143,31 +143,139 @@ internal static class RepeatPolicy
         hasLastFrame && writerHealthy && accepting && now < faultTicks && now - lastWriteTicks >= interval;
 
     /// <summary>
-    /// Computes the capture time (QPC, 100 ns) of the tail frame that extends the file to the end of the segment: one
-    /// frame before the stop time, or before the fault time when the segment faulted earlier. False when no tail is
-    /// needed (the last sample already reaches that point) or allowed (no frame yet, writer failed).
+    /// The capture time (QPC, 100 ns) at which the segment's video ends: the stop time, or the fault time when the
+    /// segment faulted earlier; <paramref name="now"/> when the encoder thread ends without a stop request (it failed).
     /// </summary>
-    public static bool TryGetTail(
-        bool hasLastFrame,
-        bool writerHealthy,
-        long stopTicks,
-        long faultTicks,
-        long frameDuration,
-        long timelineStart,
-        long lastSampleTime,
-        out long tailTicks)
+    public static long EndTicks(bool stopRequested, long stopTicks, long faultTicks, long now) =>
+        Math.Min(stopRequested ? stopTicks : now, faultTicks);
+}
+
+/// <summary>
+/// Variable-frame-rate sample timing of the fragmented MP4. Media Foundation's FMPEG4 sink writes each sample's duration
+/// into the fragment's <c>trun</c> box and writes no <c>tfdt</c> (base decode time), so players lay the samples end to
+/// end: the file's timeline is the sum of the sample durations, the sample times are not stored. A fixed 1/fps duration
+/// therefore collapses every static stretch (WGC sends no frames while nothing changes) to a single frame.
+/// <para>
+/// So the encoder thread holds the newest frame back until the next one arrives (or the segment ends) and writes it
+/// with the real gap as its duration: the durations add up to the wall-clock time from the segment start to its end.
+/// The first frame starts at sample time 0 (it stands for the picture since the segment start) and the last one ends at
+/// the end of the segment.
+/// </para>
+/// <para>
+/// <b>Quantized to the sink's timescale.</b> The sink rounds every duration on its own to its media timescale
+/// (<see cref="SinkTimescale"/>: 30000 units/s at 30 fps, 1 unit = 33.3 us). WGC frames follow vsync and the rate
+/// limiter keeps every k-th one, so raw gaps repeat in a fixed pattern (144 Hz at 30 fps: 833.33 and 1041.67 units)
+/// and per-sample rounding would drift one way, about 0.7 s per hour against the audio. The timeline is therefore kept
+/// in sink units: every frame starts and ends on a whole unit (its capture time rounded to the nearest unit), and the
+/// tick values handed out (<see cref="UnitsToTicks"/>, rounded up) convert back to exactly those units whether the sink
+/// rounds or truncates. The rounding error never accumulates: the sum of the durations is the end time rounded to a
+/// unit. Every frame lasts at least one unit, so no sample gets a zero <c>trun</c> duration (a repeat racing a newer
+/// captured frame, timestamps closer than a unit); the next frame then starts a unit later and the timeline catches up
+/// at the following frame. Pure integer math, allocation-free; single-threaded (owned by the encoder thread).
+/// </para>
+/// </summary>
+internal sealed class HeldFrameTiming
+{
+    /// <summary><see cref="HeldTime"/> while no frame is held.</summary>
+    public const long None = -1;
+
+    private readonly long _timescale;
+    private long _heldUnits = None;
+
+    /// <param name="timescale">Units per second of the sink's media timescale (<see cref="SinkTimescale"/>); at most
+    /// <see cref="MediaTime.TicksPerSecond"/>, which keeps the timeline in plain 100 ns ticks.</param>
+    public HeldFrameTiming(long timescale)
     {
-        tailTicks = Math.Min(stopTicks, faultTicks) - frameDuration;
-        return hasLastFrame && writerHealthy && tailTicks - timelineStart > lastSampleTime + (frameDuration / 2);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(timescale);
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(timescale, MediaTime.TicksPerSecond);
+        _timescale = timescale;
+    }
+
+    /// <summary>Units per second the timeline is quantized to.</summary>
+    public long Timescale => _timescale;
+
+    /// <summary>The sample time (100 ns) of the held frame, or <see cref="None"/>.</summary>
+    public long HeldTime => _heldUnits == None ? None : UnitsToTicks(_heldUnits);
+
+    public bool HasHeld => _heldUnits != None;
+
+    /// <summary>
+    /// The media timescale Media Foundation's MP4 sink gives a video track encoded at <paramref name="frameRate"/>
+    /// fps (frame rate N/1): N * 1000 units per second, as read back from the files it writes (mdhd).
+    /// </summary>
+    public static long SinkTimescale(int frameRate)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(frameRate);
+        return frameRate * 1000L;
+    }
+
+    /// <summary>
+    /// Holds a new frame with sample time <paramref name="sampleTime"/> (100 ns, relative to the segment start). True
+    /// when a frame was held before: that frame must now be written with <paramref name="heldTime"/> and
+    /// <paramref name="heldDuration"/> (it lasts until the new frame).
+    /// </summary>
+    public bool Advance(long sampleTime, out long heldTime, out long heldDuration)
+    {
+        if (_heldUnits == None)
+        {
+            heldTime = 0;
+            heldDuration = 0;
+            _heldUnits = 0; // the first frame stands for the picture since the segment start
+            return false;
+        }
+
+        var end = Math.Max(TicksToUnits(sampleTime), _heldUnits + 1);
+        Emit(_heldUnits, end, out heldTime, out heldDuration);
+        _heldUnits = end;
+        return true;
+    }
+
+    /// <summary>
+    /// Ends the timeline at <paramref name="endTime"/> (100 ns, relative to the segment start). True when a frame was
+    /// held: it must be written with <paramref name="heldTime"/> and <paramref name="heldDuration"/> (it lasts until
+    /// the end, at least one unit).
+    /// </summary>
+    public bool Close(long endTime, out long heldTime, out long heldDuration)
+    {
+        if (_heldUnits == None)
+        {
+            heldTime = 0;
+            heldDuration = 0;
+            return false;
+        }
+
+        Emit(_heldUnits, Math.Max(TicksToUnits(endTime), _heldUnits + 1), out heldTime, out heldDuration);
+        _heldUnits = None;
+        return true;
+    }
+
+    /// <summary>Forgets the held frame (its sample was released without being written).</summary>
+    public void Discard() => _heldUnits = None;
+
+    /// <summary>100 ns ticks to the nearest whole unit (negative times count as 0).</summary>
+    public long TicksToUnits(long ticks) =>
+        ticks <= 0 ? 0 : ((ticks * _timescale) + (MediaTime.TicksPerSecond / 2)) / MediaTime.TicksPerSecond;
+
+    /// <summary>
+    /// Whole units to 100 ns ticks, rounded up: converting the result back to units (rounding to nearest or truncating,
+    /// as a sink may do) gives <paramref name="units"/> again.
+    /// </summary>
+    public long UnitsToTicks(long units) =>
+        ((units * MediaTime.TicksPerSecond) + _timescale - 1) / _timescale;
+
+    private void Emit(long startUnits, long endUnits, out long time, out long duration)
+    {
+        time = UnitsToTicks(startUnits);
+        duration = UnitsToTicks(endUnits - startUnits);
     }
 }
 
 /// <summary>
 /// The placeholder frame of a segment in which no sample reached the encoder (WGC delivered no frame: headless or
 /// non-composited session, locked workstation, every frame dropped). Media Foundation refuses to finalize an MP4 without
-/// samples (MF_E_SINK_NO_SAMPLES_PROCESSED), so the encoder thread writes one opaque black frame at sample time 0 and
-/// the segment becomes a valid one-frame file (if Finalize still fails, the segment ends empty: see
-/// <see cref="SegmentCompletion"/>). It is not counted as captured or encoded, so
+/// samples (MF_E_SINK_NO_SAMPLES_PROCESSED), so the encoder thread writes one opaque black frame at sample time 0 that
+/// lasts until the end of the segment, and the segment becomes a valid one-frame file of the segment's length (if
+/// Finalize still fails, the segment ends empty: see <see cref="SegmentCompletion"/>). It is not counted as captured or encoded, so
 /// <see cref="Murmur.Core.Capture.ScreenRecorderStats.FramesCaptured"/> == 0 still tells callers nothing was captured.
 /// Pure and allocation-free.
 /// </summary>
@@ -177,7 +285,7 @@ internal static class PlaceholderFrame
     public const uint OpaqueBlackBgra = 0xFF000000;
 
     /// <summary>
-    /// True when the placeholder must be written before Finalize: nothing was written to the sink writer and the writer
+    /// True when the placeholder must be written before Finalize: no sample reached the timeline and the writer
     /// is still healthy (a failed writer would reject the placeholder as well; its fault has already been raised).
     /// </summary>
     public static bool ShouldWrite(bool anySampleWritten, bool writerHealthy) => !anySampleWritten && writerHealthy;

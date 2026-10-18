@@ -28,48 +28,57 @@ public sealed class PlaceholderFrameTests
     }
 
     [Fact]
-    public void EmptySegment_GetsNoTail_ButOnePlaceholder()
+    public void EmptySegment_GetsOnePlaceholder_ThatLastsTheWholeSegment()
     {
-        // Mirrors the encoder thread at stop: the tail is decided first (there is no last frame, so none),
-        // then the placeholder is written so Finalize has one sample; the file is exactly one frame long.
-        var frame = MediaTime.FrameDuration(30);
+        // Mirrors the encoder thread at stop: nothing is held, so the placeholder is held at sample time 0 and the
+        // end of the segment fixes its duration: the one-frame file is as long as the segment (audio stays in sync).
         var timeline = new SegmentTimeline();
+        var timing = new HeldFrameTiming(MediaTime.TicksPerSecond);
         const long start = 10 * Second;
         timeline.Reset(start);
+        var end = RepeatPolicy.EndTicks(stopRequested: true, start + (3 * Second), RepeatPolicy.NoFault, now: start + (4 * Second));
 
-        var tail = RepeatPolicy.TryGetTail(false, true, start + (3 * Second), RepeatPolicy.NoFault, frame, timeline.Start, timeline.LastSampleTime, out _);
-        Assert.False(tail);
+        Assert.False(timing.Close(end - timeline.Start, out _, out _)); // no frame held: nothing to close
         Assert.True(PlaceholderFrame.ShouldWrite(anySampleWritten: false, writerHealthy: true));
-        Assert.Equal(0, timeline.ToSampleTime(PlaceholderFrame.CaptureTicks(timeline)));
+        Assert.False(timing.Advance(timeline.ToSampleTime(PlaceholderFrame.CaptureTicks(timeline)), out _, out _));
+        Assert.True(timing.Close(end - timeline.Start, out var time, out var duration));
+        Assert.Equal(0, time);
+        Assert.Equal(3 * Second, duration);
     }
 
     [Fact]
-    public void FaultBeforeTheFirstFrame_StillGetsAPlaceholder()
+    public void FaultBeforeTheFirstFrame_StillGetsAPlaceholder_EndingAtTheFault()
     {
-        // A display unplugged before WGC delivered anything: no repeat, no tail, but the file must still finalize.
-        var frame = MediaTime.FrameDuration(30);
+        // A display unplugged before WGC delivered anything: no repeat, but the file must still finalize, and its
+        // placeholder lasts until the fault, not until the stop.
         const long start = 0;
         const long fault = Second;
         Assert.False(RepeatPolicy.ShouldRepeat(false, true, false, 2 * Second, 0, fault, Second));
-        Assert.False(RepeatPolicy.TryGetTail(false, true, 5 * Second, fault, frame, start, -1, out _));
         Assert.True(PlaceholderFrame.ShouldWrite(anySampleWritten: false, writerHealthy: true));
+
+        var timing = new HeldFrameTiming(MediaTime.TicksPerSecond);
+        timing.Advance(0, out _, out _);
+        Assert.True(timing.Close(RepeatPolicy.EndTicks(true, 5 * Second, fault, 6 * Second) - start, out _, out var duration));
+        Assert.Equal(Second, duration);
     }
 
     [Fact]
     public void StaticScreenRepeats_AreUnaffected_OnceRealFramesArrive()
     {
-        // The first real frame arrives late (static screen at start): repeats and the tail work as before and no
-        // placeholder is written.
-        var frame = MediaTime.FrameDuration(30);
+        // The first real frame arrives late (static screen at start): it stands for the picture since the segment
+        // start, repeats work as before and no placeholder is written.
         var timeline = new SegmentTimeline();
+        var timing = new HeldFrameTiming(MediaTime.TicksPerSecond);
         const long start = 0;
         timeline.Reset(start);
 
-        var first = timeline.ToSampleTime(4 * Second);
-        Assert.Equal(4 * Second, first);
+        Assert.False(timing.Advance(timeline.ToSampleTime(4 * Second), out _, out _));
+        Assert.Equal(0, timing.HeldTime);
         Assert.True(RepeatPolicy.ShouldRepeat(true, true, true, 5 * Second, 4 * Second, RepeatPolicy.NoFault, Second));
-        Assert.True(RepeatPolicy.TryGetTail(true, true, 10 * Second, RepeatPolicy.NoFault, frame, start, timeline.LastSampleTime, out var tail));
-        Assert.Equal((10 * Second) - frame, tail);
+        Assert.True(timing.Advance(timeline.ToSampleTime(5 * Second), out var time, out var duration));
+        Assert.Equal((0L, 5 * Second), (time, duration));
+        Assert.True(timing.Close((10 * Second) - start, out time, out duration));
+        Assert.Equal((5 * Second, 5 * Second), (time, duration));
         Assert.False(PlaceholderFrame.ShouldWrite(anySampleWritten: true, writerHealthy: true));
     }
 

@@ -21,6 +21,11 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- The MP4 reader of scripts/check-recording.ps1: the recorded files must pass the same duration check. -->
+    <Compile Include="..\..\scripts\MurmurMp4Scan.cs" Link="MurmurMp4Scan.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\..\src\Murmur.Capture.Windows\Murmur.Capture.Windows.csproj" />
   </ItemGroup>
 
