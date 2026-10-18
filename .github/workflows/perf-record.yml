@@ -1,6 +1,7 @@
 name: perf-record
 
-# Long recording on a GitHub-hosted Windows runner with a virtual sound card (Scream) and a looping tone:
+# Long recording on a GitHub-hosted Windows runner with a virtual sound card (VB-Audio Virtual Cable) and a
+# looping tone:
 #   Run A: audio only for <minutes> minutes (default 60)  -> no losses, CPU < 3%, RAM < 150 MB
 #   Run B: audio + screen for 10 minutes (if `screen`)    -> no losses, CPU < 8%, RAM < 150 MB
 # Idle CPU < 1% is checked on both runs. Budgets come from docs/PLAN.md. Cloud runners are slower and noisier than a
@@ -81,7 +82,7 @@ jobs:
           dotnet publish src/Murmur.Desktop -c Release -f net11.0-windows10.0.22621.0 -r win-x64 -o artifacts/publish/win-x64
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
-      - name: Virtual audio device (Scream)
+      - name: Virtual audio device (VB-CABLE)
         id: audio
         continue-on-error: true
         uses: LABSN/sound-ci-helpers@v1

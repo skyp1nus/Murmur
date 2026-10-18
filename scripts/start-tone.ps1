@@ -8,8 +8,8 @@
     Makes sure the Windows Audio service is running, generates the tone WAV (scripts/gen-tone.ps1) if it
     does not exist, then starts a separate hidden pwsh process that calls
     System.Media.SoundPlayer.PlayLooping() on the default render device and stays alive for -DurationS seconds.
-    The default render device is expected to be the virtual sound card (Scream) installed earlier in the job;
-    WASAPI loopback capture in Murmur then records this tone.
+    The default render device is expected to be the virtual sound card (VB-Audio Virtual Cable) installed
+    earlier in the job; WASAPI loopback capture in Murmur then records this tone.
 
     The PID of the player process is written to -PidFile so a later step can stop it (Stop-Process -Id).
     If the pwsh child dies right away (SoundPlayer unavailable in that host) the script falls back to

@@ -223,8 +223,9 @@ jobs:
           if-no-files-found: warn
           retention-days: 14
 
-  # End-to-end capture on a runner without real audio hardware: a virtual sound card (Scream) gives WASAPI a
-  # render endpoint, a looping 440 Hz tone is played into it and Murmur records it through WASAPI loopback.
+  # End-to-end capture on a runner without real audio hardware: a virtual sound card (VB-Audio Virtual Cable)
+  # gives WASAPI a render endpoint, a looping 440 Hz tone is played into it and Murmur records it through
+  # WASAPI loopback.
   capture-e2e:
     name: capture e2e (win-x64, virtual audio)
     needs: windows
@@ -261,9 +262,9 @@ jobs:
           key: nuget-${{ runner.os }}-${{ hashFiles('Directory.Packages.props', '**/*.csproj') }}
           restore-keys: nuget-${{ runner.os }}-
 
-      # Installs the Scream virtual sound card and starts the Windows Audio service. Allowed to fail: the
-      # failure is reported in the summary ("no audio device") and the recording checks decide the verdict.
-      - name: Virtual audio device (Scream)
+      # Installs the VB-Audio Virtual Cable sound card and starts the Windows Audio service. Allowed to fail:
+      # the failure is reported in the summary ("no audio device") and the recording checks decide the verdict.
+      - name: Virtual audio device (VB-CABLE)
         id: audio
         continue-on-error: true
         uses: LABSN/sound-ci-helpers@v1

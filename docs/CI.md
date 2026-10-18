@@ -11,7 +11,7 @@ SDK береться з `global.json` (prerelease `11.0.100-rc.2.26504.105`, `ro
 | `linux` | ubuntu-latest, 30 хв | `dotnet build`, `dotnet test`, Native AOT publish `Murmur.Desktop` (`net11.0`) і `Murmur.Transcription` для linux-x64. Джоб іде в `bash` з `pipefail` (`defaults.run.shell: bash`), тож невдалий publish за `| tee` валить крок. Якщо в логу publish є рядок `: warning ` або `: error ` (зокрема IL2xxx/IL3xxx; через `TreatWarningsAsErrors` попередження стають помилками) - крок червоний. |
 | `windows` | windows-latest, 45 хв | `dotnet build`, `dotnet test`, Native AOT publish win-x64 (`Murmur.exe` і `Murmur.Transcription.exe` в одну теку), той самий gate на попередження й помилки, таблиця розмірів у Step Summary, артефакт `murmur-win-x64`. |
 | `startup` | windows-latest, після `windows` | Завантажує `murmur-win-x64`, запускає `scripts/measure-startup.ps1` (7 запусків, бюджет 400 мс за медіаною). Падає, якщо медіана більша за бюджет або хоч один запуск не вдався. |
-| `capture-e2e` | windows-latest, після `windows`, 30 хв | End-to-end запис на раннері без звукової карти: віртуальна карта Scream, зациклений тон 440 Гц, `Murmur.exe --autorecord 60 --screen`. Деталі - у розділі «Capture e2e» нижче. |
+| `capture-e2e` | windows-latest, після `windows`, 30 хв | End-to-end запис на раннері без звукової карти: віртуальна карта VB-Audio Virtual Cable, зациклений тон 440 Гц, `Murmur.exe --autorecord 60 --screen`. Деталі - у розділі «Capture e2e» нижче. |
 | `bench` | windows-latest, 40 хв | BenchmarkDotNet (`--job short`), усі `*-report-github.md` додаються до Step Summary. |
 
 Тести йдуть через Microsoft.Testing.Platform (`global.json`), тому TRX вмикається прапорцем `--report-xunit-trx` (VSTest-прапорець `--logger trx` у цій конфігурації дає exit code 5).
@@ -81,9 +81,9 @@ gh run download <run-id> --name murmur-win-x64 --dir murmur-win-x64
 Кроки джоба:
 
 1. Завантажує `murmur-win-x64` з джоба `windows`.
-2. `LABSN/sound-ci-helpers@v1` ставить віртуальну звукову карту Scream і запускає службу Windows Audio. Крок `continue-on-error`: якщо він упав, у Step Summary з'являється рядок **no audio device**, а перевірки запису самі покажуть наслідки.
+2. `LABSN/sound-ci-helpers@v1` ставить віртуальну звукову карту VB-Audio Virtual Cable (VB-CABLE) і запускає службу Windows Audio. Крок `continue-on-error`: якщо він упав, у Step Summary з'являється рядок **no audio device**, а перевірки запису самі покажуть наслідки.
 3. `scripts/ensure-media-foundation.ps1`: `Get-WindowsFeature Server-Media-Foundation`, якщо не встановлено - `Install-WindowsFeature`. Статус (`present`, `installed`, `installed-restart-needed`, `install-failed`, `unsupported-sku`) іде в Summary. Скрипт ніколи не валить джоб.
-4. `scripts/start-tone.ps1` генерує тон (`scripts/gen-tone.ps1`: 16-bit, 48 кГц, стерео, 440 Гц, 10 с, амплітуда 0.5) і запускає в окремому прихованому процесі `pwsh` `System.Media.SoundPlayer.PlayLooping()` на пристрої за замовчуванням (Scream). Якщо `pwsh`-дитина помирає одразу - запасний варіант `powershell.exe` 5.1. PID пишеться в `artifacts/tone/tone.pid`, крок `Stop tone` (`if: always()`) його зупиняє.
+4. `scripts/start-tone.ps1` генерує тон (`scripts/gen-tone.ps1`: 16-bit, 48 кГц, стерео, 440 Гц, 10 с, амплітуда 0.5) і запускає в окремому прихованому процесі `pwsh` `System.Media.SoundPlayer.PlayLooping()` на пристрої за замовчуванням (VB-CABLE). Якщо `pwsh`-дитина помирає одразу - запасний варіант `powershell.exe` 5.1. PID пишеться в `artifacts/tone/tone.pid`, крок `Stop tone` (`if: always()`) його зупиняє.
    Плеєр стартує через `Start-Process ... -WindowStyle Hidden -PassThru` **без** `-RedirectStandard*`: перенаправлення вмикає `bInheritHandles=TRUE`, і прихований плеєр успадкував би pipe-и stdout/stderr кроку; після виходу кроку runner чекає ~5 с на закриття pipe-ів і вбиває все дерево процесів кроку (тон замовкав би через кілька секунд). Тому `play-tone.ps1` сам пише лог (`try/catch` + `Out-File`) у `artifacts/tone/play-tone-<host>.log`, а `start-tone.ps1` одразу кешує `$p.Handle`, щоб `HasExited`/`ExitCode` лишалися валідними. Перед записом (`Autorecord 60 s`; у perf-record - перед `Run A` і `Run B`) крок `Tone alive` запускає `scripts/check-tone.ps1`: читає `tone.pid`, `Get-Process -Id`, пише `tone: alive` / `tone: DEAD` у Step Summary і `::warning` для мертвого плеєра, щоб тишу в записі не плутали з причиною. Верифікація на Windows-runner-і: UNVERIFIED-ON-WINDOWS.
 5. `dotnet test --project tests/Murmur.Capture.Windows.Tests -c Release`: тести з трейтом `Windows` виконуються по-справжньому, бо render-пристрій існує.
 6. `scripts/run-autorecord.ps1` запускає `Murmur.exe --autorecord 60 --screen --perf-out artifacts/perf/rec60.json`, чекає на вихід (ліміт: тривалість + 120 с, потім kill) і перевіряє код виходу та наявність JSON.
@@ -129,7 +129,7 @@ WAV читається вбудованим C#-хелпером (`Add-Type`), т
 | `minutes` | 60 | Тривалість запуску A (лише аудіо), 1-85 |
 | `screen` | true | Додатково запуск B: аудіо + екран, 10 хв |
 
-Workflow сам збирає Native AOT `Murmur.Desktop` win-x64 (без `Murmur.Transcription`, воркер для запису не потрібен), потім те саме налаштування, що й `capture-e2e` (Scream, Media Foundation, зациклений тон), і два запуски:
+Workflow сам збирає Native AOT `Murmur.Desktop` win-x64 (без `Murmur.Transcription`, воркер для запису не потрібен), потім те саме налаштування, що й `capture-e2e` (VB-CABLE, Media Foundation, зациклений тон), і два запуски:
 
 | Запуск | Команда | Бюджети (docs/PLAN.md) |
 |---|---|---|
@@ -140,7 +140,7 @@ Workflow сам збирає Native AOT `Murmur.Desktop` win-x64 (без `Murmur
 
 Хмарний раннер (4 vCPU, без GPU) повільніший і шумніший за реальний ПК: промах бюджету - сигнал до уваги, а не вирок. Для перевірки на реальному залізі запускайте `Murmur.exe --autorecord` локально.
 
-Непідтверджено запуском (UNVERIFIED-ON-ACTIONS): поведінка `LABSN/sound-ci-helpers@v1` на `windows-latest` (чи стає Scream пристроєм за замовчуванням), доступність `Server-Media-Foundation`, робота WGC на раннері без фізичного дисплея, `SoundPlayer` у `pwsh` 7.
+Підтверджено запусками на `windows-latest` (2026-10-18): `LABSN/sound-ci-helpers@v1` ставить VB-Audio Virtual Cable, і він стає пристроєм за замовчуванням (loopback записує тон 440 Гц); `Server-Media-Foundation` відсутній в образі й ставиться кроком за ~1 хв; WGC віддає кадри без фізичного дисплея (WARP, тому CPU-readback, D-027); `SoundPlayer` у `pwsh` 7 грає тон увесь запуск. Мікрофон (`CABLE Output`) заборонений налаштуваннями конфіденційності раннера → `E_ACCESSDENIED`, запис іде без мікрофона (D-023).
 
 ## AI-eval: «відповідь AI веде на правильну хвилину» (`.github/workflows/ai-eval.yml`)
 
