@@ -100,7 +100,7 @@ internal sealed class FakeOpenAiServer : IAsyncDisposable
         {
             await _loop.WaitAsync(TimeSpan.FromSeconds(5));
         }
-        catch (Exception ex) when (ex is HttpListenerException or ObjectDisposedException or InvalidOperationException or TimeoutException)
+        catch (Exception ex) when (ex is HttpListenerException or ObjectDisposedException or InvalidOperationException or ArgumentException or TimeoutException)
         {
         }
     }
@@ -123,7 +123,9 @@ internal sealed class FakeOpenAiServer : IAsyncDisposable
             {
                 context = await _listener.GetContextAsync();
             }
-            catch (Exception ex) when (ex is HttpListenerException or ObjectDisposedException or InvalidOperationException)
+            // On Windows (http.sys) a GetContextAsync that races with Stop() throws ArgumentException
+            // ("The handle is invalid") instead of HttpListenerException.
+            catch (Exception ex) when (ex is HttpListenerException or ObjectDisposedException or InvalidOperationException or ArgumentException)
             {
                 return;
             }
