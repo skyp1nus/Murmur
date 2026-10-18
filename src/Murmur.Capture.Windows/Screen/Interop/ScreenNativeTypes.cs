@@ -118,6 +118,15 @@ internal struct D3D11Texture2DDesc
     public uint MiscFlags;
 }
 
+/// <summary>d3d11.h <c>D3D11_SUBRESOURCE_DATA</c> (16 bytes on 64-bit, 12 on 32-bit).</summary>
+[StructLayout(LayoutKind.Sequential)]
+internal unsafe struct D3D11SubresourceData
+{
+    public void* SysMem;
+    public uint SysMemPitch;
+    public uint SysMemSlicePitch;
+}
+
 /// <summary>d3d11.h <c>D3D11_BOX</c> (24 bytes).</summary>
 [StructLayout(LayoutKind.Sequential)]
 internal struct D3D11Box

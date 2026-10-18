@@ -27,6 +27,14 @@ namespace Murmur.Capture.Windows.Screen;
 /// at the fault time, so the file never shows a frozen frame as if it were live content (see <see cref="RepeatPolicy"/>).
 /// </para>
 /// <para>
+/// <b>Segments without frames.</b> WGC may deliver no frame at all (headless or non-composited session, locked
+/// workstation). Media Foundation cannot finalize an MP4 without samples, so when nothing reached the encoder by the
+/// time the segment stops the encoder thread writes one opaque black frame at sample time 0 (see
+/// <see cref="PlaceholderFrame"/>): the file is a valid one-frame MP4 and stopping does not throw.
+/// <see cref="ScreenRecorderStats.FramesCaptured"/> stays 0, so callers can tell; the placeholder is counted only in
+/// <see cref="PlaceholderFrames"/>, and <see cref="FrameArrivedEvents"/> counts raw FrameArrived callbacks.
+/// </para>
+/// <para>
 /// <b>Stats.</b> <see cref="ScreenRecorderStats.FramesCaptured"/> counts frames admitted by the rate limiter (frames
 /// above the target rate are not counted), <see cref="ScreenRecorderStats.FramesEncoded"/> the captured frames handed
 /// to the encoder, <see cref="ScreenRecorderStats.FramesDropped"/> captured frames lost to back-pressure or errors;
@@ -63,6 +71,8 @@ internal sealed class WgcScreenRecorder : IScreenRecorder
     private long _framesDropped;
     private long _framesRateLimited;
     private long _framesRepeated;
+    private long _placeholderFrames;
+    private long _frameArrivedEvents;
 
     public WgcScreenRecorder(ScreenCaptureOptions options)
     {
@@ -88,6 +98,12 @@ internal sealed class WgcScreenRecorder : IScreenRecorder
 
     /// <summary>Repeated frames written for static screens and the segment tail (diagnostics).</summary>
     internal long FramesRepeated => Interlocked.Read(ref _framesRepeated);
+
+    /// <summary>Black placeholder frames written for segments in which no frame reached the encoder (diagnostics).</summary>
+    internal long PlaceholderFrames => Interlocked.Read(ref _placeholderFrames);
+
+    /// <summary>FrameArrived callbacks WGC raised, before any filtering (diagnostics: 0 means WGC delivered nothing).</summary>
+    internal long FrameArrivedEvents => Interlocked.Read(ref _frameArrivedEvents);
 
     /// <summary>The D3D11 device in use, e.g. "hardware D3D11 FL 11.1" (diagnostics; null before the first segment).</summary>
     internal string? DeviceDescription => _gpu?.Description;
@@ -123,7 +139,8 @@ internal sealed class WgcScreenRecorder : IScreenRecorder
         }
     }
 
-    /// <exception cref="COMException">Finalizing the file failed (e.g. MF_E_SINK_NO_SAMPLES_PROCESSED: no frame was captured).</exception>
+    /// <remarks>A segment in which WGC delivered no frame still finalizes (one black placeholder frame).</remarks>
+    /// <exception cref="COMException">Finalizing the file failed (encoder or disk failure; the fault was raised).</exception>
     public async ValueTask StopSegmentAsync(CancellationToken cancellationToken)
     {
         await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
@@ -256,6 +273,10 @@ internal sealed class WgcScreenRecorder : IScreenRecorder
         try
         {
             segment.Session?.Dispose();
+        }
+        catch (Exception)
+        {
+            // Closing the session of a lost device or a closed item can fail; Teardown still finalizes the file.
         }
         finally
         {
@@ -395,6 +416,7 @@ internal sealed class WgcScreenRecorder : IScreenRecorder
 
     private unsafe void OnFrameArrived(Direct3D11CaptureFramePool sender, object args)
     {
+        Interlocked.Increment(ref _frameArrivedEvents);
         if (Interlocked.CompareExchange(ref _inHandler, 1, 0) != 0)
         {
             return; // another invocation is draining the pool
@@ -585,6 +607,12 @@ internal sealed class WgcScreenRecorder : IScreenRecorder
                 Interlocked.Increment(ref _framesDropped);
             }
 
+            // Media Foundation cannot finalize a file without samples: give an empty segment a black frame at time 0.
+            if (PlaceholderFrame.ShouldWrite(segment.LastSample != 0, segment.WriterHealthy))
+            {
+                WritePlaceholder(segment);
+            }
+
             ComCall.Release(ref segment.LastSample);
             segment.FinalizeResult = segment.Writer is { } writer ? writer.FinalizeFile() : ScreenConstants.EFail;
         }
@@ -602,7 +630,7 @@ internal sealed class WgcScreenRecorder : IScreenRecorder
                 continue;
             }
 
-            Write(segment, queued.Sample, queued.Ticks, repeated: false);
+            Write(segment, queued.Sample, queued.Ticks, SampleKind.Captured);
         }
     }
 
@@ -626,11 +654,47 @@ internal sealed class WgcScreenRecorder : IScreenRecorder
             return;
         }
 
-        Write(segment, sample, ticks, repeated: true);
+        Write(segment, sample, ticks, SampleKind.Repeated);
+    }
+
+    /// <summary>Writes the black placeholder frame at sample time 0 (see <see cref="PlaceholderFrame"/>). Never throws.</summary>
+    private unsafe void WritePlaceholder(Segment segment)
+    {
+        nint sample = 0;
+        try
+        {
+            var hr = IMFVideoSampleAllocatorEx.AllocateSample(segment.Allocator, &sample);
+            if (hr < 0 || sample == 0)
+            {
+                RaiseFault(segment, $"No frame was captured and the placeholder sample could not be allocated: {ComHelpers.Describe(hr)}", isFatal: true);
+                return;
+            }
+
+            lock (segment.CopyLock)
+            {
+                hr = segment.Copier!.FillBlack(sample);
+            }
+
+            if (hr < 0)
+            {
+                ComCall.Release(ref sample);
+                RaiseFault(segment, $"No frame was captured and the placeholder frame could not be drawn: {ComHelpers.Describe(hr)}", isFatal: true);
+                return;
+            }
+
+            var owned = sample;
+            sample = 0; // Write takes ownership
+            Write(segment, owned, PlaceholderFrame.CaptureTicks(segment.Timeline), SampleKind.Placeholder);
+        }
+        catch (Exception ex)
+        {
+            ComCall.Release(ref sample);
+            RaiseFault(segment, "No frame was captured and the placeholder frame failed: " + ex.Message, isFatal: true);
+        }
     }
 
     /// <summary>Timestamps and writes one sample; takes ownership of <paramref name="sample"/>.</summary>
-    private void Write(Segment segment, nint sample, long ticks, bool repeated)
+    private void Write(Segment segment, nint sample, long ticks, SampleKind kind)
     {
         var time = segment.Timeline.ToSampleTime(ticks);
         IMFSample.SetSampleTime(sample, time);
@@ -641,7 +705,7 @@ internal sealed class WgcScreenRecorder : IScreenRecorder
             ComCall.Release(ref sample);
             segment.WriterHealthy = false;
             segment.Accepting = false;
-            if (!repeated)
+            if (kind == SampleKind.Captured)
             {
                 Interlocked.Increment(ref _framesDropped);
             }
@@ -650,13 +714,17 @@ internal sealed class WgcScreenRecorder : IScreenRecorder
             return;
         }
 
-        if (repeated)
+        switch (kind)
         {
-            Interlocked.Increment(ref _framesRepeated);
-        }
-        else
-        {
-            Interlocked.Increment(ref _framesEncoded);
+            case SampleKind.Captured:
+                Interlocked.Increment(ref _framesEncoded);
+                break;
+            case SampleKind.Repeated:
+                Interlocked.Increment(ref _framesRepeated);
+                break;
+            default:
+                Interlocked.Increment(ref _placeholderFrames);
+                break;
         }
 
         ComCall.Release(ref segment.LastSample);
@@ -683,6 +751,13 @@ internal sealed class WgcScreenRecorder : IScreenRecorder
     }
 
     private readonly record struct QueuedFrame(nint Sample, long Ticks);
+
+    private enum SampleKind
+    {
+        Captured,
+        Repeated,
+        Placeholder,
+    }
 
     /// <summary>Everything that lives for one segment.</summary>
     private sealed class Segment(int frameRate)

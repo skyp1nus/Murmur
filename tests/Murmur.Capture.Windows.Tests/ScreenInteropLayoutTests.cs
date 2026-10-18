@@ -28,6 +28,7 @@ public sealed unsafe class ScreenInteropLayoutTests
         Assert.Equal(8, sizeof(SizeInt32Abi));
         Assert.Equal(44, sizeof(D3D11Texture2DDesc));
         Assert.Equal(24, sizeof(D3D11Box));
+        Assert.Equal(IntPtr.Size == 8 ? 16 : 12, sizeof(D3D11SubresourceData));
         Assert.Equal(40, sizeof(D3D11VideoProcessorContentDesc));
         Assert.Equal(16, sizeof(D3D11VideoProcessorInputViewDesc));
         Assert.Equal(16, sizeof(D3D11VideoProcessorOutputViewDesc));

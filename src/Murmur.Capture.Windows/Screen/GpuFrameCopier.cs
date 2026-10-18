@@ -1,3 +1,4 @@
+using System.Runtime.InteropServices;
 using Murmur.Capture.Windows.Screen.Interop;
 
 namespace Murmur.Capture.Windows.Screen;
@@ -111,6 +112,64 @@ internal sealed unsafe class GpuFrameCopier : IDisposable
         ref var s = ref _entries[source];
         ID3D11DeviceContext.CopySubresourceRegion(_context, d.Texture, d.Subresource, 0, 0, 0, s.Texture, s.Subresource, null);
         return ScreenConstants.SOk;
+    }
+
+    /// <summary>
+    /// Fills the picture of <paramref name="sample"/> with opaque black (the placeholder frame of a segment in which no
+    /// frame was captured). Not a hot path: it creates a temporary encoder-size texture from zeroed CPU memory, copies
+    /// it on the GPU and releases it again. Returns an HRESULT.
+    /// </summary>
+    public int FillBlack(nint sample)
+    {
+        var hr = GetEntry(sample, out var index);
+        if (hr < 0)
+        {
+            return hr;
+        }
+
+        ref var entry = ref _entries[index];
+        if (!entry.CanCopy)
+        {
+            return ScreenConstants.EFail;
+        }
+
+        var pixels = PlaceholderFrame.PixelCount(_encoder);
+        var memory = (uint*)NativeMemory.Alloc((nuint)pixels, sizeof(uint));
+        nint black = 0;
+        try
+        {
+            new Span<uint>(memory, checked((int)pixels)).Fill(PlaceholderFrame.OpaqueBlackBgra);
+            var desc = new D3D11Texture2DDesc
+            {
+                Width = (uint)_encoder.Width,
+                Height = (uint)_encoder.Height,
+                MipLevels = 1,
+                ArraySize = 1,
+                Format = ScreenConstants.DxgiFormatB8G8R8A8Unorm,
+                SampleDesc = new DxgiSampleDesc { Count = 1 },
+                Usage = ScreenConstants.D3D11UsageDefault,
+                BindFlags = ScreenConstants.D3D11BindShaderResource,
+            };
+            var data = new D3D11SubresourceData
+            {
+                SysMem = memory,
+                SysMemPitch = PlaceholderFrame.RowPitch(_encoder.Width),
+                SysMemSlicePitch = 0,
+            };
+            hr = ID3D11Device.CreateTexture2D(_device, &desc, &data, &black);
+            if (hr < 0)
+            {
+                return hr;
+            }
+
+            ID3D11DeviceContext.CopySubresourceRegion(_context, entry.Texture, entry.Subresource, 0, 0, 0, black, 0, null);
+            return ScreenConstants.SOk;
+        }
+        finally
+        {
+            ComCall.Release(ref black);
+            NativeMemory.Free(memory);
+        }
     }
 
     private int Blit(ref Entry entry, nint source, PixelSize texture)

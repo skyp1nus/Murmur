@@ -161,3 +161,45 @@ internal static class RepeatPolicy
         return hasLastFrame && writerHealthy && tailTicks - timelineStart > lastSampleTime + (frameDuration / 2);
     }
 }
+
+/// <summary>
+/// The placeholder frame of a segment in which no sample reached the encoder (WGC delivered no frame: headless or
+/// non-composited session, locked workstation, every frame dropped). Media Foundation refuses to finalize an MP4 without
+/// samples (MF_E_SINK_NO_SAMPLES_PROCESSED), so the encoder thread writes one opaque black frame at sample time 0 and
+/// the segment becomes a valid one-frame file. It is not counted as captured or encoded, so
+/// <see cref="Murmur.Core.Capture.ScreenRecorderStats.FramesCaptured"/> == 0 still tells callers nothing was captured.
+/// Pure and allocation-free.
+/// </summary>
+internal static class PlaceholderFrame
+{
+    /// <summary>One B8G8R8A8 pixel of opaque black, read as a little-endian uint (B, G, R = 0, A = 255).</summary>
+    public const uint OpaqueBlackBgra = 0xFF000000;
+
+    /// <summary>
+    /// True when the placeholder must be written before Finalize: nothing was written to the sink writer and the writer
+    /// is still healthy (a failed writer would reject the placeholder as well; its fault has already been raised).
+    /// </summary>
+    public static bool ShouldWrite(bool anySampleWritten, bool writerHealthy) => !anySampleWritten && writerHealthy;
+
+    /// <summary>Capture time (QPC, 100 ns) of the placeholder: the segment start, i.e. sample time 0.</summary>
+    public static long CaptureTicks(SegmentTimeline timeline)
+    {
+        ArgumentNullException.ThrowIfNull(timeline);
+        return timeline.Start;
+    }
+
+    /// <summary>Bytes per row of a B8G8R8A8 picture <paramref name="width"/> pixels wide.</summary>
+    public static uint RowPitch(int width)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(width);
+        return checked((uint)width * 4);
+    }
+
+    /// <summary>Pixels of a picture of <paramref name="size"/>.</summary>
+    public static long PixelCount(PixelSize size)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(size.Width, nameof(size));
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(size.Height, nameof(size));
+        return (long)size.Width * size.Height;
+    }
+}

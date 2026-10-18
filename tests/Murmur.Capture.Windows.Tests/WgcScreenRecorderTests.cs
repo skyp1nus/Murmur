@@ -57,6 +57,9 @@ internal static unsafe class ScreenTestEnvironment
 
 public sealed class WgcScreenRecorderTests(ITestOutputHelper output)
 {
+    internal const string NoFramesSkipMessage =
+        "Windows.Graphics.Capture delivered no frames on this machine (headless session?) — encoder path verified with a black frame only";
+
     private static readonly TimeSpan DurationTolerance = TimeSpan.FromMilliseconds(500);
 
     [Theory]
@@ -142,20 +145,24 @@ public sealed class WgcScreenRecorderTests(ITestOutputHelper output)
             var elapsed = await RecordAsync(recorder, path, TimeSpan.FromSeconds(3));
 
             var stats = recorder.Stats;
-            output.WriteLine($"{stats} device='{recorder.DeviceDescription}' encoderSize={recorder.LastEncoderSize} rateLimited={recorder.FramesRateLimited} repeated={recorder.FramesRepeated} wall={elapsed.TotalSeconds:F3} s");
+            output.WriteLine($"{stats} device='{recorder.DeviceDescription}' encoderSize={recorder.LastEncoderSize} frameArrived={recorder.FrameArrivedEvents} rateLimited={recorder.FramesRateLimited} repeated={recorder.FramesRepeated} placeholders={recorder.PlaceholderFrames} wall={elapsed.TotalSeconds:F3} s");
             Assert.Empty(faults);
             var length = new FileInfo(path).Length;
             output.WriteLine($"file {length} bytes");
-            Assert.True(length > 10 * 1024, $"segment is only {length} bytes");
-            Assert.True(stats.FramesCaptured >= 1 && stats.FramesEncoded >= 1, stats.ToString());
             Assert.True(stats.FramesCaptured >= stats.FramesEncoded + stats.FramesDropped);
             Assert.NotEqual(EncoderNaming.None, stats.Encoder);
 
+            // The file must be a playable H.264 MP4 in every case, including the black placeholder of an empty segment.
             var probe = Mp4Probe.Read(path);
             output.WriteLine(probe.ToString());
             Assert.Equal(ScreenConstants.MfVideoFormatH264, probe.VideoSubtype);
             Assert.True(probe.Frames >= 1);
             Assert.Equal(recorder.LastEncoderSize, new PixelSize(probe.Width, probe.Height));
+            SkipIfNoFramesCaptured(recorder, stats.FramesCaptured, probe);
+
+            Assert.True(length > 10 * 1024, $"segment is only {length} bytes");
+            Assert.True(stats.FramesEncoded >= 1, stats.ToString());
+            Assert.Equal(0, recorder.PlaceholderFrames);
             AssertDuration(TimeSpan.FromSeconds(3), probe);
         }
         finally
@@ -181,16 +188,33 @@ public sealed class WgcScreenRecorderTests(ITestOutputHelper output)
             await RecordAsync(recorder, paths[1], TimeSpan.FromSeconds(1.5));
             var second = recorder.Stats;
 
-            output.WriteLine($"after 1: {first}; after 2: {second}");
+            output.WriteLine($"after 1: {first}; after 2: {second}; frameArrived={recorder.FrameArrivedEvents} placeholders={recorder.PlaceholderFrames}");
             Assert.Empty(faults);
-            Assert.True(second.FramesEncoded > first.FramesEncoded, "the second segment encoded nothing");
-            foreach (var path in paths)
+            var probes = new Mp4ProbeResult[paths.Length];
+            for (var i = 0; i < paths.Length; i++)
             {
-                var probe = Mp4Probe.Read(path);
-                output.WriteLine($"{Path.GetFileName(path)}: {new FileInfo(path).Length} bytes, {probe}");
+                var probe = probes[i] = Mp4Probe.Read(paths[i]);
+                output.WriteLine($"{Path.GetFileName(paths[i])}: {new FileInfo(paths[i]).Length} bytes, {probe}");
                 Assert.Equal(ScreenConstants.MfVideoFormatH264, probe.VideoSubtype);
                 Assert.True(probe.Frames >= 1);
                 Assert.True(probe.Height <= 720);
+            }
+
+            var emptySegments = (first.FramesCaptured == 0 ? 1 : 0) + (second.FramesCaptured == first.FramesCaptured ? 1 : 0);
+            Assert.Equal(emptySegments, recorder.PlaceholderFrames);
+            if (emptySegments > 0)
+            {
+                foreach (var probe in probes)
+                {
+                    Assert.True(probe.Frames >= 1, probe.ToString());
+                }
+
+                Assert.Skip(NoFramesSkipMessage);
+            }
+
+            Assert.True(second.FramesEncoded > first.FramesEncoded, "the second segment encoded nothing");
+            foreach (var probe in probes)
+            {
                 AssertDuration(TimeSpan.FromSeconds(1.5), probe);
             }
         }
@@ -213,6 +237,24 @@ public sealed class WgcScreenRecorderTests(ITestOutputHelper output)
 
         await Assert.ThrowsAsync<ArgumentException>(async () => await recorder.StartSegmentAsync(TempMp4(), TestContext.Current.CancellationToken));
         Assert.False(recorder.IsRecording);
+    }
+
+    /// <summary>
+    /// Never pass silently when WGC delivered nothing: the caller has verified the file; check the placeholder
+    /// bookkeeping and skip with an explicit message.
+    /// </summary>
+    private void SkipIfNoFramesCaptured(WgcScreenRecorder recorder, long framesCaptured, Mp4ProbeResult probe)
+    {
+        if (framesCaptured != 0)
+        {
+            return;
+        }
+
+        output.WriteLine($"no frames captured: frameArrived={recorder.FrameArrivedEvents}, placeholder probe {probe}");
+        Assert.Equal(0, recorder.Stats.FramesEncoded);
+        Assert.Equal(1, recorder.PlaceholderFrames);
+        Assert.Equal(1, probe.Frames);
+        Assert.Skip(NoFramesSkipMessage);
     }
 
     private static async Task<TimeSpan> RecordAsync(IScreenRecorder recorder, string path, TimeSpan duration)
