@@ -23,6 +23,7 @@ internal sealed class CompositionRoot : IDisposable
     private JobQueue? _queue;
     private SessionProcessor? _processor;
     private RecordingActivity? _activity;
+    private RecordingHeapTrimmer? _heapTrimmer;
     private LocalLlm? _llm;
     private Assistant? _assistant;
 
@@ -47,6 +48,10 @@ internal sealed class CompositionRoot : IDisposable
         var storage = _storage ??= SqliteStorage.CreateDefault();
         var capture = CreateCapture();
         var recorder = new Recorder(capture, storage, TimeProvider.System, RecorderSettings.Default);
+
+        // While a recording runs the UI's short-lived garbage is collected every 30 s instead of piling up in the working
+        // set until the (cache-sized, up to ~50 MB) gen0 budget runs out.
+        _heapTrimmer ??= new RecordingHeapTrimmer(recorder, TimeProvider.System);
 
         // The processor follows the recorder: it pauses the queue (and stops the ASR worker, so no model sits in
         // memory) for as long as a recording runs, and queues every finished recording.
@@ -92,6 +97,7 @@ internal sealed class CompositionRoot : IDisposable
 
     public void Dispose()
     {
+        _heapTrimmer?.Dispose();
         _processor?.Dispose();
         _queue?.DisposeAsync().AsTask().GetAwaiter().GetResult();
         _activity?.Dispose();
