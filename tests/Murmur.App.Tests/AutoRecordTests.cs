@@ -56,6 +56,97 @@ public sealed class AutoRecordTests : IDisposable
     }
 
     [Fact]
+    public void Parse_NoMicAndNoSystem_LeaveThatSourceOut()
+    {
+        Assert.True(AutoRecordOptions.TryParse(["--autorecord", "5", "--no-mic", "--perf-out", "x.json"], out var options, out _));
+        Assert.False(options!.Microphone);
+        Assert.True(options.SystemAudio);
+
+        Assert.True(AutoRecordOptions.TryParse(["--autorecord", "5", "--no-system", "--perf-out", "x.json"], out options, out _));
+        Assert.True(options!.Microphone);
+        Assert.False(options.SystemAudio);
+
+        Assert.True(AutoRecordOptions.TryParse(["--autorecord", "5", "--perf-out", "x.json"], out options, out _));
+        Assert.True(options!.Microphone);
+        Assert.True(options.SystemAudio);
+    }
+
+    [Fact]
+    public void Parse_NoMicTogetherWithNoSystem_IsAnError()
+    {
+        Assert.False(AutoRecordOptions.TryParse(["--autorecord", "5", "--no-mic", "--no-system", "--perf-out", "x.json"], out var options, out var error));
+
+        Assert.Null(options);
+        Assert.Contains("--no-mic", error, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void SlopePerMinute_IsTheLeastSquaresGrowthPerMinute()
+    {
+        var growing = new double[120];
+        var flat = new double[120];
+        for (var i = 0; i < growing.Length; i++)
+        {
+            growing[i] = 100 + (i * 0.05) + (i % 2 == 0 ? 0.5 : -0.5); // 3 MB/min with jitter
+            flat[i] = 100 + (i % 2 == 0 ? 1 : -1);
+        }
+
+        Assert.Equal(3.0, AutoRecordRunner.SlopePerMinute(growing), 1);
+        Assert.Equal(0.0, AutoRecordRunner.SlopePerMinute(flat), 1);
+        Assert.Equal(0, AutoRecordRunner.SlopePerMinute([]));
+        Assert.Equal(0, AutoRecordRunner.SlopePerMinute([42]));
+        Assert.Equal(60, AutoRecordRunner.SlopePerMinute([1, 2]));
+    }
+
+    [Fact]
+    public async Task Run_ReportsTheMemoryBreakdown()
+    {
+        var path = Path.Combine(_dir, "perf.json");
+        var runner = CreateRunner(new AutoRecordOptions(2, Screen: false, path, IdleSeconds: 0));
+
+        Assert.Equal(0, await runner.RunAsync(TestContext.Current.CancellationToken));
+
+        using var doc = JsonDocument.Parse(File.ReadAllText(path));
+        var root = doc.RootElement;
+        foreach (var name in new[] { "wsSlopeMbPerMin", "privateSlopeMbPerMin", "uiThreadAllocatedMb", "samplerAllocatedMb" })
+        {
+            Assert.True(root.TryGetProperty(name, out _), name);
+        }
+
+        Assert.True(root.GetProperty("gcHeapMaxMb").GetDouble() > 0);
+        Assert.True(root.GetProperty("gcAllocatedMb").GetDouble() >= root.GetProperty("samplerAllocatedMb").GetDouble());
+
+        // One reading at the start and one for the last sample.
+        var memory = root.GetProperty("memory");
+        Assert.Equal(2, memory.GetArrayLength());
+        foreach (var sample in memory.EnumerateArray())
+        {
+            Assert.True(sample.GetProperty("wsMb").GetDouble() > 0);
+            Assert.True(sample.GetProperty("privateMb").GetDouble() > 0);
+            Assert.True(sample.GetProperty("gcHeapMb").GetDouble() > 0);
+            Assert.True(sample.GetProperty("gcAllocatedMb").GetDouble() >= 0);
+            Assert.True(sample.GetProperty("gen0Collections").GetInt32() >= 0);
+        }
+
+        Assert.True(memory[1].GetProperty("seconds").GetDouble() > memory[0].GetProperty("seconds").GetDouble());
+    }
+
+    [Theory]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    public async Task Run_LeavesOutTheSourcesTheCommandLineExcludes(bool microphone, bool systemAudio)
+    {
+        var path = Path.Combine(_dir, "perf.json");
+        var runner = CreateRunner(new AutoRecordOptions(1, Screen: false, path, IdleSeconds: 0, Microphone: microphone, SystemAudio: systemAudio));
+
+        Assert.Equal(0, await runner.RunAsync(TestContext.Current.CancellationToken));
+
+        var options = Assert.Single(_recorder.Starts);
+        Assert.Equal(microphone, options.Microphone);
+        Assert.Equal(systemAudio, options.SystemAudio);
+    }
+
+    [Fact]
     public void Parse_WithoutTheFlag_IsANormalStart()
     {
         Assert.False(AutoRecordOptions.TryParse(["--startup-probe", "p.json"], out var options, out var error));
