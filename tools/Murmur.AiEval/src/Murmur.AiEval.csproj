@@ -1,0 +1,27 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    "AI answer leads to the right minute" evaluation (phase 3): loads a fixture transcript into a temporary
+    SqliteStorage, indexes it with the real Assistant and scores the answers against planted facts.
+    Also generates that fixture deterministically (no LLM involved).
+  -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <IsPackable>false</IsPackable>
+    <AssemblyName>Murmur.AiEval</AssemblyName>
+    <RootNamespace>Murmur.AiEval</RootNamespace>
+    <!-- Not shipped, but kept reflection-free like the rest of the code base: trim/AOT analyzers on. -->
+    <IsAotCompatible>true</IsAotCompatible>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\src\Murmur.Core\Murmur.Core.csproj" />
+    <ProjectReference Include="..\..\..\src\Murmur.Storage\Murmur.Storage.csproj" />
+    <ProjectReference Include="..\..\..\src\Murmur.Intelligence\Murmur.Intelligence.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Murmur.AiEval.Tests" />
+  </ItemGroup>
+
+</Project>

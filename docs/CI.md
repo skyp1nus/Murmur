@@ -1,6 +1,6 @@
 # CI
 
-Workflow: `.github/workflows/ci.yml`. Запускається на push у `master` і `night-run`, на кожен pull request і вручну (`workflow_dispatch`). Нові запуски для тієї ж гілки скасовують попередні (`concurrency: ci-<ref>`). Права токена: лише `contents: read`.
+Workflow: `.github/workflows/ci.yml`. Запускається на push у `master` і `night-run`, на кожен pull request і вручну (`workflow_dispatch`). Нові запуски для тієї ж гілки скасовують попередні (`concurrency: ci-<ref>`). Права токена: лише `contents: read`. Окремий workflow `.github/workflows/ai-eval.yml` (AI-eval фази 3) описано в розділі «AI-eval» нижче.
 
 SDK береться з `global.json` (prerelease `11.0.100-rc.2.26504.105`, `rollForward: latestFeature`). Одного `global-json-file` недостатньо: `setup-dotnet` обрізає версію до `major.minor` і ставить те, що зараз віддає канал `11.0`. Тому в усіх кроках `setup-dotnet` додатково вказано `dotnet-version: 11.0.100-rc.2.26504.105`, а наступний крок `Verify SDK matches global.json` валить джоб, якщо `dotnet --version` не дорівнює `sdk.version` з `global.json` (UNVERIFIED-ON-ACTIONS: поведінку `setup-dotnet` не перевірено запуском). При зміні SDK в `global.json` треба оновити `dotnet-version` у `ci.yml`. NuGet-кеш: `actions/cache@v4`, ключ від `Directory.Packages.props` і `**/*.csproj`.
 
@@ -46,6 +46,7 @@ UNVERIFIED-ON-ACTIONS: workflow не запускався на GitHub Actions (Y
 | `bench` | JSON і markdown звіти BenchmarkDotNet |
 | `capture-e2e` | `rec60.json`, `check.md`, тека сесії (`session/`: `mic.wav`, `system.wav`, `screen-NNN.mp4`), TRX тестів `Murmur.Capture.Windows.Tests`, логи програвача тону |
 | `perf-record` | (окремий workflow, 30 днів) `recA.json`, `recB.json`, `checkA.md`, `checkB.md`, логи програвача тону |
+| `ai-eval-linux`, `ai-eval-windows` | `ai-eval.json`, `ai-eval.md`, лог `fetch-models.log` (workflow `ai-eval`) |
 
 ## Як завантажити `murmur-win-x64`
 
@@ -140,6 +141,51 @@ Workflow сам збирає Native AOT `Murmur.Desktop` win-x64 (без `Murmur
 Хмарний раннер (4 vCPU, без GPU) повільніший і шумніший за реальний ПК: промах бюджету - сигнал до уваги, а не вирок. Для перевірки на реальному залізі запускайте `Murmur.exe --autorecord` локально.
 
 Непідтверджено запуском (UNVERIFIED-ON-ACTIONS): поведінка `LABSN/sound-ci-helpers@v1` на `windows-latest` (чи стає Scream пристроєм за замовчуванням), доступність `Server-Media-Foundation`, робота WGC на раннері без фізичного дисплея, `SoundPlayer` у `pwsh` 7.
+
+## AI-eval: «відповідь AI веде на правильну хвилину» (`.github/workflows/ai-eval.yml`)
+
+Окремий workflow (не `ci.yml`), критерій фази 3. Запускається на push у `master` і `night-run` та вручну (`workflow_dispatch`); `concurrency: ai-eval-<ref>`.
+
+| Джоб | Раннер | Що робить |
+|---|---|---|
+| `build` | ubuntu-latest, 20 хв | `dotnet build Murmur.sln`, тести `tools/Murmur.AiEval/tests`, потім eval у режимі `--retrieval-only` без жодної моделі (BM25 за ключовими словами питань). Таблиця - у Step Summary. |
+| `ai-eval` | ubuntu-latest (4 vCPU, 16 GB), 60 хв, після `build` | `scripts/fetch-models.sh --ai` (llama.cpp `llama-server` CPU + Gemma 4 E4B Q4_K_M + EmbeddingGemma 300M Q8_0), експорт `MURMUR_LLM_MODEL` / `MURMUR_EMBED_MODEL` / `MURMUR_LLAMA_SERVER` з виводу скрипта, повний eval з `--threads $(nproc)`. Таблиця - у Step Summary, JSON і markdown - артефакт `ai-eval-linux`. Джоб червоний, якщо частка пройдених питань < 0.8 (exit code 1) або моделей немає (exit code 2). |
+| `ai-eval-windows` | windows-latest, 60 хв | Лише вручну: `workflow_dispatch` з `windows: true`. Те саме через Git Bash і win-cpu-x64 збірку llama.cpp (UNVERIFIED-ON-WINDOWS: не запускався). |
+
+Кеш моделей: `actions/cache/restore@v4` (id `models-cache`) перед `Fetch models` і `actions/cache/save@v4` одразу після нього (`if: always() && steps.fetch-models.outcome == 'success' && steps.models-cache.outputs.cache-hit != 'true'`). Звичайний `actions/cache@v4` зберігає кеш лише в post-кроці успішного джоба, тож кожен червоний eval (поріг, падіння, таймаут) викидав би ~6 ГБ завантажень. Зберігаємо тільки після успішного fetch, щоб не закешувати неповний набір. Шляхи `~/murmur-models/llama.cpp` і `~/murmur-models/gguf`, ключ `ai-models-<os>-<hash fetch-models.sh>` (зміна тегу llama.cpp, репозиторіїв або квантизації в скрипті = новий кеш). `models.json` зберігає абсолютні шляхи, тому тека моделей завжди `~/murmur-models`. Parakeet і Silero скрипт тягне щоразу (GitHub Releases, не кешуються). Для gated-репозиторіїв Hugging Face можна додати секрет `HF_TOKEN` (необов'язковий).
+
+### Фікстура і питання
+
+- `tests/fixtures/meeting-60min.json` - синтетичний 60-хвилинний мітинг українською з англійськими термінами: 651 сегмент по 3-15 с, спікери `Me`/`Others`, таймінги слів рівномірно в межах сегмента. 12 фактів закладено в точно відомі моменти (03:15 ... 57:40); їхні ключові основи слів не трапляються більше ніде (перевіряє тест).
+- `tests/fixtures/meeting-60min.questions.json` - 12 перефразованих питань (10 з відповіддю, допуск ±60 с; 2 без відповіді в записі; одне англійською). Поле `keywords` - те, що користувач ввів би в пошук; воно потрібне лише для keyword-режиму. Поле `factStems` - основи факту, одна з яких має бути у відповіді, якщо збіглася лише запасна цитата (див. нижче).
+- Обидва файли генерує детермінований `FixtureGenerator` (власний SplitMix64, без LLM). Тест `CommittedFiles_MatchTheGenerator` падає, якщо файли розійшлися з генератором. Перегенерувати:
+
+```bash
+dotnet run -c Release --project tools/Murmur.AiEval/src -- --generate-fixture tests/fixtures
+```
+
+### Як рахується результат
+
+- **Повний режим** (є chat-модель, embedding-модель і `llama-server`): тимчасовий `SqliteStorage`, сесія, `SaveTranscriptAsync`, `Assistant.IndexSessionAsync`, далі `AskAsync` для кожного питання (scope = ця сесія). Питання з відповіддю пройдене, якщо (а) модель сама написала таймкод у межах ±60 с від факту, або (б) у межах допуску лише запасна цитата топ-уривка (її `Assistant` додає, коли модель не написала таймкод; саме цей чип користувач і натисне) і відповідь справді передає факт: вона непорожня, не каже «не знайдено» і містить хоч одну з основ `factStems` (основи факту з `FixtureContent`, плюс цифри на кшталт `500`, `1,2`, `15%`; жодна не трапляється в тексті питання, перевіряє тест). Без умови (б) gate не залежав би від chat-моделі: запасна цитата потрапляє на факт щоразу, коли його знайшов пошук, і порожні відповіді давали б 10/12. Звіт показує `explicitPassed` (скільки разів правильний таймкод написала сама модель) і `conveysFact` для кожного питання. Питання без відповіді пройдене, якщо відповідь каже «в записі цього немає» (прості ключові слова UA/EN) і модель не написала жодного власного таймкоду.
+- **`--retrieval-only`**: chat-модель не потрібна. З embedding-моделлю - гібридний `SearchAsync` із текстом питання, факт має бути в топ-3 (питання без відповіді пропускаються: векторний пошук завжди щось повертає). Без моделей - BM25 з `keywords` питання; для питань без відповіді не має бути жодного збігу.
+- Exit code: 0 - частка ≥ порогу (`--threshold`, типово 0.8), 1 - нижче, 2 - помилка запуску чи відсутні моделі.
+- JSON (`--out`): `mode`, `passed`, `total`, `rate`, `explicitPassed`, `models` (імена й розміри файлів), `timings` (`saveMs`, `indexMs`, `chatLoadMs`, `avgAnswerMs`, `maxAnswerMs`, `totalMs`), `machine`, `perQuestion[]` (очікуваний час, цитати, pass, latency, time-to-first-token, відповідь).
+
+### Локальний запуск eval
+
+```bash
+# Без моделей: перевірка «труб» (keyword-only), < 2 с
+dotnet run -c Release --project tools/Murmur.AiEval/src -- \
+  --fixture tests/fixtures/meeting-60min.json --questions tests/fixtures/meeting-60min.questions.json \
+  --out artifacts/ai-eval/retrieval.json --retrieval-only
+
+# З моделями (після scripts/fetch-models.sh --ai і export рядків, які він друкує)
+dotnet run -c Release --project tools/Murmur.AiEval/src -- \
+  --fixture tests/fixtures/meeting-60min.json --questions tests/fixtures/meeting-60min.questions.json \
+  --out artifacts/ai-eval/ai-eval.json --markdown artifacts/ai-eval/ai-eval.md --threads "$(nproc)"
+```
+
+`--data-dir <dir>` залишає базу після запуску (для розбору); без нього тимчасова тека видаляється.
 
 ## Локальний запуск скриптів
 

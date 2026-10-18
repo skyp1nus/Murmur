@@ -1,0 +1,246 @@
+name: ai-eval
+
+# Phase-3 criterion: the AI answer leads to the right minute of the recording.
+# Separate from ci.yml on purpose (that workflow is changed by other tasks); see docs/CI.md.
+on:
+  push:
+    branches: [master, night-run]
+  workflow_dispatch:
+    inputs:
+      windows:
+        description: Also run the full eval on windows-latest (slow, optional)
+        type: boolean
+        default: false
+
+concurrency:
+  group: ai-eval-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  DOTNET_NOLOGO: "1"
+  DOTNET_CLI_TELEMETRY_OPTOUT: "1"
+  NUGET_PACKAGES: ${{ github.workspace }}/.nuget/packages
+  FIXTURE: tests/fixtures/meeting-60min.json
+  QUESTIONS: tests/fixtures/meeting-60min.questions.json
+
+jobs:
+  # Linux build first: the solution must build and the eval plumbing must work without any model
+  # (keyword-only retrieval) before an hour of CPU is spent on Gemma.
+  build:
+    name: build + retrieval-only eval (linux-x64)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-dotnet@v5
+        with:
+          global-json-file: global.json
+          dotnet-version: 11.0.100-rc.2.26504.105
+
+      - name: Verify SDK matches global.json
+        run: test "$(dotnet --version)" = "$(jq -r .sdk.version global.json)"
+
+      - uses: actions/cache@v4
+        with:
+          path: ${{ env.NUGET_PACKAGES }}
+          key: nuget-${{ runner.os }}-${{ hashFiles('Directory.Packages.props', '**/*.csproj') }}
+          restore-keys: nuget-${{ runner.os }}-
+
+      - name: Build
+        run: dotnet build Murmur.sln -c Release
+
+      - name: Test (Murmur.AiEval)
+        run: dotnet test --project tools/Murmur.AiEval/tests -c Release --no-build
+
+      - name: Retrieval-only eval (keyword search, no models)
+        run: |
+          mkdir -p artifacts/ai-eval
+          code=0
+          dotnet run --no-build -c Release --project tools/Murmur.AiEval/src -- \
+            --fixture "$FIXTURE" --questions "$QUESTIONS" --retrieval-only \
+            --out artifacts/ai-eval/retrieval.json --markdown artifacts/ai-eval/retrieval.md || code=$?
+          if [ -f artifacts/ai-eval/retrieval.md ]; then cat artifacts/ai-eval/retrieval.md >> "$GITHUB_STEP_SUMMARY"; fi
+          exit "$code"
+
+  ai-eval:
+    name: AI eval with Gemma 4 (linux-x64, CPU)
+    needs: build
+    # Standard GitHub-hosted Linux runner for public repositories: 4 vCPU, 16 GB RAM.
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    defaults:
+      run:
+        shell: bash
+    env:
+      # Optional, only for gated Hugging Face repositories.
+      HF_TOKEN: ${{ secrets.HF_TOKEN }}
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-dotnet@v5
+        with:
+          global-json-file: global.json
+          dotnet-version: 11.0.100-rc.2.26504.105
+
+      - name: Verify SDK matches global.json
+        run: test "$(dotnet --version)" = "$(jq -r .sdk.version global.json)"
+
+      - uses: actions/cache@v4
+        with:
+          path: ${{ env.NUGET_PACKAGES }}
+          key: nuget-${{ runner.os }}-${{ hashFiles('Directory.Packages.props', '**/*.csproj') }}
+          restore-keys: nuget-${{ runner.os }}-
+
+      # models.json records absolute paths, so the models folder must be the same path on every run.
+      - name: Models folder
+        run: echo "MURMUR_MODELS_DIR=$HOME/murmur-models" >> "$GITHUB_ENV"
+
+      # llama.cpp server + GGUF models (~6 GB); the key changes when the fetch script (tag, repos, quant) changes.
+      # Restore and save are split: actions/cache@v4 saves only when the whole job succeeds, so every red eval run
+      # would throw the downloads away. Here the cache is saved right after a successful fetch, whatever the eval does.
+      - name: Restore llama.cpp and GGUF models
+        id: models-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: |
+            ~/murmur-models/llama.cpp
+            ~/murmur-models/gguf
+          key: ai-models-${{ runner.os }}-${{ hashFiles('scripts/fetch-models.sh') }}
+
+      - name: Fetch models (--ai)
+        id: fetch-models
+        run: |
+          mkdir -p artifacts/ai-eval
+          scripts/fetch-models.sh --ai | tee artifacts/ai-eval/fetch-models.log
+          # The script ends with `export MURMUR_LLM_MODEL=...` lines (printf %q quoting; our paths need none).
+          grep -E '^export MURMUR_(LLM_MODEL|EMBED_MODEL|LLAMA_SERVER)=' artifacts/ai-eval/fetch-models.log \
+            | sed 's/^export //' >> "$GITHUB_ENV"
+          test "$(grep -cE '^export MURMUR_' artifacts/ai-eval/fetch-models.log)" -eq 3
+          du -sh "$MURMUR_MODELS_DIR"/llama.cpp "$MURMUR_MODELS_DIR"/gguf
+
+      # Only after a complete fetch (the script renames .part files atomically, but a failed run may lack a model).
+      - name: Save llama.cpp and GGUF models
+        if: always() && steps.fetch-models.outcome == 'success' && steps.models-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: |
+            ~/murmur-models/llama.cpp
+            ~/murmur-models/gguf
+          key: ai-models-${{ runner.os }}-${{ hashFiles('scripts/fetch-models.sh') }}
+
+      - name: Build Murmur.AiEval
+        run: dotnet build tools/Murmur.AiEval/src -c Release
+
+      - name: AI eval (Gemma answers, threshold 80 %)
+        run: |
+          echo "chat: $MURMUR_LLM_MODEL"
+          echo "embeddings: $MURMUR_EMBED_MODEL"
+          echo "server: $MURMUR_LLAMA_SERVER"
+          code=0
+          dotnet run --no-build -c Release --project tools/Murmur.AiEval/src -- \
+            --fixture "$FIXTURE" --questions "$QUESTIONS" --threads "$(nproc)" \
+            --out artifacts/ai-eval/ai-eval.json --markdown artifacts/ai-eval/ai-eval.md || code=$?
+          if [ -f artifacts/ai-eval/ai-eval.md ]; then
+            cat artifacts/ai-eval/ai-eval.md >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "AI eval produced no report (exit code $code)." >> "$GITHUB_STEP_SUMMARY"
+          fi
+          # 0: pass rate >= 0.8, 1: below the threshold, 2: setup error (models missing etc.).
+          exit "$code"
+
+      - name: Upload AI eval results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ai-eval-linux
+          path: artifacts/ai-eval
+          if-no-files-found: warn
+          retention-days: 14
+
+  # Optional Windows variant, manual only: same eval with the win-x64 CPU build of llama.cpp.
+  ai-eval-windows:
+    name: AI eval with Gemma 4 (win-x64, CPU)
+    needs: build
+    if: github.event_name == 'workflow_dispatch' && inputs.windows
+    runs-on: windows-latest
+    timeout-minutes: 60
+    defaults:
+      run:
+        # Git Bash: fetch-models.sh handles MINGW (win-cpu-x64 zip of llama.cpp).
+        shell: bash
+    env:
+      HF_TOKEN: ${{ secrets.HF_TOKEN }}
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-dotnet@v5
+        with:
+          global-json-file: global.json
+          dotnet-version: 11.0.100-rc.2.26504.105
+
+      - name: Verify SDK matches global.json
+        shell: pwsh
+        run: |
+          $expected = (Get-Content global.json -Raw | ConvertFrom-Json).sdk.version
+          $actual = (dotnet --version).Trim()
+          if ($actual -ne $expected) { throw "SDK mismatch: dotnet --version is $actual, global.json pins $expected" }
+
+      # Mixed form (C:/Users/...): valid for Git Bash and for the .NET tool reading the exported model paths.
+      - name: Models folder
+        run: echo "MURMUR_MODELS_DIR=$(cygpath -m "$HOME/murmur-models")" >> "$GITHUB_ENV"
+
+      # Split restore/save as in the Linux job: the downloads are cached even when the eval goes red.
+      - name: Restore llama.cpp and GGUF models
+        id: models-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: |
+            ~/murmur-models/llama.cpp
+            ~/murmur-models/gguf
+          key: ai-models-${{ runner.os }}-${{ hashFiles('scripts/fetch-models.sh') }}
+
+      - name: Fetch models (--ai)
+        id: fetch-models
+        run: |
+          mkdir -p artifacts/ai-eval
+          scripts/fetch-models.sh --ai | tee artifacts/ai-eval/fetch-models.log
+          grep -E '^export MURMUR_(LLM_MODEL|EMBED_MODEL|LLAMA_SERVER)=' artifacts/ai-eval/fetch-models.log \
+            | sed 's/^export //' >> "$GITHUB_ENV"
+          test "$(grep -cE '^export MURMUR_' artifacts/ai-eval/fetch-models.log)" -eq 3
+
+      - name: Save llama.cpp and GGUF models
+        if: always() && steps.fetch-models.outcome == 'success' && steps.models-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: |
+            ~/murmur-models/llama.cpp
+            ~/murmur-models/gguf
+          key: ai-models-${{ runner.os }}-${{ hashFiles('scripts/fetch-models.sh') }}
+
+      - name: Build Murmur.AiEval
+        run: dotnet build tools/Murmur.AiEval/src -c Release
+
+      - name: AI eval (Gemma answers, threshold 80 %)
+        run: |
+          code=0
+          dotnet run --no-build -c Release --project tools/Murmur.AiEval/src -- \
+            --fixture "$FIXTURE" --questions "$QUESTIONS" --threads "$(nproc)" \
+            --out artifacts/ai-eval/ai-eval.json --markdown artifacts/ai-eval/ai-eval.md || code=$?
+          if [ -f artifacts/ai-eval/ai-eval.md ]; then cat artifacts/ai-eval/ai-eval.md >> "$GITHUB_STEP_SUMMARY"; fi
+          exit "$code"
+
+      - name: Upload AI eval results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ai-eval-windows
+          path: artifacts/ai-eval
+          if-no-files-found: warn
+          retention-days: 14
