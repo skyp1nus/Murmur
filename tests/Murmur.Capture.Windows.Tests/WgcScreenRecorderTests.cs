@@ -142,7 +142,7 @@ public sealed class WgcScreenRecorderTests(ITestOutputHelper output)
             var elapsed = await RecordAsync(recorder, path, TimeSpan.FromSeconds(3));
 
             var stats = recorder.Stats;
-            output.WriteLine($"{stats} device='{recorder.DeviceDescription}' encoderSize={recorder.LastEncoderSize} frameArrived={recorder.FrameArrivedEvents} rateLimited={recorder.FramesRateLimited} repeated={recorder.FramesRepeated} placeholders={recorder.PlaceholderFrames} wall={elapsed.TotalSeconds:F3} s");
+            output.WriteLine($"{stats} device='{recorder.DeviceDescription}' framePath='{recorder.FramePath}' encoderSize={recorder.LastEncoderSize} frameArrived={recorder.FrameArrivedEvents} rateLimited={recorder.FramesRateLimited} repeated={recorder.FramesRepeated} placeholders={recorder.PlaceholderFrames} wall={elapsed.TotalSeconds:F3} s");
             output.WriteLine($"segment: empty={recorder.LastSegmentEmpty} {recorder.LastSegmentDiagnostic}; faults: {Describe(faults)}");
             Assert.NotEqual(EncoderNaming.None, stats.Encoder);
             SkipIfNoFramesCaptured(recorder, stats.FramesCaptured, [path], faults);
@@ -187,7 +187,8 @@ public sealed class WgcScreenRecorderTests(ITestOutputHelper output)
             await RecordAsync(recorder, paths[1], TimeSpan.FromSeconds(1.5));
             var second = recorder.Stats;
 
-            output.WriteLine($"after 1: {first}; after 2: {second}; frameArrived={recorder.FrameArrivedEvents} placeholders={recorder.PlaceholderFrames}");
+            output.WriteLine($"after 1: {first}; after 2: {second}; frameArrived={recorder.FrameArrivedEvents} placeholders={recorder.PlaceholderFrames} repeated={recorder.FramesRepeated}");
+            output.WriteLine($"device='{recorder.DeviceDescription}' framePath='{recorder.FramePath}' encoderSize={recorder.LastEncoderSize}");
             output.WriteLine($"segment 1: {firstDiagnostic}; segment 2: empty={recorder.LastSegmentEmpty} {recorder.LastSegmentDiagnostic}; faults: {Describe(faults)}");
 
             // Either segment without captured frames: skip (never pass silently), naming what happened to the segment.
@@ -218,6 +219,45 @@ public sealed class WgcScreenRecorderTests(ITestOutputHelper output)
             {
                 File.Delete(path);
             }
+        }
+    }
+
+    [Fact]
+    [Trait("Category", "Windows")]
+    public async Task Record_WithForcedCpuReadback_ProducesPlayableH264()
+    {
+        // The software-encoder path (what GPU-less machines such as windows-latest use) also on machines with a GPU.
+        var reason = ScreenTestEnvironment.SkipReason();
+        Assert.SkipWhen(reason is not null, reason ?? string.Empty);
+        var path = TempMp4();
+        try
+        {
+            await using var recorder = new WgcScreenRecorder(new ScreenCaptureOptions(FrameRate: 15, MaxHeight: 720, BitrateKbps: 4_000)) { ForceCpuReadback = true };
+            var faults = Collect(recorder);
+
+            await RecordAsync(recorder, path, TimeSpan.FromSeconds(2));
+
+            var stats = recorder.Stats;
+            output.WriteLine($"{stats} device='{recorder.DeviceDescription}' framePath='{recorder.FramePath}' encoderSize={recorder.LastEncoderSize} frameArrived={recorder.FrameArrivedEvents} repeated={recorder.FramesRepeated} placeholders={recorder.PlaceholderFrames}");
+            output.WriteLine($"segment: empty={recorder.LastSegmentEmpty} {recorder.LastSegmentDiagnostic}; faults: {Describe(faults)}");
+            Assert.Contains("CPU readback", stats.Encoder, StringComparison.Ordinal);
+            SkipIfNoFramesCaptured(recorder, stats.FramesCaptured, [path], faults);
+
+            Assert.Empty(faults);
+            Assert.False(recorder.LastSegmentEmpty, recorder.LastSegmentDiagnostic);
+            var probe = Mp4Probe.Read(path);
+            output.WriteLine(probe.ToString());
+            Assert.Equal(ScreenConstants.MfVideoFormatH264, probe.VideoSubtype);
+            Assert.True(probe.Frames >= 1);
+            Assert.True(probe.Height <= 720);
+            Assert.Equal(recorder.LastEncoderSize, new PixelSize(probe.Width, probe.Height));
+            Assert.True(stats.FramesEncoded >= 1, stats.ToString());
+            Assert.Equal(0, recorder.PlaceholderFrames);
+            AssertDuration(TimeSpan.FromSeconds(2), probe);
+        }
+        finally
+        {
+            File.Delete(path);
         }
     }
 
@@ -264,7 +304,7 @@ public sealed class WgcScreenRecorderTests(ITestOutputHelper output)
 
     private static string NoFramesSkipMessage(string? diagnostic, WgcScreenRecorder recorder, List<CaptureFault> faults) =>
         $"Windows.Graphics.Capture delivered no frames on this machine (headless CI session?); {diagnostic ?? "no diagnostic"}; "
-        + $"frameArrived={recorder.FrameArrivedEvents}; device='{recorder.DeviceDescription}'; encoder='{recorder.Stats.Encoder}'; faults: {Describe(faults)}";
+        + $"frameArrived={recorder.FrameArrivedEvents}; device='{recorder.DeviceDescription}'; framePath='{recorder.FramePath}'; encoder='{recorder.Stats.Encoder}'; faults: {Describe(faults)}";
 
     private static string Describe(List<CaptureFault> faults)
     {

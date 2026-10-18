@@ -30,6 +30,12 @@ internal static class ScreenConstants
     /// <summary>IMFDXGIBuffer (mfobjects.h).</summary>
     public static readonly Guid IidIMFDXGIBuffer = new("E7174CFA-1C9E-48B1-8866-626226BFC258");
 
+    /// <summary>IMFMediaBuffer (mfobjects.h).</summary>
+    public static readonly Guid IidIMFMediaBuffer = new("045FA593-8799-42B8-BC8D-8968C6453507");
+
+    /// <summary>IMF2DBuffer (mfobjects.h).</summary>
+    public static readonly Guid IidIMF2DBuffer = new("7DC9D5F9-9ED9-44EC-9BBF-0600BB589FBB");
+
     /// <summary>IMFVideoSampleAllocatorEx (mfidl.h).</summary>
     public static readonly Guid IidIMFVideoSampleAllocatorEx = new("545B3A48-3283-4F62-866F-A62D8F598F9F");
 
@@ -73,6 +79,15 @@ internal static class ScreenConstants
     public static readonly Guid MfMediaTypeVideo = new("73646976-0000-0010-8000-00AA00389B71");
     public static readonly Guid MfVideoFormatH264 = new("34363248-0000-0010-8000-00AA00389B71");
     public static readonly Guid MfVideoFormatArgb32 = new("00000015-0000-0010-8000-00AA00389B71");
+
+    /// <summary>MFVideoFormat_RGB32 (D3DFMT_X8R8G8B8 = 22): B, G, R, X bytes, the classic sink-writer input format.</summary>
+    public static readonly Guid MfVideoFormatRgb32 = new("00000016-0000-0010-8000-00AA00389B71");
+
+    /// <summary>MF_MT_DEFAULT_STRIDE (UINT32 holding a signed stride; positive = top-down rows).</summary>
+    public static readonly Guid MfMtDefaultStride = new("644B4E48-1E02-4516-B0EB-C01CA9D49AC6");
+
+    /// <summary>MFT_CATEGORY_VIDEO_ENCODER (mfapi.h).</summary>
+    public static readonly Guid MftCategoryVideoEncoder = new("F79EAC7D-E545-4387-BDEE-D647D7BDE42A");
     public static readonly Guid MfSaD3D11BindFlags = new("EACF97AD-065C-4408-BEE3-FDCBFD128BE2");
     public static readonly Guid MftFriendlyNameAttribute = new("314FFBAE-5B41-4C95-9C19-4E7D586FACE3");
     public static readonly Guid MftEnumHardwareUrlAttribute = new("2FB866AC-B078-4942-AB6C-003D05CDA674");
@@ -116,9 +131,27 @@ internal static class ScreenConstants
     public const int D3DFeatureLevel10_1 = 0xA100;
     public const int D3DFeatureLevel10_0 = 0xA000;
     public const uint DxgiFormatB8G8R8A8Unorm = 87;
+    public const uint DxgiFormatB8G8R8X8Unorm = 88;
+    public const uint DxgiFormatB8G8R8A8UnormSrgb = 91;
+    public const uint DxgiFormatB8G8R8X8UnormSrgb = 93;
     public const uint D3D11BindShaderResource = 0x8;
     public const uint D3D11BindRenderTarget = 0x20;
     public const uint D3D11UsageDefault = 0;
+    public const uint D3D11UsageStaging = 3;
+    public const uint D3D11CpuAccessRead = 0x2_0000;
+    public const uint D3D11MapRead = 1;
+
+    /// <summary>MFT_ENUM_FLAG_HARDWARE: hardware MFTs (GPU encoders; always asynchronous).</summary>
+    public const uint MftEnumFlagHardware = 0x4;
+
+    /// <summary>MFT_ENUM_FLAG_SORTANDFILTER: apply the merit / preferred-MFT sorting and drop blocked MFTs.</summary>
+    public const uint MftEnumFlagSortAndFilter = 0x40;
+
+    /// <summary>DXGI_ADAPTER_DESC.VendorId of Microsoft's software adapters.</summary>
+    public const uint MicrosoftVendorId = 0x1414;
+
+    /// <summary>DXGI_ADAPTER_DESC.DeviceId of the "Microsoft Basic Render Driver" (WARP behind D3D_DRIVER_TYPE_HARDWARE).</summary>
+    public const uint BasicRenderDriverDeviceId = 0x8C;
     public const uint D3D11VpivDimensionTexture2D = 1;
     public const uint D3D11VpovDimensionTexture2D = 1;
     public const uint D3D11VpovDimensionTexture2DArray = 2;
@@ -141,4 +174,12 @@ internal static class ScreenConstants
     public const int MfESinkNoSamplesProcessed = unchecked((int)0xC00D4A44);
     public const int EPointer = unchecked((int)0x80004003);
     public const int EFail = unchecked((int)0x80004005);
+    public const int ENoInterface = unchecked((int)0x80004002);
+    public const int EInvalidArg = unchecked((int)0x80070057);
+
+    /// <summary>HRESULT_FROM_WIN32(ERROR_SHARING_VIOLATION): the file is still open elsewhere.</summary>
+    public const int ESharingViolation = unchecked((int)0x80070020);
+
+    /// <summary>HRESULT_FROM_WIN32(ERROR_LOCK_VIOLATION).</summary>
+    public const int ELockViolation = unchecked((int)0x80070021);
 }

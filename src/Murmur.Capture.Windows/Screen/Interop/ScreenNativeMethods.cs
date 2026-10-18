@@ -73,6 +73,22 @@ internal static unsafe partial class ScreenNativeMethods
     [LibraryImport("mfplat.dll")]
     public static partial int MFCreateVideoSampleAllocatorEx(Guid* iid, nint* allocator);
 
+    /// <summary><c>HRESULT MFCreateSample(IMFSample **ppIMFSample)</c>.</summary>
+    [LibraryImport("mfplat.dll")]
+    public static partial int MFCreateSample(nint* sample);
+
+    /// <summary><c>HRESULT MFCreateMemoryBuffer(DWORD cbMaxLength, IMFMediaBuffer **ppBuffer)</c>.</summary>
+    [LibraryImport("mfplat.dll")]
+    public static partial int MFCreateMemoryBuffer(uint maxLength, nint* buffer);
+
+    /// <summary>
+    /// <c>HRESULT MFTEnumEx(GUID guidCategory, UINT32 Flags, const MFT_REGISTER_TYPE_INFO *pInputType,
+    /// const MFT_REGISTER_TYPE_INFO *pOutputType, IMFActivate ***pppMFTActivate, UINT32 *pnumMFTActivate)</c>. The
+    /// category GUID is passed by value (the runtime applies the platform ABI); the array is freed with CoTaskMemFree.
+    /// </summary>
+    [LibraryImport("mfplat.dll")]
+    public static partial int MFTEnumEx(Guid category, uint flags, MftRegisterTypeInfo* inputType, MftRegisterTypeInfo* outputType, nint** activates, uint* count);
+
     // ---- mfreadwrite.dll (mfreadwrite.h) ----
 
     /// <summary><c>HRESULT MFCreateSinkWriterFromURL(LPCWSTR pwszOutputURL, IMFByteStream*, IMFAttributes*, IMFSinkWriter**)</c>.</summary>

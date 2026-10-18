@@ -10,14 +10,23 @@ using Windows.Graphics.DirectX;
 namespace Murmur.Capture.Windows.Screen;
 
 /// <summary>
-/// Screen recorder: Windows.Graphics.Capture (free-threaded frame pool on a shared D3D11 device) -> GPU copy/scale
-/// into pooled D3D11 textures -> Media Foundation sink writer (H.264, hardware encoder preferred) -> fragmented MP4.
+/// Screen recorder: Windows.Graphics.Capture (free-threaded frame pool on a shared D3D11 device) -> encoder samples
+/// (see <see cref="EncoderInput"/>) -> Media Foundation sink writer (H.264) -> fragmented MP4.
+/// <para>
+/// <b>Encoder input.</b> With a hardware H.264 encoder on a real GPU the path is zero-copy: frames are copied/scaled on
+/// the GPU into pooled D3D11 textures (<see cref="GpuFrameCopier"/>) that go straight to the hardware MFT. Without one
+/// (software renderer such as WARP / the Basic Render Driver, no video support, no hardware MFT, or the hardware
+/// writer could not be set up or picked a software encoder) frames are read back into system-memory RGB32 samples
+/// (<see cref="CpuFrameCopier"/>) for the software encoder; <see cref="ScreenRecorderStats.Encoder"/> then says
+/// "CPU readback" and <see cref="FramePath"/> says why (see <see cref="FramePathPolicy"/>).
+/// </para>
 /// <para>
 /// <b>Frame path.</b> FrameArrived (WGC worker thread) drains the pool through raw ABI calls, rate-limits to
-/// <see cref="ScreenCaptureOptions.FrameRate"/>, takes a sample from an <c>IMFVideoSampleAllocatorEx</c> pool, copies
-/// the frame into its texture on the GPU and enqueues it in a bounded lock-free ring; a dedicated encoder thread
-/// timestamps (QPC timeline relative to the segment start) and writes the samples. The handler never blocks: an
-/// exhausted sample pool or a full ring drops the frame and counts it. Both loops are allocation-free in steady state.
+/// <see cref="ScreenCaptureOptions.FrameRate"/>, takes a sample from the segment's <see cref="IFramePath"/>, fills it
+/// and enqueues it in a bounded lock-free ring; a dedicated encoder thread timestamps (QPC timeline relative to the
+/// segment start) and writes the samples. The handler never blocks on the encoder: an exhausted sample pool or a full
+/// ring drops the frame and counts it. Both loops are allocation-free in steady state. A failing copy step is named in
+/// the fault (e.g. "GPU frame copy failed at QueryInterface(ID3D11VideoDevice) ...").
 /// </para>
 /// <para>
 /// <b>Static screens.</b> WGC only delivers frames when the screen changes; the encoder thread repeats the last frame
@@ -56,6 +65,10 @@ internal sealed class WgcScreenRecorder : IScreenRecorder
     internal const int QueueCapacity = 4;
     internal const uint InitialSamples = 4;
     internal const uint MaximumSamples = 12;
+
+    /// <summary>System-memory samples of the CPU path: queue + last frame + the one being filled + what the software encoder holds.</summary>
+    internal const int InitialCpuSamples = 3;
+    internal const int MaximumCpuSamples = 8;
     internal const int MaxFramesPerEvent = 4;
     internal static readonly long RepeatInterval = MediaTime.TicksPerSecond;
     private const int EncoderWaitMilliseconds = 250;
@@ -114,6 +127,15 @@ internal sealed class WgcScreenRecorder : IScreenRecorder
 
     /// <summary>Encoder frame size of the current or last segment (diagnostics).</summary>
     internal PixelSize LastEncoderSize { get; private set; }
+
+    /// <summary>
+    /// The encoder input of the current or last segment and why it was chosen, e.g. "GPU zero-copy (1 hardware H.264
+    /// encoder MFT)" or "CPU readback: software renderer ..." (diagnostics; null before the first segment).
+    /// </summary>
+    internal string? FramePath { get; private set; }
+
+    /// <summary>Tests only: use the CPU readback path even when a hardware encoder is available.</summary>
+    internal bool ForceCpuReadback { get; init; }
 
     /// <summary>True when the last stopped segment ended without a file (see <see cref="SegmentOutcome.Empty"/>).</summary>
     internal bool LastSegmentEmpty { get; private set; }
@@ -252,10 +274,8 @@ internal sealed class WgcScreenRecorder : IScreenRecorder
             segment.PoolSize = itemSize;
             segment.EncoderSize = EncoderGeometry.FitEncoderSize(itemSize.Width, itemSize.Height, _options.MaxHeight);
             LastEncoderSize = segment.EncoderSize;
-            segment.Allocator = CreateSampleAllocator(gpu.DeviceManager, segment.EncoderSize, _options.FrameRate);
-            segment.Copier = new GpuFrameCopier(gpu.Device, gpu.Context, segment.EncoderSize, _options.FrameRate);
-            segment.Writer = H264SinkWriter.Create(path, new H264EncoderSettings(segment.EncoderSize, _options.FrameRate, _options.BitrateKbps), gpu.DeviceManager);
-            _encoder = segment.Writer.Encoder;
+            FramePath = OpenEncoder(segment, gpu, path, new H264EncoderSettings(segment.EncoderSize, _options.FrameRate, _options.BitrateKbps), ForceCpuReadback);
+            _encoder = segment.Writer!.Encoder;
 
             segment.Pool = Direct3D11CaptureFramePool.CreateFreeThreaded(gpu.WinRtDevice, DirectXPixelFormat.B8G8R8A8UIntNormalized, 2, itemSize);
             segment.PoolAbi = CaptureInterop.GetFramePoolAbi(segment.Pool);
@@ -388,56 +408,51 @@ internal sealed class WgcScreenRecorder : IScreenRecorder
 
         ComCall.Release(ref segment.PoolAbi);
         segment.Writer?.Dispose();
-        segment.Copier?.Dispose();
-        if (segment.Allocator != 0)
-        {
-            IMFVideoSampleAllocatorEx.UninitializeSampleAllocator(segment.Allocator);
-            ComCall.Release(ref segment.Allocator);
-        }
-
+        segment.Frames?.Dispose(); // after the writer: Media Foundation has released the samples by now
         segment.Wake.Dispose();
     }
 
-    private static unsafe nint CreateSampleAllocator(nint deviceManager, PixelSize size, int frameRate)
+    /// <summary>
+    /// Opens the segment's sink writer and frame path: zero-copy GPU input when <see cref="FramePathPolicy"/> allows it
+    /// and the hardware writer comes up with a hardware encoder, CPU readback otherwise. Returns the
+    /// <see cref="FramePath"/> diagnostic.
+    /// </summary>
+    /// <exception cref="COMException">Not even the CPU readback configuration could be set up.</exception>
+    private static string OpenEncoder(Segment segment, GpuDevice gpu, string path, H264EncoderSettings settings, bool forceCpu)
     {
-        nint allocator = 0, attributes = 0, mediaType = 0;
-        try
+        var hardwareEncoders = !forceCpu && gpu.HasVideoSupport && !gpu.IsSoftwareRenderer ? HardwareEncoders.CountH264() : 0;
+        var reason = forceCpu
+            ? "CPU readback: forced"
+            : FramePathPolicy.Describe(gpu.HasVideoSupport, gpu.IsSoftwareRenderer, hardwareEncoders);
+        if (!forceCpu && FramePathPolicy.Choose(gpu.HasVideoSupport, gpu.IsSoftwareRenderer, hardwareEncoders) == EncoderInput.Gpu)
         {
-            var iid = ScreenConstants.IidIMFVideoSampleAllocatorEx;
-            ComHelpers.Check(ScreenNativeMethods.MFCreateVideoSampleAllocatorEx(&iid, &allocator), "MFCreateVideoSampleAllocatorEx");
-            ComHelpers.Check(IMFVideoSampleAllocatorEx.SetDirectXManager(allocator, deviceManager), "IMFVideoSampleAllocator::SetDirectXManager");
+            try
+            {
+                segment.Frames = GpuFrameCopier.Create(gpu.Device, gpu.Context, gpu.DeviceManager, settings.FrameSize, settings.FrameRate, InitialSamples, MaximumSamples);
+                segment.Writer = H264SinkWriter.Create(path, settings, EncoderInput.Gpu, gpu.DeviceManager);
+                if (segment.Writer.IsHardware != false)
+                {
+                    return reason;
+                }
 
-            ComHelpers.Check(ScreenNativeMethods.MFCreateAttributes(&attributes, 1), "MFCreateAttributes");
-            var bindKey = ScreenConstants.MfSaD3D11BindFlags;
-            ComHelpers.Check(
-                IMFAttributes.SetUINT32(attributes, &bindKey, ScreenConstants.D3D11BindRenderTarget | ScreenConstants.D3D11BindShaderResource),
-                "IMFAttributes::SetUINT32(MF_SA_D3D11_BINDFLAGS)");
+                // A hardware MFT exists, but not for this device's adapter: a software encoder fed D3D11 samples is the
+                // combination that failed on WARP, so read the frames back instead.
+                reason = "CPU readback: the zero-copy writer picked a software encoder (" + segment.Writer.Encoder + ")";
+            }
+            catch (COMException ex)
+            {
+                reason = "CPU readback: the zero-copy hardware encoder could not be set up (" + ex.Message + ")";
+            }
 
-            ComHelpers.Check(ScreenNativeMethods.MFCreateMediaType(&mediaType), "MFCreateMediaType");
-            var majorKey = ScreenConstants.MfMtMajorType;
-            var major = ScreenConstants.MfMediaTypeVideo;
-            var subtypeKey = ScreenConstants.MfMtSubtype;
-            var subtype = ScreenConstants.MfVideoFormatArgb32;
-            var sizeKey = ScreenConstants.MfMtFrameSize;
-            var rateKey = ScreenConstants.MfMtFrameRate;
-            ComHelpers.Check(IMFAttributes.SetGUID(mediaType, &majorKey, &major), "IMFAttributes::SetGUID(MF_MT_MAJOR_TYPE)");
-            ComHelpers.Check(IMFAttributes.SetGUID(mediaType, &subtypeKey, &subtype), "IMFAttributes::SetGUID(MF_MT_SUBTYPE)");
-            ComHelpers.Check(IMFAttributes.SetUINT64(mediaType, &sizeKey, EncoderGeometry.Pack((uint)size.Width, (uint)size.Height)), "IMFAttributes::SetUINT64(MF_MT_FRAME_SIZE)");
-            ComHelpers.Check(IMFAttributes.SetUINT64(mediaType, &rateKey, EncoderGeometry.Pack((uint)frameRate, 1)), "IMFAttributes::SetUINT64(MF_MT_FRAME_RATE)");
-
-            ComHelpers.Check(
-                IMFVideoSampleAllocatorEx.InitializeSampleAllocatorEx(allocator, InitialSamples, MaximumSamples, attributes, mediaType),
-                "IMFVideoSampleAllocatorEx::InitializeSampleAllocatorEx");
-            var result = allocator;
-            allocator = 0;
-            return result;
+            segment.Writer?.Dispose();
+            segment.Writer = null;
+            segment.Frames?.Dispose();
+            segment.Frames = null;
         }
-        finally
-        {
-            ComCall.Release(ref mediaType);
-            ComCall.Release(ref attributes);
-            ComCall.Release(ref allocator);
-        }
+
+        segment.Frames = new CpuFrameCopier(gpu.Device, gpu.Context, settings.FrameSize, MediaFoundationSampleFactory.Instance, InitialCpuSamples, MaximumCpuSamples);
+        segment.Writer = H264SinkWriter.Create(path, settings, EncoderInput.Cpu, 0);
+        return reason;
     }
 
     // ---------------------------------------------------------------- frame path (WGC worker thread)
@@ -533,35 +548,47 @@ internal sealed class WgcScreenRecorder : IScreenRecorder
         }
 
         Interlocked.Increment(ref _framesCaptured);
-        nint sample = 0;
-        var hr = IMFVideoSampleAllocatorEx.AllocateSample(segment.Allocator, &sample);
+        var frames = segment.Frames!;
+        nint sample;
+        int hr;
+        lock (segment.CopyLock)
+        {
+            hr = frames.AllocateSample(out sample);
+        }
+
         if (hr < 0 || sample == 0)
         {
             Interlocked.Increment(ref _framesDropped);
             if (hr != ScreenConstants.MfESampleAllocatorEmpty)
             {
-                RaiseFault(segment, $"IMFVideoSampleAllocator::AllocateSample failed: {ComHelpers.Describe(hr)}", isFatal: true);
+                RaiseFault(segment, $"Allocating an encoder sample failed ({FrameCopyNaming.Path(frames.Input)}): {ComHelpers.Describe(hr)}", isFatal: true);
             }
 
             return;
         }
 
-        hr = CaptureInterop.GetFrameTexture(frame, out var texture);
+        FrameFailure failure;
+        hr = CaptureInterop.GetFrameTexture(frame, out var texture, out var failedStep);
         if (hr >= 0)
         {
             lock (segment.CopyLock)
             {
-                hr = segment.Copier!.CopyFrame(sample, texture, new PixelSize(content.Width, content.Height));
+                hr = frames.CopyFrame(sample, texture, new PixelSize(content.Width, content.Height));
+                failure = frames.LastFailure;
             }
 
             ComCall.Release(ref texture);
+        }
+        else
+        {
+            failure = new FrameFailure(failedStep, hr);
         }
 
         if (hr < 0)
         {
             ComCall.Release(ref sample);
             Interlocked.Increment(ref _framesDropped);
-            RaiseFault(segment, $"GPU frame copy failed: {ComHelpers.Describe(hr)}", isFatal: true);
+            RaiseFault(segment, FrameCopyNaming.Fault(frames.Input, failure, hr), isFatal: true);
             return;
         }
 
@@ -666,21 +693,20 @@ internal sealed class WgcScreenRecorder : IScreenRecorder
         }
     }
 
-    private unsafe void Repeat(Segment segment, long ticks)
+    private void Repeat(Segment segment, long ticks)
     {
-        nint sample = 0;
-        if (IMFVideoSampleAllocatorEx.AllocateSample(segment.Allocator, &sample) < 0 || sample == 0)
-        {
-            return;
-        }
-
+        nint sample;
         int hr;
         lock (segment.CopyLock)
         {
-            hr = segment.Copier!.CopySample(sample, segment.LastSample);
+            hr = segment.Frames!.AllocateSample(out sample);
+            if (hr >= 0 && sample != 0)
+            {
+                hr = segment.Frames.CopySample(sample, segment.LastSample);
+            }
         }
 
-        if (hr < 0)
+        if (hr < 0 || sample == 0)
         {
             ComCall.Release(ref sample);
             return;
@@ -690,27 +716,35 @@ internal sealed class WgcScreenRecorder : IScreenRecorder
     }
 
     /// <summary>Writes the black placeholder frame at sample time 0 (see <see cref="PlaceholderFrame"/>). Never throws.</summary>
-    private unsafe PlaceholderOutcome WritePlaceholder(Segment segment)
+    private PlaceholderOutcome WritePlaceholder(Segment segment)
     {
         nint sample = 0;
         try
         {
-            var hr = IMFVideoSampleAllocatorEx.AllocateSample(segment.Allocator, &sample);
+            var frames = segment.Frames!;
+            int hr;
+            lock (segment.CopyLock)
+            {
+                hr = frames.AllocateSample(out sample);
+            }
+
             if (hr < 0 || sample == 0)
             {
                 RaiseFault(segment, $"No frame was captured and the placeholder sample could not be allocated: {ComHelpers.Describe(hr)}", isFatal: true);
                 return new PlaceholderOutcome(PlaceholderStage.AllocateFailed, hr < 0 ? hr : ScreenConstants.EFail);
             }
 
+            FrameFailure failure;
             lock (segment.CopyLock)
             {
-                hr = segment.Copier!.FillBlack(sample);
+                hr = frames.FillBlack(sample);
+                failure = frames.LastFailure;
             }
 
             if (hr < 0)
             {
                 ComCall.Release(ref sample);
-                RaiseFault(segment, $"No frame was captured and the placeholder frame could not be drawn: {ComHelpers.Describe(hr)}", isFatal: true);
+                RaiseFault(segment, $"No frame was captured and the placeholder frame could not be drawn ({FrameCopyNaming.Fault(frames.Input, failure, hr)})", isFatal: true);
                 return new PlaceholderOutcome(PlaceholderStage.FillFailed, hr);
             }
 
@@ -731,9 +765,20 @@ internal sealed class WgcScreenRecorder : IScreenRecorder
     private int Write(Segment segment, nint sample, long ticks, SampleKind kind)
     {
         var time = segment.Timeline.ToSampleTime(ticks);
-        IMFSample.SetSampleTime(sample, time);
-        IMFSample.SetSampleDuration(sample, segment.FrameDuration);
-        var hr = segment.Writer!.WriteSample(sample);
+        var step = "IMFSample::SetSampleTime";
+        var hr = IMFSample.SetSampleTime(sample, time);
+        if (hr >= 0)
+        {
+            step = "IMFSample::SetSampleDuration";
+            hr = IMFSample.SetSampleDuration(sample, segment.FrameDuration);
+        }
+
+        if (hr >= 0)
+        {
+            step = "IMFSinkWriter::WriteSample";
+            hr = segment.Writer!.WriteSample(sample);
+        }
+
         if (hr < 0)
         {
             ComCall.Release(ref sample);
@@ -744,7 +789,7 @@ internal sealed class WgcScreenRecorder : IScreenRecorder
                 Interlocked.Increment(ref _framesDropped);
             }
 
-            RaiseFault(segment, $"IMFSinkWriter::WriteSample failed: {ComHelpers.Describe(hr)}", isFatal: true);
+            RaiseFault(segment, $"{step} failed ({FrameCopyNaming.Path(segment.Frames!.Input)} input): {ComHelpers.Describe(hr)}", isFatal: true);
             return hr;
         }
 
@@ -811,8 +856,7 @@ internal sealed class WgcScreenRecorder : IScreenRecorder
         public Direct3D11CaptureFramePool? Pool;
         public GraphicsCaptureSession? Session;
         public nint PoolAbi;
-        public nint Allocator;
-        public GpuFrameCopier? Copier;
+        public IFramePath? Frames;
         public H264SinkWriter? Writer;
         public Thread? EncoderThread;
         public SizeInt32 PoolSize;

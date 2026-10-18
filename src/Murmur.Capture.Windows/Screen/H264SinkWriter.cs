@@ -13,51 +13,81 @@ internal readonly record struct H264EncoderSettings(PixelSize FrameSize, int Fra
 
 /// <summary>
 /// Media Foundation sink writer producing a fragmented MP4 (MFTranscodeContainerType_FMPEG4: every fragment is
-/// self-contained, so a crash leaves a playable file up to the last fragment) with one H.264 stream fed by
-/// D3D11 ARGB32 samples. Creation tries, in order: hardware MFTs with the DXGI device manager, software MFTs with
-/// the device manager, software MFTs without it (the sink writer then reads the textures back itself).
-/// Not thread-safe: owned by the encoder thread after <see cref="Create"/>.
+/// self-contained, so a crash leaves a playable file up to the last fragment) with one H.264 stream. Two configurations
+/// (see <see cref="EncoderInput"/>):
+/// <list type="bullet">
+/// <item><see cref="EncoderInput.Gpu"/>: hardware MFTs with the DXGI device manager, D3D11 ARGB32 samples (zero-copy).
+/// No software retry: a software encoder fed D3D11 samples (Media Foundation converts ARGB32 to NV12 on the device
+/// first) is the combination whose WriteSample failed with E_INVALIDARG on windows-latest (WARP); callers fall back to
+/// <see cref="EncoderInput.Cpu"/> instead.</item>
+/// <item><see cref="EncoderInput.Cpu"/>: software MFTs only, no device manager, system-memory RGB32 samples (the
+/// classic sink-writer input; the writer inserts the color converter in front of the Microsoft H.264 encoder).</item>
+/// </list>
+/// Both input types declare MF_MT_DEFAULT_STRIDE = width * 4 (top-down rows). Not thread-safe: owned by the encoder
+/// thread after <see cref="Create"/>.
 /// UNVERIFIED-ON-WINDOWS until the Windows-trait tests run in CI.
 /// </summary>
 internal sealed unsafe class H264SinkWriter : IDisposable
 {
+    private const int OpenAttempts = 10;
+    private static readonly TimeSpan OpenRetryDelay = TimeSpan.FromMilliseconds(50);
+
     private nint _writer;
     private readonly uint _stream;
 
-    private H264SinkWriter(nint writer, uint stream, string encoder)
+    private H264SinkWriter(nint writer, uint stream, string encoder, bool? isHardware, EncoderInput input)
     {
         _writer = writer;
         _stream = stream;
         Encoder = encoder;
+        IsHardware = isHardware;
+        Input = input;
     }
 
     /// <summary>Which encoder the sink writer picked, for <see cref="Murmur.Core.Capture.ScreenRecorderStats.Encoder"/>.</summary>
     public string Encoder { get; }
 
-    /// <exception cref="COMException">No configuration could be set up; the HRESULT of the last attempt.</exception>
-    public static H264SinkWriter Create(string path, H264EncoderSettings settings, nint deviceManager)
+    /// <summary>True for a hardware MFT, false for a software one, null when the encoder MFT could not be queried.</summary>
+    public bool? IsHardware { get; }
+
+    public EncoderInput Input { get; }
+
+    /// <summary>The input subtype of <paramref name="input"/>: ARGB32 (D3D11 B8G8R8A8 textures) or RGB32 (system memory).</summary>
+    public static Guid InputSubtype(EncoderInput input) =>
+        input == EncoderInput.Gpu ? ScreenConstants.MfVideoFormatArgb32 : ScreenConstants.MfVideoFormatRgb32;
+
+    /// <summary>
+    /// Opens a writer for <paramref name="input"/>; <paramref name="deviceManager"/> (IMFDXGIDeviceManager) is required
+    /// for <see cref="EncoderInput.Gpu"/> and ignored for <see cref="EncoderInput.Cpu"/>. Opening is retried briefly
+    /// while the file is still held by a writer released just before (a fallback from the GPU configuration).
+    /// </summary>
+    /// <exception cref="COMException">The configuration could not be set up.</exception>
+    public static H264SinkWriter Create(string path, H264EncoderSettings settings, EncoderInput input, nint deviceManager)
     {
         ArgumentException.ThrowIfNullOrEmpty(path);
-        ReadOnlySpan<(bool Hardware, bool UseDeviceManager)> attempts = [(true, true), (false, true), (false, false)];
-        COMException? last = null;
-        foreach (var (hardware, useManager) in attempts)
+        if (input == EncoderInput.Gpu && deviceManager == 0)
+        {
+            throw new ArgumentException("The GPU configuration needs the DXGI device manager.", nameof(deviceManager));
+        }
+
+        for (var attempt = 1; ; attempt++)
         {
             try
             {
-                return CreateOnce(path, settings, hardware, useManager ? deviceManager : 0);
+                return input == EncoderInput.Gpu
+                    ? CreateOnce(path, settings, hardware: true, deviceManager, input)
+                    : CreateOnce(path, settings, hardware: false, 0, input);
             }
-            catch (COMException ex)
+            catch (COMException ex) when (ex.HResult is ScreenConstants.ESharingViolation or ScreenConstants.ELockViolation && attempt < OpenAttempts)
             {
-                last = ex;
+                Thread.Sleep(OpenRetryDelay);
             }
         }
-
-        throw last!;
     }
 
-    private static H264SinkWriter CreateOnce(string path, H264EncoderSettings settings, bool hardware, nint deviceManager)
+    private static H264SinkWriter CreateOnce(string path, H264EncoderSettings settings, bool hardware, nint deviceManager, EncoderInput input)
     {
-        nint attributes = 0, writer = 0, output = 0, input = 0, encoding = 0;
+        nint attributes = 0, writer = 0, output = 0, inputType = 0, encoding = 0;
         try
         {
             ComHelpers.Check(ScreenNativeMethods.MFCreateAttributes(&attributes, 4), "MFCreateAttributes");
@@ -92,29 +122,32 @@ internal sealed unsafe class H264SinkWriter : IDisposable
             uint stream;
             ComHelpers.Check(IMFSinkWriter.AddStream(writer, output, &stream), "IMFSinkWriter::AddStream(H.264)");
 
-            ComHelpers.Check(ScreenNativeMethods.MFCreateMediaType(&input), "MFCreateMediaType");
-            SetGuid(input, ScreenConstants.MfMtMajorType, ScreenConstants.MfMediaTypeVideo);
-            SetGuid(input, ScreenConstants.MfMtSubtype, ScreenConstants.MfVideoFormatArgb32);
-            SetUInt32(input, ScreenConstants.MfMtInterlaceMode, ScreenConstants.MfVideoInterlaceProgressive);
-            SetUInt32(input, ScreenConstants.MfMtAllSamplesIndependent, 1);
-            SetUInt64(input, ScreenConstants.MfMtFrameSize, size);
-            SetUInt64(input, ScreenConstants.MfMtFrameRate, rate);
-            SetUInt64(input, ScreenConstants.MfMtPixelAspectRatio, aspect);
+            ComHelpers.Check(ScreenNativeMethods.MFCreateMediaType(&inputType), "MFCreateMediaType");
+            SetGuid(inputType, ScreenConstants.MfMtMajorType, ScreenConstants.MfMediaTypeVideo);
+            SetGuid(inputType, ScreenConstants.MfMtSubtype, InputSubtype(input));
+            SetUInt32(inputType, ScreenConstants.MfMtInterlaceMode, ScreenConstants.MfVideoInterlaceProgressive);
+            SetUInt32(inputType, ScreenConstants.MfMtAllSamplesIndependent, 1);
+            SetUInt32(inputType, ScreenConstants.MfMtDefaultStride, (uint)CpuFrameCopier.Stride(settings.FrameSize));
+            SetUInt64(inputType, ScreenConstants.MfMtFrameSize, size);
+            SetUInt64(inputType, ScreenConstants.MfMtFrameRate, rate);
+            SetUInt64(inputType, ScreenConstants.MfMtPixelAspectRatio, aspect);
 
             ComHelpers.Check(ScreenNativeMethods.MFCreateAttributes(&encoding, 1), "MFCreateAttributes");
             SetUInt32(encoding, ScreenConstants.CodecApiAVEncMpvGopSize, settings.GopSize);
-            ComHelpers.Check(IMFSinkWriter.SetInputMediaType(writer, stream, input, encoding), "IMFSinkWriter::SetInputMediaType(ARGB32)");
+            ComHelpers.Check(
+                IMFSinkWriter.SetInputMediaType(writer, stream, inputType, encoding),
+                input == EncoderInput.Gpu ? "IMFSinkWriter::SetInputMediaType(ARGB32, D3D11)" : "IMFSinkWriter::SetInputMediaType(RGB32, system memory)");
             ComHelpers.Check(IMFSinkWriter.BeginWriting(writer), "IMFSinkWriter::BeginWriting");
 
-            var encoder = DescribeEncoder(writer, stream, hardware, deviceManager != 0);
-            var result = new H264SinkWriter(writer, stream, encoder);
+            var (encoder, isHardware) = DescribeEncoder(writer, stream, hardware, input == EncoderInput.Gpu);
+            var result = new H264SinkWriter(writer, stream, encoder, isHardware, input);
             writer = 0;
             return result;
         }
         finally
         {
             ComCall.Release(ref encoding);
-            ComCall.Release(ref input);
+            ComCall.Release(ref inputType);
             ComCall.Release(ref output);
             ComCall.Release(ref writer);
             ComCall.Release(ref attributes);
@@ -129,7 +162,7 @@ internal sealed unsafe class H264SinkWriter : IDisposable
 
     public void Dispose() => ComCall.Release(ref _writer);
 
-    private static string DescribeEncoder(nint writer, uint stream, bool hardwareAllowed, bool gpuInput)
+    private static (string Description, bool? IsHardware) DescribeEncoder(nint writer, uint stream, bool hardwareAllowed, bool gpuInput)
     {
         // GUID_NULL: QueryInterface on the stream's encoder MFT first (IMFSinkWriter::GetServiceForStream remarks).
         var service = Guid.Empty;
@@ -159,7 +192,7 @@ internal sealed unsafe class H264SinkWriter : IDisposable
             isHardware = false;
         }
 
-        return EncoderNaming.Describe(isHardware, name, gpuInput);
+        return (EncoderNaming.Describe(isHardware, name, gpuInput), isHardware);
     }
 
     private static string? GetString(nint attributes, Guid key)
@@ -189,6 +222,44 @@ internal sealed unsafe class H264SinkWriter : IDisposable
 
     private static void SetGuid(nint attributes, Guid key, Guid value) =>
         ComHelpers.Check(IMFAttributes.SetGUID(attributes, &key, &value), "IMFAttributes::SetGUID");
+}
+
+/// <summary>Hardware H.264 encoder MFTs registered on this machine (decides <see cref="EncoderInput"/>).</summary>
+internal static unsafe class HardwareEncoders
+{
+    /// <summary>
+    /// Counts hardware H.264 encoder MFTs (MFTEnumEx, MFT_CATEGORY_VIDEO_ENCODER, MFT_ENUM_FLAG_HARDWARE |
+    /// MFT_ENUM_FLAG_SORTANDFILTER, output MFVideoFormat_H264); 0 when the enumeration fails. Not a hot path.
+    /// </summary>
+    public static int CountH264()
+    {
+        var output = new MftRegisterTypeInfo { MajorType = ScreenConstants.MfMediaTypeVideo, Subtype = ScreenConstants.MfVideoFormatH264 };
+        nint* activates = null;
+        uint count = 0;
+        var hr = ScreenNativeMethods.MFTEnumEx(
+            ScreenConstants.MftCategoryVideoEncoder,
+            ScreenConstants.MftEnumFlagHardware | ScreenConstants.MftEnumFlagSortAndFilter,
+            null,
+            &output,
+            &activates,
+            &count);
+        if (hr < 0)
+        {
+            return 0;
+        }
+
+        if (activates != null)
+        {
+            for (var i = 0; i < count; i++)
+            {
+                ComCall.Release(ref activates[i]);
+            }
+
+            ScreenNativeMethods.CoTaskMemFree((nint)activates);
+        }
+
+        return (int)Math.Min(count, int.MaxValue);
+    }
 }
 
 /// <summary>Formats <see cref="Murmur.Core.Capture.ScreenRecorderStats.Encoder"/> (pure).</summary>

@@ -34,6 +34,27 @@ public sealed unsafe class ScreenInteropLayoutTests
         Assert.Equal(16, sizeof(D3D11VideoProcessorOutputViewDesc));
         Assert.Equal(IntPtr.Size == 8 ? 72 : 44, sizeof(D3D11VideoProcessorStream));
         Assert.Equal(16, sizeof(D3D11VideoColorRgba));
+        Assert.Equal(IntPtr.Size == 8 ? 16 : 12, sizeof(D3D11MappedSubresource));
+        Assert.Equal(IntPtr.Size == 8 ? 304 : 292, sizeof(DxgiAdapterDesc));
+        Assert.Equal(32, sizeof(MftRegisterTypeInfo));
+    }
+
+    [Fact]
+    public void NewFieldOffsets_MatchHeaders()
+    {
+        // D3D11_MAPPED_SUBRESOURCE { void *pData; UINT RowPitch; UINT DepthPitch; }
+        Assert.Equal(IntPtr.Size, Offset<D3D11MappedSubresource>(nameof(D3D11MappedSubresource.RowPitch)));
+        Assert.Equal(IntPtr.Size + 4, Offset<D3D11MappedSubresource>(nameof(D3D11MappedSubresource.DepthPitch)));
+
+        // DXGI_ADAPTER_DESC { WCHAR Description[128]; UINT VendorId, DeviceId, SubSysId, Revision; SIZE_T x3; LUID }
+        Assert.Equal(256, Offset<DxgiAdapterDesc>(nameof(DxgiAdapterDesc.VendorId)));
+        Assert.Equal(260, Offset<DxgiAdapterDesc>(nameof(DxgiAdapterDesc.DeviceId)));
+        Assert.Equal(268, Offset<DxgiAdapterDesc>(nameof(DxgiAdapterDesc.Revision)));
+        Assert.Equal(272, Offset<DxgiAdapterDesc>(nameof(DxgiAdapterDesc.DedicatedVideoMemory)));
+        Assert.Equal(IntPtr.Size == 8 ? 296 : 284, Offset<DxgiAdapterDesc>(nameof(DxgiAdapterDesc.AdapterLuidLowPart)));
+
+        // MFT_REGISTER_TYPE_INFO { GUID guidMajorType; GUID guidSubtype; }
+        Assert.Equal(16, Offset<MftRegisterTypeInfo>(nameof(MftRegisterTypeInfo.Subtype)));
     }
 
     [Fact]
@@ -90,6 +111,44 @@ public sealed unsafe class ScreenInteropLayoutTests
         Assert.Equal(0xFFFF_FFFCu, ScreenConstants.MfSourceReaderFirstVideoStream);
         Assert.Equal(2u, ScreenConstants.MfVideoInterlaceProgressive);
         Assert.Equal(100u, ScreenConstants.H264ProfileHigh);
+
+        // Values from Microsoft.Windows.SDK.Win32Metadata 71.0.30-preview (D3D11_USAGE, D3D11_CPU_ACCESS_FLAG, D3D11_MAP,
+        // DXGI_FORMAT, MFT_ENUM_FLAG, Foundation HRESULTs).
+        Assert.Equal(3u, ScreenConstants.D3D11UsageStaging);
+        Assert.Equal(0x2_0000u, ScreenConstants.D3D11CpuAccessRead);
+        Assert.Equal(1u, ScreenConstants.D3D11MapRead);
+        Assert.Equal((87u, 88u, 91u, 93u), (ScreenConstants.DxgiFormatB8G8R8A8Unorm, ScreenConstants.DxgiFormatB8G8R8X8Unorm, ScreenConstants.DxgiFormatB8G8R8A8UnormSrgb, ScreenConstants.DxgiFormatB8G8R8X8UnormSrgb));
+        Assert.Equal(0x44u, ScreenConstants.MftEnumFlagHardware | ScreenConstants.MftEnumFlagSortAndFilter);
+        Assert.Equal((0x1414u, 0x8Cu), (ScreenConstants.MicrosoftVendorId, ScreenConstants.BasicRenderDriverDeviceId));
+        Assert.Equal(unchecked((int)0x80004002), ScreenConstants.ENoInterface);
+        Assert.Equal(unchecked((int)0x80070057), ScreenConstants.EInvalidArg);
+        Assert.Equal(unchecked((int)0x80070020), ScreenConstants.ESharingViolation);
+        Assert.Equal(unchecked((int)0x80070021), ScreenConstants.ELockViolation);
+    }
+
+    [Fact]
+    public void NewGuids_MatchHeaders()
+    {
+        Assert.Equal(new Guid("045FA593-8799-42B8-BC8D-8968C6453507"), ScreenConstants.IidIMFMediaBuffer);
+        Assert.Equal(new Guid("7DC9D5F9-9ED9-44EC-9BBF-0600BB589FBB"), ScreenConstants.IidIMF2DBuffer);
+        Assert.Equal(new Guid("644B4E48-1E02-4516-B0EB-C01CA9D49AC6"), ScreenConstants.MfMtDefaultStride);
+        Assert.Equal(new Guid("00000016-0000-0010-8000-00AA00389B71"), ScreenConstants.MfVideoFormatRgb32);
+        Assert.Equal(new Guid("F79EAC7D-E545-4387-BDEE-D647D7BDE42A"), ScreenConstants.MftCategoryVideoEncoder);
+        Assert.Equal(new Guid("9B7E4E00-342C-4106-A19F-4F2704F689F0"), ScreenConstants.IidID3D11Multithread); // = ID3D10Multithread
+        Assert.Equal(new Guid("6F15AAF2-D208-4E89-9AB4-489535D34F9C"), ScreenConstants.IidID3D11Texture2D);
+        Assert.Equal(new Guid("10EC4D5B-975A-4689-B9E4-D0AAC30FE333"), ScreenConstants.IidID3D11VideoDevice);
+        Assert.Equal(new Guid("E7174CFA-1C9E-48B1-8866-626226BFC258"), ScreenConstants.IidIMFDXGIBuffer);
+
+        // RGB32 = D3DFMT_X8R8G8B8 (22), the classic sink-writer input; ARGB32 = D3DFMT_A8R8G8B8 (21).
+        Assert.Equal(22, BitConverter.ToInt32(ScreenConstants.MfVideoFormatRgb32.ToByteArray(), 0));
+
+        // IID byte order: Data1..Data3 little-endian, Data4 as written (what QueryInterface compares).
+        Assert.Equal(
+            new byte[] { 0x12, 0xD0, 0xB3, 0xA9, 0xF2, 0x3D, 0xE3, 0x4E, 0xB8, 0xD1, 0x86, 0x95, 0xF4, 0x57, 0xD3, 0xC1 },
+            ScreenConstants.IidIDirect3DDxgiInterfaceAccess.ToByteArray());
+        Assert.Equal(
+            new byte[] { 0xF2, 0xAA, 0x15, 0x6F, 0x08, 0xD2, 0x89, 0x4E, 0x9A, 0xB4, 0x48, 0x95, 0x35, 0xD3, 0x4F, 0x9C },
+            ScreenConstants.IidID3D11Texture2D.ToByteArray());
     }
 
     [Fact]
@@ -126,6 +185,17 @@ public sealed unsafe class ScreenInteropLayoutTests
         { "IMFSample::GetSampleDuration", 37 },
         { "IMFSample::SetSampleDuration", 38 },
         { "IMFSample::GetBufferByIndex", 40 },
+        { "IMFSample::AddBuffer", 42 },
+        { "IMFMediaBuffer::Lock", 3 },
+        { "IMFMediaBuffer::Unlock", 4 },
+        { "IMFMediaBuffer::GetCurrentLength", 5 },
+        { "IMFMediaBuffer::SetCurrentLength", 6 },
+        { "IMFMediaBuffer::GetMaxLength", 7 },
+        { "IMF2DBuffer::GetContiguousLength", 7 },
+        { "ID3D11DeviceContext::Map", 14 },
+        { "ID3D11DeviceContext::Unmap", 15 },
+        { "IDXGIDevice::GetAdapter", 7 },
+        { "IDXGIAdapter::GetDesc", 8 },
         { "IMFDXGIBuffer::GetResource", 3 },
         { "IMFDXGIBuffer::GetSubresourceIndex", 4 },
         { "IMFSinkWriter::AddStream", 3 },
@@ -204,6 +274,9 @@ public sealed unsafe class ScreenInteropLayoutTests
         D3D11VideoProcessorOutputViewDesc output;
         D3D11VideoProcessorStream stream;
         SizeInt32Abi size;
+        byte* b;
+        D3D11MappedSubresource mapped;
+        DxgiAdapterDesc adapter;
         switch (method)
         {
             case "IUnknown::QueryInterface": ComCall.QueryInterface(s, &g, &p); break;
@@ -222,6 +295,17 @@ public sealed unsafe class ScreenInteropLayoutTests
             case "IMFSample::GetSampleDuration": IMFSample.GetSampleDuration(s, &l); break;
             case "IMFSample::SetSampleDuration": IMFSample.SetSampleDuration(s, 0); break;
             case "IMFSample::GetBufferByIndex": IMFSample.GetBufferByIndex(s, 0, &p); break;
+            case "IMFSample::AddBuffer": IMFSample.AddBuffer(s, 0); break;
+            case "IMFMediaBuffer::Lock": IMFMediaBuffer.Lock(s, &b, &u, &u); break;
+            case "IMFMediaBuffer::Unlock": IMFMediaBuffer.Unlock(s); break;
+            case "IMFMediaBuffer::GetCurrentLength": IMFMediaBuffer.GetCurrentLength(s, &u); break;
+            case "IMFMediaBuffer::SetCurrentLength": IMFMediaBuffer.SetCurrentLength(s, 0); break;
+            case "IMFMediaBuffer::GetMaxLength": IMFMediaBuffer.GetMaxLength(s, &u); break;
+            case "IMF2DBuffer::GetContiguousLength": IMF2DBuffer.GetContiguousLength(s, &u); break;
+            case "ID3D11DeviceContext::Map": ID3D11DeviceContext.Map(s, 0, 0, 1, 0, &mapped); break;
+            case "ID3D11DeviceContext::Unmap": ID3D11DeviceContext.Unmap(s, 0, 0); break;
+            case "IDXGIDevice::GetAdapter": IDXGIDevice.GetAdapter(s, &p); break;
+            case "IDXGIAdapter::GetDesc": IDXGIAdapter.GetDesc(s, &adapter); break;
             case "IMFDXGIBuffer::GetResource": IMFDXGIBuffer.GetResource(s, &g, &p); break;
             case "IMFDXGIBuffer::GetSubresourceIndex": IMFDXGIBuffer.GetSubresourceIndex(s, &u); break;
             case "IMFSinkWriter::AddStream": IMFSinkWriter.AddStream(s, 0, &u); break;

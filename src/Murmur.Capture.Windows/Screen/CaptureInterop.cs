@@ -95,30 +95,37 @@ internal static unsafe class CaptureInterop
         ComCall.Release(ref frame);
     }
 
-    /// <summary>The ID3D11Texture2D behind a capture frame (owned), or 0 with the failing HRESULT.</summary>
-    public static int GetFrameTexture(nint frame, out nint texture)
+    /// <summary>
+    /// The ID3D11Texture2D behind a capture frame (owned), or 0 with the failing HRESULT and step. The surface is the
+    /// native ABI pointer returned by get_Surface, so the QueryInterface reaches the WinRT object itself (no projection).
+    /// </summary>
+    public static int GetFrameTexture(nint frame, out nint texture, out FrameStep failedStep)
     {
         texture = 0;
+        failedStep = FrameStep.None;
         nint surface = 0, access = 0, result = 0;
         try
         {
             var hr = IDirect3D11CaptureFrame.get_Surface(frame, &surface);
             if (hr < 0 || surface == 0)
             {
+                failedStep = FrameStep.CaptureSurface;
                 return hr < 0 ? hr : ScreenConstants.EPointer;
             }
 
             access = ComCall.Query(surface, ScreenConstants.IidIDirect3DDxgiInterfaceAccess);
             if (access == 0)
             {
-                return unchecked((int)0x80004002); // E_NOINTERFACE
+                failedStep = FrameStep.SurfaceAccess;
+                return ScreenConstants.ENoInterface;
             }
 
             var iid = ScreenConstants.IidID3D11Texture2D;
             hr = IDirect3DDxgiInterfaceAccess.GetInterface(access, &iid, &result);
-            if (hr < 0)
+            if (hr < 0 || result == 0)
             {
-                return hr;
+                failedStep = FrameStep.SurfaceTexture;
+                return hr < 0 ? hr : ScreenConstants.EPointer;
             }
 
             texture = result;

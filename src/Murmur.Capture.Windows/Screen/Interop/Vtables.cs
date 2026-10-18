@@ -109,6 +109,40 @@ internal static unsafe class IMFSample
     // HRESULT GetBufferByIndex(DWORD dwIndex, IMFMediaBuffer **ppBuffer)
     public static int GetBufferByIndex(nint self, uint index, nint* buffer) =>
         ((delegate* unmanaged[MemberFunction]<nint, uint, nint*, int>)ComCall.Vtbl(self)[40])(self, index, buffer);
+
+    // HRESULT AddBuffer(IMFMediaBuffer *pBuffer)
+    public static int AddBuffer(nint self, nint buffer) =>
+        ((delegate* unmanaged[MemberFunction]<nint, nint, int>)ComCall.Vtbl(self)[42])(self, buffer);
+}
+
+internal static unsafe class IMFMediaBuffer
+{
+    // HRESULT Lock(BYTE **ppbBuffer, DWORD *pcbMaxLength, DWORD *pcbCurrentLength)
+    public static int Lock(nint self, byte** buffer, uint* maxLength, uint* currentLength) =>
+        ((delegate* unmanaged[MemberFunction]<nint, byte**, uint*, uint*, int>)ComCall.Vtbl(self)[3])(self, buffer, maxLength, currentLength);
+
+    // HRESULT Unlock(void)
+    public static int Unlock(nint self) =>
+        ((delegate* unmanaged[MemberFunction]<nint, int>)ComCall.Vtbl(self)[4])(self);
+
+    // HRESULT GetCurrentLength(DWORD *pcbCurrentLength)
+    public static int GetCurrentLength(nint self, uint* length) =>
+        ((delegate* unmanaged[MemberFunction]<nint, uint*, int>)ComCall.Vtbl(self)[5])(self, length);
+
+    // HRESULT SetCurrentLength(DWORD cbCurrentLength)
+    public static int SetCurrentLength(nint self, uint length) =>
+        ((delegate* unmanaged[MemberFunction]<nint, uint, int>)ComCall.Vtbl(self)[6])(self, length);
+
+    // HRESULT GetMaxLength(DWORD *pcbMaxLength)
+    public static int GetMaxLength(nint self, uint* length) =>
+        ((delegate* unmanaged[MemberFunction]<nint, uint*, int>)ComCall.Vtbl(self)[7])(self, length);
+}
+
+internal static unsafe class IMF2DBuffer
+{
+    // HRESULT GetContiguousLength(DWORD *pcbLength)
+    public static int GetContiguousLength(nint self, uint* length) =>
+        ((delegate* unmanaged[MemberFunction]<nint, uint*, int>)ComCall.Vtbl(self)[7])(self, length);
 }
 
 internal static unsafe class IMFDXGIBuffer
@@ -214,6 +248,14 @@ internal static unsafe class ID3D11Device
 
 internal static unsafe class ID3D11DeviceContext
 {
+    // HRESULT Map(ID3D11Resource *pResource, UINT Subresource, D3D11_MAP MapType, UINT MapFlags, D3D11_MAPPED_SUBRESOURCE *pMappedResource)
+    public static int Map(nint self, nint resource, uint subresource, uint mapType, uint mapFlags, D3D11MappedSubresource* mapped) =>
+        ((delegate* unmanaged[MemberFunction]<nint, nint, uint, uint, uint, D3D11MappedSubresource*, int>)ComCall.Vtbl(self)[14])(self, resource, subresource, mapType, mapFlags, mapped);
+
+    // void Unmap(ID3D11Resource *pResource, UINT Subresource)
+    public static void Unmap(nint self, nint resource, uint subresource) =>
+        ((delegate* unmanaged[MemberFunction]<nint, nint, uint, void>)ComCall.Vtbl(self)[15])(self, resource, subresource);
+
     // void CopySubresourceRegion(ID3D11Resource *pDstResource, UINT DstSubresource, UINT DstX, UINT DstY, UINT DstZ, ID3D11Resource *pSrcResource, UINT SrcSubresource, const D3D11_BOX *pSrcBox)
     public static void CopySubresourceRegion(nint self, nint destination, uint destinationSubresource, uint x, uint y, uint z, nint source, uint sourceSubresource, D3D11Box* sourceBox) =>
         ((delegate* unmanaged[MemberFunction]<nint, nint, uint, uint, uint, uint, nint, uint, D3D11Box*, void>)ComCall.Vtbl(self)[46])(self, destination, destinationSubresource, x, y, z, source, sourceSubresource, sourceBox);
@@ -228,6 +270,20 @@ internal static unsafe class ID3D11Texture2D
     // void GetDesc(D3D11_TEXTURE2D_DESC *pDesc)
     public static void GetDesc(nint self, D3D11Texture2DDesc* desc) =>
         ((delegate* unmanaged[MemberFunction]<nint, D3D11Texture2DDesc*, void>)ComCall.Vtbl(self)[10])(self, desc);
+}
+
+internal static unsafe class IDXGIDevice
+{
+    // HRESULT GetAdapter(IDXGIAdapter **pAdapter)
+    public static int GetAdapter(nint self, nint* adapter) =>
+        ((delegate* unmanaged[MemberFunction]<nint, nint*, int>)ComCall.Vtbl(self)[7])(self, adapter);
+}
+
+internal static unsafe class IDXGIAdapter
+{
+    // HRESULT GetDesc(DXGI_ADAPTER_DESC *pDesc)
+    public static int GetDesc(nint self, DxgiAdapterDesc* desc) =>
+        ((delegate* unmanaged[MemberFunction]<nint, DxgiAdapterDesc*, int>)ComCall.Vtbl(self)[8])(self, desc);
 }
 
 internal static unsafe class ID3D11Multithread

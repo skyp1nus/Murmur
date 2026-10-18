@@ -127,6 +127,44 @@ internal unsafe struct D3D11SubresourceData
     public uint SysMemSlicePitch;
 }
 
+/// <summary>d3d11.h <c>D3D11_MAPPED_SUBRESOURCE</c> (16 bytes on 64-bit, 12 on 32-bit).</summary>
+[StructLayout(LayoutKind.Sequential)]
+internal unsafe struct D3D11MappedSubresource
+{
+    public void* Data;
+    public uint RowPitch;
+    public uint DepthPitch;
+}
+
+/// <summary>
+/// dxgi.h <c>DXGI_ADAPTER_DESC</c> (304 bytes on 64-bit, 292 on 32-bit): <c>WCHAR Description[128]</c>, vendor / device
+/// / subsystem / revision ids, three <c>SIZE_T</c> memory sizes and the adapter <c>LUID</c>.
+/// </summary>
+[StructLayout(LayoutKind.Sequential)]
+internal unsafe struct DxgiAdapterDesc
+{
+    public const int DescriptionChars = 128;
+
+    public fixed char Description[DescriptionChars];
+    public uint VendorId;
+    public uint DeviceId;
+    public uint SubSysId;
+    public uint Revision;
+    public nuint DedicatedVideoMemory;
+    public nuint DedicatedSystemMemory;
+    public nuint SharedSystemMemory;
+    public uint AdapterLuidLowPart;
+    public int AdapterLuidHighPart;
+}
+
+/// <summary>mfobjects.h <c>MFT_REGISTER_TYPE_INFO</c> (32 bytes): major type and subtype GUIDs.</summary>
+[StructLayout(LayoutKind.Sequential)]
+internal struct MftRegisterTypeInfo
+{
+    public Guid MajorType;
+    public Guid Subtype;
+}
+
 /// <summary>d3d11.h <c>D3D11_BOX</c> (24 bytes).</summary>
 [StructLayout(LayoutKind.Sequential)]
 internal struct D3D11Box
