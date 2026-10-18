@@ -47,6 +47,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Murmur.AiEval", "tools\Murm
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Murmur.AiEval.Tests", "tools\Murmur.AiEval\tests\Murmur.AiEval.Tests.csproj", "{0944ABBA-941C-4BE3-895E-965B44188AAE}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Murmur.Scripts.Tests", "tests\Murmur.Scripts.Tests\Murmur.Scripts.Tests.csproj", "{09447652-4235-403A-A0C8-8376FD4656D8}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -285,6 +287,18 @@ Global
 		{0944ABBA-941C-4BE3-895E-965B44188AAE}.Release|x64.Build.0 = Release|Any CPU
 		{0944ABBA-941C-4BE3-895E-965B44188AAE}.Release|x86.ActiveCfg = Release|Any CPU
 		{0944ABBA-941C-4BE3-895E-965B44188AAE}.Release|x86.Build.0 = Release|Any CPU
+		{09447652-4235-403A-A0C8-8376FD4656D8}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{09447652-4235-403A-A0C8-8376FD4656D8}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{09447652-4235-403A-A0C8-8376FD4656D8}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{09447652-4235-403A-A0C8-8376FD4656D8}.Debug|x64.Build.0 = Debug|Any CPU
+		{09447652-4235-403A-A0C8-8376FD4656D8}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{09447652-4235-403A-A0C8-8376FD4656D8}.Debug|x86.Build.0 = Debug|Any CPU
+		{09447652-4235-403A-A0C8-8376FD4656D8}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{09447652-4235-403A-A0C8-8376FD4656D8}.Release|Any CPU.Build.0 = Release|Any CPU
+		{09447652-4235-403A-A0C8-8376FD4656D8}.Release|x64.ActiveCfg = Release|Any CPU
+		{09447652-4235-403A-A0C8-8376FD4656D8}.Release|x64.Build.0 = Release|Any CPU
+		{09447652-4235-403A-A0C8-8376FD4656D8}.Release|x86.ActiveCfg = Release|Any CPU
+		{09447652-4235-403A-A0C8-8376FD4656D8}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -309,5 +323,6 @@ Global
 		{CADE864E-BD27-4886-956C-A929A9C5F789} = {0AB3BF05-4346-4AA6-1389-037BE0695223}
 		{C5CD575F-D2A3-4F82-9345-A11E4E3D8DFE} = {07C2787E-EAC7-C090-1BA3-A61EC2A24D84}
 		{0944ABBA-941C-4BE3-895E-965B44188AAE} = {0AB3BF05-4346-4AA6-1389-037BE0695223}
+		{09447652-4235-403A-A0C8-8376FD4656D8} = {0AB3BF05-4346-4AA6-1389-037BE0695223}
 	EndGlobalSection
 EndGlobal

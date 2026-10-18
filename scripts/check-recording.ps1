@@ -22,6 +22,14 @@
         >= 0.5) and the signal peak is not zero
     With -ExpectScreen:
       - at least one non-empty screen-NNN.mp4 and session.screenSegments matches the file count
+      - every segment parses as an MP4 with video samples; its frame count and duration are reported and its
+        frame rate is at least -MinScreenFps (the recorder repeats frames on a static screen, so ~30 fps is
+        normal; a handful of frames means the encoder stopped early)
+      - the summed segment duration is within +/- -ScreenToleranceS of durationS (a 12-frame, 0.4 s file for a
+        10 minute recording fails). Duration = sum of the trun sample durations of the video track divided by the
+        mdhd timescale (fragmented MP4, using tfhd/trex defaults), the stts table for a classic MP4, else the
+        mehd/mvhd header value (then the frame count is unknown and the segment fails). A file cut short by a
+        crash is read up to the last complete box.
     Budgets (a budget of 0 disables the check; metric names are the JSON field names):
       - -IdleCpuBudgetPct on idleCpuPct, -CpuBudgetPct on cpuAvgPct, -RamBudgetMb on wsMaxMb
 
@@ -40,6 +48,11 @@
     Optional path to write the markdown report to.
 .PARAMETER DurationToleranceS
     Allowed |wav duration - durationS| (default 1).
+.PARAMETER ScreenToleranceS
+    Allowed |summed screen video duration - durationS| with -ExpectScreen (default 2; the first segment starts a
+    little after the audio and the last frame ends a frame before the stop).
+.PARAMETER MinScreenFps
+    Lowest plausible frames/duration of a screen segment with -ExpectScreen (default 5; 0 disables the check).
 .PARAMETER MaxZeroRunMs
     Longest allowed run of silent samples while the tone plays (default 100).
 .PARAMETER SilenceAbs
@@ -67,6 +80,8 @@ param(
     [string] $Title = 'Recording check',
     [string] $MarkdownOut = '',
     [double] $DurationToleranceS = 1.0,
+    [double] $ScreenToleranceS = 2.0,
+    [double] $MinScreenFps = 5.0,
     [double] $MaxZeroRunMs = 100,
     [int] $SilenceAbs = 1,
     [double] $LeadGraceS = 5,
@@ -282,6 +297,11 @@ public static class MurmurWavScan
 '@
 }
 
+# The MP4 reader lives in its own file so that tests/Murmur.Scripts.Tests compiles and tests the very same code.
+if (-not ('MurmurMp4Scan' -as [type])) {
+    Add-Type -Path (Join-Path $PSScriptRoot 'MurmurMp4Scan.cs')
+}
+
 # ---------------------------------------------------------------- report plumbing
 
 $rows = [System.Collections.Generic.List[object]]::new()
@@ -364,6 +384,51 @@ function Test-Wav {
     }
 }
 
+function Test-ScreenVideo {
+    # Parses every screen-NNN.mp4 (frames + duration) and compares the summed duration with durationS.
+    # --autorecord never toggles the screen, so the segments cover the whole run (the recorder opens the first one
+    # right after the audio starts); the sum may be short of durationS only by that start latency, which
+    # -ScreenToleranceS absorbs. The perf JSON carries no per-segment offsets, so gaps cannot be told apart from loss.
+    param($Segments, $DurationS)
+
+    [double] $totalS = 0
+    [long] $totalFrames = 0
+    $allKnown = $true
+    foreach ($segment in ($Segments | Sort-Object Name)) {
+        $label = $segment.Name
+        $res = [MurmurMp4Scan]::Scan($segment.FullName)
+        if ($res.Error) {
+            Add-Row "$label video" $res.Error 'valid MP4 with video samples' 'FAIL'
+            $allKnown = $false
+            continue
+        }
+        $totalS += $res.DurationS
+        $kind = if ($res.Fragmented) { "fragmented, $($res.Fragments) fragment(s)" } else { 'not fragmented' }
+        $notes = "$kind, from $($res.DurationSource)"
+        if ($res.Truncated) { $notes += ', file truncated' }
+        if (-not $res.FramesKnown) {
+            $allKnown = $false
+            Add-Row "$label video" ("no sample table or fragments, {0} s from the container header ({1})" -f (Format-Num $res.DurationS '0.000'), $notes) '>= 1 frame' 'FAIL'
+            continue
+        }
+        $totalFrames += $res.Frames
+        $fps = if ($res.DurationS -gt 0) { $res.Frames / $res.DurationS } else { 0.0 }
+        $value = "{0} frames, {1} s, {2} fps ({3})" -f $res.Frames, (Format-Num $res.DurationS '0.000'), (Format-Num $fps '0.0'), $notes
+        if ($MinScreenFps -le 0) {
+            Add-Row "$label video" $value 'fps not checked' $(if ($res.Frames -gt 0) { 'PASS' } else { 'FAIL' })
+        }
+        else {
+            Add-Row "$label video" $value (">= {0} fps" -f (Format-Num $MinScreenFps '0.##')) $(if ($res.Frames -gt 0 -and $fps -ge $MinScreenFps) { 'PASS' } else { 'FAIL' })
+        }
+    }
+
+    Add-Row 'screen video total' ("{0} frames, {1} s" -f $totalFrames, (Format-Num $totalS '0.000')) '-' 'INFO'
+    if ($null -eq $DurationS) { return }
+    $diff = [Math]::Abs($totalS - [double]$DurationS)
+    $value = "{0} s (durationS {1} s, diff {2} s)" -f (Format-Num $totalS '0.000'), (Format-Num $DurationS), (Format-Num $diff '0.000')
+    Add-Row 'screen video duration vs durationS' $value ("+/- {0} s" -f (Format-Num $ScreenToleranceS '0.##')) $(if ($diff -le $ScreenToleranceS) { 'PASS' } else { 'FAIL' })
+}
+
 # ---------------------------------------------------------------- perf JSON
 
 if (-not (Test-Path -LiteralPath $PerfJson)) {
@@ -421,6 +486,7 @@ if ($null -ne $perf) {
             foreach ($segment in $segments) { $segmentBytes += $segment.Length }
             Add-Row 'screen segments' ("{0} file(s), {1} non-empty, {2:N1} MB" -f $segments.Count, $nonEmpty.Count, ($segmentBytes / 1MB)) '>= 1 non-empty' $(if ($nonEmpty.Count -ge 1) { 'PASS' } else { 'FAIL' })
             Add-Row 'session.screenSegments' $(if ($null -eq $declared) { 'n/a' } else { [string]$declared }) ("== file count ({0})" -f $segments.Count) $(if ($null -ne $declared -and [int]$declared -eq $segments.Count) { 'PASS' } else { 'FAIL' })
+            Test-ScreenVideo $segments $durationS
         }
         else {
             Add-Row 'screen segments' ("{0} file(s)" -f $segments.Count) 'not expected' 'INFO'
