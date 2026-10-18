@@ -29,6 +29,13 @@ namespace Murmur.Capture.Windows.Screen;
 /// the fault (e.g. "GPU frame copy failed at QueryInterface(ID3D11VideoDevice) ...").
 /// </para>
 /// <para>
+/// <b>Exhausted sample pool.</b> Drops for an empty pool are counted in <see cref="FramesPoolExhausted"/> as well. When
+/// they persist (see <see cref="PoolExhaustionTracker"/>: nothing hands the samples back) the segment raises one
+/// non-fatal fault naming the frame path, and on the GPU path every later segment of this recorder uses CPU readback
+/// (<see cref="FramePath"/> says so). The running segment keeps its encoder: its file and input type are fixed, so
+/// there is no clean switch mid-file; frames resume as soon as samples come back.
+/// </para>
+/// <para>
 /// <b>Static screens.</b> WGC only delivers frames when the screen changes; the encoder thread repeats the last frame
 /// once a second while nothing arrives and once more at stop, so the file's timeline covers the whole segment (and
 /// fragments keep being written for crash safety). Repeats are only written while the segment accepts frames: after a
@@ -56,9 +63,9 @@ namespace Murmur.Capture.Windows.Screen;
 /// <para>
 /// <b>Lifetime.</b> The D3D11 device and Media Foundation are created on the first segment and kept until
 /// <see cref="DisposeAsync"/> (the device is recreated if it was lost); the capture session, sample pool, encoder and
-/// encoder thread live for one segment. Faults are raised on the thread pool, at most once per segment.
+/// encoder thread live for one segment. Faults are raised on the thread pool, at most one fatal and one non-fatal
+/// fault per segment (a warning never hides a later fatal fault).
 /// </para>
-/// UNVERIFIED-ON-WINDOWS until the Windows-trait tests run in CI.
 /// </summary>
 internal sealed class WgcScreenRecorder : IScreenRecorder
 {
@@ -90,6 +97,8 @@ internal sealed class WgcScreenRecorder : IScreenRecorder
     private long _framesRepeated;
     private long _placeholderFrames;
     private long _frameArrivedEvents;
+    private long _framesPoolExhausted;
+    private volatile string? _gpuPathDisabled;
 
     public WgcScreenRecorder(ScreenCaptureOptions options)
     {
@@ -121,6 +130,23 @@ internal sealed class WgcScreenRecorder : IScreenRecorder
 
     /// <summary>FrameArrived callbacks WGC raised, before any filtering (diagnostics: 0 means WGC delivered nothing).</summary>
     internal long FrameArrivedEvents => Interlocked.Read(ref _frameArrivedEvents);
+
+    /// <summary>
+    /// Captured frames dropped because every encoder sample was still in use (diagnostics; also counted in
+    /// <see cref="ScreenRecorderStats.FramesDropped"/>).
+    /// </summary>
+    internal long FramesPoolExhausted => Interlocked.Read(ref _framesPoolExhausted);
+
+    /// <summary>
+    /// Why later segments skip the GPU path after a persistent pool exhaustion, e.g. "CPU readback: the GPU
+    /// zero-copy sample pool (12 samples) ran dry in an earlier segment" (diagnostics; null while the GPU path is
+    /// allowed). Tests may preset it.
+    /// </summary>
+    internal string? GpuPathDisabled
+    {
+        get => _gpuPathDisabled;
+        init => _gpuPathDisabled = value;
+    }
 
     /// <summary>The D3D11 device in use, e.g. "hardware D3D11 FL 11.1" (diagnostics; null before the first segment).</summary>
     internal string? DeviceDescription => _gpu?.Description;
@@ -274,7 +300,7 @@ internal sealed class WgcScreenRecorder : IScreenRecorder
             segment.PoolSize = itemSize;
             segment.EncoderSize = EncoderGeometry.FitEncoderSize(itemSize.Width, itemSize.Height, _options.MaxHeight);
             LastEncoderSize = segment.EncoderSize;
-            FramePath = OpenEncoder(segment, gpu, path, new H264EncoderSettings(segment.EncoderSize, _options.FrameRate, _options.BitrateKbps), ForceCpuReadback);
+            FramePath = OpenEncoder(segment, gpu, path, new H264EncoderSettings(segment.EncoderSize, _options.FrameRate, _options.BitrateKbps), ForceCpuReadback, _gpuPathDisabled);
             _encoder = segment.Writer!.Encoder;
 
             segment.Pool = Direct3D11CaptureFramePool.CreateFreeThreaded(gpu.WinRtDevice, DirectXPixelFormat.B8G8R8A8UIntNormalized, 2, itemSize);
@@ -414,17 +440,19 @@ internal sealed class WgcScreenRecorder : IScreenRecorder
 
     /// <summary>
     /// Opens the segment's sink writer and frame path: zero-copy GPU input when <see cref="FramePathPolicy"/> allows it
-    /// and the hardware writer comes up with a hardware encoder, CPU readback otherwise. Returns the
+    /// and the hardware writer comes up with a hardware encoder, CPU readback otherwise (also when
+    /// <paramref name="gpuDisabled"/> names why an earlier segment gave the GPU path up). Returns the
     /// <see cref="FramePath"/> diagnostic.
     /// </summary>
     /// <exception cref="COMException">Not even the CPU readback configuration could be set up.</exception>
-    private static string OpenEncoder(Segment segment, GpuDevice gpu, string path, H264EncoderSettings settings, bool forceCpu)
+    private static string OpenEncoder(Segment segment, GpuDevice gpu, string path, H264EncoderSettings settings, bool forceCpu, string? gpuDisabled)
     {
-        var hardwareEncoders = !forceCpu && gpu.HasVideoSupport && !gpu.IsSoftwareRenderer ? HardwareEncoders.CountH264() : 0;
+        var skipGpu = forceCpu || gpuDisabled is not null;
+        var hardwareEncoders = !skipGpu && gpu.HasVideoSupport && !gpu.IsSoftwareRenderer ? HardwareEncoders.CountH264() : 0;
         var reason = forceCpu
             ? "CPU readback: forced"
-            : FramePathPolicy.Describe(gpu.HasVideoSupport, gpu.IsSoftwareRenderer, hardwareEncoders);
-        if (!forceCpu && FramePathPolicy.Choose(gpu.HasVideoSupport, gpu.IsSoftwareRenderer, hardwareEncoders) == EncoderInput.Gpu)
+            : gpuDisabled ?? FramePathPolicy.Describe(gpu.HasVideoSupport, gpu.IsSoftwareRenderer, hardwareEncoders);
+        if (!skipGpu && FramePathPolicy.Choose(gpu.HasVideoSupport, gpu.IsSoftwareRenderer, hardwareEncoders) == EncoderInput.Gpu)
         {
             try
             {
@@ -563,9 +591,20 @@ internal sealed class WgcScreenRecorder : IScreenRecorder
             {
                 RaiseFault(segment, $"Allocating an encoder sample failed ({FrameCopyNaming.Path(frames.Input)}): {ComHelpers.Describe(hr)}", isFatal: true);
             }
+            else
+            {
+                Interlocked.Increment(ref _framesPoolExhausted);
+                var now = MediaTime.Now();
+                if (segment.Exhaustion.OnExhausted(now))
+                {
+                    ReportPoolExhaustion(segment, frames.Input, segment.Exhaustion.Consecutive, segment.Exhaustion.Elapsed(now));
+                }
+            }
 
             return;
         }
+
+        segment.Exhaustion.OnAllocated();
 
         FrameFailure failure;
         hr = CaptureInterop.GetFrameTexture(frame, out var texture, out var failedStep);
@@ -813,6 +852,21 @@ internal sealed class WgcScreenRecorder : IScreenRecorder
         return hr;
     }
 
+    /// <summary>
+    /// A persistent pool exhaustion (once per segment, not a hot path): a non-fatal fault, and on the GPU path the
+    /// following segments fall back to CPU readback.
+    /// </summary>
+    private void ReportPoolExhaustion(Segment segment, EncoderInput input, int drops, long elapsed)
+    {
+        var limit = input == EncoderInput.Gpu ? MaximumSamples : (uint)MaximumCpuSamples;
+        if (input == EncoderInput.Gpu)
+        {
+            _gpuPathDisabled = PoolExhaustionNaming.FallbackReason(input, limit);
+        }
+
+        RaiseFault(segment, PoolExhaustionNaming.Fault(input, limit, drops, elapsed), isFatal: false);
+    }
+
     private void RaiseFault(Segment segment, string message, bool isFatal)
     {
         if (isFatal)
@@ -822,7 +876,8 @@ internal sealed class WgcScreenRecorder : IScreenRecorder
             segment.Accepting = false;
         }
 
-        if (Interlocked.Exchange(ref segment.FaultRaised, 1) != 0)
+        // One fatal and one non-fatal fault per segment: a warning must not swallow a later fatal fault.
+        if (Interlocked.Exchange(ref isFatal ? ref segment.FaultRaised : ref segment.WarningRaised, 1) != 0)
         {
             return;
         }
@@ -864,6 +919,7 @@ internal sealed class WgcScreenRecorder : IScreenRecorder
 
         // FrameArrived thread
         public volatile bool Accepting;
+        public PoolExhaustionTracker Exhaustion;
         public bool RecreatePending;
         public SizeInt32Abi PendingSize;
 
@@ -880,6 +936,7 @@ internal sealed class WgcScreenRecorder : IScreenRecorder
         public int FinalizeResult;
         public bool EncoderHung;
         public int FaultRaised;
+        public int WarningRaised;
         public long FaultTicks = RepeatPolicy.NoFault; // QPC time of the first fatal fault (Interlocked)
     }
 }

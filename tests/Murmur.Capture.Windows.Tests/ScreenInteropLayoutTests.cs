@@ -160,6 +160,7 @@ public sealed unsafe class ScreenInteropLayoutTests
         Assert.Equal(new Guid("73646976-0000-0010-8000-00AA00389B71"), ScreenConstants.MfMediaTypeVideo);
         Assert.Equal(new Guid("3628E81B-3CAC-4C60-B7F4-23CE0E0C3356"), ScreenConstants.IidIGraphicsCaptureItemInterop);
         Assert.Equal(new Guid("A9B3D012-3DF2-4EE3-B8D1-8695F457D3C1"), ScreenConstants.IidIDirect3DDxgiInterfaceAccess);
+        Assert.Equal(new Guid("992388B4-3372-4F67-8B6F-C84C071F4751"), ScreenConstants.IidIMFVideoSampleAllocatorCallback);
 
         // FourCC subtypes: Data1 = 'H264' / D3DFMT_A8R8G8B8 (21), the rest is the MFVideoFormat base GUID.
         var h264 = ScreenConstants.MfVideoFormatH264.ToByteArray();
@@ -209,6 +210,7 @@ public sealed unsafe class ScreenInteropLayoutTests
         { "IMFVideoSampleAllocator::UninitializeSampleAllocator", 4 },
         { "IMFVideoSampleAllocator::AllocateSample", 6 },
         { "IMFVideoSampleAllocatorEx::InitializeSampleAllocatorEx", 7 },
+        { "IMFVideoSampleAllocatorCallback::GetFreeSampleCount", 4 },
         { "IMFTransform::GetAttributes", 8 },
         { "IMFSourceReader::GetCurrentMediaType", 6 },
         { "IMFSourceReader::ReadSample", 9 },
@@ -263,6 +265,7 @@ public sealed unsafe class ScreenInteropLayoutTests
         Guid g = default;
         nint p;
         uint u;
+        int i;
         ulong ul;
         long l;
         char* c;
@@ -319,6 +322,7 @@ public sealed unsafe class ScreenInteropLayoutTests
             case "IMFVideoSampleAllocator::UninitializeSampleAllocator": IMFVideoSampleAllocatorEx.UninitializeSampleAllocator(s); break;
             case "IMFVideoSampleAllocator::AllocateSample": IMFVideoSampleAllocatorEx.AllocateSample(s, &p); break;
             case "IMFVideoSampleAllocatorEx::InitializeSampleAllocatorEx": IMFVideoSampleAllocatorEx.InitializeSampleAllocatorEx(s, 0, 0, 0, 0); break;
+            case "IMFVideoSampleAllocatorCallback::GetFreeSampleCount": IMFVideoSampleAllocatorCallback.GetFreeSampleCount(s, &i); break;
             case "IMFTransform::GetAttributes": IMFTransform.GetAttributes(s, &p); break;
             case "IMFSourceReader::GetCurrentMediaType": IMFSourceReader.GetCurrentMediaType(s, 0, &p); break;
             case "IMFSourceReader::ReadSample": IMFSourceReader.ReadSample(s, 0, 0, &u, &u, &l, &p); break;

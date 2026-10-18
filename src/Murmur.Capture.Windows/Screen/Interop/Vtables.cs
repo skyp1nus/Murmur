@@ -209,6 +209,13 @@ internal static unsafe class IMFVideoSampleAllocatorEx
         ((delegate* unmanaged[MemberFunction]<nint, uint, uint, nint, nint, int>)ComCall.Vtbl(self)[7])(self, initialSamples, maximumSamples, attributes, mediaType);
 }
 
+internal static unsafe class IMFVideoSampleAllocatorCallback
+{
+    // HRESULT GetFreeSampleCount(LONG *plSamples)
+    public static int GetFreeSampleCount(nint self, int* samples) =>
+        ((delegate* unmanaged[MemberFunction]<nint, int*, int>)ComCall.Vtbl(self)[4])(self, samples);
+}
+
 internal static unsafe class IMFTransform
 {
     // HRESULT GetAttributes(IMFAttributes **pAttributes)

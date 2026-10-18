@@ -162,6 +162,7 @@ public sealed class WgcScreenRecorderTests(ITestOutputHelper output)
             Assert.True(stats.FramesEncoded >= 1, stats.ToString());
             Assert.Equal(0, recorder.PlaceholderFrames);
             AssertDuration(TimeSpan.FromSeconds(3), probe);
+            AssertEncoderKeptUp(recorder, stats, probe.Frames);
         }
         finally
         {
@@ -212,6 +213,8 @@ public sealed class WgcScreenRecorderTests(ITestOutputHelper output)
             {
                 AssertDuration(TimeSpan.FromSeconds(1.5), probe);
             }
+
+            AssertEncoderKeptUp(recorder, second, probes.Sum(p => p.Frames));
         }
         finally
         {
@@ -254,6 +257,34 @@ public sealed class WgcScreenRecorderTests(ITestOutputHelper output)
             Assert.True(stats.FramesEncoded >= 1, stats.ToString());
             Assert.Equal(0, recorder.PlaceholderFrames);
             AssertDuration(TimeSpan.FromSeconds(2), probe);
+            AssertEncoderKeptUp(recorder, stats, probe.Frames);
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
+    [Fact]
+    [Trait("Category", "Windows")]
+    public async Task Record_AfterTheGpuPathWasGivenUp_UsesCpuReadback()
+    {
+        // What the segments after a persistent GPU pool exhaustion do (the exhaustion itself is pinned by PoolExhaustionTests).
+        var reason = ScreenTestEnvironment.SkipReason();
+        Assert.SkipWhen(reason is not null, reason ?? string.Empty);
+        var path = TempMp4();
+        var given = PoolExhaustionNaming.FallbackReason(EncoderInput.Gpu, WgcScreenRecorder.MaximumSamples);
+        try
+        {
+            await using var recorder = new WgcScreenRecorder(new ScreenCaptureOptions(FrameRate: 15, MaxHeight: 720, BitrateKbps: 4_000)) { GpuPathDisabled = given };
+            var faults = Collect(recorder);
+
+            await RecordAsync(recorder, path, TimeSpan.FromSeconds(1));
+
+            output.WriteLine($"{recorder.Stats} framePath='{recorder.FramePath}'; faults: {Describe(faults)}");
+            Assert.Equal(given, recorder.FramePath);
+            Assert.Contains("CPU readback", recorder.Stats.Encoder, StringComparison.Ordinal);
+            Assert.Empty(faults);
         }
         finally
         {
@@ -336,6 +367,20 @@ public sealed class WgcScreenRecorderTests(ITestOutputHelper output)
             }
         };
         return faults;
+    }
+
+    /// <summary>
+    /// Every captured frame reached the file (WGC decides how many frames there are; the frame path must not lose
+    /// them): the GPU path once kept 12 frames of a 3 s segment and dropped the rest while its sample pool sat empty.
+    /// </summary>
+    private static void AssertEncoderKeptUp(WgcScreenRecorder recorder, ScreenRecorderStats stats, int framesInFiles)
+    {
+        var detail = $"{stats}; poolExhausted={recorder.FramesPoolExhausted} repeated={recorder.FramesRepeated} frameArrived={recorder.FrameArrivedEvents} framePath='{recorder.FramePath}'";
+        Assert.True(stats.FramesDropped <= Math.Max(2, stats.FramesCaptured / 10), "more than 10% of the captured frames were dropped: " + detail);
+
+        // More frames than written is fine: the software encoder pads static stretches to its frame rate.
+        Assert.True(framesInFiles >= stats.FramesEncoded + recorder.FramesRepeated, $"the files hold {framesInFiles} frames, fewer than were written: " + detail);
+        Assert.Null(recorder.GpuPathDisabled);
     }
 
     private static void AssertDuration(TimeSpan expected, Mp4ProbeResult probe)
