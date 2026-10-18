@@ -143,7 +143,7 @@ CI на голові гілки (`b4bb357`, run [39113456094](https://github.com
   dotnet test Murmur.sln -c Release           # Windows-тести тут виконуються по-справжньому
   dotnet publish src/Murmur.Desktop -c Release -f net11.0-windows10.0.22621.0 -r win-x64 -o C:\Murmur
   ```
-  Що побачити: build без попереджень; у `dotnet test` тести з `Category=Windows` **пройшли**, а не пропущені (на CI вони пропускаються, бо там нема GPU/дозволу на мікрофон) — особливо `WindowsCaptureTests` (мікрофон/loopback 3 с), `WgcScreenRecorderTests` (H.264-файл), `WasapiPlaybackTests`.
+  Що побачити: build без попереджень; у `dotnet test` тести з `Category=Windows` **пройшли**, а не пропущені (на CI в `capture-e2e` пройшли 406 із 409, пропущені лише 3 мікрофонні — там мікрофон заборонений політикою) — особливо `WindowsCaptureTests` (мікрофон/loopback 3 с), `WgcScreenRecorderTests` (H.264-файл), `WasapiPlaybackTests`.
 
 **2. Моделі.** `pwsh scripts/fetch-models.ps1` → Parakeet (~0,67 ГБ) і Silero VAD у `%LOCALAPPDATA%\Murmur\models`. Для AI: `pwsh scripts/fetch-models.ps1 -Ai` → llama.cpp `llama-server` і GGUF Gemma 4 E4B + EmbeddingGemma (~5–6 ГБ; шлях запишеться в `models\gguf\models.json`, застосунок прочитає його сам).
 
@@ -159,7 +159,7 @@ CI на голові гілки (`b4bb357`, run [39113456094](https://github.com
 **5. Аварійне завершення.** Почати запис, через ~20 с у Диспетчері завдань «Завершити завдання» для `Murmur.exe`. Запустити знову → запис у бібліотеці з бейджем «Перервано», WAV-и відтворюються до моменту вбивства (втрата ≤ 2–3 с).
 
 **6. Транскрипція.** Після «Зупинити» запис отримує бейдж «Транскрибується N %» → «Готово». Відкрити запис: ліворуч плеєр із waveform, праворуч транскрипт з мітками «Я» / «Інші» і часом. «Відтворити» → підсвічується поточне слово; клік по слову → перемотка туди. Перевірити українську й англійську.
-- Швидкість на вашому CPU (критерій фази 2, на 4-ядерних CI-раннерах не пройдено):
+- Швидкість на вашому CPU (критерій фази 2: на CI пройдено лише на раннері Zen 5):
   ```powershell
   $m="$env:LOCALAPPDATA\Murmur\models"; $p="$m\sherpa-onnx-nemo-parakeet-tdt-0.6b-v3-int8"
   C:\Murmur\Murmur.Transcription.exe --bench --model-dir $p --vad "$m\silero_vad.onnx" --wav "$p\test_wavs\en.wav,$p\test_wavs\de.wav,$p\test_wavs\es.wav,$p\test_wavs\fr.wav" --seconds 3600 --out bench.json
@@ -168,7 +168,7 @@ CI на голові гілки (`b4bb357`, run [39113456094](https://github.com
 
 **7. AI.** (після `fetch-models.ps1 -Ai`, перезапустити Murmur) Відкрити транскрибований запис → вкладка «Запитати AI» → питання про щось, що звучало в записі. Очікуємо: відповідь з'являється частинами, під нею чипи `12:34`; клік по чипу → плеєр стрибає на цей момент і грає, і там справді звучить відповідь. Під час нового запису вкладка має показувати «AI на паузі», а `llama-server.exe` у Диспетчері завдань — зникнути. У бібліотеці: пошук «слово з запису» → результати з чипами часу; «Запитати AI по всіх записах» → чат по всіх записах, чип відкриває потрібний запис.
 
-**8. Годинний запис (критерій фази 1, якщо CI-заміри неповні).** `C:\Murmur\Murmur.exe --autorecord 3600 --perf-out perf.json`, під час запису грає звук; потім `pwsh scripts/check-recording.ps1 -PerfJson perf.json -CpuBudgetPct 3 -RamBudgetMb 150` → `droppedFrames = 0`, тривалість `system.wav` = 3600 ± 1 с, CPU і RAM у бюджеті.
+**8. Годинний запис (опційно: критерій фази 1 на вашому ПК і з мікрофоном; на CI вже пройдено).** `C:\Murmur\Murmur.exe --autorecord 3600 --perf-out perf.json`, під час запису грає звук і ви говорите; потім `pwsh scripts/check-recording.ps1 -PerfJson perf.json -CpuBudgetPct 3 -RamBudgetMb 150` → `droppedFrames = 0`, тривалість `system.wav` = 3600 ± 1 с, CPU і RAM у бюджеті.
 
 Якщо щось не так — найкорисніше: скриншот + `perf.json`/вивід команди + версія Windows і модель CPU/GPU.
 
