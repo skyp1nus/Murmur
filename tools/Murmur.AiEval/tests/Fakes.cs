@@ -116,7 +116,13 @@ internal sealed class FakeLlm(IChatClient chat, IEmbeddingGenerator<string, Embe
     public ValueTask<IEmbeddingGenerator<string, Embedding<float>>> GetEmbeddingGeneratorAsync(CancellationToken cancellationToken) =>
         ValueTask.FromResult(embeddings);
 
+    public bool Disposed { get; private set; }
+
     public ValueTask UnloadAsync(CancellationToken cancellationToken) => ValueTask.CompletedTask;
 
-    public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+    public ValueTask DisposeAsync()
+    {
+        Disposed = true;
+        return ValueTask.CompletedTask;
+    }
 }

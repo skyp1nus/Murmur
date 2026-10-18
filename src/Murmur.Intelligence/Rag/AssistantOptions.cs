@@ -1,3 +1,5 @@
+using Microsoft.Extensions.AI;
+
 namespace Murmur.Intelligence.Rag;
 
 /// <summary>Retrieval and generation settings of <see cref="Assistant"/>.</summary>
@@ -30,6 +32,12 @@ public sealed record AssistantOptions
     public float Temperature { get; init; } = 0.2f;
 
     public int MaxOutputTokens { get; init; } = 1024;
+
+    /// <summary>
+    /// Reasoning asked of the chat model. Off by default: an answer from a few excerpts needs no hidden thinking,
+    /// and on a CPU the thinking tokens take minutes and can use up <see cref="MaxOutputTokens"/> before the answer.
+    /// </summary>
+    public ReasoningEffort Reasoning { get; init; } = ReasoningEffort.None;
 
     /// <summary>System prompt; the default is <see cref="Assistant.DefaultSystemPrompt"/>.</summary>
     public string? SystemPrompt { get; init; }

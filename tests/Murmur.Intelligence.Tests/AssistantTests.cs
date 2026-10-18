@@ -198,6 +198,7 @@ public sealed class AssistantTests
 
         Assert.Equal(0.2f, _llm.Chat.LastOptions?.Temperature);
         Assert.Equal(1024, _llm.Chat.LastOptions?.MaxOutputTokens);
+        Assert.Equal(ReasoningEffort.None, _llm.Chat.LastOptions?.Reasoning?.Effort);
     }
 
     [Fact]

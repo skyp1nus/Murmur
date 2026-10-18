@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Globalization;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Text.Json;
@@ -94,7 +95,8 @@ public static class EvalRunner
             log.WriteLine($"[ai-eval] mode {mode}: stored {fixture.Segments.Count} segments in {saveMs} ms ({dataDir})");
 
             var assistantOptions = new AssistantOptions { MaxOutputTokens = options.MaxOutputTokens };
-            var assistant = new Assistant(llm, storage, assistantOptions);
+            var observed = new ObservedLlm(llm);
+            var assistant = new Assistant(observed, storage, assistantOptions);
             var chunks = new TranscriptChunker(assistantOptions.ChunkMaxDuration).Chunk(transcript).Count;
 
             long indexMs = 0;
@@ -121,12 +123,17 @@ public static class EvalRunner
             foreach (var question in questionSet.Questions)
             {
                 var result = mode == EvalMode.Full
-                    ? await AskAsync(assistant, session.Id, question, cancellationToken).ConfigureAwait(false)
+                    ? await AskAsync(assistant, observed, session.Id, question, cancellationToken).ConfigureAwait(false)
                     : await SearchAsync(assistant, session.Id, question, mode, options.TopK, cancellationToken).ConfigureAwait(false);
                 results.Add(result);
                 log.WriteLine(
                     $"[ai-eval] {result.Id} {(result.Skipped ? "SKIP" : result.Pass ? "PASS" : "FAIL")} " +
-                    $"expected {result.Expected ?? "not in recording"}, cited [{string.Join(", ", result.Cited)}], {result.LatencyMs} ms");
+                    $"expected {result.Expected ?? "not in recording"}, cited [{string.Join(", ", result.Cited)}], {result.LatencyMs} ms" +
+                    (mode == EvalMode.Full
+                        ? $" (first token {result.FirstTokenMs?.ToString(CultureInfo.InvariantCulture) ?? "-"} ms, finish {result.FinishReason ?? "-"}, " +
+                          $"tokens in/out {result.InputTokens?.ToString(CultureInfo.InvariantCulture) ?? "-"}/{result.OutputTokens?.ToString(CultureInfo.InvariantCulture) ?? "-"}, " +
+                          $"reasoning {result.ReasoningChars ?? 0} chars)"
+                        : string.Empty));
             }
 
             var scored = results.Where(r => !r.Skipped).ToList();
@@ -171,7 +178,8 @@ public static class EvalRunner
         }
     }
 
-    private static async Task<QuestionResult> AskAsync(Assistant assistant, SessionId session, EvalQuestion question, CancellationToken cancellationToken)
+    private static async Task<QuestionResult> AskAsync(
+        Assistant assistant, ObservedLlm observed, SessionId session, EvalQuestion question, CancellationToken cancellationToken)
     {
         var answer = new StringBuilder();
         IReadOnlyList<Citation> citations = [];
@@ -199,6 +207,7 @@ public static class EvalRunner
         }
 
         var latency = watch.ElapsedMilliseconds;
+        var stats = observed.Last;
         var text = answer.ToString().Trim();
         var score = error is null ? Scoring.ScoreAnswer(question, text, citations) : new QuestionScore(false, false, [], false, null);
         return new QuestionResult
@@ -218,6 +227,10 @@ public static class EvalRunner
             Pass = score.Pass,
             LatencyMs = latency,
             FirstTokenMs = firstToken,
+            FinishReason = stats?.FinishReason,
+            InputTokens = stats?.InputTokens,
+            OutputTokens = stats?.OutputTokens,
+            ReasoningChars = stats?.ReasoningChars,
             Answer = error ?? text,
         };
     }

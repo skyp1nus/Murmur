@@ -123,6 +123,7 @@ public sealed class Assistant : IAssistant
         {
             Temperature = _options.Temperature,
             MaxOutputTokens = _options.MaxOutputTokens,
+            Reasoning = new ReasoningOptions { Effort = _options.Reasoning },
         };
 
         var answer = new StringBuilder();

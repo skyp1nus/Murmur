@@ -55,9 +55,9 @@ public sealed class ReportWriterTests
         var md = ReportWriter.ToMarkdown(Report());
         var lines = md.Split('\n');
         Assert.StartsWith("### AI eval (full: Gemma answers): FAIL 1/2 (50 %, threshold 80 %)", md, StringComparison.Ordinal);
-        Assert.Contains("| # | Question | Expected | Cited | Pass | Latency, ms | Answer |", lines);
+        Assert.Contains("| # | Question | Expected | Cited | Pass | Latency, ms | Generation | Answer |", lines);
         Assert.Contains(lines, l => l.StartsWith("| q01 | Скільки \\| грошей? | 07:42 ±60 s | 07:30 | yes | 1500 | ", StringComparison.Ordinal));
-        Assert.Contains("| q11 | Зарплата? | not in recording | - | **no** | 2500 | Запропонували 3000. |", lines);
+        Assert.Contains("| q11 | Зарплата? | not in recording | - | **no** | 2500 | - | Запропонували 3000. |", lines);
         Assert.Contains("Index 12.3 s", md, StringComparison.Ordinal);
         Assert.Contains("gemma.gguf", md, StringComparison.Ordinal);
         Assert.Contains("written by the model itself", md, StringComparison.Ordinal);
@@ -69,6 +69,21 @@ public sealed class ReportWriterTests
         var md = ReportWriter.ToMarkdown(Report(EvalMode.RetrievalKeyword));
         Assert.StartsWith("### AI eval (retrieval only: keyword search)", md, StringComparison.Ordinal);
         Assert.DoesNotContain("written by the model itself", md, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Generation_SummarisesFinishTokensAndReasoning()
+    {
+        static QuestionResult Result(string? finish, long? output, int? reasoning) => new()
+        {
+            Id = "q01", Question = "?", Answerable = true, Query = "?", Cited = [], Pass = false, Answer = "",
+            FinishReason = finish, OutputTokens = output, ReasoningChars = reasoning,
+        };
+
+        Assert.Equal("length, 512 tok, reasoning 1830 ch", ReportWriter.Generation(Result("length", 512, 1830)));
+        Assert.Equal("stop, 87 tok", ReportWriter.Generation(Result("stop", 87, 0)));
+        Assert.Equal("stop, ? tok", ReportWriter.Generation(Result("stop", null, null)));
+        Assert.Equal("-", ReportWriter.Generation(Result(null, null, null)));
     }
 
     [Fact]

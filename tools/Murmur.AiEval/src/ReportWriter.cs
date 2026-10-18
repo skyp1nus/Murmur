@@ -35,8 +35,8 @@ public static class ReportWriter
             .Append(", avg answer ").Append(Seconds(report.Timings.AvgAnswerMs)).Append(", total ").Append(Seconds(report.Timings.TotalMs))
             .Append(". ").Append(report.Machine.Processors.ToString(inv)).Append(" CPUs, ").Append(Cell(report.Machine.Os)).Append(".\n\n");
 
-        md.Append("| # | Question | Expected | Cited | Pass | Latency, ms | Answer |\n");
-        md.Append("|---|---|---|---|---|---:|---|\n");
+        md.Append("| # | Question | Expected | Cited | Pass | Latency, ms | Generation | Answer |\n");
+        md.Append("|---|---|---|---|---|---:|---|---|\n");
         foreach (var q in report.PerQuestion)
         {
             md.Append("| ").Append(q.Id)
@@ -45,11 +45,26 @@ public static class ReportWriter
                 .Append(" | ").Append(q.Cited.Count == 0 ? "-" : Cell(string.Join(", ", q.Cited)))
                 .Append(" | ").Append(q.Skipped ? "skip" : q.Pass ? "yes" : "**no**")
                 .Append(" | ").Append(q.LatencyMs.ToString(inv))
+                .Append(" | ").Append(Generation(q))
                 .Append(" | ").Append(Cell(Preview(q.Answer)))
                 .Append(" |\n");
         }
 
         return md.ToString();
+    }
+
+    /// <summary>Full mode: finish reason, output tokens and hidden reasoning, e.g. <c>length, 512 tok, reasoning 1830 ch</c>.</summary>
+    public static string Generation(QuestionResult result)
+    {
+        ArgumentNullException.ThrowIfNull(result);
+        if (result.FinishReason is null && result.OutputTokens is null && result.ReasoningChars is null)
+        {
+            return "-";
+        }
+
+        var inv = CultureInfo.InvariantCulture;
+        var text = (result.FinishReason ?? "?") + ", " + (result.OutputTokens?.ToString(inv) ?? "?") + " tok";
+        return result.ReasoningChars is > 0 and var chars ? text + ", reasoning " + chars.ToString(inv) + " ch" : text;
     }
 
     /// <summary>The first <see cref="AnswerPreviewLength"/> characters on one line.</summary>

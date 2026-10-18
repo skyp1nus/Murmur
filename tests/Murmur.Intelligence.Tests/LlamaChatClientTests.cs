@@ -74,7 +74,7 @@ public sealed class LlamaChatClientTests
         Assert.Equal("ok", response.Text);
         Assert.Equal(ChatFinishReason.Length, response.FinishReason);
         var json = Assert.Single(server.Requests).Json;
-        foreach (var name in new[] { "model", "temperature", "top_p", "max_tokens", "stop" })
+        foreach (var name in new[] { "model", "temperature", "top_p", "max_tokens", "stop", "chat_template_kwargs" })
         {
             Assert.False(json.TryGetProperty(name, out _), name);
         }
@@ -110,6 +110,8 @@ public sealed class LlamaChatClientTests
         }
 
         Assert.Equal("Привіт, світ", string.Concat(updates.Select(u => u.Text)));
+        var reasoning = updates.SelectMany(u => u.Contents).OfType<TextReasoningContent>().Select(r => r.Text);
+        Assert.Equal("thinking", string.Concat(reasoning));
         Assert.DoesNotContain(updates, u => u.Text.Contains("AFTER", StringComparison.Ordinal));
         Assert.Contains(updates, u => u.FinishReason == ChatFinishReason.Stop);
         var usage = updates.SelectMany(u => u.Contents).OfType<UsageContent>().Single();
@@ -216,6 +218,20 @@ public sealed class LlamaChatClientTests
         Assert.Contains("\"top_k\":40", json, StringComparison.Ordinal);
         Assert.Contains("\"seed\":7", json, StringComparison.Ordinal);
         Assert.DoesNotContain("null", json, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData(ReasoningEffort.None, false)]
+    [InlineData(ReasoningEffort.Medium, true)]
+    public void CreateRequest_MapsReasoningEffortToTheTemplateThinkingSwitch(ReasoningEffort effort, bool enableThinking)
+    {
+        using var client = new LlamaChatClient(new Uri("http://127.0.0.1:1"));
+        var request = client.CreateRequest(
+            [new ChatMessage(ChatRole.User, "x")], new ChatOptions { Reasoning = new ReasoningOptions { Effort = effort } }, stream: true);
+
+        var json = JsonSerializer.SerializeToElement(request, OpenAiJsonContext.Default.ChatCompletionRequest);
+
+        Assert.Equal(enableThinking, json.GetProperty("chat_template_kwargs").GetProperty("enable_thinking").GetBoolean());
     }
 
     private static int IndexOf(byte[] haystack, byte[] needle) => haystack.AsSpan().IndexOf(needle);

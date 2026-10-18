@@ -169,6 +169,12 @@ public sealed class LlamaChatClient : IChatClient
             {
                 request.Stop = [.. stops];
             }
+
+            if (options.Reasoning?.Effort is { } effort)
+            {
+                // llama.cpp has no graded effort: the template either thinks or not (same as --reasoning-budget 0).
+                request.ChatTemplateKwargs = new ChatTemplateKwargsDto { EnableThinking = effort != ReasoningEffort.None };
+            }
         }
 
         return request;
@@ -178,15 +184,22 @@ public sealed class LlamaChatClient : IChatClient
     {
         var choice = chunk.Choices is { Count: > 0 } ? chunk.Choices[0] : null;
         var text = choice?.Delta?.Content;
+        var reasoning = choice?.Delta?.ReasoningContent;
         var finish = ToFinishReason(choice?.FinishReason);
         var usage = ToUsage(chunk.Usage);
-        if (string.IsNullOrEmpty(text) && finish is null && usage is null)
+        if (string.IsNullOrEmpty(text) && string.IsNullOrEmpty(reasoning) && finish is null && usage is null)
         {
-            // Role-only or reasoning-only delta.
+            // Role-only delta.
             return null;
         }
 
-        var contents = new List<AIContent>(2);
+        var contents = new List<AIContent>(3);
+        if (!string.IsNullOrEmpty(reasoning))
+        {
+            // Kept apart from the answer: ChatResponseUpdate.Text only joins TextContent.
+            contents.Add(new TextReasoningContent(reasoning));
+        }
+
         if (!string.IsNullOrEmpty(text))
         {
             contents.Add(new TextContent(text));

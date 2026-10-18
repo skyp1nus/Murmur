@@ -41,6 +41,17 @@ internal sealed class ChatCompletionRequest
 
     [JsonPropertyName("presence_penalty")]
     public float? PresencePenalty { get; set; }
+
+    /// <summary>Variables passed to the server's Jinja chat template.</summary>
+    [JsonPropertyName("chat_template_kwargs")]
+    public ChatTemplateKwargsDto? ChatTemplateKwargs { get; set; }
+}
+
+internal sealed class ChatTemplateKwargsDto
+{
+    /// <summary>Read by the templates of reasoning models; other templates ignore it.</summary>
+    [JsonPropertyName("enable_thinking")]
+    public bool? EnableThinking { get; set; }
 }
 
 internal sealed class StreamOptionsDto

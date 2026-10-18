@@ -211,6 +211,16 @@ public sealed record QuestionResult
 
     public long? FirstTokenMs { get; init; }
 
+    /// <summary>Full mode: why generation stopped (<c>stop</c>, or <c>length</c> when the token budget ran out).</summary>
+    public string? FinishReason { get; init; }
+
+    public long? InputTokens { get; init; }
+
+    public long? OutputTokens { get; init; }
+
+    /// <summary>Full mode: characters of hidden reasoning the model produced before or around the answer.</summary>
+    public int? ReasoningChars { get; init; }
+
     public required string Answer { get; init; }
 }
 
