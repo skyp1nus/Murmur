@@ -31,7 +31,7 @@ public sealed class RepeatPolicyEdgeTests
     [Fact]
     public void Close_WhenTheFaultPrecedesTheLastSample_StillGivesAPositiveDuration()
     {
-        var timing = new HeldFrameTiming();
+        var timing = new HeldFrameTiming(MediaTime.TicksPerSecond);
         timing.Advance(0, out _, out _);
         timing.Advance(10 * Second, out _, out _);
         Assert.True(timing.Close(RepeatPolicy.EndTicks(true, 100 * Second, 5 * Second, 100 * Second), out var time, out var duration));
@@ -43,7 +43,7 @@ public sealed class RepeatPolicyEdgeTests
     public void Advance_WithNonIncreasingTimes_KeepsTheTimelineContiguous()
     {
         // SegmentTimeline already makes times strictly increasing; the timing still never yields a gap or an overlap.
-        var timing = new HeldFrameTiming();
+        var timing = new HeldFrameTiming(MediaTime.TicksPerSecond);
         timing.Advance(5 * Second, out _, out _);
         Assert.True(timing.Advance(0, out var time, out var duration));
         Assert.Equal((0L, 1L), (time, duration));
@@ -56,7 +56,7 @@ public sealed class RepeatPolicyEdgeTests
     public void Advance_AtThirtyFps_WritesOneFrameDurationPerFrame()
     {
         var frame = MediaTime.FrameDuration(30);
-        var timing = new HeldFrameTiming();
+        var timing = new HeldFrameTiming(MediaTime.TicksPerSecond);
         timing.Advance(0, out _, out _);
         for (var i = 1; i <= 90; i++)
         {
@@ -69,7 +69,7 @@ public sealed class RepeatPolicyEdgeTests
     [Fact]
     public void Timing_DoesNotAllocate()
     {
-        var timing = new HeldFrameTiming();
+        var timing = new HeldFrameTiming(MediaTime.TicksPerSecond);
         long sum = 0;
 
         void Run()

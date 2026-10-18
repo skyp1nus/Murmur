@@ -162,7 +162,7 @@ public sealed class WgcScreenRecorderTests(ITestOutputHelper output)
             Assert.True(stats.FramesEncoded >= 1, stats.ToString());
             Assert.Equal(0, recorder.PlaceholderFrames);
             AssertDuration(TimeSpan.FromSeconds(3), probe);
-            AssertTimeline(path, elapsed);
+            AssertTimeline(path, elapsed, frameRate: 30);
             AssertEncoderKeptUp(recorder, stats, probe.Frames);
         }
         finally
@@ -214,7 +214,7 @@ public sealed class WgcScreenRecorderTests(ITestOutputHelper output)
             for (var i = 0; i < paths.Length; i++)
             {
                 AssertDuration(TimeSpan.FromSeconds(1.5), probes[i]);
-                AssertTimeline(paths[i], elapsed[i]);
+                AssertTimeline(paths[i], elapsed[i], frameRate: 15);
             }
 
             AssertEncoderKeptUp(recorder, second, probes.Sum(p => p.Frames));
@@ -260,7 +260,7 @@ public sealed class WgcScreenRecorderTests(ITestOutputHelper output)
             Assert.True(stats.FramesEncoded >= 1, stats.ToString());
             Assert.Equal(0, recorder.PlaceholderFrames);
             AssertDuration(TimeSpan.FromSeconds(2), probe);
-            AssertTimeline(path, elapsed);
+            AssertTimeline(path, elapsed, frameRate: 15);
             AssertEncoderKeptUp(recorder, stats, probe.Frames);
         }
         finally
@@ -298,9 +298,10 @@ public sealed class WgcScreenRecorderTests(ITestOutputHelper output)
 
     [Theory]
     [Trait("Category", "Windows")]
-    [InlineData(false)]
-    [InlineData(true)]
-    public async Task Record_StaticScreen_FileTimelineMatchesWallClock(bool forceCpu)
+    [InlineData(false, 30)]
+    [InlineData(true, 30)]
+    [InlineData(false, 60)]
+    public async Task Record_StaticScreen_FileTimelineMatchesWallClock(bool forceCpu, int fps)
     {
         // A few frames, then none for seconds: what WGC delivers on a static screen. The fragmented MP4 stores only
         // sample durations (trun, no tfdt), so with a fixed 1/fps duration a 600 s static recording played 22.75 s.
@@ -310,7 +311,7 @@ public sealed class WgcScreenRecorderTests(ITestOutputHelper output)
         var path = TempMp4();
         try
         {
-            await using var recorder = new WgcScreenRecorder(new ScreenCaptureOptions()) { ForceCpuReadback = forceCpu, CapturedFrameLimit = 3 };
+            await using var recorder = new WgcScreenRecorder(new ScreenCaptureOptions(FrameRate: fps)) { ForceCpuReadback = forceCpu, CapturedFrameLimit = 3 };
             var faults = Collect(recorder);
 
             var elapsed = await RecordAsync(recorder, path, TimeSpan.FromSeconds(5));
@@ -324,7 +325,7 @@ public sealed class WgcScreenRecorderTests(ITestOutputHelper output)
             Assert.InRange(stats.FramesCaptured, 1, 3);
             Assert.True(recorder.FramesRepeated >= 3, $"only {recorder.FramesRepeated} repeats in 5 s of static screen");
             Assert.Equal(0, recorder.RepeatsSkipped);
-            AssertTimeline(path, elapsed);
+            AssertTimeline(path, elapsed, fps);
             AssertDuration(TimeSpan.FromSeconds(5), Mp4Probe.Read(path));
         }
         finally
@@ -362,7 +363,7 @@ public sealed class WgcScreenRecorderTests(ITestOutputHelper output)
             Assert.Equal(1, stats.FramesEncoded);
             Assert.Equal(0, recorder.FramesRepeated);
             Assert.True(recorder.RepeatsSkipped >= 1, "the skipped repeats were not counted");
-            AssertTimeline(path, elapsed);
+            AssertTimeline(path, elapsed, frameRate: 15);
         }
         finally
         {
@@ -469,13 +470,16 @@ public sealed class WgcScreenRecorderTests(ITestOutputHelper output)
     /// The file's own timeline (the sum of its trun sample durations: what spec-compliant players and
     /// scripts/check-recording.ps1 go by) and its header duration (mvhd) both match the wall-clock length of the segment.
     /// </summary>
-    private void AssertTimeline(string path, TimeSpan elapsed)
+    private void AssertTimeline(string path, TimeSpan elapsed, int frameRate)
     {
         var scan = MurmurMp4Scan.Scan(path);
         output.WriteLine($"{Path.GetFileName(path)}: {scan.DurationSource} {scan.DurationS:F3} s, mvhd {scan.MvhdDurationS:F3} s, {scan.Frames} frames, {scan.Fragments} fragments, wall {elapsed.TotalSeconds:F3} s, error: {scan.Error ?? "none"}");
         Assert.Null(scan.Error);
         Assert.True(scan.Fragmented, "not a fragmented MP4");
         Assert.Equal("trun", scan.DurationSource);
+
+        // The timeline is quantized to this timescale (HeldFrameTiming): the sink must still use it.
+        Assert.Equal(HeldFrameTiming.SinkTimescale(frameRate), scan.Timescale);
         var tolerance = DurationTolerance.TotalSeconds;
         Assert.InRange(scan.DurationS, elapsed.TotalSeconds - tolerance, elapsed.TotalSeconds + tolerance);
         Assert.InRange(scan.MvhdDurationS, elapsed.TotalSeconds - tolerance, elapsed.TotalSeconds + tolerance);

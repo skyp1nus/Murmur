@@ -1022,7 +1022,7 @@ internal sealed class WgcScreenRecorder : IScreenRecorder
         public readonly Lock CopyLock = new();
         public readonly FrameRateLimiter Limiter = new(frameRate);
         public readonly SegmentTimeline Timeline = new();
-        public readonly HeldFrameTiming Timing = new();
+        public readonly HeldFrameTiming Timing = new(HeldFrameTiming.SinkTimescale(frameRate));
 
         public GraphicsCaptureItem? Item;
         public TypedEventHandler<GraphicsCaptureItem, object>? ItemClosed;

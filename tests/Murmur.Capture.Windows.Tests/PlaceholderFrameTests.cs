@@ -33,7 +33,7 @@ public sealed class PlaceholderFrameTests
         // Mirrors the encoder thread at stop: nothing is held, so the placeholder is held at sample time 0 and the
         // end of the segment fixes its duration: the one-frame file is as long as the segment (audio stays in sync).
         var timeline = new SegmentTimeline();
-        var timing = new HeldFrameTiming();
+        var timing = new HeldFrameTiming(MediaTime.TicksPerSecond);
         const long start = 10 * Second;
         timeline.Reset(start);
         var end = RepeatPolicy.EndTicks(stopRequested: true, start + (3 * Second), RepeatPolicy.NoFault, now: start + (4 * Second));
@@ -56,7 +56,7 @@ public sealed class PlaceholderFrameTests
         Assert.False(RepeatPolicy.ShouldRepeat(false, true, false, 2 * Second, 0, fault, Second));
         Assert.True(PlaceholderFrame.ShouldWrite(anySampleWritten: false, writerHealthy: true));
 
-        var timing = new HeldFrameTiming();
+        var timing = new HeldFrameTiming(MediaTime.TicksPerSecond);
         timing.Advance(0, out _, out _);
         Assert.True(timing.Close(RepeatPolicy.EndTicks(true, 5 * Second, fault, 6 * Second) - start, out _, out var duration));
         Assert.Equal(Second, duration);
@@ -68,7 +68,7 @@ public sealed class PlaceholderFrameTests
         // The first real frame arrives late (static screen at start): it stands for the picture since the segment
         // start, repeats work as before and no placeholder is written.
         var timeline = new SegmentTimeline();
-        var timing = new HeldFrameTiming();
+        var timing = new HeldFrameTiming(MediaTime.TicksPerSecond);
         const long start = 0;
         timeline.Reset(start);
 

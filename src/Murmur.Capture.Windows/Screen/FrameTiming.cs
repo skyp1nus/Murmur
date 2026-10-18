@@ -159,8 +159,19 @@ internal static class RepeatPolicy
 /// So the encoder thread holds the newest frame back until the next one arrives (or the segment ends) and writes it
 /// with the real gap as its duration: the durations add up to the wall-clock time from the segment start to its end.
 /// The first frame starts at sample time 0 (it stands for the picture since the segment start) and the last one ends at
-/// the end of the segment. Every duration is at least 1 (100 ns). Pure and allocation-free; single-threaded (owned by
-/// the encoder thread).
+/// the end of the segment.
+/// </para>
+/// <para>
+/// <b>Quantized to the sink's timescale.</b> The sink rounds every duration on its own to its media timescale
+/// (<see cref="SinkTimescale"/>: 30000 units/s at 30 fps, 1 unit = 33.3 us). WGC frames follow vsync and the rate
+/// limiter keeps every k-th one, so raw gaps repeat in a fixed pattern (144 Hz at 30 fps: 833.33 and 1041.67 units)
+/// and per-sample rounding would drift one way, about 0.7 s per hour against the audio. The timeline is therefore kept
+/// in sink units: every frame starts and ends on a whole unit (its capture time rounded to the nearest unit), and the
+/// tick values handed out (<see cref="UnitsToTicks"/>, rounded up) convert back to exactly those units whether the sink
+/// rounds or truncates. The rounding error never accumulates: the sum of the durations is the end time rounded to a
+/// unit. Every frame lasts at least one unit, so no sample gets a zero <c>trun</c> duration (a repeat racing a newer
+/// captured frame, timestamps closer than a unit); the next frame then starts a unit later and the timeline catches up
+/// at the following frame. Pure integer math, allocation-free; single-threaded (owned by the encoder thread).
 /// </para>
 /// </summary>
 internal sealed class HeldFrameTiming
@@ -168,55 +179,95 @@ internal sealed class HeldFrameTiming
     /// <summary><see cref="HeldTime"/> while no frame is held.</summary>
     public const long None = -1;
 
-    private long _held = None;
+    private readonly long _timescale;
+    private long _heldUnits = None;
 
-    /// <summary>The sample time of the held frame, or <see cref="None"/>.</summary>
-    public long HeldTime => _held;
+    /// <param name="timescale">Units per second of the sink's media timescale (<see cref="SinkTimescale"/>); at most
+    /// <see cref="MediaTime.TicksPerSecond"/>, which keeps the timeline in plain 100 ns ticks.</param>
+    public HeldFrameTiming(long timescale)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(timescale);
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(timescale, MediaTime.TicksPerSecond);
+        _timescale = timescale;
+    }
 
-    public bool HasHeld => _held != None;
+    /// <summary>Units per second the timeline is quantized to.</summary>
+    public long Timescale => _timescale;
+
+    /// <summary>The sample time (100 ns) of the held frame, or <see cref="None"/>.</summary>
+    public long HeldTime => _heldUnits == None ? None : UnitsToTicks(_heldUnits);
+
+    public bool HasHeld => _heldUnits != None;
 
     /// <summary>
-    /// Holds a new frame with sample time <paramref name="sampleTime"/> (relative to the segment start). True when a
-    /// frame was held before: that frame must now be written with <paramref name="heldTime"/> and
+    /// The media timescale Media Foundation's MP4 sink gives a video track encoded at <paramref name="frameRate"/>
+    /// fps (frame rate N/1): N * 1000 units per second, as read back from the files it writes (mdhd).
+    /// </summary>
+    public static long SinkTimescale(int frameRate)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(frameRate);
+        return frameRate * 1000L;
+    }
+
+    /// <summary>
+    /// Holds a new frame with sample time <paramref name="sampleTime"/> (100 ns, relative to the segment start). True
+    /// when a frame was held before: that frame must now be written with <paramref name="heldTime"/> and
     /// <paramref name="heldDuration"/> (it lasts until the new frame).
     /// </summary>
     public bool Advance(long sampleTime, out long heldTime, out long heldDuration)
     {
-        if (_held == None)
+        if (_heldUnits == None)
         {
             heldTime = 0;
             heldDuration = 0;
-            _held = 0; // the first frame stands for the picture since the segment start
+            _heldUnits = 0; // the first frame stands for the picture since the segment start
             return false;
         }
 
-        heldTime = _held;
-        heldDuration = Math.Max(sampleTime - _held, 1);
-        _held = _held + heldDuration;
+        var end = Math.Max(TicksToUnits(sampleTime), _heldUnits + 1);
+        Emit(_heldUnits, end, out heldTime, out heldDuration);
+        _heldUnits = end;
         return true;
     }
 
     /// <summary>
-    /// Ends the timeline at <paramref name="endTime"/> (relative to the segment start). True when a frame was held: it
-    /// must be written with <paramref name="heldTime"/> and <paramref name="heldDuration"/> (it lasts until the end).
+    /// Ends the timeline at <paramref name="endTime"/> (100 ns, relative to the segment start). True when a frame was
+    /// held: it must be written with <paramref name="heldTime"/> and <paramref name="heldDuration"/> (it lasts until
+    /// the end, at least one unit).
     /// </summary>
     public bool Close(long endTime, out long heldTime, out long heldDuration)
     {
-        if (_held == None)
+        if (_heldUnits == None)
         {
             heldTime = 0;
             heldDuration = 0;
             return false;
         }
 
-        heldTime = _held;
-        heldDuration = Math.Max(endTime - _held, 1);
-        _held = None;
+        Emit(_heldUnits, Math.Max(TicksToUnits(endTime), _heldUnits + 1), out heldTime, out heldDuration);
+        _heldUnits = None;
         return true;
     }
 
     /// <summary>Forgets the held frame (its sample was released without being written).</summary>
-    public void Discard() => _held = None;
+    public void Discard() => _heldUnits = None;
+
+    /// <summary>100 ns ticks to the nearest whole unit (negative times count as 0).</summary>
+    public long TicksToUnits(long ticks) =>
+        ticks <= 0 ? 0 : ((ticks * _timescale) + (MediaTime.TicksPerSecond / 2)) / MediaTime.TicksPerSecond;
+
+    /// <summary>
+    /// Whole units to 100 ns ticks, rounded up: converting the result back to units (rounding to nearest or truncating,
+    /// as a sink may do) gives <paramref name="units"/> again.
+    /// </summary>
+    public long UnitsToTicks(long units) =>
+        ((units * MediaTime.TicksPerSecond) + _timescale - 1) / _timescale;
+
+    private void Emit(long startUnits, long endUnits, out long time, out long duration)
+    {
+        time = UnitsToTicks(startUnits);
+        duration = UnitsToTicks(endUnits - startUnits);
+    }
 }
 
 /// <summary>
