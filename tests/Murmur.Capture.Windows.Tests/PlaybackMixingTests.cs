@@ -251,8 +251,19 @@ public sealed class TrackMixerTests
         const int Total = 16_000 * 30;
         using var mixer = new TrackMixer([TestWav.Reader(TestWav.Ramp(Total, 0, 0)), TestWav.Reader(TestWav.Constant(Total, 1))]);
         var output = new short[800];
-        mixer.Render(output); // warm up
-        mixer.Seek(0);
+
+        // Warm up with full passes (render to the end, seek) so tiered JIT / OSR recompilation of the loop,
+        // which can allocate a few bytes on this thread on a busy CI runner, happens before measuring.
+        for (var pass = 0; pass < 3; pass++)
+        {
+            while (mixer.Render(output) > 0)
+            {
+            }
+
+            mixer.Seek(Total / 2);
+            mixer.Render(output);
+            mixer.Seek(0);
+        }
 
         var before = GC.GetAllocatedBytesForCurrentThread();
         while (mixer.Render(output) > 0)
