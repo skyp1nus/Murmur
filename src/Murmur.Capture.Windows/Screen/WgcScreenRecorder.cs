@@ -44,7 +44,8 @@ namespace Murmur.Capture.Windows.Screen;
 /// <para>
 /// <b>Static screens.</b> WGC only delivers frames when the screen changes; the encoder thread repeats the held frame
 /// once a second while nothing arrives, so fragments keep being written for crash safety (a repeat that finds no free
-/// sample is skipped and counted in <see cref="RepeatsSkipped"/>; the timeline stays right). Repeats are only written
+/// sample is skipped and counted in <see cref="RepeatsSkipped"/>; the timeline stays right; a failed copy is a fatal
+/// fault like a failed captured frame). Repeats are only written
 /// while the segment accepts frames: after a fatal fault (display disconnected, frame pool or GPU failure) nothing
 /// extends the timeline any more and the last frame ends at the fault time, so the file never shows a frozen frame as
 /// if it were live content (see <see cref="RepeatPolicy"/>).
@@ -190,8 +191,9 @@ internal sealed class WgcScreenRecorder : IScreenRecorder
     }
 
     /// <summary>
-    /// Static-screen repeats that were skipped because no encoder sample was free or the copy failed (diagnostics; the
-    /// timeline is unaffected, the held frame just lasts longer, but the file grows less often).
+    /// Static-screen repeats that were skipped because no encoder sample was free (diagnostics; the timeline is
+    /// unaffected, the held frame just lasts longer, but the file grows less often). A failed copy is not a skip but a
+    /// fatal fault.
     /// </summary>
     internal long RepeatsSkipped => Interlocked.Read(ref _repeatsSkipped);
 
@@ -771,30 +773,26 @@ internal sealed class WgcScreenRecorder : IScreenRecorder
     /// <summary>
     /// Repeats the held frame at <paramref name="ticks"/>: the held frame is written (lasting until now) and its copy is
     /// held instead, so the file keeps growing by whole fragments on a static screen (crash safety). When no sample is
-    /// free (or the copy fails) the repeat is skipped and counted in <see cref="RepeatsSkipped"/>; the timeline stays
-    /// right regardless, as the held frame simply lasts longer.
+    /// free the repeat is skipped and counted in <see cref="RepeatsSkipped"/>; the timeline stays right regardless, as
+    /// the held frame simply lasts longer. A failed allocation or copy (e.g. the device was removed) is a fatal fault,
+    /// like a failed captured frame: the held frame then ends at the fault time.
     /// </summary>
     private void Repeat(Segment segment, long ticks)
     {
-        nint sample;
-        int hr;
-        lock (segment.CopyLock)
+        var frames = segment.Frames!;
+        var outcome = HeldSample.CopyForRepeat(frames, segment.CopyLock, segment.LastSample, out var sample, out var hr, out var failure);
+        switch (outcome)
         {
-            hr = segment.Frames!.AllocateSample(out sample);
-            if (hr >= 0 && sample != 0)
-            {
-                hr = segment.Frames.CopySample(sample, segment.LastSample);
-            }
+            case RepeatCopy.Copied:
+                Submit(segment, sample, ticks, SampleKind.Repeated);
+                break;
+            case RepeatCopy.PoolEmpty:
+                Interlocked.Increment(ref _repeatsSkipped);
+                break;
+            default:
+                RaiseFault(segment, HeldSample.RepeatFault(outcome, frames.Input, failure, hr), isFatal: true);
+                break;
         }
-
-        if (hr < 0 || sample == 0)
-        {
-            ComCall.Release(ref sample);
-            Interlocked.Increment(ref _repeatsSkipped);
-            return;
-        }
-
-        Submit(segment, sample, ticks, SampleKind.Repeated);
     }
 
     /// <summary>
@@ -901,29 +899,14 @@ internal sealed class WgcScreenRecorder : IScreenRecorder
     }
 
     /// <summary>
-    /// Timestamps and writes the held sample (<see cref="Segment.LastSample"/>) and releases it. Returns the WriteSample
-    /// HRESULT; a failure marks the writer failed and raises a fatal fault.
+    /// Timestamps and writes the held sample (<see cref="Segment.LastSample"/>) and releases it on every path (see
+    /// <see cref="HeldSample.Write"/>). Returns the WriteSample HRESULT; a failure (a managed exception included) marks
+    /// the writer failed and raises a fatal fault. Never throws.
     /// </summary>
     private int WriteHeld(Segment segment, long time, long duration)
     {
-        var sample = segment.LastSample;
         var kind = segment.LastKind;
-        segment.LastSample = 0;
-        var step = "IMFSample::SetSampleTime";
-        var hr = IMFSample.SetSampleTime(sample, time);
-        if (hr >= 0)
-        {
-            step = "IMFSample::SetSampleDuration";
-            hr = IMFSample.SetSampleDuration(sample, duration);
-        }
-
-        if (hr >= 0)
-        {
-            step = "IMFSinkWriter::WriteSample";
-            hr = segment.Writer!.WriteSample(sample);
-        }
-
-        ComCall.Release(ref sample); // the sink writer keeps its own reference while it encodes the sample
+        var hr = HeldSample.Write(ref segment.LastSample, segment.Writer, time, duration, out var step, out var exception);
         if (hr < 0)
         {
             segment.WriterHealthy = false;
@@ -933,7 +916,8 @@ internal sealed class WgcScreenRecorder : IScreenRecorder
                 Interlocked.Increment(ref _framesDropped);
             }
 
-            RaiseFault(segment, $"{step} failed ({FrameCopyNaming.Path(segment.Frames!.Input)} input): {ComHelpers.Describe(hr)}", isFatal: true);
+            var reason = exception is null ? ComHelpers.Describe(hr) : exception.Message;
+            RaiseFault(segment, $"{step} failed ({FrameCopyNaming.Path(segment.Frames!.Input)} input): {reason}", isFatal: true);
             return hr;
         }
 
@@ -976,7 +960,7 @@ internal sealed class WgcScreenRecorder : IScreenRecorder
     /// </summary>
     private void ReportPoolExhaustion(Segment segment, EncoderInput input, int drops, long elapsed)
     {
-        var limit = input == EncoderInput.Gpu ? MaximumSamples : (uint)MaximumCpuSamples;
+        var limit = input == EncoderInput.Gpu ? MaximumSamples : (uint)CpuSampleLimit;
         if (input == EncoderInput.Gpu)
         {
             _gpuPathDisabled = PoolExhaustionNaming.FallbackReason(input, limit);
