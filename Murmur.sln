@@ -41,6 +41,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Murmur.TokenGen", "tools\Mu
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Murmur.Core.CrashHelper", "tests\Murmur.Core.CrashHelper\Murmur.Core.CrashHelper.csproj", "{E59941A1-2B8F-4049-87D6-C400750AB3D2}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Murmur.Core.FakeAsrWorker", "tests\Murmur.Core.FakeAsrWorker\Murmur.Core.FakeAsrWorker.csproj", "{CADE864E-BD27-4886-956C-A929A9C5F789}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -243,6 +245,18 @@ Global
 		{E59941A1-2B8F-4049-87D6-C400750AB3D2}.Release|x64.Build.0 = Release|Any CPU
 		{E59941A1-2B8F-4049-87D6-C400750AB3D2}.Release|x86.ActiveCfg = Release|Any CPU
 		{E59941A1-2B8F-4049-87D6-C400750AB3D2}.Release|x86.Build.0 = Release|Any CPU
+		{CADE864E-BD27-4886-956C-A929A9C5F789}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{CADE864E-BD27-4886-956C-A929A9C5F789}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{CADE864E-BD27-4886-956C-A929A9C5F789}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{CADE864E-BD27-4886-956C-A929A9C5F789}.Debug|x64.Build.0 = Debug|Any CPU
+		{CADE864E-BD27-4886-956C-A929A9C5F789}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{CADE864E-BD27-4886-956C-A929A9C5F789}.Debug|x86.Build.0 = Debug|Any CPU
+		{CADE864E-BD27-4886-956C-A929A9C5F789}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{CADE864E-BD27-4886-956C-A929A9C5F789}.Release|Any CPU.Build.0 = Release|Any CPU
+		{CADE864E-BD27-4886-956C-A929A9C5F789}.Release|x64.ActiveCfg = Release|Any CPU
+		{CADE864E-BD27-4886-956C-A929A9C5F789}.Release|x64.Build.0 = Release|Any CPU
+		{CADE864E-BD27-4886-956C-A929A9C5F789}.Release|x86.ActiveCfg = Release|Any CPU
+		{CADE864E-BD27-4886-956C-A929A9C5F789}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -264,5 +278,6 @@ Global
 		{77956D7E-0652-4CB1-B8D7-33DEDAD55506} = {0AB3BF05-4346-4AA6-1389-037BE0695223}
 		{69E589C2-E440-435F-B085-20F5F610E7D7} = {07C2787E-EAC7-C090-1BA3-A61EC2A24D84}
 		{E59941A1-2B8F-4049-87D6-C400750AB3D2} = {0AB3BF05-4346-4AA6-1389-037BE0695223}
+		{CADE864E-BD27-4886-956C-A929A9C5F789} = {0AB3BF05-4346-4AA6-1389-037BE0695223}
 	EndGlobalSection
 EndGlobal

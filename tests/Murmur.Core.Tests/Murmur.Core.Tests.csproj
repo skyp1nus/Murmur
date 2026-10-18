@@ -27,6 +27,8 @@
     <ProjectReference Include="..\..\src\Murmur.Core\Murmur.Core.csproj" />
     <!-- Child process of the crash test; referenced so it is built and copied next to the tests. -->
     <ProjectReference Include="..\Murmur.Core.CrashHelper\Murmur.Core.CrashHelper.csproj" />
+    <!-- Protocol stand-in for the ASR worker (WorkerAsrClient tests); built and copied next to the tests. -->
+    <ProjectReference Include="..\Murmur.Core.FakeAsrWorker\Murmur.Core.FakeAsrWorker.csproj" />
   </ItemGroup>
 
 </Project>
