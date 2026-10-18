@@ -1,0 +1,36 @@
+# Creates the annotated phase tags listed in .github/phase-tags.txt.
+# Tags are created here because the night-run environment can push branches but not tags.
+name: tags
+
+on:
+  push:
+    branches: [night-run, master]
+    paths: ['.github/phase-tags.txt']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  tag:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - name: Create missing tags
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          while read -r tag sha msg; do
+            case "$tag" in ''|'#'*) continue ;; esac
+            if git rev-parse -q --verify "refs/tags/$tag" >/dev/null; then
+              echo "$tag already exists"
+              continue
+            fi
+            git tag -a "$tag" "$sha" -m "$msg"
+            git push origin "refs/tags/$tag"
+            echo "created $tag -> $sha" >> "$GITHUB_STEP_SUMMARY"
+          done < .github/phase-tags.txt
