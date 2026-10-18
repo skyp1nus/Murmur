@@ -79,24 +79,37 @@ public sealed class WavTests : IDisposable
     }
 
     [Fact]
-    public void Flush_MakesHeaderAndDataVisibleWhileTheWriterIsOpen()
+    public void FlushToDisk_MakesHeaderAndDataVisibleWhileTheWriterIsOpen()
     {
         var path = _dir.File("flush.wav");
         using var writer = new WavPcm16Writer(path);
         writer.Append(new float[16_000]);
 
-        // Before the flush the data is in the file but the header still says 0 bytes.
+        // Before any header update the header still says 0 bytes.
         using (var stale = WavReader.Open(path))
         {
             Assert.Equal(0, stale.Layout.DeclaredDataBytes);
         }
 
-        writer.Flush();
+        writer.FlushToDisk();
 
         using var reader = WavReader.Open(path);
         Assert.Equal(32_000, reader.Layout.DeclaredDataBytes);
         Assert.Equal(16_000, reader.FrameCount);
         Assert.Equal(TimeSpan.FromSeconds(1), reader.Duration);
+    }
+
+    [Fact]
+    public void Flush_WritesDataAndHeaderInTheBackground()
+    {
+        var path = _dir.File("bg-flush.wav");
+        using var writer = new WavPcm16Writer(path);
+        writer.Append(new float[16_000]);
+
+        writer.Flush();
+
+        WaitForDeclaredBytes(path, 32_000);
+        Assert.Equal(44 + 32_000, new FileInfo(path).Length);
     }
 
     [Fact]
@@ -108,9 +121,24 @@ public sealed class WavTests : IDisposable
 
         writer.UpdateHeader();
 
-        using var reader = WavReader.Open(path);
-        Assert.Equal(1_600, reader.Layout.DeclaredDataBytes);
+        WaitForDeclaredBytes(path, 1_600);
         Assert.Equal(44 + 1_600, new FileInfo(path).Length);
+    }
+
+    [Fact]
+    public void StreamWriter_UpdateHeaderAndFlush_AreSynchronous()
+    {
+        using var stream = new MemoryStream();
+        using var writer = new WavPcm16Writer(stream, leaveOpen: true);
+        writer.Append(new float[800]);
+
+        writer.UpdateHeader();
+        Assert.Equal(1_600u, BinaryPrimitives.ReadUInt32LittleEndian(stream.GetBuffer().AsSpan(40)));
+
+        writer.Append(new float[200]);
+        writer.Flush();
+        Assert.Equal(2_000u, BinaryPrimitives.ReadUInt32LittleEndian(stream.GetBuffer().AsSpan(40)));
+        Assert.Equal(44 + 2_000, stream.Length);
     }
 
     [Fact]
@@ -292,6 +320,26 @@ public sealed class WavTests : IDisposable
             }
         });
         Assert.Equal(0, allocated);
+    }
+
+    /// <summary>Polls the header of a file that a background I/O thread is updating.</summary>
+    private static void WaitForDeclaredBytes(string path, long expected)
+    {
+        var watch = System.Diagnostics.Stopwatch.StartNew();
+        while (true)
+        {
+            using (var reader = WavReader.Open(path))
+            {
+                if (reader.Layout.DeclaredDataBytes == expected)
+                {
+                    return;
+                }
+
+                Assert.True(watch.Elapsed < TimeSpan.FromSeconds(10), $"header still declares {reader.Layout.DeclaredDataBytes} bytes");
+            }
+
+            Thread.Sleep(5);
+        }
     }
 
     private static float[] Ramp(int count)

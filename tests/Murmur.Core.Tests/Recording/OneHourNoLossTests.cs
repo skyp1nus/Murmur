@@ -1,4 +1,6 @@
+using System.Collections.Concurrent;
 using System.Diagnostics;
+using Microsoft.Win32.SafeHandles;
 using Murmur.Core.Audio;
 using Murmur.Core.Capture;
 using Murmur.Core.Capture.Synthetic;
@@ -13,10 +15,18 @@ namespace Murmur.Core.Tests.Recording;
 /// -> resampler -> WAV) runs over one hour of audio, accelerated by the synthetic sources' speed factor.
 /// </summary>
 /// <remarks>
-/// At x<see cref="Speed"/> the default 4 s ring would be only 4 / 80 = 50 ms of wall time, so the ring is enlarged to
-/// 48 s of audio (rounded up to 2^23 samples = 87 s, i.e. ~1.1 s of wall time) to keep a safety margin over the 20 ms
-/// writer period on a loaded, shared CI machine. Everything else (writer period, flush interval, threads, resampler,
-/// WAV writer) uses the production settings.
+/// Every buffer sized in <i>audio</i> time is scaled for x<see cref="Speed"/>, because its wall-time margin shrinks by
+/// the speed factor:
+/// <list type="bullet">
+/// <item>the capture rings: the default 4 s would be only 4 / 80 = 50 ms of wall time, so they hold 48 s of audio
+/// (rounded up to 2^23 samples = 87 s, i.e. ~1.1 s of wall time), a safety margin over the 20 ms writer period on a
+/// loaded, shared CI machine;</item>
+/// <item>the WAV write-behind rings: the default 2^21 bytes (65 s of 16 kHz mono) is only ~0.8 s of wall time at x80,
+/// less than the 5.7 s <c>FlushFileBuffers</c> stall seen on Windows CI (relevant if the OS also stalls the writes
+/// meanwhile), so they hold <see cref="WriteBehindBytes"/> = 2^25 bytes (1048 s of audio, ~13 s of wall time: such a
+/// stall plus the coalesced follow-up flush). At x1 the production ring covers a 5.7 s stall more than ten times.</item>
+/// </list>
+/// Everything else (writer period, flush interval, threads, resampler, WAV writer) uses the production settings.
 /// </remarks>
 [Collection(RealtimeCollection.Name)]
 public sealed class OneHourNoLossTests : IDisposable
@@ -24,13 +34,62 @@ public sealed class OneHourNoLossTests : IDisposable
     private const double Speed = 80;
     private const long HourFrames48k = 3_600L * 48_000;
     private const long HourSamples16k = 3_600L * 16_000;
+    private const int WriteBehindBytes = 1 << 25;
+    private static readonly TimeSpan SlowFlush = TimeSpan.FromSeconds(3);
 
     private readonly TempDirectory _dir = new();
 
     public void Dispose() => _dir.Dispose();
 
     [Fact]
-    public async Task OneHourOfAudio_IsRecordedWithoutLosses()
+    public Task OneHourOfAudio_IsRecordedWithoutLosses() =>
+        RecordOneHourAsync(new WavWriterTuning { WriteBehindBytes = WriteBehindBytes }, slowFlush: false);
+
+    /// <summary>
+    /// Same hour, but every flush to disk takes <see cref="SlowFlush"/> (Windows CI saw a 5.7 s
+    /// <c>FlushFileBuffers</c>). With <paramref name="stallWrites"/>, every write to the same file also waits while that
+    /// flush runs (the worst case suspected on Windows, UNVERIFIED-ON-WINDOWS), so at x80 up to 240 s of audio per
+    /// stall waits in the write-behind ring. Either way the recorder's writer thread must keep draining the capture
+    /// rings, so nothing may be dropped.
+    /// </summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public Task OneHourOfAudio_WithSecondsLongDiskFlushes_IsRecordedWithoutLosses(bool stallWrites)
+    {
+        // One gate per file: the suspected stall is per file, and the tuning is shared by both tracks' writers.
+        var writesAllowed = new ConcurrentDictionary<SafeFileHandle, ManualResetEventSlim>();
+        return RecordOneHourAsync(
+            new WavWriterTuning
+            {
+                WriteBehindBytes = WriteBehindBytes,
+                BeforeWrite = stallWrites ? handle => Gate(writesAllowed, handle).Wait() : null,
+                DurableFlush = handle =>
+                {
+                    var gate = Gate(writesAllowed, handle);
+                    if (stallWrites)
+                    {
+                        gate.Reset();
+                    }
+
+                    try
+                    {
+                        Thread.Sleep(SlowFlush);
+                        RandomAccess.FlushToDisk(handle);
+                    }
+                    finally
+                    {
+                        gate.Set();
+                    }
+                },
+            },
+            slowFlush: true);
+
+        static ManualResetEventSlim Gate(ConcurrentDictionary<SafeFileHandle, ManualResetEventSlim> gates, SafeFileHandle handle) =>
+            gates.GetOrAdd(handle, static _ => new ManualResetEventSlim(true));
+    }
+
+    private async Task RecordOneHourAsync(WavWriterTuning tuning, bool slowFlush)
     {
         var ct = TestContext.Current.CancellationToken;
         var store = new InMemorySessionStore(_dir.Path);
@@ -39,7 +98,10 @@ public sealed class OneHourNoLossTests : IDisposable
         var recorder = new Recorder(capture, store, TimeProvider.System, settings);
         var watch = Stopwatch.StartNew();
 
+        // The writers are created inside StartAsync, in this async flow, so they pick the tuning up.
+        WavPcm16Writer.Tuning.Value = tuning;
         var started = await recorder.StartAsync(new RecordingOptions(Title: "One hour"), ct);
+        WavPcm16Writer.Tuning.Value = null;
         var sources = capture.CreatedSources;
         var deadline = TimeSpan.FromSeconds((3_600 / Speed) * 4);
         while ((sources[0].FramesEmitted < HourFrames48k || sources[1].FramesEmitted < HourFrames48k) && recorder.Stats.DroppedFrames == 0)
@@ -53,6 +115,11 @@ public sealed class OneHourNoLossTests : IDisposable
             $"max cycle {recorder.WriterMaxCycle.TotalMilliseconds:F1} ms, max flush {recorder.WriterMaxFlush.TotalMilliseconds:F1} ms";
         TestContext.Current.TestOutputHelper?.WriteLine(report);
         Assert.True(recorder.Stats.DroppedFrames == 0, $"{recorder.Stats.DroppedFrames} frames dropped; {report}");
+        if (slowFlush)
+        {
+            // The slow flush really was in effect (the recorder's flusher thread waits for it).
+            Assert.True(recorder.WriterMaxFlush >= SlowFlush, report);
+        }
 
         Assert.Equal(SessionState.Recorded, finished.State);
         Assert.Equal(TimeSpan.FromHours(1), finished.Duration);
