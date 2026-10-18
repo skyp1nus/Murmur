@@ -2,6 +2,8 @@
 
   <PropertyGroup>
     <RootNamespace>Murmur.Intelligence</RootNamespace>
+    <!-- [LibraryImport] stubs for the Windows Job object and POSIX kill(2) are generated as unsafe code. -->
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
 
   <ItemGroup>
