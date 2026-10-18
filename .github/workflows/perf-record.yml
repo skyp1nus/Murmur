@@ -2,8 +2,9 @@ name: perf-record
 
 # Long recording on a GitHub-hosted Windows runner with a virtual sound card (VB-Audio Virtual Cable) and a
 # looping tone:
-#   Run A: audio only for <minutes> minutes (default 60)  -> no losses, CPU < 3%, RAM < 150 MB
-#   Run B: audio + screen for 10 minutes (if `screen`)    -> no losses, CPU < 8%, RAM < 250 MB (D-029)
+#   Run A: audio only for <minutes> minutes (default 60)  -> no losses, CPU < 3%, RAM < 150 MB, flat (< 1 MB/min)
+#   Run B: audio + screen for 10 minutes (if `screen`)    -> no losses, CPU < 8%, working set flat after the first
+#          minute (< 1 MB/min; no absolute RAM cap with the screen, owner 2026-10-19: wsMaxMb is reported only)
 # Idle CPU < 1% is checked on both runs. Budgets come from docs/PLAN.md. Cloud runners are slower and noisier than a
 # real PC, so a budget miss here is a signal to look at, not a hard product verdict.
 
@@ -142,7 +143,7 @@ jobs:
       - name: "Check A: audio only"
         if: ${{ !cancelled() }}
         run: |
-          pwsh scripts/check-recording.ps1 -PerfJson artifacts/perf/recA.json -ExpectTone -Title "Run A: audio only, $($env:MINUTES) min" -IdleCpuBudgetPct 1 -CpuBudgetPct 3 -RamBudgetMb 150 -MarkdownOut artifacts/perf/checkA.md
+          pwsh scripts/check-recording.ps1 -PerfJson artifacts/perf/recA.json -ExpectTone -Title "Run A: audio only, $($env:MINUTES) min" -IdleCpuBudgetPct 1 -CpuBudgetPct 3 -RamBudgetMb 150 -MaxWsSlopeMbPerMin 1 -MarkdownOut artifacts/perf/checkA.md
           $code = $LASTEXITCODE
           if (Test-Path artifacts/perf/checkA.md) {
             Get-Content artifacts/perf/checkA.md -Raw | Out-File $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
@@ -162,7 +163,7 @@ jobs:
       - name: "Check B: audio + screen"
         if: ${{ !cancelled() && env.SCREEN == 'true' }}
         run: |
-          pwsh scripts/check-recording.ps1 -PerfJson artifacts/perf/recB.json -ExpectTone -ExpectScreen -Title 'Run B: audio + screen, 10 min' -IdleCpuBudgetPct 1 -CpuBudgetPct 8 -RamBudgetMb 250 -MarkdownOut artifacts/perf/checkB.md
+          pwsh scripts/check-recording.ps1 -PerfJson artifacts/perf/recB.json -ExpectTone -ExpectScreen -Title 'Run B: audio + screen, 10 min' -IdleCpuBudgetPct 1 -CpuBudgetPct 8 -MaxWsSlopeMbPerMin 1 -MarkdownOut artifacts/perf/checkB.md
           $code = $LASTEXITCODE
           if (Test-Path artifacts/perf/checkB.md) {
             Get-Content artifacts/perf/checkB.md -Raw | Out-File $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
@@ -200,7 +201,7 @@ jobs:
             "| CPU avg, % (A budget < 3, B budget < 8) | < 3 / < 8 | $(Fmt $a 'cpuAvgPct') | $(Fmt $b 'cpuAvgPct') |",
             "| CPU p95, % | - | $(Fmt $a 'cpuP95Pct') | $(Fmt $b 'cpuP95Pct') |",
             "| CPU avg, % of one core | - | $(Fmt $a 'cpuAvgPctOneCore') | $(Fmt $b 'cpuAvgPctOneCore') |",
-            "| Working set max, MB (A budget < 150, B budget < 250) | < 150 / < 250 | $(Fmt $a 'wsMaxMb') | $(Fmt $b 'wsMaxMb') |",
+            "| Working set max, MB (A budget < 150; B: no cap) | < 150 / - | $(Fmt $a 'wsMaxMb') | $(Fmt $b 'wsMaxMb') |",
             "| Working set avg, MB | - | $(Fmt $a 'wsAvgMb') | $(Fmt $b 'wsAvgMb') |",
             "| Private max, MB | - | $(Fmt $a 'privateMaxMb') | $(Fmt $b 'privateMaxMb') |",
             ''

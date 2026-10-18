@@ -109,6 +109,78 @@ public sealed class CheckRecordingScriptTests : IDisposable
         Assert.DoesNotContain("screen video", run.Output);
     }
 
+    private const string SlopeRow = "working-set slope after 60 s";
+
+    [Fact]
+    public void A_flat_working_set_passes_the_slope_gate()
+    {
+        // 10 minutes at ~260 MB with +/- 1.5 MB of noise: no absolute cap, only growth counts.
+        var run = RunMemory(Memory(600, t => 260 + (t / 10 % 3 == 0 ? 1.5 : -1.5)), "-MaxWsSlopeMbPerMin", "1");
+
+        Assert.Equal(0, run.ExitCode);
+        Assert.Equal("PASS", Status(run, SlopeRow));
+        Assert.Contains("over 55 samples (60..600 s)", run.Output);
+    }
+
+    [Fact]
+    public void A_growing_working_set_fails_the_slope_gate()
+    {
+        // 2 MB per minute after the first minute.
+        var run = RunMemory(Memory(600, t => 200 + (2 * t / 60.0)), "-MaxWsSlopeMbPerMin", "1");
+
+        Assert.Equal(1, run.ExitCode);
+        Assert.Equal("FAIL", Status(run, SlopeRow));
+        Assert.Contains("2.000 MB/min", run.Output);
+    }
+
+    [Fact]
+    public void The_warm_up_is_left_out_of_the_fit()
+    {
+        // 100 -> 250 MB during the first minute (JIT, encoder, pools), flat afterwards: passes; fitted from the start, the
+        // same run grows by far more than 1 MB/min (what the app's whole-run wsSlopeMbPerMin would say).
+        var memory = Memory(600, t => t < 60 ? 100 + (2.5 * t) : 250);
+        Assert.Equal(0, RunMemory(memory, "-MaxWsSlopeMbPerMin", "1").ExitCode);
+
+        var fromStart = RunMemory(memory, "-MaxWsSlopeMbPerMin", "1", "-WsSlopeSkipS", "0");
+        Assert.Equal(1, fromStart.ExitCode);
+        Assert.Equal("FAIL", Status(fromStart, "working-set slope after 0 s"));
+    }
+
+    [Fact]
+    public void Too_few_samples_after_the_warm_up_fail_the_gate_but_not_the_report()
+    {
+        // A 70 s run: samples at 0..70 s, only 60 and 70 after the warm-up.
+        var memory = Memory(70, _ => 150);
+        var gated = RunMemory(memory, "-MaxWsSlopeMbPerMin", "1");
+        Assert.Equal(1, gated.ExitCode);
+        Assert.Equal("FAIL", Status(gated, SlopeRow));
+        Assert.Contains("too few samples to fit (2 after the warm-up, need 3)", gated.Output);
+
+        // No memory[] at all (an older perf JSON) is "too few" as well.
+        Assert.Equal(1, RunMemory(null, "-MaxWsSlopeMbPerMin", "1").ExitCode);
+
+        var reported = RunMemory(memory);
+        Assert.Equal(0, reported.ExitCode);
+        Assert.Equal("INFO", Status(reported, SlopeRow));
+    }
+
+    [Fact]
+    public void Without_a_limit_the_slope_is_only_reported()
+    {
+        var run = RunMemory(Memory(600, t => 200 + (5 * t / 60.0)));
+
+        Assert.Equal(0, run.ExitCode);
+        Assert.Equal("INFO", Status(run, SlopeRow));
+        Assert.Contains("5.000 MB/min", run.Output);
+    }
+
+    /// <summary>A perf JSON memory[] array: a sample every 10 s from 0 to <paramref name="seconds"/>, wsMb = <paramref name="ws"/>(t).</summary>
+    private static string Memory(int seconds, Func<int, double> ws) =>
+        "[" + string.Join(", ", Enumerable.Range(0, (seconds / 10) + 1).Select(i => i * 10).Select(t =>
+            string.Create(System.Globalization.CultureInfo.InvariantCulture, $"{{ \"seconds\": {t}, \"wsMb\": {ws(t):0.###}, \"privateMb\": 0, \"gcHeapMb\": 0 }}"))) + "]";
+
+    private ScriptRun RunMemory(string? memory, params string[] options) => Run([], [], options, expectScreen: false, memory);
+
     // ------------------------------------------------------------------ plumbing
 
     private sealed record ScriptRun(int ExitCode, string Output);
@@ -128,7 +200,10 @@ public sealed class CheckRecordingScriptTests : IDisposable
         return Fragmented(timescale, [.. fragments]);
     }
 
-    private ScriptRun Run(string[] names, byte[][] files, string? option = null, string? value = null, bool expectScreen = true)
+    private ScriptRun Run(string[] names, byte[][] files, string? option = null, string? value = null, bool expectScreen = true) =>
+        Run(names, files, option is null ? [] : [option, value!], expectScreen, memory: null);
+
+    private ScriptRun Run(string[] names, byte[][] files, string[] options, bool expectScreen, string? memory)
     {
         var pwsh = FindPwsh();
         Assert.SkipUnless(pwsh is not null, "pwsh (PowerShell 7) is not available; set MURMUR_PWSH to run the script tests.");
@@ -146,7 +221,7 @@ public sealed class CheckRecordingScriptTests : IDisposable
             json,
             $$"""
             { "durationS": {{DurationS}}, "idleCpuPct": 0.0, "cpuAvgPct": 0.0, "cpuP95Pct": 0.0, "cpuAvgPctOneCore": 0.0,
-              "wsAvgMb": 0.0, "wsMaxMb": 0.0, "privateMaxMb": 0.0,
+              "wsAvgMb": 0.0, "wsMaxMb": 0.0, "privateMaxMb": 0.0, "wsSlopeMbPerMin": 0.0,{{(memory is null ? string.Empty : " \"memory\": " + memory + ",")}}
               "recorderStats": { "microphoneFrames": 0, "systemFrames": 160000, "droppedFrames": 0, "screenFramesDropped": 0 },
               "session": { "id": "test", "folder": "{{folder}}", "micSeconds": 0.0, "systemSeconds": {{DurationS}}, "screenSegments": {{names.Length}} } }
             """);
@@ -169,10 +244,9 @@ public sealed class CheckRecordingScriptTests : IDisposable
             info.ArgumentList.Add("-ExpectScreen");
         }
 
-        if (option is not null)
+        foreach (var argument in options)
         {
-            info.ArgumentList.Add(option);
-            info.ArgumentList.Add(value!);
+            info.ArgumentList.Add(argument);
         }
 
         using var process = Process.Start(info)!;

@@ -32,6 +32,10 @@
         crash is read up to the last complete box.
     Budgets (a budget of 0 disables the check; metric names are the JSON field names):
       - -IdleCpuBudgetPct on idleCpuPct, -CpuBudgetPct on cpuAvgPct, -RamBudgetMb on wsMaxMb
+      - -MaxWsSlopeMbPerMin on the working-set growth: the least-squares slope of memory[].wsMb over
+        memory[].seconds, fitted only over the samples from -WsSlopeSkipS on (the first minute is warm-up: JIT,
+        Media Foundation, encoder and sample pools; the app's own wsSlopeMbPerMin covers the whole run, warm-up
+        included, and is only reported). Fewer than 3 samples after the warm-up fail the check (nothing to fit).
 
     The WAV scan is done by an inline C# helper (Add-Type), so a 1-hour 16 kHz file takes seconds.
     Prints a markdown report to stdout; -MarkdownOut also writes it to a file (for $GITHUB_STEP_SUMMARY).
@@ -73,6 +77,11 @@
     Budget for cpuAvgPct (0 = not checked).
 .PARAMETER RamBudgetMb
     Budget for wsMaxMb (0 = not checked).
+.PARAMETER MaxWsSlopeMbPerMin
+    Largest allowed working-set slope after the warm-up, MB per minute (0 = not checked). With the screen there is no
+    absolute RAM cap (the app may use what the quality needs), but memory must stay flat while recording.
+.PARAMETER WsSlopeSkipS
+    Seconds at the start of the recording left out of the slope fit (default 60).
 #>
 [CmdletBinding()]
 param(
@@ -92,7 +101,9 @@ param(
     [double] $MinToneFraction = 0.95,
     [double] $IdleCpuBudgetPct = 0,
     [double] $CpuBudgetPct = 0,
-    [double] $RamBudgetMb = 0
+    [double] $RamBudgetMb = 0,
+    [double] $MaxWsSlopeMbPerMin = 0,
+    [double] $WsSlopeSkipS = 60
 )
 
 Set-StrictMode -Version Latest
@@ -341,6 +352,49 @@ function Test-Budget {
     Add-Row $Name ("{0} {1}" -f (Format-Num $Value), $Unit) "< $Budget $Unit" $st
 }
 
+function Get-WsSlope {
+    # Least-squares slope (MB per minute) of wsMb over seconds, from the memory samples at or after $SkipS.
+    param($Memory, [double] $SkipS)
+    $points = [System.Collections.Generic.List[double[]]]::new()
+    foreach ($m in @($Memory)) {
+        $t = Get-Prop $m 'seconds'
+        $ws = Get-Prop $m 'wsMb'
+        if ($null -ne $t -and $null -ne $ws -and [double]$t -ge $SkipS) { $points.Add([double[]]@([double]$t, [double]$ws)) }
+    }
+    $fit = [pscustomobject]@{ Samples = $points.Count; Slope = $null; FromS = $null; ToS = $null }
+    if ($points.Count -lt 3) { return $fit }
+    [double] $meanT = 0
+    [double] $meanW = 0
+    foreach ($p in $points) { $meanT += $p[0]; $meanW += $p[1] }
+    $meanT /= $points.Count
+    $meanW /= $points.Count
+    [double] $cov = 0
+    [double] $var = 0
+    foreach ($p in $points) {
+        $cov += ($p[0] - $meanT) * ($p[1] - $meanW)
+        $var += ($p[0] - $meanT) * ($p[0] - $meanT)
+    }
+    $fit.FromS = $points[0][0]
+    $fit.ToS = $points[$points.Count - 1][0]
+    if ($var -gt 0) { $fit.Slope = $cov / $var * 60 }
+    return $fit
+}
+
+function Test-WsSlope {
+    param($Memory, [double] $Limit, [double] $SkipS)
+    $fit = Get-WsSlope $Memory $SkipS
+    $name = 'working-set slope after {0} s' -f (Format-Num $SkipS '0.##')
+    $limitText = if ($Limit -le 0) { 'not checked' } else { '< {0} MB/min' -f (Format-Num $Limit '0.###') }
+    if ($null -eq $fit.Slope) {
+        $value = 'too few samples to fit ({0} after the warm-up, need 3)' -f $fit.Samples
+        Add-Row $name $value $limitText $(if ($Limit -le 0) { 'INFO' } else { 'FAIL' })
+        return
+    }
+    $value = '{0} MB/min over {1} samples ({2}..{3} s)' -f (Format-Num $fit.Slope '0.000'), $fit.Samples, (Format-Num $fit.FromS '0'), (Format-Num $fit.ToS '0')
+    if ($Limit -le 0) { Add-Row $name $value $limitText 'INFO'; return }
+    Add-Row $name $value $limitText $(if ($fit.Slope -lt $Limit) { 'PASS' } else { 'FAIL' })
+}
+
 function Test-Wav {
     param([string] $Label, [string] $Path, $DurationS, [bool] $Analyze, [bool] $Required)
 
@@ -465,6 +519,8 @@ if ($null -ne $perf) {
     Add-Row 'cpuAvgPctOneCore' (Format-Num (Get-Prop $perf 'cpuAvgPctOneCore')) '-' 'INFO'
     Add-Row 'wsAvgMb' (Format-Num (Get-Prop $perf 'wsAvgMb')) '-' 'INFO'
     Test-Budget 'wsMaxMb' (Get-Prop $perf 'wsMaxMb') $RamBudgetMb 'MB'
+    Add-Row 'wsSlopeMbPerMin (app, whole run)' (Format-Num (Get-Prop $perf 'wsSlopeMbPerMin') '0.000') '-' 'INFO'
+    Test-WsSlope (Get-Prop $perf 'memory') $MaxWsSlopeMbPerMin $WsSlopeSkipS
     Add-Row 'privateMaxMb' (Format-Num (Get-Prop $perf 'privateMaxMb')) '-' 'INFO'
 
     $folder = Get-Prop $session 'folder'
