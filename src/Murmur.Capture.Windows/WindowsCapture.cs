@@ -1,21 +1,23 @@
 using Murmur.Capture.Windows.Audio;
+using Murmur.Capture.Windows.Screen;
 using Murmur.Core.Capture;
 
 namespace Murmur.Capture.Windows;
 
 /// <summary>
-/// Windows capture facade: WASAPI microphone and loopback. Screen capture is added by a separate task; until then
-/// <see cref="CaptureCapabilities.Screen"/> is false, <see cref="GetDisplays"/> is empty and
-/// <see cref="CreateScreenRecorder"/> throws <see cref="NotSupportedException"/>.
+/// Windows capture facade: WASAPI microphone and loopback, Windows.Graphics.Capture + Media Foundation screen recording.
 /// </summary>
 public sealed class WindowsCapture : ICapture
 {
-    /// <summary>Queried on every access (devices come and go): any active capture / render endpoint.</summary>
+    /// <summary>
+    /// Queried on every access (devices come and go): any active capture / render endpoint;
+    /// <c>Screen</c> = <c>GraphicsCaptureSession.IsSupported()</c>.
+    /// </summary>
     public CaptureCapabilities Capabilities =>
         new(
             Microphone: AudioEndpoints.HasActive(AudioDeviceKind.Microphone),
             SystemAudio: AudioEndpoints.HasActive(AudioDeviceKind.SystemOutput),
-            Screen: false);
+            Screen: CaptureInterop.IsSupported());
 
     /// <summary>Active endpoints of <paramref name="kind"/> with friendly names; <c>IsDefault</c> = default console endpoint.</summary>
     /// <exception cref="System.Runtime.InteropServices.COMException">The MMDevice API failed (e.g. the audio service is down).</exception>
@@ -27,8 +29,24 @@ public sealed class WindowsCapture : ICapture
     public IAudioSource CreateAudioSource(AudioDeviceKind kind, string? deviceId) =>
         new WasapiAudioSource(AudioEndpoints.Open(kind, deviceId));
 
-    public IReadOnlyList<DisplayInfo> GetDisplays() => [];
+    /// <summary>Connected displays (EnumDisplayMonitors); <c>Id</c> is the GDI device name such as <c>\\.\DISPLAY1</c>.</summary>
+    /// <exception cref="System.Runtime.InteropServices.COMException">EnumDisplayMonitors failed.</exception>
+    public IReadOnlyList<DisplayInfo> GetDisplays()
+    {
+        var entries = Displays.Enumerate();
+        var displays = new DisplayInfo[entries.Count];
+        for (var i = 0; i < displays.Length; i++)
+        {
+            displays[i] = entries[i].Info;
+        }
 
-    public IScreenRecorder CreateScreenRecorder(ScreenCaptureOptions options) =>
-        throw new NotSupportedException("Screen capture is not available in this build of Murmur.Capture.Windows yet.");
+        return displays;
+    }
+
+    /// <summary>
+    /// A Windows.Graphics.Capture -> Media Foundation H.264 recorder for <see cref="ScreenCaptureOptions.DisplayId"/>
+    /// (null = primary display). Nothing native is touched until the first segment starts.
+    /// </summary>
+    /// <exception cref="ArgumentOutOfRangeException">FrameRate outside 1..240, MaxHeight below 2 or BitrateKbps not positive.</exception>
+    public IScreenRecorder CreateScreenRecorder(ScreenCaptureOptions options) => new WgcScreenRecorder(options);
 }

@@ -10,23 +10,15 @@ public sealed class WindowsCaptureTests(ITestOutputHelper output)
     private static readonly TimeSpan CaptureTolerance = TimeSpan.FromMilliseconds(150);
 
     [Fact]
-    public void GetDisplays_IsEmptyUntilScreenCaptureExists() =>
-        Assert.Empty(new WindowsCapture().GetDisplays());
-
-    [Fact]
-    public void CreateScreenRecorder_IsNotSupportedYet() =>
-        Assert.Throws<NotSupportedException>(() => new WindowsCapture().CreateScreenRecorder(new ScreenCaptureOptions()));
-
-    [Fact]
     [Trait("Category", "Windows")]
-    public void Capabilities_MatchEnumeration_AndScreenIsOff()
+    public void Capabilities_MatchEnumeration()
     {
         Assert.SkipUnless(OperatingSystem.IsWindows(), WindowsOnly);
         var capture = new WindowsCapture();
 
         var caps = capture.Capabilities;
 
-        Assert.False(caps.Screen);
+        Assert.Equal(Screen.CaptureInterop.IsSupported(), caps.Screen);
         Assert.Equal(caps.Microphone, capture.GetAudioDevices(AudioDeviceKind.Microphone).Count > 0);
         Assert.Equal(caps.SystemAudio, capture.GetAudioDevices(AudioDeviceKind.SystemOutput).Count > 0);
     }
