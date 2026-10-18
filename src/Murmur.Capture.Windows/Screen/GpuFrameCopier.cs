@@ -11,15 +11,23 @@ namespace Murmur.Capture.Windows.Screen;
 /// when the capture size changes during a segment, since the encoder size is fixed per segment).
 /// <para>
 /// Samples come from the segment's <c>IMFVideoSampleAllocatorEx</c> (owned by this copier), which recycles a fixed set
-/// of sample objects for its whole lifetime; their textures, media buffers (and video-processor output views) are
-/// cached per sample pointer, so the steady-state path makes no COM allocations and no managed allocations. The cache
-/// holds texture and buffer references but never a sample reference (that would keep the sample checked out of the
-/// allocator). Every fill sets the buffer's current length to its contiguous length: buffers of DXGI surfaces start at
-/// 0 bytes and <c>IMFSinkWriter::WriteSample</c> rejects them (E_INVALIDARG) on paths that read the buffer.
+/// of sample objects (and their media buffers) for its whole lifetime; their textures (and video-processor output views)
+/// and buffer lengths are cached per sample pointer, so the steady-state path makes no COM allocations and no managed
+/// allocations. The cache holds texture references only: a sample goes back to the allocator only once its media
+/// buffer is released too (measured on a Radeon RX 9070 XT: every sample whose buffer we kept stayed checked out, so a
+/// buffer cache drained the 12-sample pool after 12 frames), so the buffer is fetched per fill
+/// (<c>IMFSample::GetBufferByIndex</c>) and released right after. Every fill sets the buffer's current length to its
+/// contiguous length: buffers of DXGI surfaces start at 0 bytes and <c>IMFSinkWriter::WriteSample</c> rejects them
+/// (E_INVALIDARG) on paths that read the buffer.
+/// </para>
+/// <para>
+/// <c>IMFVideoSampleAllocator::AllocateSample</c> blocks for about a second before it reports
+/// MF_E_SAMPLEALLOCATOR_EMPTY; <see cref="AllocateSample"/> never calls it when the pool is known to be empty
+/// (<c>IMFVideoSampleAllocatorCallback::GetFreeSampleCount</c> is 0 and every one of the maximum samples was handed out
+/// at least once, see <see cref="SamplePoolProbe"/>), so the capture thread never stalls on back-pressure.
 /// Not thread-safe: callers serialize (the recorder's copy lock). Dispose after the sink writer was released; disposing
 /// uninitializes and releases the allocator.
 /// </para>
-/// UNVERIFIED-ON-WINDOWS until the Windows-trait tests run in CI on a machine with a hardware encoder.
 /// </summary>
 internal sealed unsafe class GpuFrameCopier : IFramePath
 {
@@ -31,8 +39,12 @@ internal sealed unsafe class GpuFrameCopier : IFramePath
     private readonly int _frameRate;
     private readonly uint _frameBytes;
     private readonly Entry[] _entries = new Entry[MaxEntries];
+    private readonly nint[] _handedOut = new nint[MaxEntries];
+    private readonly uint _maximumSamples;
     private nint _allocator;
+    private nint _allocatorCallback;
     private int _entryCount;
+    private int _handedOutCount;
 
     private nint _videoDevice;
     private nint _videoContext;
@@ -48,12 +60,17 @@ internal sealed unsafe class GpuFrameCopier : IFramePath
     private bool _placementValid;
     private bool _rectsApplied;
 
-    /// <summary>Takes ownership of <paramref name="allocator"/> (an initialized IMFVideoSampleAllocatorEx; 0 for tests that never allocate).</summary>
-    internal GpuFrameCopier(nint device, nint context, nint allocator, PixelSize encoder, int frameRate)
+    /// <summary>
+    /// Takes ownership of <paramref name="allocator"/> (an initialized IMFVideoSampleAllocatorEx of at most
+    /// <paramref name="maximumSamples"/> samples; 0 for tests that never allocate).
+    /// </summary>
+    internal GpuFrameCopier(nint device, nint context, nint allocator, PixelSize encoder, int frameRate, uint maximumSamples = MaxEntries)
     {
         _device = device;
         _context = context;
         _allocator = allocator;
+        _allocatorCallback = allocator != 0 ? ComCall.Query(allocator, ScreenConstants.IidIMFVideoSampleAllocatorCallback) : 0;
+        _maximumSamples = maximumSamples;
         _encoder = encoder;
         _frameRate = frameRate;
         _frameBytes = (uint)PlaceholderFrame.RowPitch(encoder.Width) * (uint)encoder.Height;
@@ -73,16 +90,57 @@ internal sealed unsafe class GpuFrameCopier : IFramePath
     /// <exception cref="COMException">The allocator could not be created or initialized.</exception>
     public static GpuFrameCopier Create(nint device, nint context, nint deviceManager, PixelSize encoder, int frameRate, uint initialSamples, uint maximumSamples)
     {
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(maximumSamples, (uint)MaxEntries);
         var allocator = CreateSampleAllocator(deviceManager, encoder, frameRate, initialSamples, maximumSamples);
-        return new GpuFrameCopier(device, context, allocator, encoder, frameRate);
+        return new GpuFrameCopier(device, context, allocator, encoder, frameRate, maximumSamples);
     }
 
+    /// <summary>
+    /// Takes a free sample, or returns MF_E_SAMPLEALLOCATOR_EMPTY at once (without the allocator's blocking wait) when
+    /// every sample is checked out. Allocation-free.
+    /// </summary>
     public int AllocateSample(out nint sample)
     {
+        sample = 0;
+        if (_allocatorCallback != 0)
+        {
+            int free;
+            var freeHr = IMFVideoSampleAllocatorCallback.GetFreeSampleCount(_allocatorCallback, &free);
+            if (SamplePoolProbe.IsExhausted(freeHr, free, _handedOutCount, _maximumSamples))
+            {
+                return ScreenConstants.MfESampleAllocatorEmpty;
+            }
+        }
+
         nint result = 0;
         var hr = IMFVideoSampleAllocatorEx.AllocateSample(_allocator, &result);
-        sample = hr < 0 ? 0 : result;
+        if (hr < 0 || result == 0)
+        {
+            return hr < 0 ? hr : ScreenConstants.EPointer;
+        }
+
+        NoteHandedOut(result);
+        sample = result;
         return hr;
+    }
+
+    /// <summary>Distinct samples the allocator handed out so far (diagnostics; at most the maximum).</summary>
+    internal int SamplesHandedOut => _handedOutCount;
+
+    private void NoteHandedOut(nint sample)
+    {
+        for (var i = 0; i < _handedOutCount; i++)
+        {
+            if (_handedOut[i] == sample)
+            {
+                return;
+            }
+        }
+
+        if (_handedOutCount < _handedOut.Length)
+        {
+            _handedOut[_handedOutCount++] = sample;
+        }
     }
 
     public int CopyFrame(nint sample, nint source, PixelSize content)
@@ -115,11 +173,11 @@ internal sealed unsafe class GpuFrameCopier : IFramePath
                 Back = 1,
             };
             ID3D11DeviceContext.CopySubresourceRegion(_context, entry.Texture, entry.Subresource, 0, 0, 0, source, 0, &box);
-            return Commit(ref entry);
+            return Commit(sample, ref entry);
         }
 
         hr = Blit(ref entry, source, texture);
-        return hr < 0 ? hr : Commit(ref entry);
+        return hr < 0 ? hr : Commit(sample, ref entry);
     }
 
     public int CopySample(nint destinationSample, nint sourceSample)
@@ -139,7 +197,7 @@ internal sealed unsafe class GpuFrameCopier : IFramePath
         ref var d = ref _entries[destination];
         ref var s = ref _entries[source];
         ID3D11DeviceContext.CopySubresourceRegion(_context, d.Texture, d.Subresource, 0, 0, 0, s.Texture, s.Subresource, null);
-        return Commit(ref d);
+        return Commit(destinationSample, ref d);
     }
 
     /// <summary>
@@ -190,7 +248,7 @@ internal sealed unsafe class GpuFrameCopier : IFramePath
             }
 
             ID3D11DeviceContext.CopySubresourceRegion(_context, entry.Texture, entry.Subresource, 0, 0, 0, black, 0, null);
-            return Commit(ref entry);
+            return Commit(sample, ref entry);
         }
         finally
         {
@@ -199,10 +257,21 @@ internal sealed unsafe class GpuFrameCopier : IFramePath
         }
     }
 
-    /// <summary>Marks the whole picture of a filled sample as valid data (IMFMediaBuffer::SetCurrentLength).</summary>
-    private int Commit(ref Entry entry)
+    /// <summary>
+    /// Marks the whole picture of a filled sample as valid data (IMFMediaBuffer::SetCurrentLength). The buffer
+    /// reference is taken and dropped here: holding it would keep the sample out of the allocator.
+    /// </summary>
+    private int Commit(nint sample, ref Entry entry)
     {
-        var hr = IMFMediaBuffer.SetCurrentLength(entry.Buffer, entry.Length);
+        nint buffer = 0;
+        var hr = IMFSample.GetBufferByIndex(sample, 0, &buffer);
+        if (hr < 0 || buffer == 0)
+        {
+            return Fail(FrameStep.SampleBuffer, hr < 0 ? hr : ScreenConstants.EPointer);
+        }
+
+        hr = IMFMediaBuffer.SetCurrentLength(buffer, entry.Length);
+        ComCall.Release(ref buffer);
         return hr < 0 ? Fail(FrameStep.BufferLength, hr) : ScreenConstants.SOk;
     }
 
@@ -395,14 +464,12 @@ internal sealed unsafe class GpuFrameCopier : IFramePath
             {
                 Sample = sample,
                 Texture = texture,
-                Buffer = buffer,
                 Length = ContiguousLength(buffer, _frameBytes),
                 Subresource = subresource,
                 ArraySize = desc.ArraySize,
                 CanCopy = desc.Format == ScreenConstants.DxgiFormatB8G8R8A8Unorm && desc.SampleDesc.Count == 1,
             };
-            texture = 0; // owned by the entry now
-            buffer = 0;
+            texture = 0; // owned by the entry now; the buffer is released (see Commit)
             return ScreenConstants.SOk;
         }
         finally
@@ -505,11 +572,12 @@ internal sealed unsafe class GpuFrameCopier : IFramePath
         for (var i = 0; i < _entryCount; i++)
         {
             ComCall.Release(ref _entries[i].Texture);
-            ComCall.Release(ref _entries[i].Buffer);
             _entries[i] = default;
         }
 
         _entryCount = 0;
+        _handedOutCount = 0;
+        ComCall.Release(ref _allocatorCallback);
         if (_allocator != 0)
         {
             IMFVideoSampleAllocatorEx.UninitializeSampleAllocator(_allocator);
@@ -521,11 +589,23 @@ internal sealed unsafe class GpuFrameCopier : IFramePath
     {
         public nint Sample;
         public nint Texture;
-        public nint Buffer;
         public uint Length;
         public uint Subresource;
         public uint ArraySize;
         public bool CanCopy;
         public nint OutputView;
     }
+}
+
+/// <summary>Whether <c>IMFVideoSampleAllocator::AllocateSample</c> would block and fail (pure).</summary>
+internal static class SamplePoolProbe
+{
+    /// <summary>
+    /// True when the pool is empty for sure: <c>GetFreeSampleCount</c> succeeded with 0 free samples and the allocator
+    /// cannot grow any more (every one of <paramref name="maximumSamples"/> was handed out at least once: a free count
+    /// of 0 means every created sample is checked out, and each of those went through AllocateSample). Below the
+    /// maximum AllocateSample creates a new sample at once; a failed free-count query says nothing.
+    /// </summary>
+    public static bool IsExhausted(int freeCountHr, int freeCount, int samplesHandedOut, uint maximumSamples) =>
+        freeCountHr >= 0 && freeCount <= 0 && samplesHandedOut >= maximumSamples;
 }

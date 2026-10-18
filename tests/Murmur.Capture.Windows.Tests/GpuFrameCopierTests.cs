@@ -129,14 +129,22 @@ public sealed class GpuFrameCopierTests : IDisposable
     }
 
     [Fact]
-    public void Dispose_ReleasesTheCachedTextureAndBufferReferences()
+    public void Fill_KeepsNoReferenceToTheSamplesBuffer_SoTheSampleCanGoBackToTheAllocator()
     {
+        // IMFVideoSampleAllocatorEx takes a sample back only once its media buffer is released as well: a cached buffer
+        // reference kept every filled sample checked out and drained the pool after 12 frames (Radeon RX 9070 XT).
         var encoder = new PixelSize(16, 16);
         var target = AllocatorSample(encoder, subresource: 0, out var buffer, out _);
+        var capture = Capture(16, 16);
         var copier = Copier(encoder);
+
         copier.FillBlack(target.Sample.Pointer);
-        Assert.Equal(3, buffer.References);          // ours + the sample's + the cache's
-        Assert.Equal(2, target.Texture.References);  // ours + the cache's
+        Assert.Equal(2, buffer.References);          // ours + the sample's: the copier keeps none
+        copier.CopyFrame(target.Sample.Pointer, capture.Pointer, encoder);
+        copier.CopySample(target.Sample.Pointer, target.Sample.Pointer);
+        Assert.Equal(2, buffer.References);
+        Assert.Equal(3, buffer.SetLengthCalls);      // every fill still commits the length
+        Assert.Equal(2, target.Texture.References);  // ours + the cache's (textures do not pin samples)
 
         copier.Dispose();
 
@@ -144,7 +152,116 @@ public sealed class GpuFrameCopierTests : IDisposable
         Assert.Equal(1, target.Texture.References);
     }
 
+    [Fact]
+    public void AllocateSample_EmptyPoolAtItsMaximum_FailsAtOnce_WithoutTheAllocatorsBlockingCall()
+    {
+        var allocator = Allocator(out var first, out var second);
+        using var copier = new GpuFrameCopier(_device.Pointer, _context.Pointer, allocator.Pointer, new PixelSize(16, 16), 30, maximumSamples: 2);
+
+        allocator.FreeCount = 2;
+        Assert.Equal(ScreenConstants.SOk, copier.AllocateSample(out var a));
+        allocator.FreeCount = 1;
+        Assert.Equal(ScreenConstants.SOk, copier.AllocateSample(out var b));
+        Assert.Equal(first.Pointer, a);
+        Assert.Equal(second.Pointer, b);
+        Assert.Equal(2, copier.SamplesHandedOut);
+
+        allocator.FreeCount = 0;
+        Assert.Equal(ScreenConstants.MfESampleAllocatorEmpty, copier.AllocateSample(out var none));
+        Assert.Equal(0, none);
+        Assert.Equal(2, allocator.AllocateCalls); // the real AllocateSample would have waited ~1 s here
+
+        // A sample comes back: the pool hands it out again (and it is not counted twice).
+        ComCall.Release(ref a);
+        allocator.Available.Enqueue(first);
+        allocator.FreeCount = 1;
+        Assert.Equal(ScreenConstants.SOk, copier.AllocateSample(out var again));
+        Assert.Equal(first.Pointer, again);
+        Assert.Equal(2, copier.SamplesHandedOut);
+        ComCall.Release(ref again);
+        ComCall.Release(ref b);
+    }
+
+    [Fact]
+    public void AllocateSample_BelowTheMaximum_LetsTheAllocatorGrow_EvenWithNoFreeSample()
+    {
+        var allocator = Allocator(out var first, out _);
+        using var copier = new GpuFrameCopier(_device.Pointer, _context.Pointer, allocator.Pointer, new PixelSize(16, 16), 30, maximumSamples: 4);
+        allocator.FreeCount = 0; // only created samples count as free; the allocator creates new ones up to the maximum
+
+        Assert.Equal(ScreenConstants.SOk, copier.AllocateSample(out var sample));
+        Assert.Equal(first.Pointer, sample);
+        Assert.Equal(1, allocator.AllocateCalls);
+        ComCall.Release(ref sample);
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void AllocateSample_WithoutAFreeCount_AsksTheAllocator(bool callbackFails)
+    {
+        var allocator = new FakeVideoSampleAllocator(withCallback: callbackFails) { FreeCountResult = ScreenConstants.EFail };
+        _owned.Add(allocator);
+        using var copier = new GpuFrameCopier(_device.Pointer, _context.Pointer, allocator.Pointer, new PixelSize(16, 16), 30, maximumSamples: 0);
+
+        Assert.Equal(ScreenConstants.MfESampleAllocatorEmpty, copier.AllocateSample(out var sample));
+        Assert.Equal(0, sample);
+        Assert.Equal(1, allocator.AllocateCalls);
+    }
+
+    [Fact]
+    public void Dispose_UninitializesAndReleasesTheAllocator_AndItsCallback()
+    {
+        var allocator = Allocator(out _, out _);
+        ComCall.AddRef(allocator.Pointer); // the copier takes over this reference
+        var copier = new GpuFrameCopier(_device.Pointer, _context.Pointer, allocator.Pointer, new PixelSize(16, 16), 30, maximumSamples: 2);
+        Assert.Equal(3, allocator.References); // ours + the copier's + its callback face
+
+        copier.Dispose();
+
+        Assert.Equal(1, allocator.Uninitialized);
+        Assert.Equal(1, allocator.References);
+    }
+
+    [Fact]
+    public void AllocateAndCopy_SteadyState_DoesNotAllocate()
+    {
+        var encoder = new PixelSize(32, 16);
+        var allocator = Allocator(out var first, out var second);
+        var capture = Capture(32, 16);
+        using var copier = new GpuFrameCopier(_device.Pointer, _context.Pointer, allocator.Pointer, encoder, 30, maximumSamples: 2);
+        allocator.FreeCount = 1;
+        void Frames()
+        {
+            for (var i = 0; i < 20; i++)
+            {
+                copier.AllocateSample(out var sample);
+                copier.CopyFrame(sample, capture.Pointer, encoder);
+                ComCall.Release(ref sample);
+                allocator.Available.Enqueue(i % 2 == 0 ? first : second); // what the allocator does when a sample comes back
+            }
+        }
+
+        Frames();
+        var before = GC.GetAllocatedBytesForCurrentThread();
+        Frames();
+        Assert.Equal(0, GC.GetAllocatedBytesForCurrentThread() - before);
+        Assert.Equal(FrameStep.None, copier.LastFailure.Step);
+    }
+
     private GpuFrameCopier Copier(PixelSize encoder) => new(_device.Pointer, _context.Pointer, allocator: 0, encoder, frameRate: 30);
+
+    /// <summary>A fake allocator with two queued 32x16 samples.</summary>
+    private FakeVideoSampleAllocator Allocator(out FakeSample first, out FakeSample second)
+    {
+        var allocator = new FakeVideoSampleAllocator();
+        _owned.Add(allocator);
+        first = AllocatorSample(new PixelSize(32, 16), subresource: 0, out _, out _).Sample;
+        second = AllocatorSample(new PixelSize(32, 16), subresource: 0, out _, out _).Sample;
+        allocator.Available.Enqueue(first);
+        allocator.Available.Enqueue(second);
+        return allocator;
+    }
 
     private FakeTexture Capture(int width, int height)
     {

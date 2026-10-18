@@ -39,6 +39,9 @@ internal static class ScreenConstants
     /// <summary>IMFVideoSampleAllocatorEx (mfidl.h).</summary>
     public static readonly Guid IidIMFVideoSampleAllocatorEx = new("545B3A48-3283-4F62-866F-A62D8F598F9F");
 
+    /// <summary>IMFVideoSampleAllocatorCallback (mfidl.h).</summary>
+    public static readonly Guid IidIMFVideoSampleAllocatorCallback = new("992388B4-3372-4F67-8B6F-C84C071F4751");
+
     /// <summary>IMFTransform (mftransform.h).</summary>
     public static readonly Guid IidIMFTransform = new("BF94C121-5B05-4E6F-8000-BA598961414D");
 

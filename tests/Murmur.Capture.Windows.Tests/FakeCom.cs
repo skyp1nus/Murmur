@@ -572,3 +572,84 @@ internal sealed class FakeSampleFactory : Murmur.Capture.Windows.Screen.IMemoryS
     private static void AttachBuffer(FakeSample sample, FakeMediaBuffer buffer) =>
         Assert.True(IMFSample.AddBuffer(sample.Pointer, buffer.Pointer) >= 0);
 }
+
+/// <summary>
+/// IMFVideoSampleAllocatorEx (8 slots: UninitializeSampleAllocator = 4, AllocateSample = 6) handing out the queued
+/// samples in order (MF_E_SAMPLEALLOCATOR_EMPTY when none is left), with an IMFVideoSampleAllocatorCallback face
+/// (GetFreeSampleCount = 4) answering <see cref="FreeCount"/>.
+/// </summary>
+internal sealed unsafe class FakeVideoSampleAllocator : FakeCom
+{
+    public FakeVideoSampleAllocator(bool withCallback = true)
+        : base(8)
+    {
+        Set(4, (delegate* unmanaged<nint, int>)&Uninitialize);
+        Set(6, (delegate* unmanaged<nint, nint*, int>)&AllocateSample);
+        if (withCallback)
+        {
+            Callback = new FakeAllocatorCallbackFace(this);
+            Interfaces[ScreenConstants.IidIMFVideoSampleAllocatorCallback] = Callback;
+        }
+    }
+
+    public FakeAllocatorCallbackFace? Callback { get; }
+
+    public Queue<FakeSample> Available { get; } = new();
+
+    public int FreeCount { get; set; }
+
+    public int FreeCountResult { get; set; }
+
+    public int AllocateCalls { get; private set; }
+
+    public int Uninitialized { get; private set; }
+
+    protected override void DisposeCore() => Callback?.Dispose();
+
+    [UnmanagedCallersOnly]
+    private static int Uninitialize(nint self)
+    {
+        Of<FakeVideoSampleAllocator>(self).Uninitialized++;
+        return 0;
+    }
+
+    [UnmanagedCallersOnly]
+    private static int AllocateSample(nint self, nint* sample)
+    {
+        var fake = Of<FakeVideoSampleAllocator>(self);
+        fake.AllocateCalls++;
+        *sample = 0;
+        if (!fake.Available.TryDequeue(out var next))
+        {
+            return ScreenConstants.MfESampleAllocatorEmpty;
+        }
+
+        ComCall.AddRef(next.Pointer);
+        *sample = next.Pointer;
+        return 0;
+    }
+}
+
+/// <summary>The IMFVideoSampleAllocatorCallback face of a <see cref="FakeVideoSampleAllocator"/>.</summary>
+internal sealed unsafe class FakeAllocatorCallbackFace : FakeCom
+{
+    public FakeAllocatorCallbackFace(FakeVideoSampleAllocator owner)
+        : base(5)
+    {
+        Owner = owner;
+        Set(4, (delegate* unmanaged<nint, int*, int>)&GetFreeSampleCount);
+    }
+
+    [UnmanagedCallersOnly]
+    private static int GetFreeSampleCount(nint self, int* samples)
+    {
+        var allocator = (FakeVideoSampleAllocator)Of<FakeAllocatorCallbackFace>(self).Owner!;
+        if (allocator.FreeCountResult < 0)
+        {
+            return allocator.FreeCountResult;
+        }
+
+        *samples = allocator.FreeCount;
+        return 0;
+    }
+}
