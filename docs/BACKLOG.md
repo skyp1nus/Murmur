@@ -11,3 +11,7 @@
 - sqlite-vec, якщо brute-force пошук векторів стане повільним (D-017)
 - Перехід на LLamaSharp у воркер-процесі, якщо sidecar `llama-server` незручний в інсталяторі (D-016)
 - Пакування ASR-воркера в інсталятор: Murmur.Desktop копіює Murmur.Transcription поруч із застосунком (build) і AOT-публікує його в publish-теку (UNVERIFIED-ON-WINDOWS для win-x64); перевірити на Windows і додати в інсталятор
+- Векторний пошук: пропускати сесію з пошкодженими чанками замість падіння всього бібліотечного пошуку (P2 з рев'ю p3-storage-search)
+- Прискорення ASR: DirectML/CUDA-провайдер ONNX Runtime; тюнінг VAD (фаза 2 не вклалась у 180 с на 4 vCPU)
+- Вкладка «Резюме»: резюме, action items, рішення з таймкодами
+- Бенчмарк-проєкт під Windows TFM, щоб міряти скейлер кадрів і WASAPI-шлях BenchmarkDotNet-ом
