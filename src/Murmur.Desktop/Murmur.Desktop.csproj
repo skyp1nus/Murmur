@@ -1,0 +1,36 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Executable and composition root. The only project allowed to reference Murmur.Capture.*. -->
+  <PropertyGroup>
+    <!-- Clear the single-TFM default from Directory.Build.props, otherwise multi-targeting is disabled. -->
+    <TargetFramework></TargetFramework>
+    <TargetFrameworks>$(MurmurTargetFramework);$(MurmurWindowsTargetFramework)</TargetFrameworks>
+    <OutputType>Exe</OutputType>
+    <AssemblyName>Murmur</AssemblyName>
+    <RootNamespace>Murmur.Desktop</RootNamespace>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <PublishAot>true</PublishAot>
+    <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(TargetFramework)' == '$(MurmurWindowsTargetFramework)'">
+    <OutputType>WinExe</OutputType>
+    <SupportedOSPlatformVersion>$(MurmurWindowsMinVersion)</SupportedOSPlatformVersion>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Avalonia.Desktop" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Murmur.App\Murmur.App.csproj" />
+    <ProjectReference Include="..\Murmur.Core\Murmur.Core.csproj" />
+    <ProjectReference Include="..\Murmur.Storage\Murmur.Storage.csproj" />
+    <ProjectReference Include="..\Murmur.Intelligence\Murmur.Intelligence.csproj" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(TargetFramework)' == '$(MurmurWindowsTargetFramework)'">
+    <ProjectReference Include="..\Murmur.Capture.Windows\Murmur.Capture.Windows.csproj" />
+  </ItemGroup>
+
+</Project>

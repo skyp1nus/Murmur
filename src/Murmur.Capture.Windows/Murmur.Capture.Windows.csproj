@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>$(MurmurWindowsTargetFramework)</TargetFramework>
+    <SupportedOSPlatformVersion>$(MurmurWindowsMinVersion)</SupportedOSPlatformVersion>
+    <RootNamespace>Murmur.Capture.Windows</RootNamespace>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Murmur.Core\Murmur.Core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Murmur.Capture.Windows.Tests" />
+  </ItemGroup>
+
+</Project>

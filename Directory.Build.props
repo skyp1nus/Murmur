@@ -1,0 +1,26 @@
+<Project>
+
+  <PropertyGroup>
+    <!-- Shared target frameworks. Projects pick one by setting TargetFramework(s) themselves. -->
+    <MurmurTargetFramework>net11.0</MurmurTargetFramework>
+    <MurmurWindowsTargetFramework>net11.0-windows10.0.22621.0</MurmurWindowsTargetFramework>
+    <MurmurWindowsMinVersion>10.0.19041.0</MurmurWindowsMinVersion>
+    <TargetFramework>$(MurmurTargetFramework)</TargetFramework>
+
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <EnableWindowsTargeting>true</EnableWindowsTargeting>
+    <Deterministic>true</Deterministic>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(GITHUB_ACTIONS)' == 'true'">
+    <ContinuousIntegrationBuild>true</ContinuousIntegrationBuild>
+  </PropertyGroup>
+
+  <!-- Shipping code under src/ must stay trim- and Native-AOT-clean: turn on the analyzers. -->
+  <PropertyGroup Condition="$([MSBuild]::MakeRelative('$(MSBuildThisFileDirectory)', '$(MSBuildProjectDirectory)').Replace('\', '/').StartsWith('src/'))">
+    <IsAotCompatible>true</IsAotCompatible>
+  </PropertyGroup>
+
+</Project>
