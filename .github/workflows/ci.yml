@@ -116,6 +116,7 @@ jobs:
           restore-keys: nuget-${{ runner.os }}-
 
       - name: Build
+        id: build
         run: |
           dotnet build Murmur.sln -c Release
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
@@ -136,17 +137,20 @@ jobs:
 
       # Murmur.exe and Murmur.Transcription.exe are published side by side into one folder.
       - name: Publish Native AOT (Murmur.Desktop, win-x64)
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
         run: |
           New-Item -ItemType Directory -Force artifacts/logs | Out-Null
           dotnet publish src/Murmur.Desktop -c Release -f net11.0-windows10.0.22621.0 -r win-x64 -o artifacts/publish/win-x64 2>&1 | Tee-Object -FilePath artifacts/logs/publish-desktop.log
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: Publish Native AOT (Murmur.Transcription, win-x64)
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
         run: |
           dotnet publish src/Murmur.Transcription -c Release -r win-x64 -o artifacts/publish/win-x64 2>&1 | Tee-Object -FilePath artifacts/logs/publish-transcription.log
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: Fail on publish warnings
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
         run: |
           $hits = Select-String -Path artifacts/logs/publish-*.log -Pattern ': (warning|error) '
           if ($hits) {
@@ -157,7 +161,7 @@ jobs:
           Write-Host "No publish warnings."
 
       - name: Publish size table
-        if: always()
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
         run: |
           $dir = 'artifacts/publish/win-x64'
           if (-not (Test-Path $dir)) {
@@ -174,6 +178,7 @@ jobs:
           $lines | Out-File $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
 
       - name: Upload win-x64 publish
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
         uses: actions/upload-artifact@v4
         with:
           name: murmur-win-x64
@@ -184,6 +189,8 @@ jobs:
   startup:
     name: startup budget (win-x64)
     needs: windows
+    # Run on the published artifact even when a unit test failed, so perf/e2e evidence is never lost.
+    if: ${{ !cancelled() && needs.windows.result != 'skipped' }}
     runs-on: windows-latest
     timeout-minutes: 15
     defaults:
@@ -221,6 +228,8 @@ jobs:
   capture-e2e:
     name: capture e2e (win-x64, virtual audio)
     needs: windows
+    # Run on the published artifact even when a unit test failed, so perf/e2e evidence is never lost.
+    if: ${{ !cancelled() && needs.windows.result != 'skipped' }}
     runs-on: windows-latest
     timeout-minutes: 30
     defaults:
