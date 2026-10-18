@@ -166,7 +166,8 @@ internal static class RepeatPolicy
 /// The placeholder frame of a segment in which no sample reached the encoder (WGC delivered no frame: headless or
 /// non-composited session, locked workstation, every frame dropped). Media Foundation refuses to finalize an MP4 without
 /// samples (MF_E_SINK_NO_SAMPLES_PROCESSED), so the encoder thread writes one opaque black frame at sample time 0 and
-/// the segment becomes a valid one-frame file. It is not counted as captured or encoded, so
+/// the segment becomes a valid one-frame file (if Finalize still fails, the segment ends empty: see
+/// <see cref="SegmentCompletion"/>). It is not counted as captured or encoded, so
 /// <see cref="Murmur.Core.Capture.ScreenRecorderStats.FramesCaptured"/> == 0 still tells callers nothing was captured.
 /// Pure and allocation-free.
 /// </summary>

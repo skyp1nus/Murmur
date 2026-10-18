@@ -30,9 +30,13 @@ namespace Murmur.Capture.Windows.Screen;
 /// <b>Segments without frames.</b> WGC may deliver no frame at all (headless or non-composited session, locked
 /// workstation). Media Foundation cannot finalize an MP4 without samples, so when nothing reached the encoder by the
 /// time the segment stops the encoder thread writes one opaque black frame at sample time 0 (see
-/// <see cref="PlaceholderFrame"/>): the file is a valid one-frame MP4 and stopping does not throw.
-/// <see cref="ScreenRecorderStats.FramesCaptured"/> stays 0, so callers can tell; the placeholder is counted only in
-/// <see cref="PlaceholderFrames"/>, and <see cref="FrameArrivedEvents"/> counts raw FrameArrived callbacks.
+/// <see cref="PlaceholderFrame"/>), which normally makes the file a valid one-frame MP4. If Finalize still fails
+/// (MF_E_SINK_NO_SAMPLES_PROCESSED, or any failure of a segment without captured frames; the placeholder may have been
+/// rejected) the segment ends as an empty one: the writer is released, the partial file (not a valid MP4) is deleted and
+/// stopping does not throw (see <see cref="SegmentCompletion"/>). <see cref="ScreenRecorderStats.FramesCaptured"/>
+/// stays 0, so callers can tell; <see cref="LastSegmentEmpty"/> and <see cref="LastSegmentDiagnostic"/> report the
+/// placeholder outcome and the HRESULTs, the placeholder is counted only in <see cref="PlaceholderFrames"/>, and
+/// <see cref="FrameArrivedEvents"/> counts raw FrameArrived callbacks.
 /// </para>
 /// <para>
 /// <b>Stats.</b> <see cref="ScreenRecorderStats.FramesCaptured"/> counts frames admitted by the rate limiter (frames
@@ -111,6 +115,15 @@ internal sealed class WgcScreenRecorder : IScreenRecorder
     /// <summary>Encoder frame size of the current or last segment (diagnostics).</summary>
     internal PixelSize LastEncoderSize { get; private set; }
 
+    /// <summary>True when the last stopped segment ended without a file (see <see cref="SegmentOutcome.Empty"/>).</summary>
+    internal bool LastSegmentEmpty { get; private set; }
+
+    /// <summary>
+    /// How the last stopped segment ended: captured samples, placeholder outcome, Finalize HRESULT and what happened to
+    /// the file (diagnostics; null before the first stop).
+    /// </summary>
+    internal string? LastSegmentDiagnostic { get; private set; }
+
     public event Action<CaptureFault>? Faulted;
 
     /// <exception cref="NotSupportedException">Windows.Graphics.Capture is not supported on this system.</exception>
@@ -130,6 +143,8 @@ internal sealed class WgcScreenRecorder : IScreenRecorder
             }
 
             var path = Path.GetFullPath(filePath);
+            LastSegmentEmpty = false;
+            LastSegmentDiagnostic = null;
             await Task.Run(() => StartCore(path), CancellationToken.None).ConfigureAwait(false);
             _recording = true;
         }
@@ -139,8 +154,11 @@ internal sealed class WgcScreenRecorder : IScreenRecorder
         }
     }
 
-    /// <remarks>A segment in which WGC delivered no frame still finalizes (one black placeholder frame).</remarks>
-    /// <exception cref="COMException">Finalizing the file failed (encoder or disk failure; the fault was raised).</exception>
+    /// <remarks>
+    /// A segment in which WGC delivered no frame does not throw: it finalizes with one black placeholder frame, or, if
+    /// Media Foundation still cannot finalize it, ends without a file (<see cref="LastSegmentEmpty"/>).
+    /// </remarks>
+    /// <exception cref="COMException">Finalizing a segment with captured frames failed (encoder or disk failure), or the encoder hung.</exception>
     public async ValueTask StopSegmentAsync(CancellationToken cancellationToken)
     {
         await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
@@ -221,7 +239,7 @@ internal sealed class WgcScreenRecorder : IScreenRecorder
         _gpu ??= GpuDevice.Create();
         var gpu = _gpu;
         var display = Displays.Find(_options.DisplayId);
-        var segment = new Segment(_options.FrameRate);
+        var segment = new Segment(_options.FrameRate, path);
         try
         {
             segment.Item = CaptureInterop.CreateItemForMonitor(display.Monitor);
@@ -283,10 +301,19 @@ internal sealed class WgcScreenRecorder : IScreenRecorder
             Teardown(segment);
         }
 
-        if (segment.FinalizeResult < 0)
+        // The writer is released now (unless the encoder hung, which fails anyway), so an empty segment's file can go.
+        var report = new SegmentReport(segment.FinalizeResult, segment.EncoderHung, segment.CapturedWritten, segment.Placeholder);
+        try
         {
-            var hint = segment.FinalizeResult == ScreenConstants.MfESinkNoSamplesProcessed ? " (no frame was captured)" : string.Empty;
-            throw new COMException($"IMFSinkWriter::Finalize failed{hint}: HRESULT 0x{segment.FinalizeResult:X8}", segment.FinalizeResult);
+            var result = SegmentCompletion.Complete(segment.Path, report);
+            LastSegmentEmpty = result.Empty;
+            LastSegmentDiagnostic = result.Diagnostic;
+        }
+        catch (COMException ex)
+        {
+            LastSegmentEmpty = false;
+            LastSegmentDiagnostic = ex.Message;
+            throw;
         }
     }
 
@@ -328,6 +355,7 @@ internal sealed class WgcScreenRecorder : IScreenRecorder
             {
                 RaiseFault(segment, "The screen encoder did not finish within 30 s; the segment file may be incomplete.", isFatal: true);
                 segment.FinalizeResult = ScreenConstants.EFail;
+                segment.EncoderHung = true;
                 return; // leak the encoder objects rather than release them under a running thread
             }
         }
@@ -610,7 +638,11 @@ internal sealed class WgcScreenRecorder : IScreenRecorder
             // Media Foundation cannot finalize a file without samples: give an empty segment a black frame at time 0.
             if (PlaceholderFrame.ShouldWrite(segment.LastSample != 0, segment.WriterHealthy))
             {
-                WritePlaceholder(segment);
+                segment.Placeholder = WritePlaceholder(segment);
+            }
+            else if (segment.LastSample == 0)
+            {
+                segment.Placeholder = new PlaceholderOutcome(PlaceholderStage.SkippedWriterFailed, ScreenConstants.SOk);
             }
 
             ComCall.Release(ref segment.LastSample);
@@ -658,7 +690,7 @@ internal sealed class WgcScreenRecorder : IScreenRecorder
     }
 
     /// <summary>Writes the black placeholder frame at sample time 0 (see <see cref="PlaceholderFrame"/>). Never throws.</summary>
-    private unsafe void WritePlaceholder(Segment segment)
+    private unsafe PlaceholderOutcome WritePlaceholder(Segment segment)
     {
         nint sample = 0;
         try
@@ -667,7 +699,7 @@ internal sealed class WgcScreenRecorder : IScreenRecorder
             if (hr < 0 || sample == 0)
             {
                 RaiseFault(segment, $"No frame was captured and the placeholder sample could not be allocated: {ComHelpers.Describe(hr)}", isFatal: true);
-                return;
+                return new PlaceholderOutcome(PlaceholderStage.AllocateFailed, hr < 0 ? hr : ScreenConstants.EFail);
             }
 
             lock (segment.CopyLock)
@@ -679,22 +711,24 @@ internal sealed class WgcScreenRecorder : IScreenRecorder
             {
                 ComCall.Release(ref sample);
                 RaiseFault(segment, $"No frame was captured and the placeholder frame could not be drawn: {ComHelpers.Describe(hr)}", isFatal: true);
-                return;
+                return new PlaceholderOutcome(PlaceholderStage.FillFailed, hr);
             }
 
             var owned = sample;
             sample = 0; // Write takes ownership
-            Write(segment, owned, PlaceholderFrame.CaptureTicks(segment.Timeline), SampleKind.Placeholder);
+            hr = Write(segment, owned, PlaceholderFrame.CaptureTicks(segment.Timeline), SampleKind.Placeholder);
+            return new PlaceholderOutcome(hr < 0 ? PlaceholderStage.WriteFailed : PlaceholderStage.Written, hr);
         }
         catch (Exception ex)
         {
             ComCall.Release(ref sample);
             RaiseFault(segment, "No frame was captured and the placeholder frame failed: " + ex.Message, isFatal: true);
+            return new PlaceholderOutcome(PlaceholderStage.Exception, ex.HResult);
         }
     }
 
-    /// <summary>Timestamps and writes one sample; takes ownership of <paramref name="sample"/>.</summary>
-    private void Write(Segment segment, nint sample, long ticks, SampleKind kind)
+    /// <summary>Timestamps and writes one sample; takes ownership of <paramref name="sample"/>. Returns the WriteSample HRESULT.</summary>
+    private int Write(Segment segment, nint sample, long ticks, SampleKind kind)
     {
         var time = segment.Timeline.ToSampleTime(ticks);
         IMFSample.SetSampleTime(sample, time);
@@ -711,13 +745,14 @@ internal sealed class WgcScreenRecorder : IScreenRecorder
             }
 
             RaiseFault(segment, $"IMFSinkWriter::WriteSample failed: {ComHelpers.Describe(hr)}", isFatal: true);
-            return;
+            return hr;
         }
 
         switch (kind)
         {
             case SampleKind.Captured:
                 Interlocked.Increment(ref _framesEncoded);
+                segment.CapturedWritten++;
                 break;
             case SampleKind.Repeated:
                 Interlocked.Increment(ref _framesRepeated);
@@ -730,6 +765,7 @@ internal sealed class WgcScreenRecorder : IScreenRecorder
         ComCall.Release(ref segment.LastSample);
         segment.LastSample = sample;
         segment.LastWriteTicks = MediaTime.Now();
+        return hr;
     }
 
     private void RaiseFault(Segment segment, string message, bool isFatal)
@@ -760,8 +796,9 @@ internal sealed class WgcScreenRecorder : IScreenRecorder
     }
 
     /// <summary>Everything that lives for one segment.</summary>
-    private sealed class Segment(int frameRate)
+    private sealed class Segment(int frameRate, string path)
     {
+        public readonly string Path = path;
         public readonly SpscRing<QueuedFrame> Queue = new(QueueCapacity);
         public readonly AutoResetEvent Wake = new(false);
         public readonly Lock CopyLock = new();
@@ -790,11 +827,14 @@ internal sealed class WgcScreenRecorder : IScreenRecorder
         public nint LastSample;
         public long LastWriteTicks;
         public volatile bool WriterHealthy = true;
+        public long CapturedWritten;
+        public PlaceholderOutcome Placeholder = PlaceholderOutcome.NotNeeded;
 
         // Stop hand-shake
         public bool StopRequested;
         public long StopTicks;
         public int FinalizeResult;
+        public bool EncoderHung;
         public int FaultRaised;
         public long FaultTicks = RepeatPolicy.NoFault; // QPC time of the first fatal fault (Interlocked)
     }
