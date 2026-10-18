@@ -23,6 +23,20 @@ internal static class UiFormat
         return string.Create(CultureInfo.InvariantCulture, $"{hours:00}:{value.Minutes:00}:{value.Seconds:00}");
     }
 
+    /// <summary>Time chip of a transcript segment: <c>mm:ss</c>, or <c>h:mm:ss</c> from one hour on.</summary>
+    public static string Clock(TimeSpan value)
+    {
+        if (value < TimeSpan.Zero)
+        {
+            value = TimeSpan.Zero;
+        }
+
+        var hours = (long)value.TotalHours;
+        return hours > 0
+            ? string.Create(CultureInfo.InvariantCulture, $"{hours}:{value.Minutes:00}:{value.Seconds:00}")
+            : string.Create(CultureInfo.InvariantCulture, $"{value.Minutes:00}:{value.Seconds:00}");
+    }
+
     /// <summary>"Сьогодні, 14:30", "Вчора, 14:30", "18 жовтня, 14:30" or "18 жовтня 2025, 14:30".</summary>
     public static string Date(DateTimeOffset startedAt, TimeProvider time)
     {

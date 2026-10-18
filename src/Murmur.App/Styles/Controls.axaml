@@ -1,5 +1,6 @@
 <Styles xmlns="https://github.com/avaloniaui"
-        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:controls="using:Murmur.App.Controls">
 
   <!--
     Control styles. Only design-token resources (see Tokens.axaml, generated from docs/design/tokens.json) are used here:
@@ -52,6 +53,12 @@
       <StaticResource x:Key="ComboBoxItemForegroundSelected" ResourceKey="Brush.Ink" />
       <StaticResource x:Key="ComboBoxItemForegroundSelectedPointerOver" ResourceKey="Brush.Ink" />
       <StaticResource x:Key="ComboBoxItemForegroundSelectedPressed" ResourceKey="Brush.Ink" />
+
+      <!-- Progress bar: Ink on Stone, pill-shaped, no Fluent accent. -->
+      <StaticResource x:Key="ProgressBarForeground" ResourceKey="Brush.Ink" />
+      <StaticResource x:Key="ProgressBarBackground" ResourceKey="Brush.Stone" />
+      <StaticResource x:Key="ProgressBarBorderBrush" ResourceKey="Brush.Stone" />
+      <StaticResource x:Key="ProgressBarCornerRadius" ResourceKey="Radius.Pill" />
 
       <!-- Badge padding: horizontal 8 and vertical 4, both taken from the spacing scale (Space.8 / Space.4). -->
       <Thickness x:Key="Inset.Badge">8,4</Thickness>
@@ -321,6 +328,61 @@
   </Style>
   <Style Selector="ListBox.sessions ListBoxItem:selected:pointerover /template/ ContentPresenter#PART_ContentPresenter">
     <Setter Property="Background" Value="{StaticResource Brush.Stone}" />
+    <Setter Property="Foreground" Value="{StaticResource Brush.Ink}" />
+  </Style>
+
+  <!-- Recording view: waveform, transcript text and the transcript list (achromatic only). -->
+  <Style Selector="controls|WaveformControl">
+    <Setter Property="WaveBrush" Value="{StaticResource Brush.Ash}" />
+    <Setter Property="PlayedBrush" Value="{StaticResource Brush.Ink}" />
+    <Setter Property="PlayheadBrush" Value="{StaticResource Brush.Ink}" />
+  </Style>
+  <Style Selector="controls|TranscriptTextControl">
+    <Setter Property="Foreground" Value="{StaticResource Brush.Ink}" />
+    <Setter Property="FontFamily" Value="{StaticResource Font.Body}" />
+    <Setter Property="FontWeight" Value="{StaticResource FontWeight.Body}" />
+    <Setter Property="FontSize" Value="{StaticResource FontSize.Body}" />
+    <Setter Property="LineHeight" Value="{StaticResource LineHeight.Body}" />
+    <Setter Property="LetterSpacing" Value="{StaticResource LetterSpacing.Body}" />
+    <Setter Property="HighlightBrush" Value="{StaticResource Brush.Stone}" />
+    <Setter Property="HighlightBorderBrush" Value="{StaticResource Brush.Ash}" />
+    <Setter Property="HighlightCornerRadius" Value="{StaticResource Radius.Input}" />
+  </Style>
+  <Style Selector="Border.card.transcript">
+    <Setter Property="Background" Value="{StaticResource Brush.Canvas}" />
+    <Setter Property="Padding" Value="{StaticResource Inset.8}" />
+  </Style>
+  <Style Selector="TextBlock.speaker">
+    <Setter Property="FontFamily" Value="{StaticResource Font.Body}" />
+    <Setter Property="FontWeight" Value="{StaticResource FontWeight.BodyMedium}" />
+    <Setter Property="FontSize" Value="{StaticResource FontSize.BodySm}" />
+    <Setter Property="LineHeight" Value="{StaticResource LineHeight.BodySm}" />
+    <Setter Property="LetterSpacing" Value="{StaticResource LetterSpacing.BodySm}" />
+    <Setter Property="Foreground" Value="{StaticResource Brush.Smoke}" />
+  </Style>
+
+  <!-- Time chip: Geist Mono on a Stone hairline pill; clicking it seeks. Same achromatic hover as the outline button. -->
+  <Style Selector="Button.chip">
+    <Setter Property="CornerRadius" Value="{StaticResource Radius.Pill}" />
+    <Setter Property="Padding" Value="{StaticResource Inset.Badge}" />
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="Foreground" Value="{StaticResource Brush.Graphite}" />
+    <Setter Property="BorderBrush" Value="{StaticResource Brush.Stone}" />
+    <Setter Property="BorderThickness" Value="{StaticResource Hairline.Thickness}" />
+    <Setter Property="FontFamily" Value="{StaticResource Font.Mono}" />
+    <Setter Property="FontWeight" Value="{StaticResource FontWeight.Mono}" />
+    <Setter Property="FontSize" Value="{StaticResource FontSize.Caption}" />
+    <Setter Property="MinHeight" Value="0" />
+    <Setter Property="VerticalAlignment" Value="Center" />
+  </Style>
+  <Style Selector="Button.chip:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="{StaticResource Brush.Stone}" />
+    <Setter Property="BorderBrush" Value="{StaticResource Brush.Stone}" />
+    <Setter Property="Foreground" Value="{StaticResource Brush.Ink}" />
+  </Style>
+  <Style Selector="Button.chip:pressed /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="{StaticResource Brush.Stone}" />
+    <Setter Property="BorderBrush" Value="{StaticResource Brush.Ash}" />
     <Setter Property="Foreground" Value="{StaticResource Brush.Ink}" />
   </Style>
 </Styles>

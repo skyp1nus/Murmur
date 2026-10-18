@@ -1,5 +1,7 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using Murmur.App.Services;
+using Murmur.Core.Processing;
 using Murmur.Core.Sessions;
 
 namespace Murmur.App.ViewModels;
@@ -16,15 +18,26 @@ public sealed partial class LibraryViewModel : ObservableObject
 {
     private readonly ISessionStore _store;
     private readonly TimeProvider _time;
+    private readonly ISessionProcessing? _processing;
+    private readonly Action<Action> _post;
+    private readonly Dictionary<SessionId, SessionItemViewModel> _rows = [];
     private IReadOnlyList<SessionRecord> _loaded = [];
     private int _version;
 
-    public LibraryViewModel(ISessionStore store, TimeProvider time)
+    /// <param name="processing">Pipeline status for the rows' badges; <c>null</c> = badges come from the stored state only.</param>
+    /// <param name="post">Marshals a callback to the UI thread; pipeline events arrive on background threads.</param>
+    public LibraryViewModel(ISessionStore store, TimeProvider time, ISessionProcessing? processing = null, Action<Action>? post = null)
     {
         ArgumentNullException.ThrowIfNull(store);
         ArgumentNullException.ThrowIfNull(time);
         _store = store;
         _time = time;
+        _processing = processing;
+        _post = post ?? (action => Avalonia.Threading.Dispatcher.UIThread.Post(action));
+        if (processing is not null)
+        {
+            processing.ProgressChanged += OnProcessingChanged;
+        }
     }
 
     /// <summary>Rows currently shown. Replaced wholesale on every change (one notification, cheap for a virtualised list).</summary>
@@ -44,8 +57,15 @@ public sealed partial class LibraryViewModel : ObservableObject
     [ObservableProperty]
     public partial string? Error { get; set; }
 
+    /// <summary>The row the user clicked. Setting it opens the session and clears the selection again, so a row can be clicked twice.</summary>
+    [ObservableProperty]
+    public partial SessionItemViewModel? SelectedSession { get; set; }
+
     /// <summary>Raised when the user asks for a new recording.</summary>
     public event Action? NewRecordingRequested;
+
+    /// <summary>Raised when the user opens a session row.</summary>
+    public event Action<SessionRecord>? SessionOpened;
 
     /// <summary>The last started load (for tests that need to await a filter change).</summary>
     internal Task LoadTask { get; private set; } = Task.CompletedTask;
@@ -130,6 +150,25 @@ public sealed partial class LibraryViewModel : ObservableObject
 
     partial void OnSearchTextChanged(string value) => ApplySearch();
 
+    partial void OnSelectedSessionChanged(SessionItemViewModel? value)
+    {
+        if (value is null)
+        {
+            return;
+        }
+
+        SelectedSession = null;
+        SessionOpened?.Invoke(value.Record);
+    }
+
+    private void OnProcessingChanged(SessionProcessingStatus status) => _post(() =>
+    {
+        if (_rows.TryGetValue(status.Session, out var row))
+        {
+            row.ApplyProcessing(status);
+        }
+    });
+
     partial void OnSessionsChanged(IReadOnlyList<SessionItemViewModel> value)
     {
         OnPropertyChanged(nameof(ShowEmptyState));
@@ -179,11 +218,14 @@ public sealed partial class LibraryViewModel : ObservableObject
     {
         var needle = SearchText.Trim();
         var rows = new List<SessionItemViewModel>(_loaded.Count);
+        _rows.Clear();
         foreach (var record in _loaded)
         {
             if (needle.Length == 0 || record.Title.Contains(needle, StringComparison.OrdinalIgnoreCase))
             {
-                rows.Add(new SessionItemViewModel(record, _time));
+                var row = new SessionItemViewModel(record, _time, _processing?.GetStatus(record.Id));
+                rows.Add(row);
+                _rows[record.Id] = row;
             }
         }
 

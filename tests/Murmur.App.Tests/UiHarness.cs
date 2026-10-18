@@ -4,6 +4,7 @@ using Avalonia.Headless;
 using Avalonia.Media.Imaging;
 using Avalonia.Threading;
 using Murmur.App.Controls;
+using Murmur.App.Services;
 using Murmur.App.Tests.Fakes;
 using Murmur.App.ViewModels;
 using Murmur.App.Views;
@@ -27,11 +28,11 @@ internal sealed class UiHarness
     public static HeadlessUnitTestSession Session =>
         HeadlessUnitTestSession.GetOrStartForAssembly(typeof(UiHarness).Assembly);
 
-    public ShellViewModel CreateShell()
+    public ShellViewModel CreateShell(Func<SessionRecord, SessionViewModel>? sessionFactory = null, ISessionProcessing? processing = null)
     {
-        var library = new LibraryViewModel(Store, Time);
+        var library = new LibraryViewModel(Store, Time, processing, action => action());
         var recording = new RecordingViewModel(Recorder, Capture, Store, action => action());
-        return new ShellViewModel(library, recording);
+        return new ShellViewModel(library, recording, sessionFactory: sessionFactory);
     }
 
     /// <summary>Four typical sessions: today, yesterday, this week, older; one interrupted.</summary>

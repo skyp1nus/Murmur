@@ -18,6 +18,9 @@
     <DataTemplate DataType="vm:RecordingViewModel">
       <views:RecordingView />
     </DataTemplate>
+    <DataTemplate DataType="vm:SessionViewModel">
+      <views:SessionView />
+    </DataTemplate>
   </Window.DataTemplates>
 
   <ContentControl Margin="{StaticResource Inset.48}"

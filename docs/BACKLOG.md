@@ -10,3 +10,4 @@
 - Відтворення запису екрана в плеєрі (зараз плеєр лише аудіо; кандидат — Media Foundation Media Engine)
 - sqlite-vec, якщо brute-force пошук векторів стане повільним (D-017)
 - Перехід на LLamaSharp у воркер-процесі, якщо sidecar `llama-server` незручний в інсталяторі (D-016)
+- Пакування ASR-воркера в інсталятор: Murmur.Desktop копіює Murmur.Transcription поруч із застосунком (build) і AOT-публікує його в publish-теку (UNVERIFIED-ON-WINDOWS для win-x64); перевірити на Windows і додати в інсталятор

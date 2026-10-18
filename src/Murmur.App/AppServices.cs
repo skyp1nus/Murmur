@@ -1,3 +1,4 @@
+using Murmur.App.Services;
 using Murmur.Core.Capture;
 using Murmur.Core.Recording;
 using Murmur.Core.Sessions;
@@ -13,12 +14,18 @@ namespace Murmur.App;
 /// <param name="Sessions">Session metadata for the library.</param>
 /// <param name="Time">Clock for "today" filters and date labels.</param>
 /// <param name="Startup">
-/// Work that must finish before the library loads (crash recovery). Runs once; the shell awaits it off the UI
-/// thread, so it may block. <c>null</c> = nothing to do.
+/// Work that must finish before the library loads (crash recovery, resuming unfinished transcriptions). Runs once;
+/// the shell awaits it off the UI thread, so it may block. <c>null</c> = nothing to do.
 /// </param>
+/// <param name="Transcripts">Transcripts for the recording view. Together with <paramref name="Playback"/> it enables opening a session.</param>
+/// <param name="Playback">Creates the audio player of the recording view.</param>
+/// <param name="Processing">Post-recording pipeline status for library rows and the recording view.</param>
 public sealed record AppServices(
     IRecorder Recorder,
     ICapture Capture,
     ISessionStore Sessions,
     TimeProvider Time,
-    Func<CancellationToken, Task>? Startup = null);
+    Func<CancellationToken, Task>? Startup = null,
+    ITranscriptStore? Transcripts = null,
+    IAudioPlayback? Playback = null,
+    ISessionProcessing? Processing = null);

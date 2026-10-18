@@ -61,6 +61,7 @@
             IsVisible="{Binding HasSessions}">
       <ListBox Classes="sessions"
                ItemsSource="{Binding Sessions}"
+               SelectedItem="{Binding SelectedSession, Mode=TwoWay}"
                ScrollViewer.HorizontalScrollBarVisibility="Disabled">
         <ListBox.ItemTemplate>
           <DataTemplate x:DataType="vm:SessionItemViewModel">

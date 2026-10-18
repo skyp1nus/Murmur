@@ -1,0 +1,202 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Murmur.App.ViewModels"
+             xmlns:controls="using:Murmur.App.Controls"
+             x:Class="Murmur.App.Views.SessionView"
+             x:DataType="vm:SessionViewModel">
+
+  <UserControl.Resources>
+    <!-- Width of the player column and height of the waveform (layout sizes of this screen, not design tokens). -->
+    <GridLength x:Key="Session.PlayerWidth">340</GridLength>
+    <x:Double x:Key="Session.WaveformHeight">96</x:Double>
+    <x:Double x:Key="Session.StatusWidth">480</x:Double>
+  </UserControl.Resources>
+
+  <Grid RowDefinitions="Auto,*"
+        RowSpacing="{StaticResource Space.24}">
+
+    <!-- Header -->
+    <Grid Grid.Row="0"
+          ColumnDefinitions="Auto,*"
+          ColumnSpacing="{StaticResource Space.24}">
+      <Button Grid.Column="0"
+              Classes="outline"
+              VerticalAlignment="Center"
+              Content="Назад"
+              Command="{Binding BackCommand}" />
+      <StackPanel Grid.Column="1"
+                  VerticalAlignment="Center">
+        <TextBlock Classes="headingSm"
+                   TextTrimming="CharacterEllipsis"
+                   Text="{Binding Title}" />
+        <TextBlock Classes="bodySm"
+                   Foreground="{StaticResource Brush.Smoke}"
+                   Text="{Binding DateText}" />
+      </StackPanel>
+    </Grid>
+
+    <Grid Grid.Row="1"
+          ColumnSpacing="{StaticResource Space.24}">
+      <Grid.ColumnDefinitions>
+        <ColumnDefinition Width="{StaticResource Session.PlayerWidth}" />
+        <ColumnDefinition Width="*" />
+      </Grid.ColumnDefinitions>
+
+      <!-- Player (left) -->
+      <Border Grid.Column="0"
+              Classes="card"
+              VerticalAlignment="Top"
+              Padding="{StaticResource Inset.24}">
+        <StackPanel Spacing="{StaticResource Space.16}">
+          <controls:WaveformControl x:Name="Waveform"
+                                    Height="{StaticResource Session.WaveformHeight}"
+                                    Peaks="{Binding Peaks}"
+                                    Fraction="{Binding PositionFraction}" />
+          <Grid ColumnDefinitions="*,Auto">
+            <TextBlock Grid.Column="0"
+                       Classes="mono"
+                       Text="{Binding PositionText}" />
+            <TextBlock Grid.Column="1"
+                       Classes="mono"
+                       Foreground="{StaticResource Brush.Smoke}"
+                       Text="{Binding DurationText}" />
+          </Grid>
+          <Button Classes="primary"
+                  HorizontalAlignment="Center"
+                  Content="{Binding PlayPauseLabel}"
+                  IsEnabled="{Binding CanPlay}"
+                  Command="{Binding PlayPauseCommand}" />
+          <TextBlock Classes="bodySm"
+                     TextWrapping="Wrap"
+                     Foreground="{StaticResource Brush.Smoke}"
+                     IsVisible="{Binding HasPlayerError}"
+                     Text="{Binding PlayerError}" />
+        </StackPanel>
+      </Border>
+
+      <!-- Tabs and content (right) -->
+      <Grid Grid.Column="1"
+            RowDefinitions="Auto,*"
+            RowSpacing="{StaticResource Space.16}">
+        <StackPanel Grid.Row="0"
+                    Orientation="Horizontal"
+                    Spacing="{StaticResource Space.8}">
+          <ToggleButton Classes="pill"
+                        Content="Транскрипт"
+                        IsChecked="{Binding IsTranscriptTab, Mode=TwoWay}" />
+          <ToggleButton Classes="pill"
+                        Content="Резюме"
+                        IsChecked="{Binding IsSummaryTab, Mode=TwoWay}" />
+          <ToggleButton Classes="pill"
+                        Content="Запитати AI"
+                        IsChecked="{Binding IsAskTab, Mode=TwoWay}" />
+        </StackPanel>
+
+        <!-- Transcript: virtualised list of segments -->
+        <Border Grid.Row="1"
+                Classes="card transcript"
+                IsVisible="{Binding ShowTranscriptList}">
+          <ScrollViewer x:Name="TranscriptScroller"
+                        HorizontalScrollBarVisibility="Disabled"
+                        VerticalScrollBarVisibility="Auto">
+            <ItemsControl x:Name="Transcript"
+                          ItemsSource="{Binding Segments}">
+              <ItemsControl.ItemsPanel>
+                <ItemsPanelTemplate>
+                  <VirtualizingStackPanel />
+                </ItemsPanelTemplate>
+              </ItemsControl.ItemsPanel>
+              <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="vm:SegmentViewModel">
+                  <StackPanel Margin="{StaticResource Inset.12}"
+                              Spacing="{StaticResource Space.4}">
+                    <StackPanel Orientation="Horizontal"
+                                Spacing="{StaticResource Space.8}">
+                      <TextBlock Classes="speaker"
+                                 VerticalAlignment="Center"
+                                 Text="{Binding SpeakerLabel}" />
+                      <Button Classes="chip"
+                              Content="{Binding TimeText}"
+                              Command="{Binding SeekCommand}" />
+                    </StackPanel>
+                    <controls:TranscriptTextControl Text="{Binding Text}"
+                                                    WordStarts="{Binding WordStarts}"
+                                                    WordLengths="{Binding WordLengths}"
+                                                    ActiveWord="{Binding ActiveWord}"
+                                                    Command="{Binding SeekWordCommand}" />
+                  </StackPanel>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+          </ScrollViewer>
+        </Border>
+
+        <!-- State card: loading, progress, install hint, error, empty -->
+        <Border Grid.Row="1"
+                Classes="card"
+                Width="{StaticResource Session.StatusWidth}"
+                HorizontalAlignment="Center"
+                VerticalAlignment="Center"
+                IsVisible="{Binding ShowStatusCard}">
+          <StackPanel Spacing="{StaticResource Space.16}">
+            <TextBlock Classes="subheading"
+                       FontWeight="{StaticResource FontWeight.BodyMedium}"
+                       TextWrapping="Wrap"
+                       Text="{Binding StatusTitle}" />
+            <TextBlock Classes="body"
+                       TextWrapping="Wrap"
+                       Foreground="{StaticResource Brush.Graphite}"
+                       Text="{Binding StatusText}" />
+            <ProgressBar Minimum="0"
+                         Maximum="100"
+                         Value="{Binding ProgressValue}"
+                         IsVisible="{Binding ShowProgress}" />
+            <TextBlock Classes="mono"
+                       Foreground="{StaticResource Brush.Smoke}"
+                       IsVisible="{Binding ShowProgress}"
+                       Text="{Binding ProgressText}" />
+            <Button Classes="primary"
+                    HorizontalAlignment="Left"
+                    Content="{Binding RetryLabel}"
+                    IsVisible="{Binding CanRetry}"
+                    Command="{Binding RetryCommand}" />
+          </StackPanel>
+        </Border>
+
+        <!-- Placeholders for phase 3 -->
+        <Border Grid.Row="1"
+                Classes="card"
+                Width="{StaticResource Session.StatusWidth}"
+                HorizontalAlignment="Center"
+                VerticalAlignment="Center"
+                IsVisible="{Binding ShowSummary}">
+          <StackPanel Spacing="{StaticResource Space.12}">
+            <TextBlock Classes="subheading"
+                       FontWeight="{StaticResource FontWeight.BodyMedium}"
+                       Text="Резюме" />
+            <TextBlock Classes="body"
+                       TextWrapping="Wrap"
+                       Foreground="{StaticResource Brush.Graphite}"
+                       Text="Зʼявиться у фазі 3: короткий підсумок мітингу, рішення й завдання, складені локально." />
+          </StackPanel>
+        </Border>
+        <Border Grid.Row="1"
+                Classes="card"
+                Width="{StaticResource Session.StatusWidth}"
+                HorizontalAlignment="Center"
+                VerticalAlignment="Center"
+                IsVisible="{Binding ShowAsk}">
+          <StackPanel Spacing="{StaticResource Space.12}">
+            <TextBlock Classes="subheading"
+                       FontWeight="{StaticResource FontWeight.BodyMedium}"
+                       Text="Запитати AI" />
+            <TextBlock Classes="body"
+                       TextWrapping="Wrap"
+                       Foreground="{StaticResource Brush.Graphite}"
+                       Text="Зʼявиться у фазі 3: питання до цього запису з відповідями й посиланнями на таймкоди." />
+          </StackPanel>
+        </Border>
+      </Grid>
+    </Grid>
+  </Grid>
+</UserControl>
