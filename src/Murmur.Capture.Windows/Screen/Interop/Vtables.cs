@@ -395,3 +395,15 @@ internal static unsafe class IClosable
     public static int Close(nint self) =>
         ((delegate* unmanaged[MemberFunction]<nint, int>)ComCall.Vtbl(self)[6])(self);
 }
+
+/// <summary>ICodecAPI (strmif.h): encoder properties such as the rate control mode. IUnknown-based.</summary>
+internal static unsafe class ICodecAPI
+{
+    // HRESULT IsSupported(const GUID *Api)
+    public static int IsSupported(nint self, Guid* api) =>
+        ((delegate* unmanaged[MemberFunction]<nint, Guid*, int>)ComCall.Vtbl(self)[3])(self, api);
+
+    // HRESULT GetValue(const GUID *Api, VARIANT *Value)
+    public static int GetValue(nint self, Guid* api, Variant* value) =>
+        ((delegate* unmanaged[MemberFunction]<nint, Guid*, Variant*, int>)ComCall.Vtbl(self)[8])(self, api, value);
+}

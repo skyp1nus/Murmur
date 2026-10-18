@@ -102,6 +102,25 @@ internal static class ScreenConstants
     /// </summary>
     public static readonly Guid CodecApiAVEncMpvGopSize = new("95F31B26-95A4-41AA-9303-246A7FC6EEF1");
 
+    // CODECAPI_* rate control properties (codecapi.h; not part of Win32Metadata either). The recorder reads every one
+    // back from the encoder (ICodecAPI::GetValue), and an encoder answers IsSupported with an error for a GUID it does
+    // not know, so a wrong value shows up as "rate control not readable" in the diagnostics instead of a broken file.
+
+    /// <summary>ICodecAPI (strmif.h).</summary>
+    public static readonly Guid IidICodecAPI = new("901DB4C7-31CE-41A2-85DC-8FA0BF41B8DA");
+
+    /// <summary>CODECAPI_AVEncCommonRateControlMode (VT_UI4, eAVEncCommonRateControlMode).</summary>
+    public static readonly Guid CodecApiAVEncCommonRateControlMode = new("1C0608E9-370C-4710-8A58-CB6181C42423");
+
+    /// <summary>CODECAPI_AVEncCommonMeanBitRate (VT_UI4, bits per second).</summary>
+    public static readonly Guid CodecApiAVEncCommonMeanBitRate = new("F7222374-2144-4815-B550-A37F8E12EE52");
+
+    /// <summary>CODECAPI_AVEncCommonMaxBitRate (VT_UI4, bits per second; the peak of peak-constrained VBR).</summary>
+    public static readonly Guid CodecApiAVEncCommonMaxBitRate = new("9651EAE4-39B9-4EBF-85EF-D7F444EC7465");
+
+    /// <summary>CODECAPI_AVEncCommonQuality (VT_UI4, 0..100; quality-based VBR).</summary>
+    public static readonly Guid CodecApiAVEncCommonQuality = new("FCBF57A3-7EA5-4B0C-9644-69B40C39C391");
+
     // ---- Numeric constants ----
 
     /// <summary>MF_VERSION = (MF_SDK_VERSION 0x0002 &lt;&lt; 16) | MF_API_VERSION 0x0070.</summary>
@@ -118,6 +137,27 @@ internal static class ScreenConstants
 
     /// <summary>eAVEncH264VProfile_Main.</summary>
     public const uint H264ProfileMain = 77;
+
+    /// <summary>eAVEncCommonRateControlMode_CBR.</summary>
+    public const uint RateControlCbr = 0;
+
+    /// <summary>eAVEncCommonRateControlMode_PeakConstrainedVBR.</summary>
+    public const uint RateControlPeakConstrainedVbr = 1;
+
+    /// <summary>eAVEncCommonRateControlMode_UnconstrainedVBR.</summary>
+    public const uint RateControlUnconstrainedVbr = 2;
+
+    /// <summary>eAVEncCommonRateControlMode_Quality.</summary>
+    public const uint RateControlQuality = 3;
+
+    // VARENUM (wtypes.h)
+    public const ushort VtEmpty = 0;
+    public const ushort VtI4 = 3;
+    public const ushort VtBool = 11;
+    public const ushort VtUI4 = 19;
+    public const ushort VtUI8 = 21;
+    public const ushort VtInt = 22;
+    public const ushort VtUInt = 23;
 
     public const uint MfSourceReaderFirstVideoStream = 0xFFFF_FFFC;
     public const uint MfSourceReaderMediaSource = 0xFFFF_FFFF;

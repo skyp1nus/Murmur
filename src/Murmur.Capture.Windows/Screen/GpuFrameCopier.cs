@@ -45,6 +45,7 @@ internal sealed unsafe class GpuFrameCopier : IFramePath
     private nint _allocatorCallback;
     private int _entryCount;
     private int _handedOutCount;
+    private int _minAvailable = int.MaxValue;
 
     private nint _videoDevice;
     private nint _videoContext;
@@ -106,6 +107,15 @@ internal sealed unsafe class GpuFrameCopier : IFramePath
         {
             int free;
             var freeHr = IMFVideoSampleAllocatorCallback.GetFreeSampleCount(_allocatorCallback, &free);
+            if (freeHr >= 0)
+            {
+                var available = SamplePoolProbe.Available(free, _handedOutCount, _maximumSamples);
+                if (available < _minAvailable)
+                {
+                    _minAvailable = available;
+                }
+            }
+
             if (SamplePoolProbe.IsExhausted(freeHr, free, _handedOutCount, _maximumSamples))
             {
                 return ScreenConstants.MfESampleAllocatorEmpty;
@@ -126,6 +136,12 @@ internal sealed unsafe class GpuFrameCopier : IFramePath
 
     /// <summary>Distinct samples the allocator handed out so far (diagnostics; at most the maximum).</summary>
     internal int SamplesHandedOut => _handedOutCount;
+
+    /// <summary>
+    /// The fewest samples that were available (free in the allocator or not created yet) when a sample was asked for,
+    /// or -1 before the first request (diagnostics: the pool's headroom; 0 means a request found the pool empty).
+    /// </summary>
+    internal int MinAvailableSamples => _minAvailable == int.MaxValue ? -1 : _minAvailable;
 
     private void NoteHandedOut(nint sample)
     {
@@ -608,4 +624,12 @@ internal static class SamplePoolProbe
     /// </summary>
     public static bool IsExhausted(int freeCountHr, int freeCount, int samplesHandedOut, uint maximumSamples) =>
         freeCountHr >= 0 && freeCount <= 0 && samplesHandedOut >= maximumSamples;
+
+    /// <summary>
+    /// Samples a request could get right now: the free ones plus those the allocator may still create (the maximum minus
+    /// the distinct samples handed out so far). Exact once every pre-created (initial) sample was handed out at least once,
+    /// an overestimate by at most the initial count before that.
+    /// </summary>
+    public static int Available(int freeCount, int samplesHandedOut, uint maximumSamples) =>
+        Math.Max(0, freeCount) + Math.Max(0, (int)maximumSamples - samplesHandedOut);
 }

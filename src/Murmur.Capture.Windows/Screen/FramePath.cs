@@ -29,6 +29,28 @@ internal static class FramePathPolicy
     public static EncoderInput Choose(bool videoSupport, bool softwareRenderer, int hardwareH264Encoders) =>
         videoSupport && !softwareRenderer && hardwareH264Encoders > 0 ? EncoderInput.Gpu : EncoderInput.Cpu;
 
+    /// <summary>
+    /// The highest frame rate of <see cref="EncoderInput.Cpu"/>: every frame is read back, converted and encoded in
+    /// software, so 1080p60 would not fit the CPU budget of a recording (&lt; 8 %).
+    /// </summary>
+    public const int CpuMaxFrameRate = 30;
+
+    /// <summary>
+    /// The encoder settings of a segment on <paramref name="input"/>: the zero-copy path encodes what was asked for;
+    /// CPU readback caps the frame rate at <see cref="CpuMaxFrameRate"/> and scales the bit rate with it, so a frame
+    /// gets as many bits as at the requested rate.
+    /// </summary>
+    public static H264EncoderSettings Settings(EncoderInput input, H264EncoderSettings requested)
+    {
+        if (input == EncoderInput.Gpu || requested.FrameRate <= CpuMaxFrameRate)
+        {
+            return requested;
+        }
+
+        var bitrate = (int)Math.Max(1, (long)requested.BitrateKbps * CpuMaxFrameRate / requested.FrameRate);
+        return requested with { FrameRate = CpuMaxFrameRate, BitrateKbps = bitrate };
+    }
+
     /// <summary>Why <see cref="Choose"/> picked what it picked (diagnostics).</summary>
     public static string Describe(bool videoSupport, bool softwareRenderer, int hardwareH264Encoders) =>
         Choose(videoSupport, softwareRenderer, hardwareH264Encoders) switch

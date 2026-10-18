@@ -251,3 +251,32 @@ internal struct D3D11VideoColorRgba
     public float B;
     public float A;
 }
+
+/// <summary>
+/// oaidl.h <c>VARIANT</c> for the scalar values ICodecAPI exchanges (VT_UI4 / VT_UI8 / VT_I4 / VT_BOOL): <c>vt</c> at 0,
+/// the value union at 8. 24 bytes, the size of a VARIANT on 64-bit (16 on 32-bit, where the extra bytes are unused).
+/// Holds no owned memory for these types, so nothing needs VariantClear.
+/// </summary>
+[StructLayout(LayoutKind.Explicit, Size = 24)]
+internal struct Variant
+{
+    [FieldOffset(0)]
+    public ushort Vt;
+
+    [FieldOffset(8)]
+    public uint UI4;
+
+    [FieldOffset(8)]
+    public ulong UI8;
+
+    public static Variant FromUInt32(uint value) => new() { Vt = ScreenConstants.VtUI4, UI4 = value };
+
+    /// <summary>The value as a UINT32 when it is one (VT_UI4, VT_I4, VT_BOOL, or a VT_UI8 that fits), else null.</summary>
+    public readonly uint? AsUInt32() => Vt switch
+    {
+        ScreenConstants.VtUI4 or ScreenConstants.VtI4 or ScreenConstants.VtUInt or ScreenConstants.VtInt => UI4,
+        ScreenConstants.VtBool => UI4 & 0xFFFF,
+        ScreenConstants.VtUI8 when UI8 <= uint.MaxValue => (uint)UI8,
+        _ => null,
+    };
+}

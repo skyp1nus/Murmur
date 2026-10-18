@@ -4,11 +4,87 @@ using Murmur.Capture.Windows.Screen.Interop;
 
 namespace Murmur.Capture.Windows.Screen;
 
-/// <summary>Encoder settings of one segment.</summary>
-internal readonly record struct H264EncoderSettings(PixelSize FrameSize, int FrameRate, int BitrateKbps)
+/// <summary>How the encoder spends its bits (CODECAPI_AVEncCommonRateControlMode).</summary>
+internal enum RateControl
 {
+    /// <summary>Constant bit rate: every frame gets about BitrateKbps / FrameRate, padded if it needs less.</summary>
+    Cbr,
+
+    /// <summary>
+    /// Peak-constrained VBR: BitrateKbps is the mean, <see cref="H264EncoderSettings.PeakFactor"/> times it the peak. A
+    /// static screen's repeats shrink to a few hundred bytes instead of being padded to the CBR frame size.
+    /// </summary>
+    PeakConstrainedVbr,
+}
+
+/// <summary>Encoder settings of one segment.</summary>
+internal readonly record struct H264EncoderSettings(PixelSize FrameSize, int FrameRate, int BitrateKbps, RateControl RateControl = RateControl.PeakConstrainedVbr)
+{
+    /// <summary>Peak bit rate of <see cref="RateControl.PeakConstrainedVbr"/> as a multiple of the mean.</summary>
+    public const int PeakFactor = 2;
+
     /// <summary>Keyframe interval: 2 s, so fragments (and crash-recoverable data) are at most about 2 s apart.</summary>
     public uint GopSize => (uint)Math.Max(1, FrameRate * 2);
+
+    /// <summary>The mean (CBR: the constant) bit rate in bits per second.</summary>
+    public uint MeanBitrate => (uint)Math.Min((long)BitrateKbps * 1000, uint.MaxValue);
+
+    /// <summary>The peak bit rate of peak-constrained VBR in bits per second.</summary>
+    public uint PeakBitrate => (uint)Math.Min((long)BitrateKbps * 1000 * PeakFactor, uint.MaxValue);
+
+    /// <summary>The CODECAPI_AVEncCommonRateControlMode value of <see cref="RateControl"/>.</summary>
+    public uint RateControlMode => RateControl == RateControl.Cbr ? ScreenConstants.RateControlCbr : ScreenConstants.RateControlPeakConstrainedVbr;
+}
+
+/// <summary>
+/// The encoder's rate control as read back from the MFT (ICodecAPI::GetValue) after BeginWriting: what it actually
+/// uses, whatever was asked for. A null field could not be read (no ICodecAPI, the property is not supported).
+/// </summary>
+internal readonly record struct RateControlReadback(uint? Mode, uint? MeanBitrate, uint? MaxBitrate)
+{
+    public static readonly RateControlReadback Unknown = new(null, null, null);
+}
+
+/// <summary>Formats the rate control diagnostics of a segment's encoder (pure).</summary>
+internal static class RateControlNaming
+{
+    public static string Mode(uint mode) => mode switch
+    {
+        ScreenConstants.RateControlCbr => "CBR",
+        ScreenConstants.RateControlPeakConstrainedVbr => "peak-constrained VBR",
+        ScreenConstants.RateControlUnconstrainedVbr => "unconstrained VBR",
+        ScreenConstants.RateControlQuality => "quality VBR",
+        _ => "rate control mode " + mode.ToString(System.Globalization.CultureInfo.InvariantCulture),
+    };
+
+    /// <summary>
+    /// E.g. "peak-constrained VBR, mean 12000 kbps, peak 24000 kbps", "CBR, 12000 kbps (peak-constrained VBR was
+    /// rejected: ...)" or "requested peak-constrained VBR, mean 12000 kbps (the encoder does not report its rate
+    /// control)".
+    /// </summary>
+    public static string Describe(H264EncoderSettings settings, RateControlReadback readback, string? fallbackReason)
+    {
+        var invariant = System.Globalization.CultureInfo.InvariantCulture;
+        string text;
+        if (readback.Mode is { } mode)
+        {
+            var mean = readback.MeanBitrate ?? settings.MeanBitrate;
+            text = mode == ScreenConstants.RateControlCbr
+                ? string.Create(invariant, $"CBR, {mean / 1000} kbps")
+                : readback.MaxBitrate is { } peak && peak > 0 && mode == ScreenConstants.RateControlPeakConstrainedVbr
+                    ? string.Create(invariant, $"{Mode(mode)}, mean {mean / 1000} kbps, peak {peak / 1000} kbps")
+                    : string.Create(invariant, $"{Mode(mode)}, mean {mean / 1000} kbps");
+        }
+        else
+        {
+            text = string.Create(invariant, $"requested {Mode(settings.RateControlMode)}, mean {settings.MeanBitrate / 1000} kbps (the encoder does not report its rate control)");
+        }
+
+        return fallbackReason is null ? text : text + " (" + Mode(ScreenConstants.RateControlPeakConstrainedVbr) + " was rejected: " + fallbackReason + ")";
+    }
+
+    /// <summary>True when the encoder reported a VBR mode (anything but CBR).</summary>
+    public static bool IsVbr(RateControlReadback readback) => readback.Mode is { } mode && mode != ScreenConstants.RateControlCbr;
 }
 
 /// <summary>
@@ -35,17 +111,31 @@ internal sealed unsafe class H264SinkWriter : ISampleSink, IDisposable
     private nint _writer;
     private readonly uint _stream;
 
-    private H264SinkWriter(nint writer, uint stream, string encoder, bool? isHardware, EncoderInput input)
+    private H264SinkWriter(nint writer, uint stream, string encoder, bool? isHardware, EncoderInput input, H264EncoderSettings settings, RateControlReadback readback)
     {
         _writer = writer;
         _stream = stream;
         Encoder = encoder;
         IsHardware = isHardware;
         Input = input;
+        Settings = settings;
+        Readback = readback;
     }
 
     /// <summary>Which encoder the sink writer picked, for <see cref="Murmur.Core.Capture.ScreenRecorderStats.Encoder"/>.</summary>
     public string Encoder { get; }
+
+    /// <summary>The settings the writer was opened with (after a CBR fallback: <see cref="RateControl.Cbr"/>).</summary>
+    public H264EncoderSettings Settings { get; }
+
+    /// <summary>The rate control the encoder reports (see <see cref="RateControlReadback"/>).</summary>
+    public RateControlReadback Readback { get; }
+
+    /// <summary>Why the requested VBR configuration was given up for CBR, or null.</summary>
+    public string? RateControlFallback { get; private init; }
+
+    /// <summary>The rate control diagnostics, e.g. "peak-constrained VBR, mean 12000 kbps, peak 24000 kbps".</summary>
+    public string RateControlDescription => RateControlNaming.Describe(Settings, Readback, RateControlFallback);
 
     /// <summary>True for a hardware MFT, false for a software one, null when the encoder MFT could not be queried.</summary>
     public bool? IsHardware { get; }
@@ -60,6 +150,13 @@ internal sealed unsafe class H264SinkWriter : ISampleSink, IDisposable
     /// Opens a writer for <paramref name="input"/>; <paramref name="deviceManager"/> (IMFDXGIDeviceManager) is required
     /// for <see cref="EncoderInput.Gpu"/> and ignored for <see cref="EncoderInput.Cpu"/>. Opening is retried briefly
     /// while the file is still held by a writer released just before (a fallback from the GPU configuration).
+    /// <para>
+    /// <b>Rate control.</b> <see cref="RateControl.PeakConstrainedVbr"/> is requested through the encoding parameters
+    /// (CODECAPI_AVEncCommonRateControlMode, MeanBitRate, MaxBitRate, which the sink writer hands to the MFT's
+    /// ICodecAPI); when that configuration cannot be set up, the writer is opened again with CBR (the reason is kept in
+    /// <see cref="RateControlFallback"/>). Either way the encoder's actual rate control is read back
+    /// (<see cref="Readback"/>): an encoder may accept the parameters and ignore them.
+    /// </para>
     /// </summary>
     /// <exception cref="COMException">The configuration could not be set up.</exception>
     public static H264SinkWriter Create(string path, H264EncoderSettings settings, EncoderInput input, nint deviceManager)
@@ -70,22 +167,30 @@ internal sealed unsafe class H264SinkWriter : ISampleSink, IDisposable
             throw new ArgumentException("The GPU configuration needs the DXGI device manager.", nameof(deviceManager));
         }
 
+        string? fallback = null;
         for (var attempt = 1; ; attempt++)
         {
             try
             {
                 return input == EncoderInput.Gpu
-                    ? CreateOnce(path, settings, hardware: true, deviceManager, input)
-                    : CreateOnce(path, settings, hardware: false, 0, input);
+                    ? CreateOnce(path, settings, hardware: true, deviceManager, input, fallback)
+                    : CreateOnce(path, settings, hardware: false, 0, input, fallback);
             }
             catch (COMException ex) when (ex.HResult is ScreenConstants.ESharingViolation or ScreenConstants.ELockViolation && attempt < OpenAttempts)
             {
                 Thread.Sleep(OpenRetryDelay);
             }
+            catch (COMException ex) when (settings.RateControl != RateControl.Cbr && ex.HResult is not (ScreenConstants.ESharingViolation or ScreenConstants.ELockViolation))
+            {
+                // The VBR parameters may be what the encoder (or the sink writer's MFT negotiation) refused: retry once with CBR.
+                fallback = ex.Message;
+                settings = settings with { RateControl = RateControl.Cbr };
+                Thread.Sleep(OpenRetryDelay);
+            }
         }
     }
 
-    private static H264SinkWriter CreateOnce(string path, H264EncoderSettings settings, bool hardware, nint deviceManager, EncoderInput input)
+    private static H264SinkWriter CreateOnce(string path, H264EncoderSettings settings, bool hardware, nint deviceManager, EncoderInput input, string? fallback)
     {
         nint attributes = 0, writer = 0, output = 0, inputType = 0, encoding = 0;
         try
@@ -112,7 +217,7 @@ internal sealed unsafe class H264SinkWriter : ISampleSink, IDisposable
             ComHelpers.Check(ScreenNativeMethods.MFCreateMediaType(&output), "MFCreateMediaType");
             SetGuid(output, ScreenConstants.MfMtMajorType, ScreenConstants.MfMediaTypeVideo);
             SetGuid(output, ScreenConstants.MfMtSubtype, ScreenConstants.MfVideoFormatH264);
-            SetUInt32(output, ScreenConstants.MfMtAvgBitrate, (uint)Math.Min((long)settings.BitrateKbps * 1000, uint.MaxValue));
+            SetUInt32(output, ScreenConstants.MfMtAvgBitrate, settings.MeanBitrate);
             SetUInt32(output, ScreenConstants.MfMtInterlaceMode, ScreenConstants.MfVideoInterlaceProgressive);
             SetUInt64(output, ScreenConstants.MfMtFrameSize, size);
             SetUInt64(output, ScreenConstants.MfMtFrameRate, rate);
@@ -132,15 +237,23 @@ internal sealed unsafe class H264SinkWriter : ISampleSink, IDisposable
             SetUInt64(inputType, ScreenConstants.MfMtFrameRate, rate);
             SetUInt64(inputType, ScreenConstants.MfMtPixelAspectRatio, aspect);
 
-            ComHelpers.Check(ScreenNativeMethods.MFCreateAttributes(&encoding, 1), "MFCreateAttributes");
+            ComHelpers.Check(ScreenNativeMethods.MFCreateAttributes(&encoding, 4), "MFCreateAttributes");
             SetUInt32(encoding, ScreenConstants.CodecApiAVEncMpvGopSize, settings.GopSize);
+            SetUInt32(encoding, ScreenConstants.CodecApiAVEncCommonRateControlMode, settings.RateControlMode);
+            SetUInt32(encoding, ScreenConstants.CodecApiAVEncCommonMeanBitRate, settings.MeanBitrate);
+            if (settings.RateControl == RateControl.PeakConstrainedVbr)
+            {
+                SetUInt32(encoding, ScreenConstants.CodecApiAVEncCommonMaxBitRate, settings.PeakBitrate);
+            }
+
             ComHelpers.Check(
                 IMFSinkWriter.SetInputMediaType(writer, stream, inputType, encoding),
                 input == EncoderInput.Gpu ? "IMFSinkWriter::SetInputMediaType(ARGB32, D3D11)" : "IMFSinkWriter::SetInputMediaType(RGB32, system memory)");
             ComHelpers.Check(IMFSinkWriter.BeginWriting(writer), "IMFSinkWriter::BeginWriting");
 
             var (encoder, isHardware) = DescribeEncoder(writer, stream, hardware, input == EncoderInput.Gpu);
-            var result = new H264SinkWriter(writer, stream, encoder, isHardware, input);
+            var readback = ReadRateControl(writer, stream);
+            var result = new H264SinkWriter(writer, stream, encoder, isHardware, input, settings, readback) { RateControlFallback = fallback };
             writer = 0;
             return result;
         }
@@ -193,6 +306,41 @@ internal sealed unsafe class H264SinkWriter : ISampleSink, IDisposable
         }
 
         return (EncoderNaming.Describe(isHardware, name, gpuInput), isHardware);
+    }
+
+    /// <summary>Reads the stream encoder's rate control through its ICodecAPI (not a hot path; never throws).</summary>
+    private static RateControlReadback ReadRateControl(nint writer, uint stream)
+    {
+        var service = Guid.Empty; // the encoder MFT itself (IMFSinkWriter::GetServiceForStream remarks)
+        var iid = ScreenConstants.IidICodecAPI;
+        nint codec = 0;
+        try
+        {
+            if (IMFSinkWriter.GetServiceForStream(writer, stream, &service, &iid, &codec) < 0 || codec == 0)
+            {
+                return RateControlReadback.Unknown;
+            }
+
+            return new RateControlReadback(
+                GetCodecValue(codec, ScreenConstants.CodecApiAVEncCommonRateControlMode),
+                GetCodecValue(codec, ScreenConstants.CodecApiAVEncCommonMeanBitRate),
+                GetCodecValue(codec, ScreenConstants.CodecApiAVEncCommonMaxBitRate));
+        }
+        finally
+        {
+            ComCall.Release(ref codec);
+        }
+    }
+
+    private static uint? GetCodecValue(nint codec, Guid api)
+    {
+        if (ICodecAPI.IsSupported(codec, &api) != ScreenConstants.SOk)
+        {
+            return null;
+        }
+
+        var value = default(Variant);
+        return ICodecAPI.GetValue(codec, &api, &value) >= 0 ? value.AsUInt32() : null;
     }
 
     private static string? GetString(nint attributes, Guid key)

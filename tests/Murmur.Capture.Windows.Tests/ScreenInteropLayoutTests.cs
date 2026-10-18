@@ -240,6 +240,8 @@ public sealed unsafe class ScreenInteropLayoutTests
         { "IDirect3D11CaptureFrame::get_SystemRelativeTime", 7 },
         { "IDirect3D11CaptureFrame::get_ContentSize", 8 },
         { "IClosable::Close", 6 },
+        { "ICodecAPI::IsSupported", 3 },
+        { "ICodecAPI::GetValue", 8 },
     };
 
     [Theory]
@@ -280,6 +282,7 @@ public sealed unsafe class ScreenInteropLayoutTests
         byte* b;
         D3D11MappedSubresource mapped;
         DxgiAdapterDesc adapter;
+        Variant v;
         switch (method)
         {
             case "IUnknown::QueryInterface": ComCall.QueryInterface(s, &g, &p); break;
@@ -352,6 +355,8 @@ public sealed unsafe class ScreenInteropLayoutTests
             case "IDirect3D11CaptureFrame::get_SystemRelativeTime": IDirect3D11CaptureFrame.get_SystemRelativeTime(s, &l); break;
             case "IDirect3D11CaptureFrame::get_ContentSize": IDirect3D11CaptureFrame.get_ContentSize(s, &size); break;
             case "IClosable::Close": IClosable.Close(s); break;
+            case "ICodecAPI::IsSupported": ICodecAPI.IsSupported(s, &g); break;
+            case "ICodecAPI::GetValue": ICodecAPI.GetValue(s, &g, &v); break;
             default: throw new ArgumentOutOfRangeException(nameof(method), method, null);
         }
     }
