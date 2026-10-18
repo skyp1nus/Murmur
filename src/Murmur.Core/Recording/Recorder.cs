@@ -111,7 +111,7 @@ public sealed class Recorder : IRecorder
     /// </summary>
     public RecorderStats Stats => _active is { } active ? active.FinalStats?.Value ?? ComputeStats(active) : _lastStats;
 
-    /// <summary>Bytes the writer thread allocated after its warm-up iterations (diagnostics; must stay 0).</summary>
+    /// <summary>Bytes the writer thread allocated after its warm-up iterations, up to the stop request (diagnostics; must stay 0).</summary>
     internal long WriterSteadyStateAllocatedBytes { get; private set; }
 
     /// <summary>Writer-loop iterations of the last session (diagnostics).</summary>
@@ -849,7 +849,7 @@ public sealed class Recorder : IRecorder
                 {
                     baseline = GC.GetAllocatedBytesForCurrentThread();
                 }
-                else if (iterations > WarmupIterations)
+                else if (iterations > WarmupIterations && !stopping)
                 {
                     Volatile.Write(ref active.WriterAllocatedBytes, GC.GetAllocatedBytesForCurrentThread() - baseline);
                 }
