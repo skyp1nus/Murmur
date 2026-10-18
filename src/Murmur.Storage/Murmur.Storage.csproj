@@ -9,6 +9,10 @@
   </ItemGroup>
 
   <ItemGroup>
+    <PackageReference Include="Microsoft.Data.Sqlite" />
+  </ItemGroup>
+
+  <ItemGroup>
     <InternalsVisibleTo Include="Murmur.Storage.Tests" />
   </ItemGroup>
 

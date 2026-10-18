@@ -20,6 +20,10 @@
     <PackageVersion Include="org.k2fsa.sherpa.onnx" Version="1.13.8" />
   </ItemGroup>
 
+  <ItemGroup Label="Storage">
+    <PackageVersion Include="Microsoft.Data.Sqlite" Version="11.0.0-rc.2.26504.105" />
+  </ItemGroup>
+
   <ItemGroup Label="Tests and benchmarks">
     <PackageVersion Include="xunit.v3" Version="4.0.2" />
     <PackageVersion Include="xunit.runner.visualstudio" Version="4.0.1" />
