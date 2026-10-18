@@ -1,4 +1,6 @@
 using System.Diagnostics;
+using System.Runtime.ExceptionServices;
+using Murmur.Capture.Windows.Audio;
 using Murmur.Core.Capture;
 
 namespace Murmur.Capture.Windows.Tests;
@@ -54,7 +56,7 @@ public sealed class WindowsCaptureTests(ITestOutputHelper output)
         var capture = new WindowsCapture();
         Assert.SkipWhen(capture.GetAudioDevices(kind).Count == 0, $"No active {kind} endpoint on this machine.");
 
-        using var source = capture.CreateAudioSource(kind, null);
+        using var source = CreateOrSkip(capture, kind);
         output.WriteLine($"{source.Device.Name}: {source.Format.SampleRate} Hz, {source.Format.Channels} ch");
         Assert.True(source.Format.SampleRate > 0);
         Assert.True(source.Format.Channels > 0);
@@ -63,7 +65,7 @@ public sealed class WindowsCaptureTests(ITestOutputHelper output)
         var sink = new CountingSink(source.Format.Channels);
 
         var stopwatch = Stopwatch.StartNew();
-        source.Start(sink);
+        StartOrSkip(source, sink);
         Thread.Sleep(CaptureDuration);
         source.Stop();
         stopwatch.Stop();
@@ -89,10 +91,10 @@ public sealed class WindowsCaptureTests(ITestOutputHelper output)
         var capture = new WindowsCapture();
         Assert.SkipWhen(capture.GetAudioDevices(AudioDeviceKind.SystemOutput).Count == 0, "No active render endpoint on this machine.");
 
-        var source = capture.CreateAudioSource(AudioDeviceKind.SystemOutput, null);
+        var source = CreateOrSkip(capture, AudioDeviceKind.SystemOutput);
         source.Stop(); // never started
         var sink = new CountingSink(source.Format.Channels);
-        source.Start(sink);
+        StartOrSkip(source, sink);
         Assert.Throws<InvalidOperationException>(() => source.Start(sink));
         Thread.Sleep(300);
         source.Stop();
@@ -112,7 +114,7 @@ public sealed class WindowsCaptureTests(ITestOutputHelper output)
         var devices = capture.GetAudioDevices(AudioDeviceKind.SystemOutput);
         Assert.SkipWhen(devices.Count == 0, "No active render endpoint on this machine.");
 
-        using var source = capture.CreateAudioSource(AudioDeviceKind.SystemOutput, devices[^1].Id);
+        using var source = CreateOrSkip(capture, AudioDeviceKind.SystemOutput, devices[^1].Id);
 
         Assert.Equal(devices[^1].Id, source.Device.Id);
         Assert.Equal(devices[^1].Name, source.Device.Name);
@@ -128,7 +130,7 @@ public sealed class WindowsCaptureTests(ITestOutputHelper output)
         var capture = new WindowsCapture();
         Assert.SkipWhen(capture.GetAudioDevices(kind).Count == 0, $"No active {kind} endpoint on this machine.");
 
-        var source = capture.CreateAudioSource(kind, null);
+        var source = CreateOrSkip(capture, kind);
         var faults = 0;
         var faulted = new ManualResetEventSlim(false);
         source.Faulted += _ =>
@@ -138,19 +140,92 @@ public sealed class WindowsCaptureTests(ITestOutputHelper output)
             faulted.Set();
         };
 
+        // Nothing may escape the owner thread: an unhandled exception there would crash the test host.
+        Exception? ownerError = null;
         var owner = new Thread(() =>
         {
-            source.Start(new ThrowingSink());
-            Assert.True(faulted.Wait(TimeSpan.FromSeconds(5), CancellationToken.None), "Faulted was not raised.");
-            source.Stop();  // owner joins and releases
-            source.Stop();  // idempotent
-            source.Dispose();
+            try
+            {
+                source.Start(new ThrowingSink());
+                Assert.True(faulted.Wait(TimeSpan.FromSeconds(5), CancellationToken.None), "Faulted was not raised.");
+                source.Stop();  // owner joins and releases
+                source.Stop();  // idempotent
+            }
+            catch (Exception ex)
+            {
+                ownerError = ex;
+            }
+            finally
+            {
+                source.Dispose();
+            }
         })
         { IsBackground = true };
         owner.Start();
 
         Assert.True(owner.Join(TimeSpan.FromSeconds(15)), "Deadlock: Start/Stop did not return.");
+        if (ownerError is UnauthorizedAccessException denied)
+        {
+            Assert.Skip(PrivacySkip(denied));
+        }
+
+        if (ownerError is not null)
+        {
+            ExceptionDispatchInfo.Capture(ownerError).Throw();
+        }
+
         Assert.Equal(1, Volatile.Read(ref faults));
+    }
+
+    [Fact]
+    public void AccessDenied_IsTranslatedIntoAPrivacyHint()
+    {
+        // Pure logic, runs everywhere: E_ACCESSDENIED from IAudioClient.Initialize (as seen in CI) anywhere in the chain.
+        var start = new InvalidOperationException(
+            "start", new System.Runtime.InteropServices.COMException("IAudioClient.Initialize(SHARED, EVENTCALLBACK) failed", unchecked((int)0x80070005)));
+        Assert.True(AudioAccess.IsAccessDenied(start));
+        Assert.False(AudioAccess.IsAccessDenied(new InvalidOperationException("other", new System.Runtime.InteropServices.COMException("x", unchecked((int)0x88890004)))));
+        Assert.False(AudioAccess.IsAccessDenied(null));
+
+        var mic = AudioAccess.Denied(AudioDeviceKind.Microphone, "CABLE Output", start);
+        Assert.StartsWith(AudioAccess.MicrophoneDeniedMessage, mic.Message, StringComparison.Ordinal);
+        Assert.Contains("CABLE Output", mic.Message, StringComparison.Ordinal);
+        Assert.Same(start, mic.InnerException);
+        Assert.Equal(unchecked((int)0x80070005), mic.HResult);
+
+        var loopback = AudioAccess.Denied(AudioDeviceKind.SystemOutput, "Speakers", start);
+        Assert.StartsWith(AudioAccess.EndpointDeniedMessage, loopback.Message, StringComparison.Ordinal);
+    }
+
+    private static string PrivacySkip(UnauthorizedAccessException ex) =>
+        "Windows privacy settings deny access to the endpoint (Settings → Privacy & security → Microphone): " + ex.Message;
+
+    /// <summary>Opens a source; skips the test when Windows privacy settings deny access to the endpoint.</summary>
+    private static IAudioSource CreateOrSkip(WindowsCapture capture, AudioDeviceKind kind, string? deviceId = null)
+    {
+        try
+        {
+            return capture.CreateAudioSource(kind, deviceId);
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            Assert.Skip(PrivacySkip(ex));
+            throw;
+        }
+    }
+
+    /// <summary>Starts a source; skips the test (after releasing it) when Windows denies access at IAudioClient.Initialize.</summary>
+    private static void StartOrSkip(IAudioSource source, IAudioSink sink)
+    {
+        try
+        {
+            source.Start(sink);
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            source.Dispose();
+            Assert.Skip(PrivacySkip(ex));
+        }
     }
 
     private sealed class ThrowingSink : IAudioSink

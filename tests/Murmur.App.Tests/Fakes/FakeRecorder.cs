@@ -24,6 +24,12 @@ internal sealed class FakeRecorder : IRecorder
 
     public string? StopError { get; set; }
 
+    /// <summary>
+    /// When set, the start succeeds without the microphone and the session carries this warning in
+    /// <see cref="SessionRecord.Error"/>, like <see cref="Recorder"/> when Windows denies microphone access.
+    /// </summary>
+    public string? StartWarning { get; set; }
+
     public List<RecordingOptions> Starts { get; } = [];
 
     public List<bool> ScreenCalls { get; } = [];
@@ -48,8 +54,9 @@ internal sealed class FakeRecorder : IRecorder
             Title = "Fake",
             StartedAt = DateTimeOffset.UnixEpoch,
             State = SessionState.Recording,
-            HasMicrophone = options.Microphone,
+            HasMicrophone = options.Microphone && StartWarning is null,
             HasSystemAudio = options.SystemAudio,
+            Error = StartWarning,
         };
         SetState(RecorderState.Recording);
         return ValueTask.FromResult(Current);
@@ -98,7 +105,7 @@ internal sealed class FakeRecorder : IRecorder
         {
             State = SessionState.Recorded,
             Duration = Elapsed,
-            Error = StopError,
+            Error = StopError ?? current.Error,
         };
         Current = null;
         SetState(RecorderState.Idle);

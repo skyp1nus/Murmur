@@ -88,6 +88,12 @@ internal sealed unsafe class WasapiAudioSource : IAudioSource
                 Volatile.Write(ref _thread, null);
                 _stopEvent = 0;
                 NativeMethods.CloseHandle(stopEvent);
+                if (AudioAccess.IsAccessDenied(run.StartError))
+                {
+                    // Windows privacy settings: a clear, typed error the recorder can turn into a warning.
+                    throw AudioAccess.Denied(Device.Kind, Device.Name, run.StartError);
+                }
+
                 throw new InvalidOperationException($"Could not start WASAPI capture on '{Device.Name}': {run.StartError.Message}", run.StartError);
             }
         }
@@ -133,9 +139,34 @@ internal sealed unsafe class WasapiAudioSource : IAudioSource
         }
     }
 
+    /// <summary>
+    /// Capture thread entry. Nothing may escape it (an unhandled exception on a thread ends the process): a start
+    /// failure goes back to <see cref="Start"/> through <see cref="CaptureRun.StartError"/>, anything later is raised
+    /// as <see cref="Faulted"/>. The outer guard only matters if the cleanup itself throws.
+    /// </summary>
     private void Run(object? state)
     {
         var run = (CaptureRun)state!;
+        try
+        {
+            RunCore(run);
+        }
+        catch (Exception ex)
+        {
+            if (!run.Started)
+            {
+                run.StartError ??= ex;
+                run.Ready.Set();
+            }
+            else
+            {
+                RaiseFault(ex.Message);
+            }
+        }
+    }
+
+    private void RunCore(CaptureRun run)
+    {
         IMMDeviceEnumerator? enumerator = null;
         IMMDevice? device = null;
         IAudioClient? client = null;

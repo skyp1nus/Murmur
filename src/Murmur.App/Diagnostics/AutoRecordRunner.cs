@@ -94,6 +94,11 @@ public sealed class AutoRecordRunner
                 return report with { Error = startError };
             }
 
+            // A track the recorder had to skip (e.g. the microphone denied by Windows privacy settings) is a warning:
+            // the run goes on with the other track and still reports every number.
+            var warnings = new List<string>();
+            AddWarning(warnings, _recorder.Current?.Error);
+
             var machine = new List<double>(_options.Seconds);
             var oneCore = new List<double>(_options.Seconds);
             var workingSet = new List<double>(_options.Seconds);
@@ -118,6 +123,11 @@ public sealed class AutoRecordRunner
             await StopRecordingAsync();
 
             var session = stopped ?? throw new InvalidOperationException("The recording did not stop cleanly.");
+            if (session.State != SessionState.Failed)
+            {
+                AddWarning(warnings, session.Error);
+            }
+
             report = report with
             {
                 Orb = _options.ShowOrb,
@@ -130,6 +140,7 @@ public sealed class AutoRecordRunner
                 PrivateMaxMb = Round(privateMax),
                 RecorderStats = ToReport(_recorder.Stats),
                 Session = DescribeSession(session),
+                Warnings = warnings.Count == 0 ? null : warnings,
             };
 
             return session.State == SessionState.Failed
@@ -179,6 +190,29 @@ public sealed class AutoRecordRunner
     }
 
     private Task StopRecordingAsync() => _runOnUi(_recording.StopAsync);
+
+    /// <summary>
+    /// Adds a session warning once. The stop repeats the start's warning, possibly with a screen error in front: the
+    /// fuller text then replaces the one it contains.
+    /// </summary>
+    private static void AddWarning(List<string> warnings, string? warning)
+    {
+        if (string.IsNullOrWhiteSpace(warning))
+        {
+            return;
+        }
+
+        foreach (var existing in warnings)
+        {
+            if (existing.Contains(warning, StringComparison.Ordinal))
+            {
+                return;
+            }
+        }
+
+        warnings.RemoveAll(existing => warning.Contains(existing, StringComparison.Ordinal));
+        warnings.Add(warning);
+    }
 
     private PerfSession DescribeSession(SessionRecord session)
     {

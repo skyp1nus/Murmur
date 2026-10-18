@@ -135,6 +135,7 @@ public sealed class AutoRecordTests : IDisposable
         }
 
         Assert.False(root.TryGetProperty("error", out _));
+        Assert.False(root.TryGetProperty("warnings", out _));
     }
 
     [Fact]
@@ -177,6 +178,46 @@ public sealed class AutoRecordTests : IDisposable
         var options = Assert.Single(_recorder.Starts);
         Assert.False(options.Microphone);
         Assert.True(options.SystemAudio);
+    }
+
+    [Fact]
+    public async Task Run_WhenTheMicrophoneIsDenied_RecordsAndReportsTheWarning()
+    {
+        const string warning = "Мікрофон недоступний: Windows забороняє доступ (Параметри → Конфіденційність і безпека → Мікрофон). Записую лише системний звук.";
+        _recorder.StartWarning = warning;
+        _recorder.Stats = new RecorderStats(0, 200, 0, 0);
+        var path = Path.Combine(_dir, "perf.json");
+        var runner = CreateRunner(new AutoRecordOptions(1, Screen: false, path, IdleSeconds: 0));
+
+        var code = await runner.RunAsync(TestContext.Current.CancellationToken);
+
+        Assert.Equal(0, code);
+        using var doc = JsonDocument.Parse(File.ReadAllText(path));
+        var root = doc.RootElement;
+        Assert.False(root.TryGetProperty("error", out _));
+        var warnings = root.GetProperty("warnings");
+        Assert.Equal(1, warnings.GetArrayLength());
+        Assert.Equal(warning, warnings[0].GetString());
+        Assert.Equal(200, root.GetProperty("recorderStats").GetProperty("systemFrames").GetInt64());
+        Assert.True(root.GetProperty("durationS").GetDouble() > 0);
+        Assert.Equal(32, root.GetProperty("session").GetProperty("id").GetString()!.Length);
+        Assert.Equal(1, _recorder.Stops);
+    }
+
+    [Fact]
+    public async Task Run_WhenTheStopAddsToTheWarning_KeepsOnlyTheFullerText()
+    {
+        _recorder.StartWarning = "Mic denied.";
+        _recorder.StopError = "Screen failed. Mic denied.";
+        var path = Path.Combine(_dir, "perf.json");
+        var runner = CreateRunner(new AutoRecordOptions(1, Screen: false, path, IdleSeconds: 0));
+
+        Assert.Equal(0, await runner.RunAsync(TestContext.Current.CancellationToken));
+
+        using var doc = JsonDocument.Parse(File.ReadAllText(path));
+        var warnings = doc.RootElement.GetProperty("warnings");
+        Assert.Equal(1, warnings.GetArrayLength());
+        Assert.Equal("Screen failed. Mic denied.", warnings[0].GetString());
     }
 
     [Fact]

@@ -32,6 +32,12 @@ public sealed record PerfReport
 
     public PerfSession Session { get; init; } = new();
 
+    /// <summary>
+    /// Non-fatal problems of a run that still recorded (e.g. Windows denied the microphone, so only system audio was
+    /// recorded); omitted when there were none. The exit code stays 0.
+    /// </summary>
+    public IReadOnlyList<string>? Warnings { get; init; }
+
     /// <summary>Set only on failure; the process then exits non-zero.</summary>
     public string? Error { get; init; }
 }

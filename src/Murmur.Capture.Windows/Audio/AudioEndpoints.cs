@@ -110,7 +110,16 @@ internal static unsafe class AudioEndpoints
                 }
 
                 var name = ReadFriendlyName(device, id);
-                var mixFormatBytes = ReadMixFormat(device);
+                byte[] mixFormatBytes;
+                try
+                {
+                    mixFormatBytes = ReadMixFormat(device);
+                }
+                catch (COMException ex) when (AudioAccess.IsAccessDenied(ex))
+                {
+                    throw AudioAccess.Denied(kind, name, ex);
+                }
+
                 var mixFormat = WaveFormatParser.Parse(mixFormatBytes);
                 var info = new AudioDevice(id, name, kind, string.Equals(id, defaultId, StringComparison.Ordinal));
                 return new EndpointInfo(info, mixFormatBytes, mixFormat);

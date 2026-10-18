@@ -231,7 +231,8 @@ public sealed class RecorderTests : IDisposable
     {
         var recorder = new Recorder(new SyntheticCapture(), _store, TimeProvider.System, RecorderSettings.Default);
 
-        await Assert.ThrowsAsync<ArgumentException>(async () => await recorder.StartAsync(new RecordingOptions(MicrophoneDeviceId: "missing"), Ct));
+        // The only requested track cannot be created: nothing can be recorded, so the start fails.
+        await Assert.ThrowsAsync<ArgumentException>(async () => await recorder.StartAsync(new RecordingOptions(SystemAudio: false, MicrophoneDeviceId: "missing"), Ct));
 
         Assert.Equal(RecorderState.Idle, recorder.State);
         var session = Assert.Single(_store.Updates);

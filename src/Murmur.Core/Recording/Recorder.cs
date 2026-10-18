@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Globalization;
 using System.Runtime.CompilerServices;
+using System.Runtime.ExceptionServices;
 using Murmur.Core.Audio;
 using Murmur.Core.Capture;
 using Murmur.Core.Sessions;
@@ -30,6 +31,14 @@ namespace Murmur.Core.Recording;
 /// aligned with silence up to the elapsed wall time (or the longest healthy track, whichever is longer). When every
 /// audio track has failed the recorder stops by itself and the session ends in <see cref="SessionState.Failed"/>
 /// with <see cref="SessionRecord.Error"/>. Non-fatal faults are ignored.
+/// </para>
+/// <para>
+/// <b>Missing sources.</b> A requested source that cannot be created or started (no device, Windows privacy settings
+/// denying microphone access) is released and its track skipped: the session records the other track, its
+/// <see cref="SessionRecord.HasMicrophone"/>/<see cref="SessionRecord.HasSystemAudio"/> say what was recorded and a
+/// Ukrainian warning is kept in <see cref="SessionRecord.Error"/> while the state stays healthy. Only when no audio
+/// track starts does <see cref="StartAsync"/> fail (with the first failure) and the session end in
+/// <see cref="SessionState.Failed"/>.
 /// </para>
 /// <para>
 /// <b>Stop.</b> Every step of a stop runs even if an earlier one threw: each source is stopped and released, every
@@ -216,16 +225,20 @@ public sealed class Recorder : IRecorder
         Directory.CreateDirectory(files.Directory);
 
         var active = new ActiveRecording(record, files, options.DisplayId);
+        var failures = new List<(AudioDeviceKind Kind, Exception Error)>();
         try
         {
+            // A source that cannot be opened or started (e.g. Windows denies microphone access) only costs its own
+            // track: the session goes on with the others and carries a warning. Only when no track is left does the
+            // start fail as a whole.
             if (options.Microphone)
             {
-                active.Tracks.Add(CreateTrack(AudioDeviceKind.Microphone, options.MicrophoneDeviceId, files.MicrophoneAudio));
+                TryCreateTrack(active, AudioDeviceKind.Microphone, options.MicrophoneDeviceId, files.MicrophoneAudio, failures);
             }
 
             if (options.SystemAudio)
             {
-                active.Tracks.Add(CreateTrack(AudioDeviceKind.SystemOutput, options.SystemDeviceId, files.SystemAudio));
+                TryCreateTrack(active, AudioDeviceKind.SystemOutput, options.SystemDeviceId, files.SystemAudio, failures);
             }
 
             foreach (var track in active.Tracks)
@@ -235,11 +248,40 @@ public sealed class Recorder : IRecorder
             }
 
             active.StartTimestamp = _time.GetTimestamp();
+            List<Track>? notStarted = null;
             foreach (var track in active.Tracks)
             {
-                track.Source.Start(track.Capture);
-                track.Started = true;
+                try
+                {
+                    track.Source.Start(track.Capture);
+                    track.Started = true;
+                }
+                catch (Exception ex)
+                {
+                    failures.Add((track.Kind, ex));
+                    (notStarted ??= []).Add(track);
+                }
             }
+
+            if (notStarted is not null)
+            {
+                // Copy-on-write: fault handlers of the tracks that did start may be enumerating the current list.
+                active.Tracks = active.Tracks.FindAll(t => !notStarted.Contains(t));
+                foreach (var track in notStarted)
+                {
+                    DiscardTrack(track);
+                }
+            }
+
+            if (active.Tracks.Count == 0)
+            {
+                ExceptionDispatchInfo.Capture(failures[0].Error).Throw();
+            }
+
+            active.Warning = DescribeSkippedTracks(
+                failures,
+                active.Tracks.Exists(t => t.Kind == AudioDeviceKind.Microphone),
+                active.Tracks.Exists(t => t.Kind == AudioDeviceKind.SystemOutput));
 
             active.Writer = new Thread(() => WriterLoop(active))
             {
@@ -264,16 +306,124 @@ public sealed class Recorder : IRecorder
             active.Record = record with
             {
                 State = SessionState.Recording,
-                HasMicrophone = options.Microphone,
-                HasSystemAudio = options.SystemAudio,
+                HasMicrophone = active.Tracks.Exists(t => t.Kind == AudioDeviceKind.Microphone),
+                HasSystemAudio = active.Tracks.Exists(t => t.Kind == AudioDeviceKind.SystemOutput),
+                Error = active.Warning,
             };
             await _store.UpdateSessionAsync(active.Record, cancellationToken).ConfigureAwait(false);
+
+            // A started track may have faulted fatally while a sibling was failing to start: its auto-stop check saw
+            // the failed sibling as healthy. Re-check now that the track list is final (the stop runs after the gate).
+            if (active.Tracks.TrueForAll(t => t.Capture.IsFaulted))
+            {
+                ScheduleAutoStop(active);
+            }
+
             return active;
         }
         catch (Exception ex)
         {
             await AbortAsync(active, ex).ConfigureAwait(false);
             throw;
+        }
+    }
+
+    /// <summary>Microphone warning when Windows privacy settings deny access (no other track was lost).</summary>
+    internal const string MicrophoneAccessDeniedWarning =
+        "Мікрофон недоступний: Windows забороняє доступ (Параметри → Конфіденційність і безпека → Мікрофон).";
+
+    internal const string SystemAudioAccessDeniedWarning = "Системний звук недоступний: Windows забороняє доступ.";
+
+    /// <summary>
+    /// Human-readable (Ukrainian) note about the requested tracks that could not start, or <c>null</c> when none was
+    /// lost. Stored in <see cref="SessionRecord.Error"/> of a session that still records.
+    /// </summary>
+    internal static string? DescribeSkippedTracks(IReadOnlyList<(AudioDeviceKind Kind, Exception Error)> failures, bool hasMicrophone, bool hasSystemAudio)
+    {
+        if (failures.Count == 0)
+        {
+            return null;
+        }
+
+        var parts = new List<string>(failures.Count + 1);
+        foreach (var (kind, error) in failures)
+        {
+            var mic = kind == AudioDeviceKind.Microphone;
+            if (IsAccessDenied(error))
+            {
+                parts.Add(mic ? MicrophoneAccessDeniedWarning : SystemAudioAccessDeniedWarning);
+            }
+            else
+            {
+                parts.Add((mic ? "Мікрофон недоступний: " : "Системний звук недоступний: ") + error.Message.TrimEnd('.') + ".");
+            }
+        }
+
+        if (hasMicrophone != hasSystemAudio)
+        {
+            parts.Add(hasSystemAudio ? "Записую лише системний звук." : "Записую лише мікрофон.");
+        }
+
+        return string.Join(" ", parts);
+    }
+
+    private static string? JoinMessages(string? first, string? second) =>
+        first is null ? second : second is null ? first : first + " " + second;
+
+    private static bool IsAccessDenied(Exception error)
+    {
+        for (var e = error; e is not null; e = e.InnerException)
+        {
+            if (e is UnauthorizedAccessException)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private void TryCreateTrack(ActiveRecording active, AudioDeviceKind kind, string? deviceId, string path, List<(AudioDeviceKind Kind, Exception Error)> failures)
+    {
+        try
+        {
+            active.Tracks.Add(CreateTrack(kind, deviceId, path));
+        }
+        catch (Exception ex)
+        {
+            failures.Add((kind, ex));
+            TryDelete(path);
+        }
+    }
+
+    /// <summary>Releases a track whose source never started and removes its (empty) file, so nothing treats it as audio.</summary>
+    private static void DiscardTrack(Track track)
+    {
+        ReleaseSource(track);
+        try
+        {
+            track.Writer.Dispose();
+        }
+        catch (Exception)
+        {
+            // Deleting below is what matters.
+        }
+
+        if (track.Writer.Path is { } path)
+        {
+            TryDelete(path);
+        }
+    }
+
+    private static void TryDelete(string path)
+    {
+        try
+        {
+            File.Delete(path);
+        }
+        catch (Exception)
+        {
+            // An empty leftover file is harmless enough not to fail the start.
         }
     }
 
@@ -464,7 +614,7 @@ public sealed class Recorder : IRecorder
                 HasMicrophone = active.Tracks.Exists(t => t.Kind == AudioDeviceKind.Microphone),
                 HasSystemAudio = active.Tracks.Exists(t => t.Kind == AudioDeviceKind.SystemOutput),
                 ScreenSegments = [.. active.Segments],
-                Error = error ?? screenError,
+                Error = JoinMessages(error ?? screenError, active.Warning),
             };
 
             active.Record = record;
@@ -890,7 +1040,8 @@ public sealed class Recorder : IRecorder
 
     private sealed class ActiveRecording(SessionRecord record, SessionFiles files, string? displayId)
     {
-        public readonly List<Track> Tracks = [];
+        /// <summary>Final once the start has succeeded; replaced (never mutated) when a source fails to start.</summary>
+        public volatile List<Track> Tracks = [];
         public readonly List<ScreenSegment> Segments = [];
         public readonly ManualResetEventSlim StopSignal = new(false);
         public readonly AutoResetEvent FlushRequest = new(false);
@@ -925,6 +1076,9 @@ public sealed class Recorder : IRecorder
         public (int Index, TimeSpan Offset)? OpenSegment { get; set; }
 
         public volatile string? WriterError;
+
+        /// <summary>Requested tracks that could not start (see <see cref="DescribeSkippedTracks"/>); <c>null</c> if none.</summary>
+        public string? Warning { get; set; }
 
         /// <summary>Final counters, set once by <see cref="FreezeStats"/> during the stop; <c>null</c> before.</summary>
         public volatile StrongBox<RecorderStats>? FinalStats;

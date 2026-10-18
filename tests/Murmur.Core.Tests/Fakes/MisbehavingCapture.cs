@@ -18,6 +18,15 @@ internal sealed class MisbehavingCapture(SyntheticCapture inner) : ICapture
     /// <summary>Kinds whose <see cref="IDisposable.Dispose"/> throws (after really disposing).</summary>
     public HashSet<AudioDeviceKind> ThrowOnDispose { get; } = [];
 
+    /// <summary>
+    /// Kinds whose <see cref="IAudioSource.Start"/> throws the given exception without starting, like WASAPI when
+    /// Windows privacy settings deny microphone access (E_ACCESSDENIED at IAudioClient.Initialize).
+    /// </summary>
+    public Dictionary<AudioDeviceKind, Func<Exception>> ThrowOnStart { get; } = [];
+
+    /// <summary>Kinds whose <see cref="CreateAudioSource"/> throws the given exception (no device, endpoint unusable).</summary>
+    public Dictionary<AudioDeviceKind, Func<Exception>> ThrowOnCreate { get; } = [];
+
     /// <summary>Makes <see cref="CreateScreenRecorder"/> throw, failing a start after the audio sources started.</summary>
     public bool ThrowOnCreateScreenRecorder { get; set; }
 
@@ -67,6 +76,11 @@ internal sealed class MisbehavingCapture(SyntheticCapture inner) : ICapture
 
     public IAudioSource CreateAudioSource(AudioDeviceKind kind, string? deviceId)
     {
+        if (ThrowOnCreate.TryGetValue(kind, out var createFailure))
+        {
+            throw createFailure();
+        }
+
         var source = new MisbehavingSource(this, inner.CreateAudioSource(kind, deviceId), kind);
         lock (_sources)
         {
@@ -96,6 +110,7 @@ internal sealed class MisbehavingCapture(SyntheticCapture inner) : ICapture
 
     internal sealed class MisbehavingSource(MisbehavingCapture owner, IAudioSource inner, AudioDeviceKind kind) : IAudioSource
     {
+        private int _startCalls;
         private int _stopCalls;
         private int _disposeCalls;
 
@@ -115,7 +130,18 @@ internal sealed class MisbehavingCapture(SyntheticCapture inner) : ICapture
             remove => inner.Faulted -= value;
         }
 
-        public void Start(IAudioSink sink) => inner.Start(sink);
+        public int StartCalls => Volatile.Read(ref _startCalls);
+
+        public void Start(IAudioSink sink)
+        {
+            Interlocked.Increment(ref _startCalls);
+            if (owner.ThrowOnStart.TryGetValue(kind, out var failure))
+            {
+                throw failure();
+            }
+
+            inner.Start(sink);
+        }
 
         public void Stop()
         {

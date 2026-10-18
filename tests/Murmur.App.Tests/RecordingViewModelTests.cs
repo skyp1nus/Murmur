@@ -391,6 +391,25 @@ public sealed class RecordingViewModelTests
     }
 
     [Fact]
+    public async Task StartWithASkippedTrack_ShowsTheWarningInlineAndRecords()
+    {
+        const string warning = "Мікрофон недоступний: Windows забороняє доступ (Параметри → Конфіденційність і безпека → Мікрофон). Записую лише системний звук.";
+        _recorder.StartWarning = warning;
+        var vm = Create();
+
+        await vm.StartStopCommand.ExecuteAsync(null);
+
+        Assert.True(vm.IsRecording);
+        Assert.Equal(warning, vm.Error);
+        Assert.True(vm.HasError);
+
+        await vm.StartStopCommand.ExecuteAsync(null);
+
+        Assert.False(vm.IsRecording);
+        Assert.Equal(warning, vm.Error);
+    }
+
+    [Fact]
     public async Task StopWithSessionError_ShowsItInline()
     {
         var vm = Create();

@@ -270,6 +270,12 @@ public sealed partial class RecordingViewModel : ObservableObject, ILevelSource
             var session = await _recorder.StartAsync(options, CancellationToken.None);
             _sessionId = session.Id;
             TimerText = UiFormat.Duration(TimeSpan.Zero);
+
+            // The recorder skipped a track it could not start (e.g. Windows denies the microphone): say so inline.
+            if (session.Error is { Length: > 0 } warning)
+            {
+                Error = warning;
+            }
         }
         catch (Exception ex)
         {

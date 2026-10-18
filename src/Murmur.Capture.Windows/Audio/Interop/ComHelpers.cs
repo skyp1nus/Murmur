@@ -53,6 +53,7 @@ internal static class ComHelpers
         WasapiConstants.AudclntEServiceNotRunning => "AUDCLNT_E_SERVICE_NOT_RUNNING (0x88890010): the Windows Audio service is not running",
         WasapiConstants.AudclntEResourcesInvalidated => "AUDCLNT_E_RESOURCES_INVALIDATED (0x88890026)",
         WasapiConstants.ENotFound => "E_NOTFOUND (0x80070490): no such device",
+        WasapiConstants.EAccessDenied => "E_ACCESSDENIED (0x80070005): access denied",
         _ => $"HRESULT 0x{hr:X8}",
     };
 

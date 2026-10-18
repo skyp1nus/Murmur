@@ -62,6 +62,7 @@ internal static class WasapiConstants
     public const int EFail = unchecked((int)0x80004005);
     public const int RpcEChangedMode = unchecked((int)0x80010106);
     public const int ENotFound = unchecked((int)0x80070490); // HRESULT_FROM_WIN32(ERROR_NOT_FOUND = 1168)
+    public const int EAccessDenied = unchecked((int)0x80070005); // E_ACCESSDENIED: privacy settings deny the microphone
 
     // winbase.h / winnt.h: WAIT_OBJECT_0 = STATUS_WAIT_0 = 0, WAIT_TIMEOUT = 258, WAIT_FAILED = 0xFFFFFFFF
     public const uint WaitObject0 = 0;
