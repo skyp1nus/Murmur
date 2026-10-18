@@ -150,7 +150,7 @@ Murmur.sln
 
 | Фаза | Зміст | Критерій переходу | Статус |
 | --- | --- | --- | --- |
-| 0 · Фундамент | Solution, Native AOT, CI, дизайн-токени в Avalonia, інтерфейси Core | AOT-старт < 400 мс | ⬜ |
+| 0 · Фундамент | Solution, Native AOT, CI, дизайн-токени в Avalonia, інтерфейси Core | AOT-старт < 400 мс | ✅ медіана 289 мс, холодний 362 мс (CI windows-latest, 7 запусків) |
 | 1 · Запис на Windows | Мікрофон + системний звук, екран через WGC + Media Foundation, crash-safe запис | 1 год запису без втрат, CPU у межах бюджету | ⬜ |
 | 2 · Транскрипція | Parakeet v3, VAD, доріжки «Я / Інші», плеєр із синхроном | 1 год аудіо → текст < 3 хв на CPU | ⬜ |
 | 3 · AI-пошук | FTS5 + вектори, Gemma 4, чат із таймкодами | Відповідь AI веде на правильну хвилину запису | ⬜ |
@@ -159,11 +159,11 @@ Murmur.sln
 
 **Задачі фази 0:**
 
-- [ ] Solution за структурою вище
-- [ ] Avalonia-вікно з дизайн-токенами, зібране Native AOT
-- [ ] Інтерфейси `ICapture`, `IAsr`, `ILlm`, `IStorage` у Core (без реалізацій)
-- [ ] CI: build + тести + AOT-публікація win-x64 + BenchmarkDotNet
-- [ ] Спайк: 10 с WASAPI loopback → sherpa-onnx → текст у консолі
+- [x] Solution за структурою вище (+ `Murmur.Desktop` як composition root, D-004)
+- [x] Avalonia-вікно з дизайн-токенами, зібране Native AOT
+- [x] Інтерфейси `ICapture`, `IAsr`, `ILlm`, `IStorage` у Core (без реалізацій)
+- [x] CI: build + тести + AOT-публікація win-x64 + BenchmarkDotNet
+- [x] Спайк: 10 с WASAPI loopback → sherpa-onnx → текст у консолі (ASR + AOT перевірено на Linux; loopback-частину — лише компіляція, перевірити на Windows)
 
 ## Ризики та відкриті питання
 
