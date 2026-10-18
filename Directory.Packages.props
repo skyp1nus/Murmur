@@ -18,6 +18,13 @@
   <ItemGroup Label="AI and ASR">
     <PackageVersion Include="Microsoft.Extensions.AI.Abstractions" Version="10.11.0" />
     <PackageVersion Include="org.k2fsa.sherpa.onnx" Version="1.13.8" />
+    <!-- Per-RID native runtimes (libsherpa-onnx-c-api + onnxruntime) used by Murmur.Transcription's own C API layer. -->
+    <PackageVersion Include="org.k2fsa.sherpa.onnx.runtime.linux-x64" Version="1.13.8" />
+    <PackageVersion Include="org.k2fsa.sherpa.onnx.runtime.linux-arm64" Version="1.13.8" />
+    <PackageVersion Include="org.k2fsa.sherpa.onnx.runtime.win-x64" Version="1.13.8" />
+    <PackageVersion Include="org.k2fsa.sherpa.onnx.runtime.win-arm64" Version="1.13.8" />
+    <PackageVersion Include="org.k2fsa.sherpa.onnx.runtime.osx-x64" Version="1.13.8" />
+    <PackageVersion Include="org.k2fsa.sherpa.onnx.runtime.osx-arm64" Version="1.13.8" />
   </ItemGroup>
 
   <ItemGroup Label="Storage">
