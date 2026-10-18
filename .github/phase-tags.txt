@@ -1,2 +1,3 @@
 # <tag> <commit sha> <message>
 phase-0-done 0426896e4aec355c248704caf2e97717ec33b7ad Phase 0 done: AOT cold start median 289 ms, cold 362 ms on windows-latest (CI run 39088738986)
+phase-1-done b9cdd55feb98d947b6a8c10eca276be304b43c23 Phase 1 done: WASAPI mic+loopback, WGC+MF screen, crash-safe recorder; 1 h no-loss test green on windows-latest (CI run 39107037891); see docs/REPORTS/night-run.md
