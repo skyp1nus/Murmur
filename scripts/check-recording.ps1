@@ -416,7 +416,10 @@ if ($null -ne $perf) {
         $declared = Get-Prop $session 'screenSegments'
         if ($ExpectScreen) {
             $nonEmpty = @($segments | Where-Object { $_.Length -gt 0 })
-            Add-Row 'screen segments' ("{0} file(s), {1} non-empty, {2:N1} MB" -f $segments.Count, $nonEmpty.Count, (($segments | Measure-Object Length -Sum).Sum / 1MB)) '>= 1 non-empty' $(if ($nonEmpty.Count -ge 1) { 'PASS' } else { 'FAIL' })
+            # Measure-Object yields no Sum property for an empty input under StrictMode, so add up by hand.
+            [long] $segmentBytes = 0
+            foreach ($segment in $segments) { $segmentBytes += $segment.Length }
+            Add-Row 'screen segments' ("{0} file(s), {1} non-empty, {2:N1} MB" -f $segments.Count, $nonEmpty.Count, ($segmentBytes / 1MB)) '>= 1 non-empty' $(if ($nonEmpty.Count -ge 1) { 'PASS' } else { 'FAIL' })
             Add-Row 'session.screenSegments' $(if ($null -eq $declared) { 'n/a' } else { [string]$declared }) ("== file count ({0})" -f $segments.Count) $(if ($null -ne $declared -and [int]$declared -eq $segments.Count) { 'PASS' } else { 'FAIL' })
         }
         else {
