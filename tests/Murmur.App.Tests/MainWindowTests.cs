@@ -24,7 +24,7 @@ public sealed class MainWindowTests
             {
                 var window = UiHarness.Show(shell);
                 var texts = window.GetVisualDescendants().OfType<TextBlock>().Where(t => t.IsEffectivelyVisible).Select(t => t.Text).ToArray();
-                var buttons = window.GetVisualDescendants().OfType<Button>().Where(b => b is not ToggleButton).Select(b => b.Content as string).ToArray();
+                var buttons = window.GetVisualDescendants().OfType<Button>().Where(b => b is not ToggleButton && b.IsEffectivelyVisible).Select(b => b.Content as string).ToArray();
                 var search = window.GetVisualDescendants().OfType<TextBox>().Single();
                 var pills = window.GetVisualDescendants().OfType<ToggleButton>().Select(b => b.Content as string).ToArray();
                 var result = (window.Title, window.Width, window.Height, window.MinWidth, window.MinHeight, texts, buttons, pills, search.PlaceholderText);
@@ -59,7 +59,7 @@ public sealed class MainWindowTests
             {
                 var window = UiHarness.Show(shell);
                 var texts = window.GetVisualDescendants().OfType<TextBlock>().ToArray();
-                var list = window.GetVisualDescendants().OfType<ListBox>().ToArray();
+                var list = window.GetVisualDescendants().OfType<ListBox>().Where(l => l.IsEffectivelyVisible).ToArray();
                 var panel = window.GetVisualDescendants().OfType<VirtualizingStackPanel>().Any();
                 var empty = texts.Any(t => t.Text == "Ще немає записів" && t.IsEffectivelyVisible);
                 var result = (

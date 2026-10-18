@@ -14,7 +14,7 @@ public sealed class SessionScreenshotTests
     private static string Path(string name) => System.IO.Path.Combine(RepoPaths.ScreenshotsDirectory, name);
 
     /// <summary>A deterministic speech-like envelope: 50 values per second for an hour.</summary>
-    private static byte[] FakePeaks(int seconds)
+    internal static byte[] FakePeaks(int seconds)
     {
         var peaks = new byte[seconds * 50];
         var noise = 12345u;

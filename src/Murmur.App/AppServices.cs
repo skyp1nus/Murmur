@@ -20,6 +20,8 @@ namespace Murmur.App;
 /// <param name="Transcripts">Transcripts for the recording view. Together with <paramref name="Playback"/> it enables opening a session.</param>
 /// <param name="Playback">Creates the audio player of the recording view.</param>
 /// <param name="Processing">Post-recording pipeline status for library rows and the recording view.</param>
+/// <param name="Search">BM25 search over transcripts: the library search when <paramref name="Ai"/> is missing or fails.</param>
+/// <param name="Ai">Hybrid search and the "Запитати AI" chats; <c>null</c> = AI not wired (the chats explain how to install it).</param>
 public sealed record AppServices(
     IRecorder Recorder,
     ICapture Capture,
@@ -28,4 +30,6 @@ public sealed record AppServices(
     Func<CancellationToken, Task>? Startup = null,
     ITranscriptStore? Transcripts = null,
     IAudioPlayback? Playback = null,
-    ISessionProcessing? Processing = null);
+    ISessionProcessing? Processing = null,
+    ISearchIndex? Search = null,
+    AiServices? Ai = null);

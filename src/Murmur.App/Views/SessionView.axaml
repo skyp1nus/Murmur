@@ -2,6 +2,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="using:Murmur.App.ViewModels"
              xmlns:controls="using:Murmur.App.Controls"
+             xmlns:views="using:Murmur.App.Views"
              x:Class="Murmur.App.Views.SessionView"
              x:DataType="vm:SessionViewModel">
 
@@ -180,22 +181,11 @@
                        Text="Зʼявиться у фазі 3: короткий підсумок мітингу, рішення й завдання, складені локально." />
           </StackPanel>
         </Border>
-        <Border Grid.Row="1"
-                Classes="card"
-                Width="{StaticResource Session.StatusWidth}"
-                HorizontalAlignment="Center"
-                VerticalAlignment="Center"
-                IsVisible="{Binding ShowAsk}">
-          <StackPanel Spacing="{StaticResource Space.12}">
-            <TextBlock Classes="subheading"
-                       FontWeight="{StaticResource FontWeight.BodyMedium}"
-                       Text="Запитати AI" />
-            <TextBlock Classes="body"
-                       TextWrapping="Wrap"
-                       Foreground="{StaticResource Brush.Graphite}"
-                       Text="Зʼявиться у фазі 3: питання до цього запису з відповідями й посиланнями на таймкоди." />
-          </StackPanel>
-        </Border>
+        <!-- Запитати AI: chat about this session; chips seek the player -->
+        <Panel Grid.Row="1"
+               IsVisible="{Binding ShowAsk}">
+          <views:ChatView DataContext="{Binding Chat}" />
+        </Panel>
       </Grid>
     </Grid>
   </Grid>

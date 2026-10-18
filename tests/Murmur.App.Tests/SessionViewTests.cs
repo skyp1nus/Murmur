@@ -257,7 +257,7 @@ public sealed class SessionViewTests : IDisposable
     }
 
     [Fact]
-    public async Task TheTabs_ShowTheTranscript_AndPhase3Placeholders()
+    public async Task TheTabs_ShowTheTranscript_TheSummaryPlaceholder_AndTheChat()
     {
         _fixture.UseShortTranscript();
         var (_, shell) = await OpenAsync();
@@ -281,7 +281,9 @@ public sealed class SessionViewTests : IDisposable
         Assert.Equal(["Транскрипт", "Резюме", "Запитати AI"], pills);
         Assert.Contains(summary, t => t.StartsWith("Зʼявиться у фазі 3", StringComparison.Ordinal));
         Assert.DoesNotContain("Привіт усім починаємо мітинг", summary);
-        Assert.Contains(ask, t => t.StartsWith("Зʼявиться у фазі 3", StringComparison.Ordinal));
+        Assert.Contains(ChatViewModel.NotInstalledTitle, ask);
+        Assert.Contains(ask, t => t.Contains("scripts/fetch-models.ps1 -Ai", StringComparison.Ordinal));
+        Assert.DoesNotContain("Привіт усім починаємо мітинг", ask);
     }
 
     [Fact]

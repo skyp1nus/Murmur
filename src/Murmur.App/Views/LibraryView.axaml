@@ -29,9 +29,9 @@
               Command="{Binding NewRecordingCommand}" />
     </Grid>
 
-    <!-- Date filters and the inline error -->
+    <!-- Date filters, the inline error and the library-wide chat -->
     <Grid Grid.Row="1"
-          ColumnDefinitions="Auto,*"
+          ColumnDefinitions="Auto,*,Auto"
           ColumnSpacing="{StaticResource Space.24}">
       <StackPanel Grid.Column="0"
                   Orientation="Horizontal"
@@ -52,13 +52,19 @@
                  TextWrapping="Wrap"
                  IsVisible="{Binding HasError}"
                  Text="{Binding Error}" />
+      <Button Grid.Column="2"
+              Classes="outline"
+              VerticalAlignment="Center"
+              Content="Запитати AI по всіх записах"
+              IsVisible="{Binding CanAskAll}"
+              Command="{Binding AskAllCommand}" />
     </Grid>
 
     <!-- Session list (virtualised: ListBox uses a VirtualizingStackPanel) -->
     <Border Grid.Row="2"
             Classes="card"
             Padding="{StaticResource Inset.8}"
-            IsVisible="{Binding HasSessions}">
+            IsVisible="{Binding ShowSessionList}">
       <ListBox Classes="sessions"
                ItemsSource="{Binding Sessions}"
                SelectedItem="{Binding SelectedSession, Mode=TwoWay}"
@@ -113,6 +119,76 @@
         </ListBox.ItemTemplate>
       </ListBox>
     </Border>
+
+    <!-- Transcript search: title, time chip, snippet (virtualised like the session list) -->
+    <Grid Grid.Row="2"
+          RowDefinitions="Auto,*"
+          RowSpacing="{StaticResource Space.12}"
+          IsVisible="{Binding ShowSearchResults}">
+      <TextBlock Grid.Row="0"
+                 Classes="bodySm"
+                 Foreground="{StaticResource Brush.Smoke}"
+                 TextWrapping="Wrap"
+                 IsVisible="{Binding HasSearchStatus}"
+                 Text="{Binding SearchStatusText}" />
+      <Border Grid.Row="1"
+              Classes="card"
+              Padding="{StaticResource Inset.8}"
+              IsVisible="{Binding HasSearchResults}">
+        <ListBox x:Name="SearchResultList"
+                 Classes="sessions"
+                 ItemsSource="{Binding SearchResults}"
+                 SelectedItem="{Binding SelectedSearchResult, Mode=TwoWay}"
+                 ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+          <ListBox.ItemTemplate>
+            <DataTemplate x:DataType="vm:SearchResultViewModel">
+              <StackPanel Margin="{StaticResource Inset.16}"
+                          Spacing="{StaticResource Space.4}">
+                <Grid ColumnDefinitions="Auto,*"
+                      ColumnSpacing="{StaticResource Space.8}">
+                  <Border Grid.Column="0"
+                          Classes="chip"
+                          IsVisible="{Binding HasTime}">
+                    <TextBlock Text="{Binding TimeText}" />
+                  </Border>
+                  <TextBlock Grid.Column="1"
+                             Classes="body"
+                             VerticalAlignment="Center"
+                             FontWeight="{StaticResource FontWeight.BodyMedium}"
+                             TextTrimming="CharacterEllipsis"
+                             Text="{Binding Title}" />
+                </Grid>
+                <TextBlock Classes="bodySm"
+                           Foreground="{StaticResource Brush.Graphite}"
+                           TextWrapping="Wrap"
+                           MaxLines="2"
+                           TextTrimming="CharacterEllipsis"
+                           Text="{Binding Snippet}" />
+              </StackPanel>
+            </DataTemplate>
+          </ListBox.ItemTemplate>
+        </ListBox>
+      </Border>
+      <Border Grid.Row="1"
+              Classes="card"
+              Width="560"
+              HorizontalAlignment="Center"
+              VerticalAlignment="Center"
+              IsVisible="{Binding ShowNoSearchResults}">
+        <StackPanel Spacing="{StaticResource Space.16}">
+          <TextBlock Classes="headingSm"
+                     HorizontalAlignment="Center"
+                     TextAlignment="Center"
+                     Text="Нічого не знайдено" />
+          <TextBlock Classes="body"
+                     HorizontalAlignment="Center"
+                     TextAlignment="Center"
+                     TextWrapping="Wrap"
+                     Foreground="{StaticResource Brush.Graphite}"
+                     Text="Ні в назвах, ні в транскриптах немає збігів. Спробуй інші слова або інший період." />
+        </StackPanel>
+      </Border>
+    </Grid>
 
     <!-- Empty state (phase 0) -->
     <Border Grid.Row="2"

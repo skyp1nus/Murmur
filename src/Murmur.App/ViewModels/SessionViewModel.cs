@@ -3,6 +3,7 @@ using CommunityToolkit.Mvvm.Input;
 using Murmur.App.Services;
 using Murmur.Core.Audio;
 using Murmur.Core.Capture;
+using Murmur.Core.Intelligence;
 using Murmur.Core.Processing;
 using Murmur.Core.Sessions;
 using Murmur.Core.Transcription;
@@ -85,7 +86,8 @@ public sealed partial class SessionViewModel : ObservableObject, IDisposable
         IAudioPlayer player,
         ISessionProcessing processing,
         TimeProvider time,
-        Action<Action>? post = null)
+        Action<Action>? post = null,
+        ChatViewModel? chat = null)
     {
         ArgumentNullException.ThrowIfNull(record);
         ArgumentNullException.ThrowIfNull(files);
@@ -107,6 +109,10 @@ public sealed partial class SessionViewModel : ObservableObject, IDisposable
         DurationText = UiFormat.Duration(record.Duration);
         PositionText = UiFormat.Duration(TimeSpan.Zero);
 
+        // Without AI wiring the tab still exists and explains how to install the models.
+        Chat = chat ?? new ChatViewModel(null, null, null, record.Id, post: _post);
+        Chat.CitationActivated += OnCitationActivated;
+
         _player.StateChanged += OnPlayerStateChanged;
         _processing.ProgressChanged += OnProcessingChanged;
     }
@@ -116,6 +122,12 @@ public sealed partial class SessionViewModel : ObservableObject, IDisposable
 
     /// <summary>Raised when the list should bring this segment into view (never while the user is scrolling).</summary>
     public event Action<int>? ScrollToSegmentRequested;
+
+    /// <summary>A chip of the chat cites another session: the shell opens it at that moment.</summary>
+    public event Action<SessionId, TimeSpan>? OpenSessionRequested;
+
+    /// <summary>The "Запитати AI" tab; its history lives as long as this view.</summary>
+    public ChatViewModel Chat { get; }
 
     public SessionId Id => _record.Id;
 
@@ -251,6 +263,8 @@ public sealed partial class SessionViewModel : ObservableObject, IDisposable
         _disposed = true;
         _player.StateChanged -= OnPlayerStateChanged;
         _processing.ProgressChanged -= OnProcessingChanged;
+        Chat.CitationActivated -= OnCitationActivated;
+        Chat.Dispose();
         _player.Dispose();
     }
 
@@ -649,6 +663,23 @@ public sealed partial class SessionViewModel : ObservableObject, IDisposable
         OnPropertyChanged(nameof(IsSummaryTab));
         OnPropertyChanged(nameof(IsAskTab));
         RaiseLayoutChanged();
+        if (value == SessionTab.Ask)
+        {
+            // The models may have been installed (or a recording started) since the view opened.
+            Chat.RefreshAvailability();
+        }
+    }
+
+    private void OnCitationActivated(Citation citation)
+    {
+        if (citation.Session == Id)
+        {
+            PlayFrom(citation.At);
+        }
+        else
+        {
+            OpenSessionRequested?.Invoke(citation.Session, citation.At);
+        }
     }
 
     private void RaiseLayoutChanged()

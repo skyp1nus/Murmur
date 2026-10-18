@@ -6,6 +6,8 @@ using Murmur.Core.Jobs;
 using Murmur.Core.Processing;
 using Murmur.Core.Recording;
 using Murmur.Core.Transcription;
+using Murmur.Intelligence;
+using Murmur.Intelligence.Rag;
 using Murmur.Storage;
 
 namespace Murmur.Desktop;
@@ -20,6 +22,9 @@ internal sealed class CompositionRoot : IDisposable
     private WorkerAsrClient? _asr;
     private JobQueue? _queue;
     private SessionProcessor? _processor;
+    private RecordingActivity? _activity;
+    private LocalLlm? _llm;
+    private Assistant? _assistant;
 
     public CompositionRoot(string[] args)
     {
@@ -34,7 +39,8 @@ internal sealed class CompositionRoot : IDisposable
 
     /// <summary>
     /// Builds the object graph the UI works with: storage, platform capture and playback, recorder, crash recovery and
-    /// the post-recording pipeline (peaks, transcription in the ASR worker process, transcript storage).
+    /// the post-recording pipeline (peaks, transcription in the ASR worker process, transcript storage, indexing) and
+    /// the local AI (llama-server sidecars behind the RAG assistant).
     /// </summary>
     public AppServices CreateServices()
     {
@@ -47,7 +53,20 @@ internal sealed class CompositionRoot : IDisposable
         var models = ModelLocator.FromEnvironment();
         var asr = _asr ??= new WorkerAsrClient(models);
         var queue = _queue ??= new JobQueue();
-        var processor = _processor ??= new SessionProcessor(recorder, storage, storage, asr, queue);
+
+        // Recording guard: the models are never loaded while recording. LocalLlm refuses new requests while the
+        // recorder is busy, and the moment a recording starts its llama-server processes are killed.
+        var activity = _activity ??= new RecordingActivity(recorder);
+        var llm = _llm ??= CreateLlm(models.ModelsDirectory, activity);
+        var assistant = _assistant ??= new Assistant(llm, storage);
+        var processor = _processor ??= new SessionProcessor(
+            recorder,
+            storage,
+            storage,
+            asr,
+            queue,
+            indexer: (session, cancellationToken) => assistant.IndexSessionAsync(session, cancellationToken).AsTask(),
+            isAiInstalled: () => llm.IsInstalled);
 
         // Start-up work runs before the library loads; the shell awaits it off the UI thread.
         var recovery = new RecoveryService(storage);
@@ -60,18 +79,34 @@ internal sealed class CompositionRoot : IDisposable
             {
                 await recovery.RecoverAsync(cancellationToken).ConfigureAwait(false);
                 await processor.ResumePendingAsync(cancellationToken).ConfigureAwait(false);
+
+                // Sessions finished while the AI was not installed get their vectors now (a no-op without the models).
+                await processor.ReindexAllAsync(cancellationToken: cancellationToken).ConfigureAwait(false);
             },
             storage,
             CreatePlayback(),
-            new SessionProcessingAdapter(processor, models));
+            new SessionProcessingAdapter(processor, models),
+            storage,
+            new AiServices(assistant, llm, models.ModelsDirectory));
     }
 
     public void Dispose()
     {
         _processor?.Dispose();
         _queue?.DisposeAsync().AsTask().GetAwaiter().GetResult();
+        _activity?.Dispose();
+
+        // Stops the llama-server processes, so none outlives the app.
+        _llm?.DisposeAsync().AsTask().GetAwaiter().GetResult();
         _asr?.DisposeAsync().AsTask().GetAwaiter().GetResult();
         _storage?.Dispose();
+    }
+
+    private static LocalLlm CreateLlm(string modelsDirectory, RecordingActivity activity)
+    {
+        var llm = new LocalLlm(AiModelPaths.Resolve(modelsDirectory, Environment.GetEnvironmentVariable), () => activity.IsRecording);
+        activity.RecordingStarted += llm.NotifyRecordingStarted;
+        return llm;
     }
 
     private static ICapture CreateCapture()

@@ -385,4 +385,30 @@
     <Setter Property="BorderBrush" Value="{StaticResource Brush.Ash}" />
     <Setter Property="Foreground" Value="{StaticResource Brush.Ink}" />
   </Style>
+
+  <!-- The same chip as a label inside a clickable row (library search results): no own hover. -->
+  <Style Selector="Border.chip">
+    <Setter Property="CornerRadius" Value="{StaticResource Radius.Pill}" />
+    <Setter Property="Padding" Value="{StaticResource Inset.Badge}" />
+    <Setter Property="BorderBrush" Value="{StaticResource Brush.Stone}" />
+    <Setter Property="BorderThickness" Value="{StaticResource Hairline.Thickness}" />
+    <Setter Property="VerticalAlignment" Value="Center" />
+  </Style>
+  <Style Selector="Border.chip > TextBlock">
+    <Setter Property="FontFamily" Value="{StaticResource Font.Mono}" />
+    <Setter Property="FontWeight" Value="{StaticResource FontWeight.Mono}" />
+    <Setter Property="FontSize" Value="{StaticResource FontSize.Caption}" />
+    <Setter Property="LineHeight" Value="{StaticResource LineHeight.Caption}" />
+    <Setter Property="LetterSpacing" Value="0" />
+    <Setter Property="Foreground" Value="{StaticResource Brush.Graphite}" />
+  </Style>
+
+  <!-- AI chat: the user's question sits right, on Surface, with the card radius; answers are plain text. -->
+  <Style Selector="Border.bubble">
+    <Setter Property="Background" Value="{StaticResource Brush.Surface}" />
+    <Setter Property="CornerRadius" Value="{StaticResource Radius.Card}" />
+    <Setter Property="BorderBrush" Value="{StaticResource Brush.Hairline}" />
+    <Setter Property="BorderThickness" Value="{StaticResource Hairline.Thickness}" />
+    <Setter Property="Padding" Value="{StaticResource Inset.Search}" />
+  </Style>
 </Styles>

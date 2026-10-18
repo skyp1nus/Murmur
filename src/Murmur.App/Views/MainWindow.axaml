@@ -21,6 +21,9 @@
     <DataTemplate DataType="vm:SessionViewModel">
       <views:SessionView />
     </DataTemplate>
+    <DataTemplate DataType="vm:LibraryChatViewModel">
+      <views:LibraryChatView />
+    </DataTemplate>
   </Window.DataTemplates>
 
   <ContentControl Margin="{StaticResource Inset.48}"
