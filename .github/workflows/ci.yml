@@ -216,6 +216,146 @@ jobs:
           if-no-files-found: warn
           retention-days: 14
 
+  # End-to-end capture on a runner without real audio hardware: a virtual sound card (Scream) gives WASAPI a
+  # render endpoint, a looping 440 Hz tone is played into it and Murmur records it through WASAPI loopback.
+  capture-e2e:
+    name: capture e2e (win-x64, virtual audio)
+    needs: windows
+    runs-on: windows-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/download-artifact@v5
+        with:
+          name: murmur-win-x64
+          path: artifacts/publish/win-x64
+
+      # The Murmur.Capture.Windows.Tests step below builds from source, so the pinned SDK is needed here too.
+      - uses: actions/setup-dotnet@v5
+        with:
+          global-json-file: global.json
+          dotnet-version: 11.0.100-rc.2.26504.105
+
+      - name: Verify SDK matches global.json
+        run: |
+          $expected = (Get-Content global.json -Raw | ConvertFrom-Json).sdk.version
+          $actual = (dotnet --version).Trim()
+          if ($actual -ne $expected) { throw "SDK mismatch: dotnet --version is $actual, global.json pins $expected" }
+
+      - uses: actions/cache@v4
+        with:
+          path: ${{ env.NUGET_PACKAGES }}
+          key: nuget-${{ runner.os }}-${{ hashFiles('Directory.Packages.props', '**/*.csproj') }}
+          restore-keys: nuget-${{ runner.os }}-
+
+      # Installs the Scream virtual sound card and starts the Windows Audio service. Allowed to fail: the
+      # failure is reported in the summary ("no audio device") and the recording checks decide the verdict.
+      - name: Virtual audio device (Scream)
+        id: audio
+        continue-on-error: true
+        uses: LABSN/sound-ci-helpers@v1
+
+      - name: Media Foundation
+        id: mf
+        continue-on-error: true
+        run: |
+          $line = & ./scripts/ensure-media-foundation.ps1 | Select-Object -Last 1
+          Write-Host $line
+          "mf_status=$line" | Out-File $env:GITHUB_OUTPUT -Append -Encoding utf8
+
+      - name: Audio environment report
+        if: ${{ !cancelled() }}
+        env:
+          AUDIO_OUTCOME: ${{ steps.audio.outcome }}
+          MF_STATUS: ${{ steps.mf.outputs.mf_status }}
+        run: |
+          $devices = @(Get-CimInstance Win32_SoundDevice -ErrorAction SilentlyContinue)
+          $devices | Format-Table Name, Status, Manufacturer | Out-String | Write-Host
+          $audio = if ($env:AUDIO_OUTCOME -eq 'success' -and $devices.Count -gt 0) { "installed ($($devices.Count) device(s): $(($devices | ForEach-Object Name) -join ', '))" }
+                   elseif ($devices.Count -gt 0) { "install step $env:AUDIO_OUTCOME, but $($devices.Count) device(s) present: $(($devices | ForEach-Object Name) -join ', ')" }
+                   else { "**no audio device** (install step: $env:AUDIO_OUTCOME)" }
+          @(
+            '### Capture e2e environment', '',
+            '| Item | Status |', '|---|---|',
+            "| Virtual audio device | $audio |",
+            "| Media Foundation | $(if ($env:MF_STATUS) { $env:MF_STATUS } else { 'step did not report' }) |",
+            ''
+          ) | Out-File $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
+          if ($devices.Count -eq 0) { Write-Host '::warning::No audio device: WASAPI loopback has no render endpoint, the recording checks are expected to fail.' }
+
+      # 10 s 440 Hz stereo tone, looped by SoundPlayer.PlayLooping() in a separate hidden pwsh process.
+      - name: Start looping tone
+        id: tone
+        run: |
+          $out = & ./scripts/start-tone.ps1 -DurationS 900 | Select-Object -Last 1
+          $code = $LASTEXITCODE
+          Write-Host $out
+          "- $out" | Out-File $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
+          exit $code
+
+      # Windows-trait tests run for real here because a render endpoint exists.
+      - name: Murmur.Capture.Windows tests
+        if: ${{ !cancelled() }}
+        run: |
+          dotnet test --project tests/Murmur.Capture.Windows.Tests -c Release --report-xunit-trx --results-directory artifacts/capture-e2e/test-results
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Tone alive (before autorecord)
+        if: ${{ !cancelled() }}
+        run: pwsh scripts/check-tone.ps1 -Label 'before Autorecord 60 s'
+
+      - name: Autorecord 60 s (audio + screen)
+        if: ${{ !cancelled() }}
+        run: pwsh scripts/run-autorecord.ps1 -Exe artifacts/publish/win-x64/Murmur.exe -Seconds 60 -Screen -PerfOut artifacts/perf/rec60.json
+
+      - name: Check recording
+        if: ${{ !cancelled() }}
+        run: |
+          pwsh scripts/check-recording.ps1 -PerfJson artifacts/perf/rec60.json -ExpectTone -ExpectScreen -Title 'capture-e2e: 60 s audio + screen' -MarkdownOut artifacts/capture-e2e/check.md
+          $code = $LASTEXITCODE
+          if (Test-Path artifacts/capture-e2e/check.md) {
+            Get-Content artifacts/capture-e2e/check.md -Raw | Out-File $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
+          }
+          exit $code
+
+      - name: Stop tone
+        if: always()
+        run: |
+          $pidFile = 'artifacts/tone/tone.pid'
+          if (Test-Path $pidFile) {
+            Stop-Process -Id ([int](Get-Content $pidFile -Raw).Trim()) -Force -ErrorAction SilentlyContinue
+          }
+
+      - name: Collect session folder
+        if: always()
+        run: |
+          New-Item -ItemType Directory -Force artifacts/capture-e2e | Out-Null
+          if (Test-Path artifacts/perf/rec60.json) {
+            Copy-Item artifacts/perf/rec60.json artifacts/capture-e2e/rec60.json
+            $folder = (Get-Content artifacts/perf/rec60.json -Raw | ConvertFrom-Json).session.folder
+            if ($folder -and (Test-Path -LiteralPath $folder)) {
+              Copy-Item -LiteralPath $folder -Destination artifacts/capture-e2e/session -Recurse -Force
+            } else {
+              Write-Host "Session folder not found: $folder"
+            }
+          } else {
+            Write-Host 'No perf JSON to collect.'
+          }
+          if (Test-Path artifacts/tone) { Copy-Item artifacts/tone/*.log -Destination artifacts/capture-e2e -ErrorAction SilentlyContinue }
+
+      - name: Upload capture-e2e
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: capture-e2e
+          path: artifacts/capture-e2e
+          if-no-files-found: warn
+          retention-days: 14
+
   bench:
     name: benchmarks
     runs-on: windows-latest
