@@ -28,6 +28,33 @@ public sealed record PerfReport
 
     public double PrivateMaxMb { get; init; }
 
+    /// <summary>
+    /// Working set growth over the recording: a least-squares slope of the per-second samples, in MB per minute. A
+    /// healthy recorder plateaus (about 0); a leak shows as a steady positive slope.
+    /// </summary>
+    public double WsSlopeMbPerMin { get; init; }
+
+    /// <summary>Private bytes growth over the recording, MB per minute (least-squares slope).</summary>
+    public double PrivateSlopeMbPerMin { get; init; }
+
+    /// <summary>Largest managed heap seen while recording (<see cref="GC.GetTotalMemory(bool)"/>, no forced GC).</summary>
+    public double GcHeapMaxMb { get; init; }
+
+    /// <summary>Managed bytes allocated while recording (<see cref="GC.GetTotalAllocatedBytes(bool)"/> delta).</summary>
+    public double GcAllocatedMb { get; init; }
+
+    /// <summary>Managed bytes the UI thread allocated while recording (Avalonia layout, rendering, timers, view models).</summary>
+    public double UiThreadAllocatedMb { get; init; }
+
+    /// <summary>Managed bytes the perf sampler itself allocated while recording (part of <see cref="GcAllocatedMb"/>).</summary>
+    public double SamplerAllocatedMb { get; init; }
+
+    /// <summary>
+    /// Memory every <see cref="AutoRecordRunner.MemorySampleEvery"/> samples, to tell managed growth (GC heap) from
+    /// native growth (private bytes minus GC committed).
+    /// </summary>
+    public IReadOnlyList<PerfMemorySample>? Memory { get; init; }
+
     public PerfRecorderStats RecorderStats { get; init; } = new();
 
     public PerfSession Session { get; init; } = new();
@@ -51,6 +78,30 @@ public sealed record PerfRecorderStats
     public long DroppedFrames { get; init; }
 
     public long ScreenFramesDropped { get; init; }
+}
+
+/// <summary>One memory reading of a recording (all sizes in MB).</summary>
+public sealed record PerfMemorySample
+{
+    /// <summary>Seconds since the recording started.</summary>
+    public double Seconds { get; init; }
+
+    public double WsMb { get; init; }
+
+    public double PrivateMb { get; init; }
+
+    /// <summary>Managed bytes in use (<see cref="GC.GetTotalMemory(bool)"/>, no forced GC).</summary>
+    public double GcHeapMb { get; init; }
+
+    /// <summary>Memory the GC has committed (<see cref="GCMemoryInfo.TotalCommittedBytes"/> of the last GC).</summary>
+    public double GcCommittedMb { get; init; }
+
+    /// <summary>Managed bytes allocated since the recording started.</summary>
+    public double GcAllocatedMb { get; init; }
+
+    public int Gen0Collections { get; init; }
+
+    public int Gen2Collections { get; init; }
 }
 
 public sealed record PerfSession

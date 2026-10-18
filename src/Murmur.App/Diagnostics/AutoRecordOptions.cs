@@ -3,25 +3,34 @@ using System.Globalization;
 namespace Murmur.App.Diagnostics;
 
 /// <summary>
-/// Command line of the CI perf mode: <c>--autorecord &lt;seconds&gt; [--screen] [--no-orb] --perf-out &lt;json&gt; [--idle-seconds &lt;n&gt;]</c>.
+/// Command line of the CI perf mode:
+/// <c>--autorecord &lt;seconds&gt; [--screen] [--no-orb] [--no-mic] [--no-system] --perf-out &lt;json&gt; [--idle-seconds &lt;n&gt;]</c>.
 /// </summary>
 /// <param name="Seconds">How long to record.</param>
 /// <param name="Screen">Also record the screen.</param>
 /// <param name="PerfOut">Where the JSON report is written.</param>
 /// <param name="IdleSeconds">How long the idle CPU is measured before recording (10 s in CI).</param>
 /// <param name="ShowOrb">False (<c>--no-orb</c>) hides the orb, to see how much of the CPU it costs.</param>
+/// <param name="Microphone">False (<c>--no-mic</c>) leaves the microphone out even when one exists.</param>
+/// <param name="SystemAudio">False (<c>--no-system</c>) leaves the system loopback out.</param>
 public sealed record AutoRecordOptions(
     int Seconds,
     bool Screen,
     string PerfOut,
     int IdleSeconds = AutoRecordOptions.DefaultIdleSeconds,
-    bool ShowOrb = true)
+    bool ShowOrb = true,
+    bool Microphone = true,
+    bool SystemAudio = true)
 {
     public const string Flag = "--autorecord";
 
     public const string ScreenFlag = "--screen";
 
     public const string NoOrbFlag = "--no-orb";
+
+    public const string NoMicrophoneFlag = "--no-mic";
+
+    public const string NoSystemAudioFlag = "--no-system";
 
     public const string PerfOutFlag = "--perf-out";
 
@@ -45,6 +54,8 @@ public sealed record AutoRecordOptions(
         var idle = DefaultIdleSeconds;
         var present = false;
         var showOrb = true;
+        var microphone = true;
+        var systemAudio = true;
 
         for (var i = 0; i < args.Count; i++)
         {
@@ -64,6 +75,12 @@ public sealed record AutoRecordOptions(
                     break;
                 case NoOrbFlag:
                     showOrb = false;
+                    break;
+                case NoMicrophoneFlag:
+                    microphone = false;
+                    break;
+                case NoSystemAudioFlag:
+                    systemAudio = false;
                     break;
                 case PerfOutFlag:
                     if (i + 1 >= args.Count || args[i + 1].Length == 0)
@@ -96,7 +113,13 @@ public sealed record AutoRecordOptions(
             return false;
         }
 
-        options = new AutoRecordOptions(seconds, screen, perfOut, idle, showOrb);
+        if (!microphone && !systemAudio)
+        {
+            error = $"{NoMicrophoneFlag} and {NoSystemAudioFlag} together leave nothing to record.";
+            return false;
+        }
+
+        options = new AutoRecordOptions(seconds, screen, perfOut, idle, showOrb, microphone, systemAudio);
         return true;
     }
 

@@ -17,6 +17,11 @@ public sealed class AutoRecordRunner
     private static readonly TimeSpan SettleTime = TimeSpan.FromSeconds(1);
     private static readonly TimeSpan SampleInterval = TimeSpan.FromSeconds(1);
 
+    /// <summary>A <see cref="PerfMemorySample"/> is kept every this many one-second samples (and for the last one).</summary>
+    public const int MemorySampleEvery = 10;
+
+    private const double BytesPerMb = 1024.0 * 1024.0;
+
     private readonly AutoRecordOptions _options;
     private readonly RecordingViewModel _recording;
     private readonly IRecorder _recorder;
@@ -102,24 +107,55 @@ public sealed class AutoRecordRunner
             var machine = new List<double>(_options.Seconds);
             var oneCore = new List<double>(_options.Seconds);
             var workingSet = new List<double>(_options.Seconds);
+            var privateBytes = new List<double>(_options.Seconds);
+            var memory = new List<PerfMemorySample>((_options.Seconds / MemorySampleEvery) + 1);
             var privateMax = 0.0;
+            var gcHeapMax = 0.0;
 
+            var uiAllocatedAtStart = await UiThreadAllocatedBytesAsync();
+            long samplerAllocated = 0;
             sampler.Reset();
             var startedAt = Stopwatch.GetTimestamp();
+            var allocatedAtStart = GC.GetTotalAllocatedBytes(precise: false);
+            var gen0AtStart = GC.CollectionCount(0);
+            var gen2AtStart = GC.CollectionCount(2);
             using (var timer = new PeriodicTimer(SampleInterval))
             {
                 for (var i = 0; i < _options.Seconds; i++)
                 {
                     await timer.WaitForNextTickAsync(cancellationToken);
+                    var samplerBefore = GC.GetAllocatedBytesForCurrentThread();
                     var sample = sampler.Sample();
                     machine.Add(sample.CpuMachinePct);
                     oneCore.Add(sample.CpuCorePct);
                     workingSet.Add(sample.WorkingSetMb);
+                    privateBytes.Add(sample.PrivateMb);
                     privateMax = Math.Max(privateMax, sample.PrivateMb);
+                    var gcHeap = GC.GetTotalMemory(forceFullCollection: false) / BytesPerMb;
+                    gcHeapMax = Math.Max(gcHeapMax, gcHeap);
+                    if (i % MemorySampleEvery == 0 || i == _options.Seconds - 1)
+                    {
+                        memory.Add(new PerfMemorySample
+                        {
+                            Seconds = Round(Stopwatch.GetElapsedTime(startedAt).TotalSeconds),
+                            WsMb = Round(sample.WorkingSetMb),
+                            PrivateMb = Round(sample.PrivateMb),
+                            GcHeapMb = Round(gcHeap),
+                            GcCommittedMb = Round(GC.GetGCMemoryInfo().TotalCommittedBytes / BytesPerMb),
+                            GcAllocatedMb = Round((GC.GetTotalAllocatedBytes(precise: false) - allocatedAtStart) / BytesPerMb),
+                            Gen0Collections = GC.CollectionCount(0) - gen0AtStart,
+                            Gen2Collections = GC.CollectionCount(2) - gen2AtStart,
+                        });
+                    }
+
+                    samplerAllocated += GC.GetAllocatedBytesForCurrentThread() - samplerBefore;
                 }
             }
 
             var duration = Stopwatch.GetElapsedTime(startedAt).TotalSeconds;
+            var allocated = (GC.GetTotalAllocatedBytes(precise: false) - allocatedAtStart) / BytesPerMb;
+            var uiAllocated = (await UiThreadAllocatedBytesAsync() - uiAllocatedAtStart) / BytesPerMb;
+
             await StopRecordingAsync();
 
             var session = stopped ?? throw new InvalidOperationException("The recording did not stop cleanly.");
@@ -138,6 +174,13 @@ public sealed class AutoRecordRunner
                 WsAvgMb = Round(Average(workingSet)),
                 WsMaxMb = Round(Max(workingSet)),
                 PrivateMaxMb = Round(privateMax),
+                WsSlopeMbPerMin = Round(SlopePerMinute(workingSet)),
+                PrivateSlopeMbPerMin = Round(SlopePerMinute(privateBytes)),
+                GcHeapMaxMb = Round(gcHeapMax),
+                GcAllocatedMb = Round(allocated),
+                UiThreadAllocatedMb = Round(uiAllocated),
+                SamplerAllocatedMb = Round(samplerAllocated / BytesPerMb),
+                Memory = memory,
                 RecorderStats = ToReport(_recorder.Stats),
                 Session = DescribeSession(session),
                 Warnings = warnings.Count == 0 ? null : warnings,
@@ -162,9 +205,9 @@ public sealed class AutoRecordRunner
         string? error = null;
         await _runOnUi(async () =>
         {
-            // Mic only when one exists; the system loopback is always requested.
-            _recording.Microphone = _recording.MicrophoneAvailable;
-            _recording.SystemAudio = _recording.SystemAudioAvailable;
+            // Mic only when one exists (and not left out with --no-mic); the system loopback unless --no-system.
+            _recording.Microphone = _options.Microphone && _recording.MicrophoneAvailable;
+            _recording.SystemAudio = _options.SystemAudio && _recording.SystemAudioAvailable;
             if (_options.Screen && !_recording.ScreenAvailable)
             {
                 error = "Screen capture was requested but is not available on this platform.";
@@ -190,6 +233,18 @@ public sealed class AutoRecordRunner
     }
 
     private Task StopRecordingAsync() => _runOnUi(_recording.StopAsync);
+
+    /// <summary>Bytes the UI thread has allocated so far (read on the UI thread).</summary>
+    private async Task<long> UiThreadAllocatedBytesAsync()
+    {
+        long bytes = 0;
+        await _runOnUi(() =>
+        {
+            bytes = GC.GetAllocatedBytesForCurrentThread();
+            return Task.CompletedTask;
+        });
+        return bytes;
+    }
 
     /// <summary>
     /// Adds a session warning once. The stop repeats the start's warning, possibly with a screen error in front: the
@@ -289,6 +344,38 @@ public sealed class AutoRecordRunner
         }
 
         return max;
+    }
+
+    /// <summary>
+    /// Least-squares slope of <paramref name="perSecond"/> (one value per second) in units per minute; 0 for fewer
+    /// than two values.
+    /// </summary>
+    internal static double SlopePerMinute(IReadOnlyList<double> perSecond)
+    {
+        ArgumentNullException.ThrowIfNull(perSecond);
+        var n = perSecond.Count;
+        if (n < 2)
+        {
+            return 0;
+        }
+
+        var meanX = (n - 1) / 2.0;
+        var meanY = 0.0;
+        for (var i = 0; i < n; i++)
+        {
+            meanY += perSecond[i];
+        }
+
+        meanY /= n;
+        double covariance = 0, variance = 0;
+        for (var i = 0; i < n; i++)
+        {
+            var dx = i - meanX;
+            covariance += dx * (perSecond[i] - meanY);
+            variance += dx * dx;
+        }
+
+        return covariance / variance * 60.0;
     }
 
     private static double Round(double value) => Math.Round(value, 3);
