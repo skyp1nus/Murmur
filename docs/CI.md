@@ -16,6 +16,26 @@ SDK береться з `global.json` (prerelease `11.0.100-rc.2.26504.105`, `ro
 
 Тести йдуть через Microsoft.Testing.Platform (`global.json`), тому TRX вмикається прапорцем `--report-xunit-trx` (VSTest-прапорець `--logger trx` у цій конфігурації дає exit code 5).
 
+## Workflow `asr`
+
+Workflow: `.github/workflows/asr.yml` (окремо від `ci.yml`, щоб не уповільнювати pull request'и). Запускається на push у `master` і `night-run` та вручну (`workflow_dispatch`); `concurrency: asr-<ref>`, права `contents: read`. Той самий пін SDK і крок `Verify SDK matches global.json`, що в `ci.yml` (при зміні `global.json` оновити `dotnet-version` в обох файлах).
+
+Один джоб `asr`, матриця `ubuntu-latest` (linux-x64) і `windows-latest` (win-x64), 45 хв, `fail-fast: false`, shell `bash`. 1-годинний бенчмарк запускається лише тут, по одному разу на ОС.
+
+Кроки:
+
+1. Кеш моделей (розділено на `actions/cache/restore@v4` перед скачуванням і `actions/cache/save@v4` одразу після нього з умовою `cache-hit != 'true'`, щоб кеш зберігався навіть коли тести чи бюджетний гейт падають; комбінований `actions/cache` зберігає лише при успішному джобі; тека `<workspace>/models`, ключ `models-<OS>-parakeet-tdt-0.6b-v3-int8-silero_vad-v1`; при зміні набору моделей у `fetch-models.*` підняти суфікс `v1`) і `scripts/fetch-models.sh` (Linux) або `scripts/fetch-models.ps1` (Windows) з `MURMUR_MODELS_DIR=<workspace>/models`. Скрипти ідемпотентні, тож при влучанні в кеш нічого не качається.
+2. `dotnet test --project tests/Murmur.Transcription.Tests` і `tests/Murmur.Core.Tests` з `MURMUR_MODELS_DIR`. Тести на реальних моделях без моделей скіпаються; тут моделі є, тож вони виконуються.
+3. Native AOT publish `Murmur.Transcription` для RID ОС із тим самим gate на `: warning ` / `: error `, що в `ci.yml`.
+4. Бенч: `Murmur.Transcription --bench --model-dir <parakeet> --vad <silero_vad.onnx> --wav en.wav,de.wav,es.wav,fr.wav --seconds 3600 --out artifacts/perf/asr-bench.json` (чотири `test_wavs` з теки моделі зациклюються воркером до 3600 с аудіо).
+5. `scripts/asr-bench-summary.sh <json> 180 <os>` (потрібен `jq`, є на обох образах раннерів) друкує таблицю (audio s, transcribe s, load, RTF, x-realtime, segments/words, threads/batch, CPU, OS, бюджет, PASS/FAIL) у Step Summary і `asr-bench.md`, і **валить джоб**, якщо `transcribeMs` > 180 с (бюджет PLAN.md: 1 год аудіо -> текст < 3 хв на CPU) або якщо аудіо коротше за 3600 с.
+
+Артефакти (14 днів): `asr-bench-linux-x64`, `asr-bench-win-x64` (`asr-bench.json` + `asr-bench.md`), `asr-test-results-<rid>` (`.trx`).
+
+Контракт воркера: `Murmur.Transcription --bench ... --out <json>` пише camelCase JSON (`audioSeconds`, `loadMs`, `transcribeMs`, `rtf`, `realtimeFactorX`, `segments`, `words`, `threads`, `batch`, `machine{os, cpu, cores}` та ін.). Цифри з хмарного раннера (2-4 vCPU) шумні: це верхня межа для порівняння між комітами.
+
+UNVERIFIED-ON-ACTIONS: workflow не запускався на GitHub Actions (YAML розібрано `python yaml`, shell-скрипти пройшли `bash -n`, `asr-bench-summary.sh` перевірено локально на синтетичному JSON). Крок `Fetch models (Windows)` і поведінка Git Bash на `windows-latest` не перевірені.
+
 ## Артефакти (зберігаються 14 днів)
 
 | Артефакт | Вміст |
@@ -142,6 +162,9 @@ pwsh scripts/fetch-models.ps1
 ```bash
 # Linux/macOS; тека за замовчуванням ~/.murmur/models, змінюється через MURMUR_MODELS_DIR
 scripts/fetch-models.sh
+
+# Таблиця й перевірка бюджету за JSON бенчу воркера (потрібен jq); код виходу 1, якщо > 180 с
+scripts/asr-bench-summary.sh artifacts/perf/asr-bench.json 180 local
 ```
 
 Скрипти завантаження моделей ідемпотентні (пропускають уже наявні файли), роблять кілька спроб із затримкою та завершуються з помилкою, якщо файл не вдалося отримати.

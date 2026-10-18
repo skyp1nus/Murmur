@@ -1,0 +1,153 @@
+name: asr
+
+# Real-model ASR tests and the PLAN.md phase 2 budget "1 h audio -> text < 3 min on CPU".
+# Kept apart from ci.yml (which has no model downloads) so it does not slow down pull requests.
+
+on:
+  push:
+    branches: [master, night-run]
+  workflow_dispatch:
+
+concurrency:
+  group: asr-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  DOTNET_NOLOGO: "1"
+  DOTNET_CLI_TELEMETRY_OPTOUT: "1"
+  NUGET_PACKAGES: ${{ github.workspace }}/.nuget/packages
+  MURMUR_MODELS_DIR: ${{ github.workspace }}/models
+  # PLAN.md: 1 h of audio -> text in < 3 min (180 s) on CPU.
+  ASR_BUDGET_SECONDS: "180"
+
+jobs:
+  asr:
+    name: real-model tests and 1 h bench (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            rid: linux-x64
+            exe: Murmur.Transcription
+          - os: windows-latest
+            rid: win-x64
+            exe: Murmur.Transcription.exe
+    # bash everywhere (Git Bash on Windows): `bash --noprofile --norc -eo pipefail {0}` so a failing
+    # `dotnet publish | tee` fails the step. jq is preinstalled on both runner images.
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v5
+
+      # See ci.yml: dotnet-version pins the exact prerelease SDK, the next step verifies it.
+      # When global.json changes, update dotnet-version here and in ci.yml.
+      - uses: actions/setup-dotnet@v5
+        with:
+          global-json-file: global.json
+          dotnet-version: 11.0.100-rc.2.26504.105
+
+      - name: Verify SDK matches global.json
+        run: test "$(dotnet --version | tr -d '\r')" = "$(jq -r .sdk.version global.json | tr -d '\r')"
+
+      - uses: actions/cache@v4
+        with:
+          path: ${{ env.NUGET_PACKAGES }}
+          key: nuget-${{ runner.os }}-${{ hashFiles('Directory.Packages.props', '**/*.csproj') }}
+          restore-keys: nuget-${{ runner.os }}-
+
+      # Models (~0.7 GB) are cached; bump the "v1" suffix when scripts/fetch-models.* changes the model set.
+      # Restore and save are split so the cache is saved right after a successful fetch, even when the
+      # tests or the budget gate fail later (a combined actions/cache saves only when the job succeeds).
+      - name: Restore ASR models cache
+        id: models-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: ${{ env.MURMUR_MODELS_DIR }}
+          key: models-${{ runner.os }}-parakeet-tdt-0.6b-v3-int8-silero_vad-v1
+
+      - name: Fetch models (Linux)
+        if: runner.os == 'Linux'
+        run: scripts/fetch-models.sh
+
+      - name: Fetch models (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: ./scripts/fetch-models.ps1
+
+      - name: Save ASR models cache
+        if: steps.models-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: ${{ env.MURMUR_MODELS_DIR }}
+          key: models-${{ runner.os }}-parakeet-tdt-0.6b-v3-int8-silero_vad-v1
+
+      - name: Show models
+        run: find "$MURMUR_MODELS_DIR" -maxdepth 3 -type f -printf '%s %p\n' 2>/dev/null || ls -lR "$MURMUR_MODELS_DIR"
+
+      - name: Native AOT prerequisites (Linux)
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends clang zlib1g-dev
+
+      # The real-model tests skip themselves when MURMUR_MODELS_DIR has no models; here the models are
+      # present, so they run. Microsoft.Testing.Platform: a single project is selected with --project.
+      - name: Test (Murmur.Transcription.Tests, real models)
+        run: dotnet test --project tests/Murmur.Transcription.Tests -c Release --report-xunit-trx --results-directory artifacts/test-results
+
+      - name: Test (Murmur.Core.Tests, real models)
+        run: dotnet test --project tests/Murmur.Core.Tests -c Release --report-xunit-trx --results-directory artifacts/test-results
+
+      - name: Publish Native AOT (Murmur.Transcription, ${{ matrix.rid }})
+        run: |
+          mkdir -p artifacts/logs
+          dotnet publish src/Murmur.Transcription -c Release -r ${{ matrix.rid }} -o artifacts/publish/${{ matrix.rid }} 2>&1 | tee artifacts/logs/publish-transcription.log
+
+      - name: Fail on publish warnings
+        run: |
+          if grep -nE ': (warning|error) ' artifacts/logs/publish-transcription.log; then
+            echo "::error::Native AOT publish produced warnings or errors (see above)"
+            exit 1
+          fi
+          echo "No publish warnings."
+
+      # 4 test clips (en, de, es, fr) are looped by the worker up to 3600 s of audio.
+      - name: Bench (1 h audio -> text)
+        run: |
+          mkdir -p artifacts/perf
+          parakeet="$MURMUR_MODELS_DIR/sherpa-onnx-nemo-parakeet-tdt-0.6b-v3-int8"
+          wavs="$parakeet/test_wavs/en.wav,$parakeet/test_wavs/de.wav,$parakeet/test_wavs/es.wav,$parakeet/test_wavs/fr.wav"
+          artifacts/publish/${{ matrix.rid }}/${{ matrix.exe }} --bench \
+            --model-dir "$parakeet" \
+            --vad "$MURMUR_MODELS_DIR/silero_vad.onnx" \
+            --wav "$wavs" \
+            --seconds 3600 \
+            --out artifacts/perf/asr-bench.json
+
+      # The script prints the table first, then exits 1 (pipefail fails the step) when transcribe time exceeds the budget or the bench audio was shorter than 1 h.
+      - name: Bench summary and budget gate
+        run: |
+          scripts/asr-bench-summary.sh artifacts/perf/asr-bench.json "$ASR_BUDGET_SECONDS" "${{ matrix.os }}" | tee artifacts/perf/asr-bench.md >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload bench result
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: asr-bench-${{ matrix.rid }}
+          path: artifacts/perf
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: asr-test-results-${{ matrix.rid }}
+          path: artifacts/test-results
+          if-no-files-found: warn
+          retention-days: 14
