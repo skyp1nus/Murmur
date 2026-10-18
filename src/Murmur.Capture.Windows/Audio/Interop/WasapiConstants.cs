@@ -8,6 +8,7 @@ internal static class WasapiConstants
     public static readonly Guid IidIMMDeviceEnumerator = new("A95664D2-9614-4F35-A746-DE8DB63617E6");
     public static readonly Guid IidIAudioClient = new("1CB9AD4C-DBFA-4C32-B178-C2F568A703B2");
     public static readonly Guid IidIAudioCaptureClient = new("C8ADBD64-E71E-48A0-A4DE-185C395CD317");
+    public static readonly Guid IidIAudioRenderClient = new("F294ACFC-3146-4483-A7BF-ADDCA7C260E2");
 
     // functiondiscoverykeys_devpkey.h: DEFINE_PROPERTYKEY(PKEY_Device_FriendlyName,
     //     0xa45c254e, 0xdf1c, 0x4efd, 0x80, 0x20, 0x67, 0xd1, 0x46, 0xa8, 0x50, 0xe0, 14)
@@ -41,6 +42,8 @@ internal static class WasapiConstants
     // AudioSessionTypes.h
     public const uint AudclntStreamFlagsLoopback = 0x00020000;
     public const uint AudclntStreamFlagsEventCallback = 0x00040000;
+    public const uint AudclntStreamFlagsSrcDefaultQuality = 0x08000000;
+    public const uint AudclntStreamFlagsAutoConvertPcm = 0x80000000;
 
     // Audioclient.h: enum _AUDCLNT_BUFFERFLAGS
     public const uint AudclntBufferFlagsDataDiscontinuity = 0x1;
@@ -56,6 +59,7 @@ internal static class WasapiConstants
     // winerror.h
     public const int SOk = 0;
     public const int SFalse = 1;
+    public const int EFail = unchecked((int)0x80004005);
     public const int RpcEChangedMode = unchecked((int)0x80010106);
     public const int ENotFound = unchecked((int)0x80070490); // HRESULT_FROM_WIN32(ERROR_NOT_FOUND = 1168)
 

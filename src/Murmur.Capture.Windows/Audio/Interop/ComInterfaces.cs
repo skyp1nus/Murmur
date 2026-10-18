@@ -171,3 +171,17 @@ internal partial interface IAudioCaptureClient
     [PreserveSig]
     int GetNextPacketSize(out uint framesInNextPacket);
 }
+
+/// <summary>Audioclient.h, IID F294ACFC-3146-4483-A7BF-ADDCA7C260E2 (slots 3-4).</summary>
+[GeneratedComInterface]
+[Guid("F294ACFC-3146-4483-A7BF-ADDCA7C260E2")]
+internal partial interface IAudioRenderClient
+{
+    // HRESULT GetBuffer(UINT32 NumFramesRequested, BYTE **ppData)
+    [PreserveSig]
+    int GetBuffer(uint framesRequested, out nint data);
+
+    // HRESULT ReleaseBuffer(UINT32 NumFramesWritten, DWORD dwFlags)
+    [PreserveSig]
+    int ReleaseBuffer(uint framesWritten, uint flags);
+}

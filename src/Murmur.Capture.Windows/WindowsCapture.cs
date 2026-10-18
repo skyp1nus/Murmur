@@ -1,13 +1,16 @@
 using Murmur.Capture.Windows.Audio;
+using Murmur.Capture.Windows.Playback;
 using Murmur.Capture.Windows.Screen;
 using Murmur.Core.Capture;
 
 namespace Murmur.Capture.Windows;
 
 /// <summary>
-/// Windows capture facade: WASAPI microphone and loopback, Windows.Graphics.Capture + Media Foundation screen recording.
+/// Windows capture facade: WASAPI microphone and loopback, Windows.Graphics.Capture + Media Foundation screen recording,
+/// and WASAPI playback of a session's tracks (<see cref="IAudioPlayback"/>: the composition root can register this one
+/// instance for both interfaces).
 /// </summary>
-public sealed class WindowsCapture : ICapture
+public sealed class WindowsCapture : ICapture, IAudioPlayback
 {
     /// <summary>
     /// Queried on every access (devices come and go): any active capture / render endpoint;
@@ -49,4 +52,10 @@ public sealed class WindowsCapture : ICapture
     /// </summary>
     /// <exception cref="ArgumentOutOfRangeException">FrameRate outside 1..240, MaxHeight below 2 or BitrateKbps not positive.</exception>
     public IScreenRecorder CreateScreenRecorder(ScreenCaptureOptions options) => new WgcScreenRecorder(options);
+
+    /// <summary>
+    /// A closed <see cref="WasapiAudioPlayer"/> for the default render endpoint; nothing native is touched until
+    /// <see cref="IAudioPlayer.OpenAsync"/>.
+    /// </summary>
+    public IAudioPlayer CreatePlayer() => new WasapiAudioPlayer();
 }
