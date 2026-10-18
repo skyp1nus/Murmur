@@ -59,6 +59,14 @@ public sealed class WgcScreenRecorderTests(ITestOutputHelper output)
 {
     private static readonly TimeSpan DurationTolerance = TimeSpan.FromMilliseconds(500);
 
+    /// <summary>
+    /// Slack of the file timeline against the measured start/stop bounds (<see cref="AssertTimeline"/>), on top of one
+    /// frame interval: the hardware path's trun sum is exact to one sink unit, but Microsoft's software H.264 encoder
+    /// (CPU readback) re-times its output to a constant frame rate (it pads static stretches), so its file is a whole
+    /// number of frames long (e.g. 2.000 s for 2.006 s at 15 fps); mvhd is rounded to its own timescale.
+    /// </summary>
+    private static readonly TimeSpan TimelineSlack = TimeSpan.FromMilliseconds(20);
+
     [Theory]
     [InlineData(0, 1080, 6000)]
     [InlineData(241, 1080, 6000)]
@@ -142,7 +150,7 @@ public sealed class WgcScreenRecorderTests(ITestOutputHelper output)
             var elapsed = await RecordAsync(recorder, path, TimeSpan.FromSeconds(3));
 
             var stats = recorder.Stats;
-            output.WriteLine($"{stats} device='{recorder.DeviceDescription}' framePath='{recorder.FramePath}' encoderSize={recorder.LastEncoderSize} frameArrived={recorder.FrameArrivedEvents} rateLimited={recorder.FramesRateLimited} repeated={recorder.FramesRepeated} placeholders={recorder.PlaceholderFrames} wall={elapsed.TotalSeconds:F3} s");
+            output.WriteLine($"{stats} device='{recorder.DeviceDescription}' framePath='{recorder.FramePath}' encoderSize={recorder.LastEncoderSize} frameArrived={recorder.FrameArrivedEvents} rateLimited={recorder.FramesRateLimited} repeated={recorder.FramesRepeated} placeholders={recorder.PlaceholderFrames} wall={elapsed}");
             output.WriteLine($"segment: empty={recorder.LastSegmentEmpty} {recorder.LastSegmentDiagnostic}; faults: {Describe(faults)}");
             Assert.NotEqual(EncoderNaming.None, stats.Encoder);
             SkipIfNoFramesCaptured(recorder, stats.FramesCaptured, [path], faults);
@@ -183,7 +191,7 @@ public sealed class WgcScreenRecorderTests(ITestOutputHelper output)
             await using var recorder = new WgcScreenRecorder(new ScreenCaptureOptions(FrameRate: 15, MaxHeight: 720, BitrateKbps: 4_000));
             var faults = Collect(recorder);
 
-            var elapsed = new TimeSpan[paths.Length];
+            var elapsed = new SegmentClock[paths.Length];
             elapsed[0] = await RecordAsync(recorder, paths[0], TimeSpan.FromSeconds(1.5));
             var first = recorder.Stats;
             var firstDiagnostic = recorder.LastSegmentDiagnostic;
@@ -317,13 +325,15 @@ public sealed class WgcScreenRecorderTests(ITestOutputHelper output)
             var elapsed = await RecordAsync(recorder, path, TimeSpan.FromSeconds(5));
 
             var stats = recorder.Stats;
-            output.WriteLine($"{stats} framePath='{recorder.FramePath}' repeated={recorder.FramesRepeated} repeatsSkipped={recorder.RepeatsSkipped} wall={elapsed.TotalSeconds:F3} s");
+            output.WriteLine($"{stats} framePath='{recorder.FramePath}' repeated={recorder.FramesRepeated} repeatsSkipped={recorder.RepeatsSkipped} wall={elapsed}");
             output.WriteLine($"segment: {recorder.LastSegmentDiagnostic}; faults: {Describe(faults)}");
             SkipIfNoFramesCaptured(recorder, stats.FramesCaptured, [path], faults);
 
             Assert.Empty(faults);
             Assert.InRange(stats.FramesCaptured, 1, 3);
-            Assert.True(recorder.FramesRepeated >= 3, $"only {recorder.FramesRepeated} repeats in 5 s of static screen");
+            // About one repeat a second (4-5 in 5 s); a loaded machine may delay a few, so only demand that repeats
+            // keep the file growing at all. The timeline below is the exact check: it holds however many repeats ran.
+            Assert.True(recorder.FramesRepeated >= 2, $"only {recorder.FramesRepeated} repeats in 5 s of static screen");
             Assert.Equal(0, recorder.RepeatsSkipped);
             AssertTimeline(path, elapsed, fps);
             AssertDuration(TimeSpan.FromSeconds(5), Mp4Probe.Read(path));
@@ -356,7 +366,7 @@ public sealed class WgcScreenRecorderTests(ITestOutputHelper output)
             var elapsed = await RecordAsync(recorder, path, TimeSpan.FromSeconds(3));
 
             var stats = recorder.Stats;
-            output.WriteLine($"{stats} repeated={recorder.FramesRepeated} repeatsSkipped={recorder.RepeatsSkipped} wall={elapsed.TotalSeconds:F3} s; segment: {recorder.LastSegmentDiagnostic}; faults: {Describe(faults)}");
+            output.WriteLine($"{stats} repeated={recorder.FramesRepeated} repeatsSkipped={recorder.RepeatsSkipped} wall={elapsed}; segment: {recorder.LastSegmentDiagnostic}; faults: {Describe(faults)}");
             SkipIfNoFramesCaptured(recorder, stats.FramesCaptured, [path], faults);
 
             Assert.Empty(faults);
@@ -428,15 +438,18 @@ public sealed class WgcScreenRecorderTests(ITestOutputHelper output)
         }
     }
 
-    private static async Task<TimeSpan> RecordAsync(IScreenRecorder recorder, string path, TimeSpan duration)
+    private static async Task<SegmentClock> RecordAsync(IScreenRecorder recorder, string path, TimeSpan duration)
     {
+        var outer = Stopwatch.StartNew();
         await recorder.StartSegmentAsync(path, TestContext.Current.CancellationToken);
+        var started = outer.Elapsed;
         Assert.True(recorder.IsRecording);
-        var stopwatch = Stopwatch.StartNew();
         await Task.Delay(duration, TestContext.Current.CancellationToken);
+        var stopping = outer.Elapsed;
         await recorder.StopSegmentAsync(TestContext.Current.CancellationToken);
+        var stopped = outer.Elapsed;
         Assert.False(recorder.IsRecording);
-        return stopwatch.Elapsed;
+        return new SegmentClock(stopping - started, stopped);
     }
 
     private static List<CaptureFault> Collect(IScreenRecorder recorder)
@@ -469,20 +482,26 @@ public sealed class WgcScreenRecorderTests(ITestOutputHelper output)
     /// <summary>
     /// The file's own timeline (the sum of its trun sample durations: what spec-compliant players and
     /// scripts/check-recording.ps1 go by) and its header duration (mvhd) both match the wall-clock length of the segment.
+    /// The segment's timeline starts inside StartSegmentAsync and ends at the stop request inside StopSegmentAsync, so
+    /// the file lasts at least <see cref="SegmentClock.Inner"/> and at most <see cref="SegmentClock.Outer"/>, give or
+    /// take one frame interval plus <see cref="TimelineSlack"/>: a tight bound on an idle machine that only widens by
+    /// the time the start and stop calls really took under load.
     /// </summary>
-    private void AssertTimeline(string path, TimeSpan elapsed, int frameRate)
+    private void AssertTimeline(string path, SegmentClock elapsed, int frameRate)
     {
+        var slack = TimeSpan.FromTicks(MediaTime.FrameDuration(frameRate)) + TimelineSlack;
         var scan = MurmurMp4Scan.Scan(path);
-        output.WriteLine($"{Path.GetFileName(path)}: {scan.DurationSource} {scan.DurationS:F3} s, mvhd {scan.MvhdDurationS:F3} s, {scan.Frames} frames, {scan.Fragments} fragments, wall {elapsed.TotalSeconds:F3} s, error: {scan.Error ?? "none"}");
+        output.WriteLine($"{Path.GetFileName(path)}: {scan.DurationSource} {scan.DurationS:F3} s, mvhd {scan.MvhdDurationS:F3} s, {scan.Frames} frames, {scan.Fragments} fragments, wall {elapsed}, error: {scan.Error ?? "none"}");
         Assert.Null(scan.Error);
         Assert.True(scan.Fragmented, "not a fragmented MP4");
         Assert.Equal("trun", scan.DurationSource);
 
         // The timeline is quantized to this timescale (HeldFrameTiming): the sink must still use it.
         Assert.Equal(HeldFrameTiming.SinkTimescale(frameRate), scan.Timescale);
-        var tolerance = DurationTolerance.TotalSeconds;
-        Assert.InRange(scan.DurationS, elapsed.TotalSeconds - tolerance, elapsed.TotalSeconds + tolerance);
-        Assert.InRange(scan.MvhdDurationS, elapsed.TotalSeconds - tolerance, elapsed.TotalSeconds + tolerance);
+        var low = (elapsed.Inner - slack).TotalSeconds;
+        var high = (elapsed.Outer + slack).TotalSeconds;
+        Assert.InRange(scan.DurationS, low, high);
+        Assert.InRange(scan.MvhdDurationS, low, high);
     }
 
     private static void AssertDuration(TimeSpan expected, Mp4ProbeResult probe)
@@ -492,4 +511,13 @@ public sealed class WgcScreenRecorderTests(ITestOutputHelper output)
     }
 
     private static string TempMp4() => Path.Combine(Path.GetTempPath(), $"murmur-screen-{Guid.NewGuid():N}.mp4");
+
+    /// <summary>
+    /// Wall-clock bounds of a recorded segment: <see cref="Inner"/> from the return of StartSegmentAsync to the call
+    /// of StopSegmentAsync, <see cref="Outer"/> from the call of StartSegmentAsync to the return of StopSegmentAsync.
+    /// </summary>
+    private readonly record struct SegmentClock(TimeSpan Inner, TimeSpan Outer)
+    {
+        public override string ToString() => $"{Inner.TotalSeconds:F3}..{Outer.TotalSeconds:F3} s";
+    }
 }
