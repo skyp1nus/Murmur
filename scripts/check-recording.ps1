@@ -23,8 +23,8 @@
     With -ExpectScreen:
       - at least one non-empty screen-NNN.mp4 and session.screenSegments matches the file count
       - every segment parses as an MP4 with video samples; its frame count and duration are reported and its
-        frame rate is at least -MinScreenFps (the recorder repeats frames on a static screen, so ~30 fps is
-        normal; a handful of frames means the encoder stopped early)
+        frame rate is at least -MinScreenFps (variable frame rate: the recorder repeats the last frame once a
+        second on a static screen, so ~1 fps is the floor; fewer frames mean the encoder stopped early)
       - the summed segment duration is within +/- -ScreenToleranceS of durationS (a 12-frame, 0.4 s file for a
         10 minute recording fails). Duration = sum of the trun sample durations of the video track divided by the
         mdhd timescale (fragmented MP4, using tfhd/trex defaults), the stts table for a classic MP4, else the
@@ -52,7 +52,9 @@
     Allowed |summed screen video duration - durationS| with -ExpectScreen (default 2; the first segment starts a
     little after the audio and the last frame ends a frame before the stop).
 .PARAMETER MinScreenFps
-    Lowest plausible frames/duration of a screen segment with -ExpectScreen (default 5; 0 disables the check).
+    Lowest plausible frames/duration of a screen segment with -ExpectScreen (default 0.5; 0 disables the check). The
+    file has a variable frame rate: a static screen holds one repeated frame a second (~1 fps), moving content runs
+    at up to 60 fps on the GPU path and 30 fps on CPU readback.
 .PARAMETER MaxZeroRunMs
     Longest allowed run of silent samples while the tone plays (default 100).
 .PARAMETER SilenceAbs
@@ -81,7 +83,7 @@ param(
     [string] $MarkdownOut = '',
     [double] $DurationToleranceS = 1.0,
     [double] $ScreenToleranceS = 2.0,
-    [double] $MinScreenFps = 5.0,
+    [double] $MinScreenFps = 0.5,
     [double] $MaxZeroRunMs = 100,
     [int] $SilenceAbs = 1,
     [double] $LeadGraceS = 5,

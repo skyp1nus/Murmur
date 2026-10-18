@@ -69,13 +69,24 @@ public sealed class CheckRecordingScriptTests : IDisposable
     [Fact]
     public void An_implausibly_low_frame_rate_fails_unless_the_check_is_disabled()
     {
-        // 20 frames over 10 s = 2 fps: the duration is right, the frame count is not.
-        var slow = Run(["screen-000.mp4"], [Video(10, 2)]);
+        // 3 frames over 10 s = 0.3 fps: the duration is right, the frame count is not (a static screen still gets a
+        // repeated frame every second).
+        var slow = Run(["screen-000.mp4"], [Fragmented(30000, [[100_000, 100_000], [100_000]])]);
         Assert.Equal(1, slow.ExitCode);
         Assert.Equal("FAIL", Status(slow, "screen-000.mp4 video"));
         Assert.Equal("PASS", Status(slow, "screen video duration vs durationS"));
 
-        Assert.Equal(0, Run(["screen-000.mp4"], [Video(10, 2)], "-MinScreenFps", "0").ExitCode);
+        Assert.Equal(0, Run(["screen-000.mp4"], [Fragmented(30000, [[100_000, 100_000], [100_000]])], "-MinScreenFps", "0").ExitCode);
+    }
+
+    [Fact]
+    public void A_static_screen_at_one_repeated_frame_a_second_passes()
+    {
+        // Variable frame rate: a static screen holds the last frame and repeats it once a second (1 fps).
+        var run = Run(["screen-000.mp4"], [Video(10, 1)]);
+
+        Assert.Equal(0, run.ExitCode);
+        Assert.Equal("PASS", Status(run, "screen-000.mp4 video"));
     }
 
     [Fact]
