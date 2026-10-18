@@ -176,7 +176,8 @@ public sealed class Recorder : IRecorder
             }
             else if (active.OpenSegment is not null)
             {
-                await StopScreenSegmentAsync(active, end: null, cancellationToken).ConfigureAwait(false);
+                // The caller's token is honoured by the gate wait above; a half-cancelled finalize has no clean meaning.
+                await StopScreenSegmentAsync(active, end: null, CancellationToken.None).ConfigureAwait(false);
             }
         }
         finally
@@ -305,9 +306,11 @@ public sealed class Recorder : IRecorder
 
     /// <param name="end">Segment end on the session timeline; <c>null</c> = now.</param>
     /// <remarks>
-    /// The segment is recorded and closed even when finalizing it throws: its file is already on disk (a fragmented
-    /// MP4 stays playable without a clean finalize), so it belongs to the session, and the next "on" starts a new
-    /// segment instead of retrying this one. The error still reaches the caller.
+    /// When finalizing throws after the screen recorder has left the segment, the segment is still recorded and closed:
+    /// its file is already on disk (a fragmented MP4 stays playable without a clean finalize), so it belongs to the
+    /// session, and the next "on" starts a new segment. When it throws while the recorder is still recording (the
+    /// failure came before the sink stopped), the segment stays open: the file is still growing past any end we could
+    /// write, so a later "off" or the final stop retries the finalize. The error reaches the caller either way.
     /// </remarks>
     private async ValueTask StopScreenSegmentAsync(ActiveRecording active, TimeSpan? end, CancellationToken cancellationToken)
     {
@@ -323,9 +326,17 @@ public sealed class Recorder : IRecorder
         }
         finally
         {
-            active.Segments.Add(new ScreenSegment(open.Index, open.Offset, end.Value - open.Offset));
-            active.OpenSegment = null;
+            if (!active.Screen.IsRecording)
+            {
+                CloseScreenSegment(active, open, end.Value);
+            }
         }
+    }
+
+    private static void CloseScreenSegment(ActiveRecording active, (int Index, TimeSpan Offset) open, TimeSpan end)
+    {
+        active.Segments.Add(new ScreenSegment(open.Index, open.Offset, end - open.Offset));
+        active.OpenSegment = null;
     }
 
     private void OnSourceFaulted(ActiveRecording active, Track track, CaptureFault fault)
@@ -402,7 +413,8 @@ public sealed class Recorder : IRecorder
             string? screenError = null;
             try
             {
-                // The last segment ends where the user stopped, like the audio; it is recorded even if this throws.
+                // The last segment ends where the user stopped, like the audio. If finalizing throws before the
+                // recorder left the segment, it stays open here and is closed below once the recorder is released.
                 await StopScreenSegmentAsync(active, stopElapsed, CancellationToken.None).ConfigureAwait(false);
             }
             catch (Exception ex)
@@ -419,6 +431,14 @@ public sealed class Recorder : IRecorder
                 catch (Exception ex)
                 {
                     screenError ??= ex.Message;
+                }
+                finally
+                {
+                    // Releasing the recorder ends the segment whatever finalize did; its file belongs to the session.
+                    if (active.OpenSegment is { } open)
+                    {
+                        CloseScreenSegment(active, open, stopElapsed);
+                    }
                 }
             }
 

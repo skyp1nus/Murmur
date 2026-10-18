@@ -27,6 +27,12 @@ internal sealed class MisbehavingCapture(SyntheticCapture inner) : ICapture
     /// </summary>
     public bool ThrowOnStopScreenSegment { get; set; }
 
+    /// <summary>
+    /// When set, <see cref="IScreenRecorder.StopSegmentAsync"/> throws the returned exception WITHOUT stopping the inner
+    /// recorder, like a cancelled stop or an HRESULT raised before the sink stops: the recorder keeps recording.
+    /// </summary>
+    public Func<Exception>? ThrowBeforeStopScreenSegment { get; set; }
+
     /// <summary>Value the screen recorders report as <see cref="ScreenRecorderStats.FramesDropped"/> while alive.</summary>
     public long ScreenFramesDropped { get; set; }
 
@@ -169,6 +175,11 @@ internal sealed class MisbehavingCapture(SyntheticCapture inner) : ICapture
         public async ValueTask StopSegmentAsync(CancellationToken cancellationToken)
         {
             Interlocked.Increment(ref _stopSegmentCalls);
+            if (owner.ThrowBeforeStopScreenSegment is { } failure)
+            {
+                throw failure();
+            }
+
             await inner.StopSegmentAsync(cancellationToken);
             if (owner.ThrowOnStopScreenSegment)
             {

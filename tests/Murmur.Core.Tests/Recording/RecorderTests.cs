@@ -427,6 +427,105 @@ public sealed class RecorderTests : IDisposable
         Assert.Equal(1, screen.DisposeCalls);
     }
 
+    private static Exception ScreenStopFailure(bool cancelled) => cancelled
+        ? new OperationCanceledException("Screen segment stop was cancelled.")
+        : new InvalidOperationException("Screen segment failed before the sink stopped.");
+
+    private static async Task<Exception> AssertScreenStopThrows(bool cancelled, Func<Task> action) => cancelled
+        ? await Assert.ThrowsAsync<OperationCanceledException>(action)
+        : await Assert.ThrowsAsync<InvalidOperationException>(action);
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task ScreenOff_WhenStoppingFailsBeforeTheRecorderStops_KeepsTheSegmentOpenAndRetries(bool cancelled)
+    {
+        var capture = new MisbehavingCapture(new SyntheticCapture(new SyntheticCaptureOptions(SpeedFactor: 1, Screen: true)));
+        var recorder = new Recorder(capture, _store, TimeProvider.System, RecorderSettings.Default);
+
+        var started = await recorder.StartAsync(new RecordingOptions(Screen: true), Ct);
+        var screen = Assert.Single(capture.ScreenRecorders);
+        await Task.Delay(200, Ct);
+
+        capture.ThrowBeforeStopScreenSegment = () => ScreenStopFailure(cancelled);
+        var error = await AssertScreenStopThrows(cancelled, async () => await recorder.SetScreenEnabledAsync(false, Ct));
+        Assert.Equal(ScreenStopFailure(cancelled).Message, error.Message);
+
+        // The screen recorder never left the segment, so the segment stays open and the session keeps recording.
+        Assert.True(screen.IsRecording);
+        Assert.Equal(RecorderState.Recording, recorder.State);
+
+        // "On" while the segment is still open is a no-op, not a second StartSegmentAsync on a recording recorder.
+        await recorder.SetScreenEnabledAsync(true, Ct);
+        Assert.True(screen.IsRecording);
+
+        // A second "off" retries the finalize and closes the segment.
+        capture.ThrowBeforeStopScreenSegment = null;
+        await Task.Delay(100, Ct);
+        await recorder.SetScreenEnabledAsync(false, Ct);
+        Assert.False(screen.IsRecording);
+
+        // The screen can be turned back on: "on" starts segment 1.
+        await recorder.SetScreenEnabledAsync(true, Ct);
+        Assert.True(screen.IsRecording);
+        await Task.Delay(200, Ct);
+        var finished = await recorder.StopAsync(Ct);
+
+        Assert.Equal(SessionState.Recorded, finished.State);
+        Assert.Null(finished.Error);
+        Assert.Equal(2, finished.ScreenSegments.Count);
+        var (first, second) = (finished.ScreenSegments[0], finished.ScreenSegments[1]);
+        Assert.Equal(0, first.Index);
+        Assert.Equal(1, second.Index);
+
+        // The first segment ends at the successful "off", not at the failed one.
+        Assert.True(first.Duration >= TimeSpan.FromMilliseconds(250), $"first {first}");
+        Assert.True(second.Offset >= first.Offset + first.Duration, $"first {first}, second {second}");
+        var files = _store.GetFiles(started.Id);
+        Assert.True(File.Exists(files.ScreenSegment(0)));
+        Assert.True(File.Exists(files.ScreenSegment(1)));
+        Assert.Equal(3, screen.StopSegmentCalls);
+        Assert.Equal(1, screen.DisposeCalls);
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task Stop_AfterAFailedScreenOff_StillRecordsTheSegmentAndReleasesTheScreenRecorder(bool cancelled)
+    {
+        var synthetic = new SyntheticCapture(new SyntheticCaptureOptions(SpeedFactor: 1, Screen: true));
+        var capture = new MisbehavingCapture(synthetic);
+        var recorder = new Recorder(capture, _store, TimeProvider.System, RecorderSettings.Default);
+
+        var started = await recorder.StartAsync(new RecordingOptions(Screen: true), Ct);
+        var screen = Assert.Single(capture.ScreenRecorders);
+        await Task.Delay(200, Ct);
+
+        // "Off" fails before the recorder stops, and so does the finalize on the final stop.
+        capture.ThrowBeforeStopScreenSegment = () => ScreenStopFailure(cancelled);
+        await AssertScreenStopThrows(cancelled, async () => await recorder.SetScreenEnabledAsync(false, Ct));
+        Assert.True(screen.IsRecording);
+        await Task.Delay(100, Ct);
+        var finished = await recorder.StopAsync(Ct);
+
+        // The stop still retried the finalize, released the recorder and completed.
+        Assert.Equal(RecorderState.Idle, recorder.State);
+        Assert.Null(recorder.Current);
+        Assert.Equal(2, screen.StopSegmentCalls);
+        Assert.Equal(1, screen.DisposeCalls);
+        Assert.True(Assert.Single(synthetic.CreatedScreenRecorders).IsDisposed);
+
+        // The audio is intact, the screen failure is reported, and the segment ends where the user stopped.
+        Assert.Equal(SessionState.Recorded, finished.State);
+        Assert.Equal(ScreenStopFailure(cancelled).Message, finished.Error);
+        Assert.Equal(finished, _store.Get(started.Id));
+        var segment = Assert.Single(finished.ScreenSegments);
+        Assert.Equal(0, segment.Index);
+        Assert.True(segment.Duration >= TimeSpan.FromMilliseconds(250), $"segment {segment}");
+        Assert.True(segment.Offset + segment.Duration <= finished.Duration + TimeSpan.FromMilliseconds(50), $"segment {segment}, audio {finished.Duration}");
+        Assert.True(File.Exists(_store.GetFiles(started.Id).ScreenSegment(0)));
+    }
+
     [Fact]
     public async Task Stop_TakesTheFinalStatsBeforeReleasingTheScreenRecorder()
     {
