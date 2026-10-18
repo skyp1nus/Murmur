@@ -150,7 +150,7 @@ public sealed class WgcScreenRecorderTests(ITestOutputHelper output)
             var elapsed = await RecordAsync(recorder, path, TimeSpan.FromSeconds(3));
 
             var stats = recorder.Stats;
-            output.WriteLine($"{stats} device='{recorder.DeviceDescription}' framePath='{recorder.FramePath}' encoderSize={recorder.LastEncoderSize} frameArrived={recorder.FrameArrivedEvents} rateLimited={recorder.FramesRateLimited} repeated={recorder.FramesRepeated} placeholders={recorder.PlaceholderFrames} wall={elapsed}");
+            output.WriteLine($"{stats} device='{recorder.DeviceDescription}' framePath='{recorder.FramePath}' encoderSize={recorder.LastEncoderSize} fps={recorder.EncoderFrameRate} rateControl='{recorder.RateControlDescription}' frameArrived={recorder.FrameArrivedEvents} rateLimited={recorder.FramesRateLimited} repeated={recorder.FramesRepeated} placeholders={recorder.PlaceholderFrames} wall={elapsed}");
             output.WriteLine($"segment: empty={recorder.LastSegmentEmpty} {recorder.LastSegmentDiagnostic}; faults: {Describe(faults)}");
             Assert.NotEqual(EncoderNaming.None, stats.Encoder);
             SkipIfNoFramesCaptured(recorder, stats.FramesCaptured, [path], faults);
@@ -170,7 +170,8 @@ public sealed class WgcScreenRecorderTests(ITestOutputHelper output)
             Assert.True(stats.FramesEncoded >= 1, stats.ToString());
             Assert.Equal(0, recorder.PlaceholderFrames);
             AssertDuration(TimeSpan.FromSeconds(3), probe);
-            AssertTimeline(path, elapsed, frameRate: 30);
+            AssertFrameRate(recorder, requested: 60);
+            AssertTimeline(path, elapsed, recorder.EncoderFrameRate);
             AssertEncoderKeptUp(recorder, stats, probe.Frames);
         }
         finally
@@ -252,7 +253,7 @@ public sealed class WgcScreenRecorderTests(ITestOutputHelper output)
             var elapsed = await RecordAsync(recorder, path, TimeSpan.FromSeconds(2));
 
             var stats = recorder.Stats;
-            output.WriteLine($"{stats} device='{recorder.DeviceDescription}' framePath='{recorder.FramePath}' encoderSize={recorder.LastEncoderSize} frameArrived={recorder.FrameArrivedEvents} repeated={recorder.FramesRepeated} placeholders={recorder.PlaceholderFrames}");
+            output.WriteLine($"{stats} device='{recorder.DeviceDescription}' framePath='{recorder.FramePath}' encoderSize={recorder.LastEncoderSize} fps={recorder.EncoderFrameRate} rateControl='{recorder.RateControlDescription}' frameArrived={recorder.FrameArrivedEvents} repeated={recorder.FramesRepeated} placeholders={recorder.PlaceholderFrames}");
             output.WriteLine($"segment: empty={recorder.LastSegmentEmpty} {recorder.LastSegmentDiagnostic}; faults: {Describe(faults)}");
             Assert.Contains("CPU readback", stats.Encoder, StringComparison.Ordinal);
             SkipIfNoFramesCaptured(recorder, stats.FramesCaptured, [path], faults);
@@ -309,6 +310,7 @@ public sealed class WgcScreenRecorderTests(ITestOutputHelper output)
     [InlineData(false, 30)]
     [InlineData(true, 30)]
     [InlineData(false, 60)]
+    [InlineData(true, 60)]
     public async Task Record_StaticScreen_FileTimelineMatchesWallClock(bool forceCpu, int fps)
     {
         // A few frames, then none for seconds: what WGC delivers on a static screen. The fragmented MP4 stores only
@@ -325,7 +327,7 @@ public sealed class WgcScreenRecorderTests(ITestOutputHelper output)
             var elapsed = await RecordAsync(recorder, path, TimeSpan.FromSeconds(5));
 
             var stats = recorder.Stats;
-            output.WriteLine($"{stats} framePath='{recorder.FramePath}' repeated={recorder.FramesRepeated} repeatsSkipped={recorder.RepeatsSkipped} wall={elapsed}");
+            output.WriteLine($"{stats} framePath='{recorder.FramePath}' fps={recorder.EncoderFrameRate} rateControl='{recorder.RateControlDescription}' repeated={recorder.FramesRepeated} repeatsSkipped={recorder.RepeatsSkipped} wall={elapsed}");
             output.WriteLine($"segment: {recorder.LastSegmentDiagnostic}; faults: {Describe(faults)}");
             SkipIfNoFramesCaptured(recorder, stats.FramesCaptured, [path], faults);
 
@@ -335,7 +337,8 @@ public sealed class WgcScreenRecorderTests(ITestOutputHelper output)
             // keep the file growing at all. The timeline below is the exact check: it holds however many repeats ran.
             Assert.True(recorder.FramesRepeated >= 2, $"only {recorder.FramesRepeated} repeats in 5 s of static screen");
             Assert.Equal(0, recorder.RepeatsSkipped);
-            AssertTimeline(path, elapsed, fps);
+            AssertFrameRate(recorder, fps);
+            AssertTimeline(path, elapsed, recorder.EncoderFrameRate);
             AssertDuration(TimeSpan.FromSeconds(5), Mp4Probe.Read(path));
         }
         finally
@@ -474,8 +477,12 @@ public sealed class WgcScreenRecorderTests(ITestOutputHelper output)
         var detail = $"{stats}; poolExhausted={recorder.FramesPoolExhausted} repeated={recorder.FramesRepeated} frameArrived={recorder.FrameArrivedEvents} framePath='{recorder.FramePath}'";
         Assert.True(stats.FramesDropped <= Math.Max(2, stats.FramesCaptured / 10), "more than 10% of the captured frames were dropped: " + detail);
 
-        // More frames than written is fine: the software encoder pads static stretches to its frame rate.
-        Assert.True(framesInFiles >= stats.FramesEncoded + recorder.FramesRepeated, $"the files hold {framesInFiles} frames, fewer than were written: " + detail);
+        // More frames than written is fine: the software encoder pads static stretches to its frame rate. It also
+        // re-times its output to that constant rate, so two captured frames within one frame interval (vsync jitter
+        // against the rate limiter's tolerance) leave one frame: allow that on CPU readback, nowhere else.
+        var written = stats.FramesEncoded + recorder.FramesRepeated;
+        var retimed = recorder.FramePath!.StartsWith("CPU readback", StringComparison.Ordinal) ? Math.Max(1, written / 50) : 0;
+        Assert.True(framesInFiles >= written - retimed, $"the files hold {framesInFiles} frames, fewer than were written: " + detail);
         Assert.Null(recorder.GpuPathDisabled);
     }
 
@@ -502,6 +509,13 @@ public sealed class WgcScreenRecorderTests(ITestOutputHelper output)
         var high = (elapsed.Outer + slack).TotalSeconds;
         Assert.InRange(scan.DurationS, low, high);
         Assert.InRange(scan.MvhdDurationS, low, high);
+    }
+
+    /// <summary>The GPU zero-copy path encodes at the requested rate; CPU readback caps it at 30 fps.</summary>
+    private static void AssertFrameRate(WgcScreenRecorder recorder, int requested)
+    {
+        var cpu = recorder.FramePath!.StartsWith("CPU readback", StringComparison.Ordinal);
+        Assert.Equal(cpu ? Math.Min(requested, FramePathPolicy.CpuMaxFrameRate) : requested, recorder.EncoderFrameRate);
     }
 
     private static void AssertDuration(TimeSpan expected, Mp4ProbeResult probe)

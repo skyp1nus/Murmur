@@ -19,6 +19,7 @@
   <!-- Pure timing math of the screen recorder (no Windows APIs), linked so it runs on the net11.0 benchmark TFM. -->
   <ItemGroup>
     <Compile Include="..\..\src\Murmur.Capture.Windows\Screen\FrameTiming.cs" Link="Linked\FrameTiming.cs" />
+    <Compile Include="..\..\src\Murmur.Capture.Windows\Screen\KeyFrameSchedule.cs" Link="Linked\KeyFrameSchedule.cs" />
     <Compile Include="..\..\src\Murmur.Capture.Windows\Screen\EncoderGeometry.cs" Link="Linked\EncoderGeometry.cs" />
   </ItemGroup>
 

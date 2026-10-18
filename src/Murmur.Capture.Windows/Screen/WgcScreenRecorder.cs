@@ -21,8 +21,18 @@ namespace Murmur.Capture.Windows.Screen;
 /// "CPU readback" and <see cref="FramePath"/> says why (see <see cref="FramePathPolicy"/>).
 /// </para>
 /// <para>
+/// <b>Encoding.</b> The display is scaled to fit <see cref="ScreenCaptureOptions.MaxHeight"/> (aspect kept, never
+/// upscaled: 2560x1440 becomes 1920x1080) and encoded as H.264 High with peak-constrained VBR (mean
+/// <see cref="ScreenCaptureOptions.BitrateKbps"/>, peak twice that; CBR if the encoder refuses VBR) with a keyframe at
+/// least every 2 s of media time, static screens included (<see cref="KeyFrameDescription"/>,
+/// <see cref="KeyFrameSchedule"/>). The GPU zero-copy path runs at <see cref="ScreenCaptureOptions.FrameRate"/> (60 by
+/// default); CPU readback is capped at <see cref="FramePathPolicy.CpuMaxFrameRate"/> with the bit rate scaled down
+/// alike (<see cref="FramePathPolicy.Settings"/>), so <see cref="EncoderFrameRate"/> and
+/// <see cref="RateControlDescription"/> say what a segment really uses.
+/// </para>
+/// <para>
 /// <b>Frame path.</b> FrameArrived (WGC worker thread) drains the pool through raw ABI calls, rate-limits to
-/// <see cref="ScreenCaptureOptions.FrameRate"/>, takes a sample from the segment's <see cref="IFramePath"/>, fills it
+/// <see cref="EncoderFrameRate"/>, takes a sample from the segment's <see cref="IFramePath"/>, fills it
 /// and enqueues it in a bounded lock-free ring; a dedicated encoder thread timestamps (QPC timeline relative to the
 /// segment start) and writes the samples. The handler never blocks on the encoder: an exhausted sample pool or a full
 /// ring drops the frame and counts it. Both loops are allocation-free in steady state. A failing copy step is named in
@@ -39,13 +49,15 @@ namespace Murmur.Capture.Windows.Screen;
 /// <b>Timeline.</b> The file has a variable frame rate and its timeline is wall-clock time: the fragmented-MP4 sink
 /// stores only sample durations (no base decode time), so the encoder thread holds the newest frame back and writes it
 /// once the next frame (or the end of the segment) tells how long it was on screen (see <see cref="HeldFrameTiming"/>).
-/// The first frame starts at 0, the last one ends at the stop time; a crash loses at most the held frame.
+/// The first frame starts at 0, the last one ends at the stop time. A crash keeps the file up to its last complete
+/// fragment: it loses the held frame and the fragment being filled, measured at under 2 s on a static screen (one
+/// repeat a second; ScreenCrashRecoveryTests), less with moving content.
 /// </para>
 /// <para>
 /// <b>Static screens.</b> WGC only delivers frames when the screen changes; the encoder thread repeats the held frame
-/// once a second while nothing arrives, so fragments keep being written for crash safety (a repeat that finds no free
-/// sample is skipped and counted in <see cref="RepeatsSkipped"/>; the timeline stays right; a failed copy is a fatal
-/// fault like a failed captured frame). Repeats are only written
+/// once a second while nothing arrives, so the file keeps growing by whole fragments for crash safety (a repeat that
+/// finds no free sample is skipped and counted in <see cref="RepeatsSkipped"/>; the timeline stays right; a failed copy
+/// is a fatal fault like a failed captured frame). Repeats are only written
 /// while the segment accepts frames: after a fatal fault (display disconnected, frame pool or GPU failure) nothing
 /// extends the timeline any more and the last frame ends at the fault time, so the file never shows a frozen frame as
 /// if it were live content (see <see cref="RepeatPolicy"/>).
@@ -77,13 +89,39 @@ namespace Murmur.Capture.Windows.Screen;
 /// </summary>
 internal sealed class WgcScreenRecorder : IScreenRecorder
 {
-    internal const int QueueCapacity = 4;
-    internal const uint InitialSamples = 4;
-    internal const uint MaximumSamples = 12;
+    /// <summary>Frames between the FrameArrived handler and the encoder thread: 133 ms at 60 fps.</summary>
+    internal const int QueueCapacity = 8;
 
-    /// <summary>System-memory samples of the CPU path: queue + last frame + the one being filled + what the software encoder holds.</summary>
+    /// <summary>GPU samples created up front; the allocator adds more on demand, up to <see cref="MaximumSamples"/>.</summary>
+    internal const uint InitialSamples = 4;
+
+    /// <summary>
+    /// The most GPU samples of a segment: 400 ms of frames at 60 fps (queue + held frame + the one being filled + what the
+    /// hardware encoder holds, with room for a busy GPU). Samples beyond <see cref="InitialSamples"/> are only created when
+    /// needed (video memory, not system memory); a real-time 1080p60 encode stays within the initial 4 (GpuEncoder1080p60Tests,
+    /// WgcScreenRecorder1080p60Tests measure the headroom).
+    /// </summary>
+    internal const uint MaximumSamples = 24;
+
+    /// <summary>
+    /// System-memory samples the CPU path creates up front: the held frame, the one being filled and the one the
+    /// encoder is converting, which is all a pipeline that keeps up needs. Every sample is a whole encoder-size frame of
+    /// RAM (8.3 MB at 1080p); more are created only while the encoder falls behind.
+    /// </summary>
     internal const int InitialCpuSamples = 3;
-    internal const int MaximumCpuSamples = 8;
+
+    /// <summary>
+    /// RGB32 samples the CPU path's encoder pipeline holds at most: the sink writer's color converter takes one input
+    /// sample at a time and the software encoder works on its own NV12 copies, so one, with one more for the hand-over.
+    /// </summary>
+    internal const int CpuEncoderHeldSamples = 2;
+
+    /// <summary>
+    /// The most system-memory samples of a segment: a full queue + the held frame + the one being filled + what the
+    /// encoder holds, so a stall of the encoder fills the queue before the pool runs dry (frames are then dropped at the
+    /// queue, not lost to an empty pool that looks like a leak). 12 x 8.3 MB at 1080p, reached only during such a stall.
+    /// </summary>
+    internal const int MaximumCpuSamples = QueueCapacity + 2 + CpuEncoderHeldSamples;
     internal const int MaxFramesPerEvent = 4;
     internal static readonly long RepeatInterval = MediaTime.TicksPerSecond;
     private const int EncoderWaitMilliseconds = 250;
@@ -169,6 +207,40 @@ internal sealed class WgcScreenRecorder : IScreenRecorder
     /// encoder MFT)" or "CPU readback: software renderer ..." (diagnostics; null before the first segment).
     /// </summary>
     internal string? FramePath { get; private set; }
+
+    /// <summary>
+    /// The frame rate the current or last segment encodes at: <see cref="ScreenCaptureOptions.FrameRate"/> on the GPU
+    /// zero-copy path, at most <see cref="FramePathPolicy.CpuMaxFrameRate"/> on CPU readback (diagnostics; 0 before
+    /// the first segment).
+    /// </summary>
+    internal int EncoderFrameRate { get; private set; }
+
+    /// <summary>
+    /// The rate control the encoder of the current or last segment reports, e.g. "peak-constrained VBR, mean 12000
+    /// kbps, peak 24000 kbps" (diagnostics; null before the first segment).
+    /// </summary>
+    internal string? RateControlDescription { get; private set; }
+
+    /// <summary>
+    /// How the last stopped segment bounded the time between keyframes, e.g. "an IDR frame at least every 2 s (forced; 30
+    /// so far)" (see <see cref="KeyFrameSchedule"/>; diagnostics: null before the first stop).
+    /// </summary>
+    internal string? KeyFrameDescription { get; private set; }
+
+    /// <summary>
+    /// The fewest GPU samples that were available when the last stopped segment asked for one (see
+    /// <see cref="GpuFrameCopier.MinAvailableSamples"/>; diagnostics: -1 on CPU readback or before a stop).
+    /// </summary>
+    internal int LastPoolHeadroom { get; private set; } = -1;
+
+    /// <summary>
+    /// System-memory samples the CPU readback path of the last stopped segment created (diagnostics: each one is a whole
+    /// encoder-size frame of RAM; 0 on the GPU path or before a stop).
+    /// </summary>
+    internal int LastCpuSamples { get; private set; }
+
+    /// <summary>Tests only: the rate control to ask the encoder for (the default: peak-constrained VBR).</summary>
+    internal RateControl RequestedRateControl { get; init; } = RateControl.PeakConstrainedVbr;
 
     /// <summary>Tests only: use the CPU readback path even when a hardware encoder is available.</summary>
     internal bool ForceCpuReadback { get; init; }
@@ -334,8 +406,13 @@ internal sealed class WgcScreenRecorder : IScreenRecorder
             segment.PoolSize = itemSize;
             segment.EncoderSize = EncoderGeometry.FitEncoderSize(itemSize.Width, itemSize.Height, _options.MaxHeight);
             LastEncoderSize = segment.EncoderSize;
-            FramePath = OpenEncoder(segment, gpu, path, new H264EncoderSettings(segment.EncoderSize, _options.FrameRate, _options.BitrateKbps), ForceCpuReadback, _gpuPathDisabled, CpuSampleLimit);
+            FramePath = OpenEncoder(segment, gpu, path, new H264EncoderSettings(segment.EncoderSize, _options.FrameRate, _options.BitrateKbps, RequestedRateControl), ForceCpuReadback, _gpuPathDisabled, CpuSampleLimit);
             _encoder = segment.Writer!.Encoder;
+            EncoderFrameRate = segment.Writer.Settings.FrameRate;
+            RateControlDescription = segment.Writer.RateControlDescription;
+            LastPoolHeadroom = -1;
+            LastCpuSamples = 0;
+            segment.UseFrameRate(EncoderFrameRate);
 
             segment.Pool = Direct3D11CaptureFramePool.CreateFreeThreaded(gpu.WinRtDevice, DirectXPixelFormat.B8G8R8A8UIntNormalized, 2, itemSize);
             segment.PoolAbi = CaptureInterop.GetFramePoolAbi(segment.Pool);
@@ -467,6 +544,16 @@ internal sealed class WgcScreenRecorder : IScreenRecorder
         }
 
         ComCall.Release(ref segment.PoolAbi);
+        if (segment.Frames is GpuFrameCopier gpuFrames)
+        {
+            LastPoolHeadroom = gpuFrames.MinAvailableSamples;
+        }
+        else if (segment.Frames is CpuFrameCopier cpuFrames)
+        {
+            LastCpuSamples = cpuFrames.PooledSamples;
+        }
+
+        KeyFrameDescription = segment.Writer?.KeyFrameDescription;
         segment.Writer?.Dispose();
         segment.Frames?.Dispose(); // after the writer: Media Foundation has released the samples by now
         segment.Wake.Dispose();
@@ -512,8 +599,10 @@ internal sealed class WgcScreenRecorder : IScreenRecorder
             segment.Frames = null;
         }
 
-        segment.Frames = new CpuFrameCopier(gpu.Device, gpu.Context, settings.FrameSize, MediaFoundationSampleFactory.Instance, Math.Min(InitialCpuSamples, cpuSamples), cpuSamples);
-        segment.Writer = H264SinkWriter.Create(path, settings, EncoderInput.Cpu, 0);
+        // CPU readback: at most FramePathPolicy.CpuMaxFrameRate (the segment's limiter and timeline follow the writer).
+        var cpuSettings = FramePathPolicy.Settings(EncoderInput.Cpu, settings);
+        segment.Frames = new CpuFrameCopier(gpu.Device, gpu.Context, cpuSettings.FrameSize, MediaFoundationSampleFactory.Instance, Math.Min(InitialCpuSamples, cpuSamples), cpuSamples);
+        segment.Writer = H264SinkWriter.Create(path, cpuSettings, EncoderInput.Cpu, 0);
         return reason;
     }
 
@@ -1004,9 +1093,22 @@ internal sealed class WgcScreenRecorder : IScreenRecorder
         public readonly SpscRing<QueuedFrame> Queue = new(QueueCapacity);
         public readonly AutoResetEvent Wake = new(false);
         public readonly Lock CopyLock = new();
-        public readonly FrameRateLimiter Limiter = new(frameRate);
         public readonly SegmentTimeline Timeline = new();
-        public readonly HeldFrameTiming Timing = new(HeldFrameTiming.SinkTimescale(frameRate));
+        public FrameRateLimiter Limiter = new(frameRate);
+        public HeldFrameTiming Timing = new(HeldFrameTiming.SinkTimescale(frameRate));
+
+        /// <summary>
+        /// Sets the frame rate the segment's encoder runs at (CPU readback caps it); before capture and the encoder
+        /// thread start.
+        /// </summary>
+        public void UseFrameRate(int rate)
+        {
+            if (rate != Limiter.FrameRate)
+            {
+                Limiter = new FrameRateLimiter(rate);
+                Timing = new HeldFrameTiming(HeldFrameTiming.SinkTimescale(rate));
+            }
+        }
 
         public GraphicsCaptureItem? Item;
         public TypedEventHandler<GraphicsCaptureItem, object>? ItemClosed;

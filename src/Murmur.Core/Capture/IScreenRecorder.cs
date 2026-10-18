@@ -2,7 +2,7 @@ namespace Murmur.Core.Capture;
 
 public sealed record DisplayInfo(string Id, string Name, int Width, int Height, bool IsPrimary);
 
-public sealed record ScreenCaptureOptions(string? DisplayId = null, int FrameRate = 30, int MaxHeight = 1080, int BitrateKbps = 6_000);
+public sealed record ScreenCaptureOptions(string? DisplayId = null, int FrameRate = 60, int MaxHeight = 1080, int BitrateKbps = 12_000);
 
 public readonly record struct ScreenRecorderStats(long FramesCaptured, long FramesEncoded, long FramesDropped, string Encoder);
 

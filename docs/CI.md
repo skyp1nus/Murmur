@@ -98,7 +98,8 @@ gh run download <run-id> --name murmur-win-x64 --dir murmur-win-x64
 
 ```json
 { "durationS": 60.0, "idleCpuPct": 0.0, "cpuAvgPct": 0.0, "cpuP95Pct": 0.0, "cpuAvgPctOneCore": 0.0,
-  "wsAvgMb": 0.0, "wsMaxMb": 0.0, "privateMaxMb": 0.0,
+  "wsAvgMb": 0.0, "wsMaxMb": 0.0, "privateMaxMb": 0.0, "wsSlopeMbPerMin": 0.0,
+  "memory": [ { "seconds": 0.0, "wsMb": 0.0, "privateMb": 0.0, "gcHeapMb": 0.0, "gcCommittedMb": 0.0, "gcAllocatedMb": 0.0, "gen0Collections": 0, "gen2Collections": 0 } ],
   "recorderStats": { "microphoneFrames": 0, "systemFrames": 0, "droppedFrames": 0, "screenFramesDropped": 0 },
   "session": { "id": "", "folder": "", "micSeconds": 0.0, "systemSeconds": 0.0, "screenSegments": 0 } }
 ```
@@ -116,8 +117,9 @@ gh run download <run-id> --name murmur-win-x64 --dir murmur-win-x64
 | Тиша (`-ExpectTone`) | жодної серії нульових семплів (`abs <= 1`) довше 100 мс у `system.wav`; перші 5 с і останні 2 с ігноруються (старт тону й запису не синхронні) |
 | Тон (`-ExpectTone`) | не менше 95% односекундних вікон містять 440 Гц (відношення енергії Goertzel >= 0.5), пік сигналу > 0 |
 | Екран (`-ExpectScreen`) | є хоча б один непорожній `screen-NNN.mp4`, `session.screenSegments` дорівнює кількості файлів |
-| Відео екрана (`-ExpectScreen`) | кожен сегмент розбирається як MP4 з відеосемплами; у звіті кадри, тривалість і fps сегмента; fps не нижче `-MinScreenFps` (5; `0` вимикає; на статичному екрані рекордер повторює кадри, тож норма ~30). Сума тривалостей сегментів у межах +/- `-ScreenToleranceS` (2 с) від `durationS`: файл із 12 кадрів (0.4 с) для 10-хвилинного запису тепер дає FAIL |
+| Відео екрана (`-ExpectScreen`) | кожен сегмент розбирається як MP4 з відеосемплами; у звіті кадри, тривалість і fps сегмента; fps не нижче `-MinScreenFps` (0.5; `0` вимикає). Частота кадрів змінна: на статичному екрані рекордер раз на секунду повторює останній кадр (~1 fps), рухомий вміст іде до 60 fps на GPU-шляху і до 30 fps у CPU readback (WARP на раннері; програмний енкодер сам доповнює статичні проміжки до 30 fps). Сума тривалостей сегментів у межах +/- `-ScreenToleranceS` (2 с) від `durationS`: файл із 12 кадрів (0.4 с) для 10-хвилинного запису тепер дає FAIL |
 | Бюджети (опційно) | `-IdleCpuBudgetPct` для `idleCpuPct`, `-CpuBudgetPct` для `cpuAvgPct` (відсоток від усієї машини), `-RamBudgetMb` для `wsMaxMb`; `0` вимикає перевірку |
+| Ріст памʼяті (опційно) | `-MaxWsSlopeMbPerMin`: нахил working set (МБ/хв, метод найменших квадратів по `memory[].seconds` / `memory[].wsMb`) лише по вибірках від `-WsSlopeSkipS` (60 с) - перша хвилина є прогрівом (JIT, Media Foundation, енкодер, пули семплів) і в підгонку не входить; `wsSlopeMbPerMin` самого застосунку рахується з початку запису, тому лише показується (INFO). Менше 3 вибірок після прогріву - FAIL (нема по чому рахувати); `0` вимикає перевірку |
 
 Тривалість відео - це сума тривалостей семплів відеотреку з `moof/traf/trun` (з типовими значеннями з `tfhd`/`trex`), поділена на timescale з `mdhd`; для нефрагментованого MP4 - таблиця `stts`; без семплів береться `mehd`/`mvhd`, але тоді кількість кадрів невідома і сегмент отримує FAIL. Файл, обірваний збоєм, читається до останнього повного боксу (у звіті `file truncated`). `screen-NNN.mp4` читає `scripts/MurmurMp4Scan.cs` (його ж `Add-Type -Path` компілює скрипт); JSON сесії не містить зсувів сегментів, тому порівнюється сума, а `--autorecord` не перемикає екран, отже сегмент покриває весь запис мінус затримка старту. Юніт-тести парсера і скрипту - `tests/Murmur.Scripts.Tests` (тести скрипту потребують `pwsh`, інакше скіпаються).
 
@@ -136,14 +138,14 @@ Workflow сам збирає Native AOT `Murmur.Desktop` win-x64 (без `Murmur
 
 | Запуск | Команда | Бюджети (docs/PLAN.md) |
 |---|---|---|
-| A | `--autorecord <minutes*60>` | CPU у простої < 1%, CPU запису < 3%, RAM < 150 МБ |
-| B | `--autorecord 600 --screen` | CPU у простої < 1%, CPU запису < 8%, RAM < 150 МБ |
+| A | `--autorecord <minutes*60>` | CPU у простої < 1%, CPU запису < 3%, RAM < 150 МБ, ріст памʼяті після першої хвилини < 1 МБ/хв |
+| B | `--autorecord 600 --screen` | CPU у простої < 1%, CPU запису < 8%, ріст памʼяті після першої хвилини < 1 МБ/хв (`-MaxWsSlopeMbPerMin 1`); абсолютного ліміту RAM для запису з екраном немає (рішення власника 2026-10-19: якість важливіша, памʼяті - скільки треба), `wsMaxMb` лише в звіті |
 
 Обидва запуски перевіряє `check-recording.ps1` (без втрат: тривалість `system.wav` +/- 1 с від `durationS`, жодних нульових серій > 100 мс поки грає тон, `droppedFrames == 0`). Збій запуску A не скасовує B. У Step Summary: таблиці перевірок і зведена таблиця «метрика / бюджет / A / B». `timeout-minutes: 120` (збірка ~15 хв + A + 10 хв B). Артефакт `perf-record` (JSON і markdown, без великих WAV).
 
 Хмарний раннер (4 vCPU, без GPU) повільніший і шумніший за реальний ПК: промах бюджету - сигнал до уваги, а не вирок. Для перевірки на реальному залізі запускайте `Murmur.exe --autorecord` локально.
 
-Підтверджено запусками на `windows-latest` (2026-10-18): `LABSN/sound-ci-helpers@v1` ставить VB-Audio Virtual Cable, і він стає пристроєм за замовчуванням (loopback записує тон 440 Гц); `Server-Media-Foundation` відсутній в образі й ставиться кроком за ~1 хв; WGC віддає кадри без фізичного дисплея (WARP, тому CPU-readback, D-027); `SoundPlayer` у `pwsh` 7 грає тон увесь запуск. Мікрофон (`CABLE Output`) заборонений налаштуваннями конфіденційності раннера → `E_ACCESSDENIED`, запис іде без мікрофона (D-023).
+Підтверджено запусками на `windows-latest` (2026-10-18): `LABSN/sound-ci-helpers@v1` ставить VB-Audio Virtual Cable, і він стає пристроєм за замовчуванням (loopback записує тон 440 Гц); `Server-Media-Foundation` відсутній в образі й ставиться кроком за ~1 хв; WGC віддає кадри без фізичного дисплея (WARP, тому CPU-readback, D-027: 1080p30, VBR 6 Мбіт/с; на ПК з апаратним H.264-енкодером - 1080p60, VBR 12 Мбіт/с, D-030); `SoundPlayer` у `pwsh` 7 грає тон увесь запуск. Мікрофон (`CABLE Output`) заборонений налаштуваннями конфіденційності раннера → `E_ACCESSDENIED`, запис іде без мікрофона (D-023).
 
 ## AI-eval: «відповідь AI веде на правильну хвилину» (`.github/workflows/ai-eval.yml`)
 

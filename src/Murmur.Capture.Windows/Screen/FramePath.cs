@@ -29,6 +29,42 @@ internal static class FramePathPolicy
     public static EncoderInput Choose(bool videoSupport, bool softwareRenderer, int hardwareH264Encoders) =>
         videoSupport && !softwareRenderer && hardwareH264Encoders > 0 ? EncoderInput.Gpu : EncoderInput.Cpu;
 
+    /// <summary>
+    /// The highest frame rate of <see cref="EncoderInput.Cpu"/>: every frame is read back, converted and encoded in
+    /// software, so 1080p60 would not fit the CPU budget of a recording (&lt; 8 %).
+    /// </summary>
+    public const int CpuMaxFrameRate = 30;
+
+    /// <summary>
+    /// The encoder settings of a segment on <paramref name="input"/>: the zero-copy path encodes what was asked for;
+    /// CPU readback caps the frame rate at <see cref="CpuMaxFrameRate"/> and scales the bit rate with it, so a frame
+    /// gets as many bits as at the requested rate.
+    /// <para>
+    /// Keyframes are forced (<see cref="H264EncoderSettings.KeyFrameInterval"/>) on the zero-copy path only. The hardware
+    /// encoder encodes exactly the samples it is given, so on a static screen (about one repeat a second) its GOP of
+    /// frames would put minutes between keyframes. The CPU readback pipeline (the Microsoft H.264 encoder behind the
+    /// sink writer's RGB32 converter) emits a constant frame rate whatever the sample times (150 samples for 5 s of a
+    /// static screen at 30 fps), so its GOP of 2 s of frames is already 2 s of media time; requests there land on
+    /// whatever frame the encoder is at and only add keyframes (KeyFrameIntervalTests measure both).
+    /// </para>
+    /// </summary>
+    public static H264EncoderSettings Settings(EncoderInput input, H264EncoderSettings requested)
+    {
+        if (input == EncoderInput.Gpu)
+        {
+            return requested;
+        }
+
+        var cpu = requested with { KeyFrameInterval = 0 };
+        if (requested.FrameRate <= CpuMaxFrameRate)
+        {
+            return cpu;
+        }
+
+        var bitrate = (int)Math.Max(1, (long)requested.BitrateKbps * CpuMaxFrameRate / requested.FrameRate);
+        return cpu with { FrameRate = CpuMaxFrameRate, BitrateKbps = bitrate };
+    }
+
     /// <summary>Why <see cref="Choose"/> picked what it picked (diagnostics).</summary>
     public static string Describe(bool videoSupport, bool softwareRenderer, int hardwareH264Encoders) =>
         Choose(videoSupport, softwareRenderer, hardwareH264Encoders) switch

@@ -38,6 +38,7 @@ public sealed class HeldSampleTests : IDisposable
         Assert.Equal(0, held);
         Assert.Equal([sample.Pointer], sink.Written);
         Assert.Equal(3_330_000, sample.Time);
+        Assert.Equal([3_330_000L], sink.Times); // the sink is told the sample time (keyframe schedule)
         Assert.Equal(333_667, sample.Duration);
         Assert.Equal(1, sample.References); // only the test's own reference is left
     }
@@ -272,13 +273,15 @@ public sealed class HeldSampleTests : IDisposable
     {
         public List<nint> Written { get; } = [];
 
+        public List<long> Times { get; } = [];
+
         public bool Record { get; init; } = true;
 
         public int Result { get; init; }
 
         public Exception? Throw { get; init; }
 
-        public int WriteSample(nint sample)
+        public int WriteSample(nint sample, long time)
         {
             if (Throw is not null)
             {
@@ -288,6 +291,7 @@ public sealed class HeldSampleTests : IDisposable
             if (Record)
             {
                 Written.Add(sample);
+                Times.Add(time);
             }
 
             return Result;

@@ -7,6 +7,9 @@ namespace Murmur.Capture.Windows.Tests;
 /// <summary>What Media Foundation's source reader sees in a recorded segment.</summary>
 internal sealed record Mp4ProbeResult(Guid VideoSubtype, int Width, int Height, int Frames, long LastSampleEnd, long PresentationDuration)
 {
+    /// <summary>Compressed bytes of every video sample in decode order (0 where the length could not be read).</summary>
+    public IReadOnlyList<int> SampleBytes { get; init; } = [];
+
     /// <summary>The presentation duration when the file declares one, else the end of the last sample (100 ns).</summary>
     public long Duration => PresentationDuration > 0 ? PresentationDuration : LastSampleEnd;
 }
@@ -46,6 +49,7 @@ internal static unsafe class Mp4Probe
 
             var frames = 0;
             long end = 0;
+            var sizes = new List<int>();
             while (true)
             {
                 uint actual, flags;
@@ -60,6 +64,7 @@ internal static unsafe class Mp4Probe
                     long duration = 0;
                     IMFSample.GetSampleDuration(sample, &duration);
                     end = Math.Max(end, timestamp + duration);
+                    sizes.Add(SampleLength(sample));
                     ComCall.Release(ref sample);
                 }
 
@@ -69,12 +74,29 @@ internal static unsafe class Mp4Probe
                 }
             }
 
-            return new Mp4ProbeResult(subtype, (int)(packedSize >> 32), (int)(packedSize & 0xFFFF_FFFF), frames, end, declared);
+            return new Mp4ProbeResult(subtype, (int)(packedSize >> 32), (int)(packedSize & 0xFFFF_FFFF), frames, end, declared) { SampleBytes = sizes };
         }
         finally
         {
             ComCall.Release(ref mediaType);
             ComCall.Release(ref reader);
+        }
+    }
+
+    /// <summary>The current length of the sample's first buffer (compressed samples have one).</summary>
+    private static int SampleLength(nint sample)
+    {
+        nint buffer = 0;
+        try
+        {
+            uint length = 0;
+            return IMFSample.GetBufferByIndex(sample, 0, &buffer) >= 0 && buffer != 0 && IMFMediaBuffer.GetCurrentLength(buffer, &length) >= 0
+                ? (int)length
+                : 0;
+        }
+        finally
+        {
+            ComCall.Release(ref buffer);
         }
     }
 }

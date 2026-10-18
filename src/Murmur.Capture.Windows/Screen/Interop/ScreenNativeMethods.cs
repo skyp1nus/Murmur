@@ -105,6 +105,12 @@ internal static unsafe partial class ScreenNativeMethods
     [LibraryImport("ole32.dll")]
     public static partial void CoTaskMemFree(nint memory);
 
+    // ---- oleaut32.dll ----
+
+    /// <summary><c>HRESULT VariantClear(VARIANTARG *pvarg)</c>: frees what a VARIANT owns and sets it to VT_EMPTY.</summary>
+    [LibraryImport("oleaut32.dll")]
+    public static partial int VariantClear(Variant* value);
+
     // ---- kernel32.dll ----
 
     /// <summary><c>BOOL ProcessIdToSessionId(DWORD dwProcessId, DWORD *pSessionId)</c>.</summary>
