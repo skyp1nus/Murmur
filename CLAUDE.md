@@ -30,6 +30,10 @@ dotnet publish src/Murmur.Desktop -c Release -f net11.0-windows10.0.22621.0 -r w
 dotnet run -c Release --project tests/Murmur.Benchmarks
 ```
 
+## Перевірка на Windows
+- Windows-поведінку (WASAPI, WGC/MF, AOT win-x64, старт) доводить CI: `ci.yml` (тести, AOT, `startup`, `capture-e2e`), `perf-record.yml` (1 год запису; запуск — зміна `.github/perf-request.txt`), `asr.yml` (бенч 1 год ASR), `ai-eval.yml` (Gemma 4). Раннер без GPU (WARP) і з забороненим мікрофоном — не плутати це з багами продукту.
+- Теги `phase-N-done` — рядком у `.github/phase-tags.txt` (створює `tags.yml`).
+
 ## Середовище
 Код захоплення (WASAPI, WGC, Media Foundation) і AOT-збірку win-x64 можна запускати й перевіряти лише на Windows. На Linux — тільки Core, Storage, Intelligence і тести без платформного коду.
 
