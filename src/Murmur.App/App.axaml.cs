@@ -1,6 +1,7 @@
 using Avalonia;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Markup.Xaml;
+using Murmur.App.Diagnostics;
 using Murmur.App.ViewModels;
 using Murmur.App.Views;
 
@@ -33,10 +34,17 @@ public partial class App : Application
     {
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
-            desktop.MainWindow = new MainWindow
+            var window = new MainWindow
             {
                 DataContext = new MainWindowViewModel(),
             };
+
+            if (StartupProbe.TryGetPath(Args, out var probePath))
+            {
+                StartupProbe.Attach(window, probePath, code => desktop.Shutdown(code));
+            }
+
+            desktop.MainWindow = window;
         }
 
         base.OnFrameworkInitializationCompleted();

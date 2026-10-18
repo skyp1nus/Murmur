@@ -6,34 +6,48 @@ namespace Murmur.App.Tests;
 public sealed class MainWindowViewModelTests
 {
     [Fact]
-    public void Status_DefaultsToReady()
+    public void Defaults_AreEmptySearchAndZeroTimer()
     {
-        Assert.Equal("Ready", new MainWindowViewModel().Status);
+        var vm = new MainWindowViewModel();
+
+        Assert.Equal(string.Empty, vm.SearchText);
+        Assert.Equal("00:00:00", vm.TimerSample);
     }
 
     [Fact]
-    public void Status_RaisesPropertyChanged()
+    public void SearchText_RaisesPropertyChanged()
     {
         var vm = new MainWindowViewModel();
         var raised = new List<string?>();
         vm.PropertyChanged += (_, e) => raised.Add(e.PropertyName);
 
-        vm.Status = "Recording";
+        vm.SearchText = "standup";
 
-        Assert.Equal([nameof(MainWindowViewModel.Status)], raised);
-        Assert.Equal("Recording", vm.Status);
+        Assert.Equal([nameof(MainWindowViewModel.SearchText)], raised);
+        Assert.Equal("standup", vm.SearchText);
     }
 
     [Fact]
-    public void Status_SettingSameValue_DoesNotRaisePropertyChanged()
+    public void SearchText_SettingSameValue_DoesNotRaisePropertyChanged()
     {
         var vm = new MainWindowViewModel();
         var count = 0;
         PropertyChangedEventHandler handler = (_, _) => count++;
         vm.PropertyChanged += handler;
 
-        vm.Status = vm.Status;
+        vm.SearchText = vm.SearchText;
 
         Assert.Equal(0, count);
+    }
+
+    [Fact]
+    public void PlaceholderCommands_AreExecutableNoOps()
+    {
+        var vm = new MainWindowViewModel();
+
+        Assert.True(vm.StartRecordingCommand.CanExecute(null));
+        Assert.True(vm.OpenSettingsCommand.CanExecute(null));
+        vm.StartRecordingCommand.Execute(null);
+        vm.OpenSettingsCommand.Execute(null);
     }
 }

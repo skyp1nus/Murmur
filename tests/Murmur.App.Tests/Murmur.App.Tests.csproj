@@ -20,6 +20,11 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- tokens.json -> Tokens.axaml generator, compiled in so the test can regenerate without launching a process. -->
+    <Compile Include="..\..\tools\Murmur.TokenGen\TokenGenerator.cs" Link="TokenGen\TokenGenerator.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\..\src\Murmur.App\Murmur.App.csproj" />
   </ItemGroup>
 

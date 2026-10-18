@@ -4,9 +4,62 @@
         x:Class="Murmur.App.Views.MainWindow"
         x:DataType="vm:MainWindowViewModel"
         Title="Murmur"
-        Width="1024"
-        Height="680">
-  <TextBlock Text="{Binding Status}"
-             HorizontalAlignment="Center"
-             VerticalAlignment="Center" />
+        Width="1200"
+        Height="780"
+        MinWidth="900"
+        MinHeight="600">
+
+  <Grid RowDefinitions="Auto,*"
+        Margin="{StaticResource Inset.48}">
+
+    <!-- Header: wordmark and search -->
+    <Grid Grid.Row="0"
+          ColumnDefinitions="Auto,*,Auto">
+      <TextBlock Grid.Column="0"
+                 Classes="heading"
+                 VerticalAlignment="Center"
+                 Text="Murmur" />
+      <TextBox Grid.Column="2"
+               Classes="pill"
+               Width="360"
+               VerticalAlignment="Center"
+               PlaceholderText="Пошук по записах"
+               Text="{Binding SearchText}" />
+    </Grid>
+
+    <!-- Empty state -->
+    <Border Grid.Row="1"
+            Classes="card"
+            Width="560"
+            HorizontalAlignment="Center"
+            VerticalAlignment="Center">
+      <StackPanel Spacing="{StaticResource Space.24}"
+                  HorizontalAlignment="Stretch">
+        <TextBlock Classes="headingSm"
+                   HorizontalAlignment="Center"
+                   TextAlignment="Center"
+                   Text="Ще немає записів" />
+        <TextBlock Classes="body"
+                   HorizontalAlignment="Center"
+                   TextAlignment="Center"
+                   TextWrapping="Wrap"
+                   Foreground="{StaticResource Brush.Graphite}"
+                   Text="Натисни «Почати запис», щоб записати перший мітинг. Усе лишається на твоєму компʼютері." />
+        <StackPanel Orientation="Horizontal"
+                    Spacing="{StaticResource Space.12}"
+                    HorizontalAlignment="Center">
+          <Button Classes="primary"
+                  Content="Почати запис"
+                  Command="{Binding StartRecordingCommand}" />
+          <Button Classes="outline"
+                  Content="Налаштування"
+                  Command="{Binding OpenSettingsCommand}" />
+        </StackPanel>
+        <TextBlock Classes="mono"
+                   HorizontalAlignment="Center"
+                   Foreground="{StaticResource Brush.Smoke}"
+                   Text="{Binding TimerSample}" />
+      </StackPanel>
+    </Border>
+  </Grid>
 </Window>
