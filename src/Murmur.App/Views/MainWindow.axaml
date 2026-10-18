@@ -1,65 +1,27 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:vm="using:Murmur.App.ViewModels"
+        xmlns:views="using:Murmur.App.Views"
         x:Class="Murmur.App.Views.MainWindow"
-        x:DataType="vm:MainWindowViewModel"
+        x:DataType="vm:ShellViewModel"
         Title="Murmur"
         Width="1200"
         Height="780"
         MinWidth="900"
         MinHeight="600">
 
-  <Grid RowDefinitions="Auto,*"
-        Margin="{StaticResource Inset.48}">
+  <!-- Navigation: the shell exposes the current page view model; templates are keyed by its type (no reflection). -->
+  <Window.DataTemplates>
+    <DataTemplate DataType="vm:LibraryViewModel">
+      <views:LibraryView />
+    </DataTemplate>
+    <DataTemplate DataType="vm:RecordingViewModel">
+      <views:RecordingView />
+    </DataTemplate>
+  </Window.DataTemplates>
 
-    <!-- Header: wordmark and search -->
-    <Grid Grid.Row="0"
-          ColumnDefinitions="Auto,*,Auto">
-      <TextBlock Grid.Column="0"
-                 Classes="heading"
-                 VerticalAlignment="Center"
-                 Text="Murmur" />
-      <TextBox Grid.Column="2"
-               Classes="pill"
-               Width="360"
-               VerticalAlignment="Center"
-               PlaceholderText="Пошук по записах"
-               Text="{Binding SearchText}" />
-    </Grid>
-
-    <!-- Empty state -->
-    <Border Grid.Row="1"
-            Classes="card"
-            Width="560"
-            HorizontalAlignment="Center"
-            VerticalAlignment="Center">
-      <StackPanel Spacing="{StaticResource Space.24}"
-                  HorizontalAlignment="Stretch">
-        <TextBlock Classes="headingSm"
-                   HorizontalAlignment="Center"
-                   TextAlignment="Center"
-                   Text="Ще немає записів" />
-        <TextBlock Classes="body"
-                   HorizontalAlignment="Center"
-                   TextAlignment="Center"
-                   TextWrapping="Wrap"
-                   Foreground="{StaticResource Brush.Graphite}"
-                   Text="Натисни «Почати запис», щоб записати перший мітинг. Усе лишається на твоєму компʼютері." />
-        <StackPanel Orientation="Horizontal"
-                    Spacing="{StaticResource Space.12}"
-                    HorizontalAlignment="Center">
-          <Button Classes="primary"
-                  Content="Почати запис"
-                  Command="{Binding StartRecordingCommand}" />
-          <Button Classes="outline"
-                  Content="Налаштування"
-                  Command="{Binding OpenSettingsCommand}" />
-        </StackPanel>
-        <TextBlock Classes="mono"
-                   HorizontalAlignment="Center"
-                   Foreground="{StaticResource Brush.Smoke}"
-                   Text="{Binding TimerSample}" />
-      </StackPanel>
-    </Border>
-  </Grid>
+  <ContentControl Margin="{StaticResource Inset.48}"
+                  HorizontalContentAlignment="Stretch"
+                  VerticalContentAlignment="Stretch"
+                  Content="{Binding CurrentPage}" />
 </Window>

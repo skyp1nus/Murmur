@@ -1,0 +1,128 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Murmur.App.ViewModels"
+             xmlns:controls="using:Murmur.App.Controls"
+             xmlns:cap="using:Murmur.Core.Capture"
+             x:Class="Murmur.App.Views.RecordingView"
+             x:DataType="vm:RecordingViewModel">
+
+  <UserControl.Resources>
+    <!-- Size of the orb illustration (not a layout token). -->
+    <x:Double x:Key="Orb.Size">240</x:Double>
+    <x:Double x:Key="Recording.ColumnWidth">520</x:Double>
+  </UserControl.Resources>
+
+  <Grid RowDefinitions="Auto,*">
+
+    <Button Grid.Row="0"
+            Classes="outline"
+            HorizontalAlignment="Left"
+            Content="Назад"
+            Command="{Binding BackCommand}" />
+
+    <ScrollViewer Grid.Row="1"
+                  HorizontalScrollBarVisibility="Disabled"
+                  VerticalScrollBarVisibility="Auto">
+      <StackPanel HorizontalAlignment="Center"
+                  VerticalAlignment="Center"
+                  Width="{StaticResource Recording.ColumnWidth}"
+                  Spacing="{StaticResource Space.24}">
+
+        <controls:OrbControl x:Name="Orb"
+                             HorizontalAlignment="Center"
+                             Width="{StaticResource Orb.Size}"
+                             Height="{StaticResource Orb.Size}"
+                             IsVisible="{Binding ShowOrb}"
+                             IsActive="{Binding OrbActive}" />
+
+        <TextBlock Classes="timer"
+                   HorizontalAlignment="Center"
+                   Text="{Binding TimerText}" />
+
+        <!-- Source pills: choose the sources before recording; only the screen stays live during it. -->
+        <StackPanel Orientation="Horizontal"
+                    HorizontalAlignment="Center"
+                    Spacing="{StaticResource Space.12}">
+          <ToggleButton Classes="pill"
+                        Content="Мікрофон"
+                        IsEnabled="{Binding CanToggleMicrophone}"
+                        IsChecked="{Binding Microphone, Mode=TwoWay}" />
+          <ToggleButton Classes="pill"
+                        Content="Системний звук"
+                        IsEnabled="{Binding CanToggleSystemAudio}"
+                        IsChecked="{Binding SystemAudio, Mode=TwoWay}" />
+          <ToggleButton Classes="pill"
+                        Content="Екран"
+                        IsEnabled="{Binding CanToggleScreen}"
+                        IsChecked="{Binding Screen, Mode=TwoWay}" />
+        </StackPanel>
+
+        <TextBlock Classes="bodySm"
+                   HorizontalAlignment="Center"
+                   TextAlignment="Center"
+                   TextWrapping="Wrap"
+                   Foreground="{StaticResource Brush.Smoke}"
+                   IsVisible="{Binding HasSourceHint}"
+                   Text="{Binding SourceHint}" />
+
+        <!-- Devices -->
+        <Grid ColumnDefinitions="*,*"
+              ColumnSpacing="{StaticResource Space.16}">
+          <StackPanel Grid.Column="0"
+                      Spacing="{StaticResource Space.4}">
+            <TextBlock Classes="bodySm"
+                       Foreground="{StaticResource Brush.Smoke}"
+                       Text="Мікрофон" />
+            <ComboBox ItemsSource="{Binding MicrophoneDevices}"
+                      SelectedItem="{Binding SelectedMicrophone, Mode=TwoWay}"
+                      IsEnabled="{Binding CanChangeDevices}">
+              <ComboBox.ItemTemplate>
+                <DataTemplate x:DataType="cap:AudioDevice">
+                  <TextBlock Text="{Binding Name}"
+                             TextTrimming="CharacterEllipsis" />
+                </DataTemplate>
+              </ComboBox.ItemTemplate>
+            </ComboBox>
+          </StackPanel>
+          <StackPanel Grid.Column="1"
+                      Spacing="{StaticResource Space.4}">
+            <TextBlock Classes="bodySm"
+                       Foreground="{StaticResource Brush.Smoke}"
+                       Text="Вихід системного звуку" />
+            <ComboBox ItemsSource="{Binding SystemDevices}"
+                      SelectedItem="{Binding SelectedSystemDevice, Mode=TwoWay}"
+                      IsEnabled="{Binding CanChangeDevices}">
+              <ComboBox.ItemTemplate>
+                <DataTemplate x:DataType="cap:AudioDevice">
+                  <TextBlock Text="{Binding Name}"
+                             TextTrimming="CharacterEllipsis" />
+                </DataTemplate>
+              </ComboBox.ItemTemplate>
+            </ComboBox>
+          </StackPanel>
+        </Grid>
+
+        <Button Classes="primary"
+                HorizontalAlignment="Center"
+                Content="{Binding StartStopLabel}"
+                Command="{Binding StartStopCommand}" />
+
+        <!-- Inline error -->
+        <Border Classes="card"
+                Padding="{StaticResource Inset.16}"
+                IsVisible="{Binding HasError}">
+          <TextBlock Classes="bodySm"
+                     TextWrapping="Wrap"
+                     Text="{Binding Error}" />
+        </Border>
+
+        <TextBlock Classes="bodySm"
+                   HorizontalAlignment="Center"
+                   TextAlignment="Center"
+                   TextWrapping="Wrap"
+                   Foreground="{StaticResource Brush.Smoke}"
+                   Text="Попередь учасників мітингу, що йде запис." />
+      </StackPanel>
+    </ScrollViewer>
+  </Grid>
+</UserControl>

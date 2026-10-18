@@ -70,7 +70,7 @@ public sealed class StartupProbeTests
             () =>
             {
                 int? exitCode = null;
-                var window = new MainWindow { DataContext = new MainWindowViewModel() };
+                var window = new MainWindow { DataContext = new UiHarness().CreateShell() };
                 StartupProbe.Attach(window, path, code => exitCode = code);
                 window.Show();
 
