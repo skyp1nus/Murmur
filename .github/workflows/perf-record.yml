@@ -7,6 +7,11 @@ name: perf-record
 # real PC, so a budget miss here is a signal to look at, not a hard product verdict.
 
 on:
+  # The night-run environment cannot dispatch workflows that are not on the default branch, so a push that touches
+  # .github/perf-request.txt also starts a run with the default inputs (60 min audio-only + 10 min audio + screen).
+  push:
+    branches: [night-run]
+    paths: ['.github/perf-request.txt']
   workflow_dispatch:
     inputs:
       minutes:
@@ -41,7 +46,7 @@ jobs:
       run:
         shell: pwsh
     env:
-      MINUTES: ${{ inputs.minutes }}
+      MINUTES: ${{ inputs.minutes || 60 }}
     steps:
       # Budget: publish ~15 min + A (<= 85 min) + B (10 min) + setup must fit into the 120 min timeout.
       - name: Validate inputs
@@ -106,7 +111,7 @@ jobs:
             "| Virtual audio device | $audio |",
             "| Media Foundation | $(if ($env:MF_STATUS) { $env:MF_STATUS } else { 'step did not report' }) |",
             "| Audio-only run | $($env:MINUTES) min |",
-            "| Audio + screen run | $(if ('${{ inputs.screen }}' -eq 'true') { '10 min' } else { 'skipped' }) |",
+            "| Audio + screen run | $(if ('${{ inputs.screen != false }}' -eq 'true') { '10 min' } else { 'skipped' }) |",
             ''
           ) | Out-File $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
           if ($devices.Count -eq 0) { Write-Host '::warning::No audio device: WASAPI loopback has no render endpoint, the recording checks are expected to fail.' }
@@ -141,17 +146,17 @@ jobs:
           exit $code
 
       - name: "Tone alive (before Run B)"
-        if: ${{ !cancelled() && inputs.screen }}
+        if: ${{ !cancelled() && inputs.screen != false }}
         run: pwsh scripts/check-tone.ps1 -Label 'before Run B'
 
       - name: "Run B: audio + screen"
-        if: ${{ !cancelled() && inputs.screen }}
+        if: ${{ !cancelled() && inputs.screen != false }}
         run: |
           pwsh scripts/run-autorecord.ps1 -Exe artifacts/publish/win-x64/Murmur.exe -Seconds 600 -Screen -PerfOut artifacts/perf/recB.json
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: "Check B: audio + screen"
-        if: ${{ !cancelled() && inputs.screen }}
+        if: ${{ !cancelled() && inputs.screen != false }}
         run: |
           pwsh scripts/check-recording.ps1 -PerfJson artifacts/perf/recB.json -ExpectTone -ExpectScreen -Title 'Run B: audio + screen, 10 min' -IdleCpuBudgetPct 1 -CpuBudgetPct 8 -RamBudgetMb 150 -MarkdownOut artifacts/perf/checkB.md
           $code = $LASTEXITCODE
