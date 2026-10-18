@@ -32,7 +32,7 @@ public enum SessionProcessingStage
 public sealed record SessionProcessingStatus(SessionId Session, SessionProcessingStage Stage, double Progress, string? Message = null);
 
 /// <summary>
-/// Post-recording pipeline: build peaks -&gt; transcribe every track -&gt; save the transcript -&gt; (indexing hook).
+/// Post-recording pipeline: build peaks -&gt; transcribe every track -&gt; save the transcript -&gt; index (when AI is installed).
 /// </summary>
 /// <remarks>
 /// <para><b>When.</b> After every recording that stops in <see cref="SessionState.Recorded"/> (via
@@ -41,9 +41,12 @@ public sealed record SessionProcessingStatus(SessionId Session, SessionProcessin
 /// shared <see cref="JobQueue"/>; the processor pauses that queue for as long as the recorder is not idle (a running
 /// job is pre-empted and restarted after the recording) and stops the ASR worker so no model is in memory while
 /// recording.</para>
-/// <para><b>States.</b> Recorded -&gt; Transcribing -&gt; Transcribed -&gt; (Indexing -&gt;) Ready. Without an indexer the
-/// session becomes Ready right after Transcribed. Any failure -&gt; Failed with <see cref="SessionRecord.Error"/>.
-/// A pre-empted or cancelled job leaves the session Transcribing (or Indexing) so it is resumed later. With the ASR
+/// <para><b>States.</b> Recorded -&gt; Transcribing -&gt; Transcribed -&gt; (Indexing -&gt;) Ready. Without an indexer, or
+/// while the AI models are not installed, the session becomes Ready right after Transcribed (keyword search still
+/// works) and is remembered in <see cref="NeedsIndex"/> and by a <c>needs-index</c> marker file in the session folder
+/// (so it survives a restart); <see cref="ReindexAllAsync"/> indexes those later, when the AI models appear. A transcription failure -&gt; Failed with <see cref="SessionRecord.Error"/>. An indexing failure keeps
+/// the transcript: the session is Ready with <see cref="SessionRecord.Error"/> =
+/// <see cref="IndexingFailedPrefix"/> + reason, and stays in <see cref="NeedsIndex"/>. A pre-empted or cancelled job leaves the session Transcribing (or Indexing) so it is resumed later. With the ASR
 /// not installed the session is left Recorded and the status is <see cref="SessionProcessingStage.ModelMissing"/>
 /// (<see cref="AsrNotInstalledMessage"/>).</para>
 /// <para><b>Tracks.</b> <c>mic.wav</c> is transcribed as <see cref="Speaker.Me"/>, <c>system.wav</c> as
@@ -57,8 +60,14 @@ public sealed class SessionProcessor : IDisposable
 
     public const string AsrNotInstalledMessage = "Модель Parakeet не встановлена";
 
+    /// <summary>Start of <see cref="SessionRecord.Error"/> of a Ready session whose indexing failed.</summary>
+    public const string IndexingFailedPrefix = "Індексування не вдалося: ";
+
     private const double PeaksWeight = 0.02;
     private const double SaveWeight = 0.02;
+
+    /// <summary>Empty file in the session folder: the session is Ready but has no vectors yet (survives a restart).</summary>
+    private const string NeedsIndexMarker = "needs-index";
 
     private readonly IRecorder _recorder;
     private readonly ISessionStore _sessions;
@@ -66,7 +75,9 @@ public sealed class SessionProcessor : IDisposable
     private readonly IAsr _asr;
     private readonly JobQueue _queue;
     private readonly Func<SessionId, CancellationToken, Task>? _indexer;
+    private readonly Func<bool>? _isAiInstalled;
     private readonly object _gate = new();
+    private readonly HashSet<SessionId> _needsIndex = [];
     private readonly Dictionary<SessionId, SessionProcessingStatus> _statuses = [];
     private readonly Dictionary<SessionId, JobHandle?> _transcriptionJobs = [];
     private readonly Dictionary<SessionId, JobHandle?> _indexingJobs = [];
@@ -76,7 +87,9 @@ public sealed class SessionProcessor : IDisposable
     private bool _disposed;
 
     /// <param name="indexer">Phase 3 hook (<c>IAssistant.IndexSessionAsync</c>), run as an <see cref="JobPriority.Indexing"/> job.</param>
-    public SessionProcessor(IRecorder recorder, ISessionStore sessions, ITranscriptStore transcripts, IAsr asr, JobQueue queue, Func<SessionId, CancellationToken, Task>? indexer = null)
+    /// <param name="isAiInstalled">Whether the AI models are installed (checked every time, so installing them later takes
+    /// effect without a restart); <c>null</c> = always installed. Ignored without an <paramref name="indexer"/>.</param>
+    public SessionProcessor(IRecorder recorder, ISessionStore sessions, ITranscriptStore transcripts, IAsr asr, JobQueue queue, Func<SessionId, CancellationToken, Task>? indexer = null, Func<bool>? isAiInstalled = null)
     {
         ArgumentNullException.ThrowIfNull(recorder);
         ArgumentNullException.ThrowIfNull(sessions);
@@ -89,6 +102,7 @@ public sealed class SessionProcessor : IDisposable
         _asr = asr;
         _queue = queue;
         _indexer = indexer;
+        _isAiInstalled = isAiInstalled;
 
         _recorder.StateChanged += OnRecorderStateChanged;
         OnRecorderStateChanged(_recorder.State);
@@ -101,6 +115,25 @@ public sealed class SessionProcessor : IDisposable
 
     /// <summary><see cref="AsrNotInstalledMessage"/> when the model is missing, else <c>null</c>.</summary>
     public string? AsrStatusMessage => IsAsrInstalled ? null : AsrNotInstalledMessage;
+
+    /// <summary>Whether sessions are indexed right now: an indexer is configured and the AI models are installed.</summary>
+    public bool CanIndex => _indexer is not null && (_isAiInstalled?.Invoke() ?? true);
+
+    /// <summary>
+    /// Sessions that became Ready without vectors (AI not installed) or whose indexing failed, since start.
+    /// This list is in memory only; the same fact is persisted as a <c>needs-index</c> marker file in the session
+    /// folder, which <see cref="ReindexAllAsync"/> also honours, so a restart loses nothing.
+    /// </summary>
+    public IReadOnlyCollection<SessionId> NeedsIndex
+    {
+        get
+        {
+            lock (_gate)
+            {
+                return [.. _needsIndex];
+            }
+        }
+    }
 
     /// <summary>Progress in [0, 1] of a session this processor handled; 0 when unknown.</summary>
     public double GetProgress(SessionId session) => GetStatus(session)?.Progress ?? 0;
@@ -136,9 +169,14 @@ public sealed class SessionProcessor : IDisposable
         var queued = 0;
         foreach (var session in sessions)
         {
-            if (_indexer is null && session.State is SessionState.Transcribed or SessionState.Indexing)
+            if (session.State is SessionState.Transcribed or SessionState.Indexing && !CanIndex)
             {
                 await UpdateAsync(session.Id, SessionState.Ready, null, cancellationToken).ConfigureAwait(false);
+                if (_indexer is not null)
+                {
+                    MarkNeedsIndex(session.Id);
+                }
+
                 continue;
             }
 
@@ -149,6 +187,47 @@ public sealed class SessionProcessor : IDisposable
                 _ => false,
             };
             if (added)
+            {
+                queued++;
+            }
+        }
+
+        return queued;
+    }
+
+    /// <summary>
+    /// Queues indexing of the Ready sessions that were left without vectors: those in <see cref="NeedsIndex"/> and those
+    /// whose Error starts with <see cref="IndexingFailedPrefix"/>, plus those with a persisted <c>needs-index</c> marker
+    /// (so both survive a restart). Call it when the AI models appear, and at start-up. Jobs wait in the queue while a
+    /// recording is running.
+    /// </summary>
+    /// <param name="allReady">Also index every other Ready session (a full re-embed; indexing is idempotent).</param>
+    /// <returns>The number of jobs queued; 0 when no indexer is configured or the AI is not installed.</returns>
+    public async ValueTask<int> ReindexAllAsync(bool allReady = false, CancellationToken cancellationToken = default)
+    {
+        if (!CanIndex)
+        {
+            return 0;
+        }
+
+        var sessions = await _sessions.ListSessionsAsync(new SessionQuery(Limit: int.MaxValue), cancellationToken).ConfigureAwait(false);
+        var queued = 0;
+        foreach (var session in sessions)
+        {
+            if (session.State != SessionState.Ready)
+            {
+                continue;
+            }
+
+            bool wanted;
+            lock (_gate)
+            {
+                wanted = allReady || _needsIndex.Contains(session.Id);
+            }
+
+            wanted = wanted || File.Exists(NeedsIndexMarkerPath(session.Id));
+
+            if ((wanted || session.Error?.StartsWith(IndexingFailedPrefix, StringComparison.Ordinal) == true) && EnqueueIndexing(session.Id, reindex: true))
             {
                 queued++;
             }
@@ -262,8 +341,57 @@ public sealed class SessionProcessor : IDisposable
     private bool EnqueueTranscription(SessionId session, bool explicitRequest) =>
         TryEnqueue(_transcriptionJobs, session, JobPriority.Transcription, "transcribe ", SessionProcessingStage.Queued, 0, ct => TranscribeAsync(session, explicitRequest, ct));
 
-    private bool EnqueueIndexing(SessionId session) =>
-        _indexer is not null && TryEnqueue(_indexingJobs, session, JobPriority.Indexing, "index ", SessionProcessingStage.Indexing, 1, ct => IndexAsync(session, ct));
+    private bool EnqueueIndexing(SessionId session, bool reindex = false) =>
+        _indexer is not null && TryEnqueue(_indexingJobs, session, JobPriority.Indexing, "index ", SessionProcessingStage.Indexing, 1, ct => IndexAsync(session, reindex, ct));
+
+    private string NeedsIndexMarkerPath(SessionId session) => Path.Combine(_sessions.GetFiles(session).Directory, NeedsIndexMarker);
+
+    private void MarkNeedsIndex(SessionId session)
+    {
+        lock (_gate)
+        {
+            _needsIndex.Add(session);
+        }
+
+        try
+        {
+            var path = NeedsIndexMarkerPath(session);
+            if (Directory.Exists(Path.GetDirectoryName(path))) // never resurrect the folder of a deleted session
+            {
+                using var _ = File.Create(path);
+            }
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            // Best effort: the in-memory set still covers this run, and a failed indexing is also found by its Error text.
+        }
+    }
+
+    private void ClearNeedsIndex(SessionId session)
+    {
+        lock (_gate)
+        {
+            _needsIndex.Remove(session);
+        }
+
+        try
+        {
+            File.Delete(NeedsIndexMarkerPath(session));
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            // A stale marker only causes one redundant (idempotent) reindex.
+        }
+    }
+
+    /// <summary>Whether an indexing job for the session is queued or running (or being queued).</summary>
+    private bool HasActiveIndexJob(SessionId session)
+    {
+        lock (_gate)
+        {
+            return _indexingJobs.TryGetValue(session, out var job) && job?.State is null or JobState.Pending or JobState.Running;
+        }
+    }
 
     /// <summary>Queues a job unless one for the same session is already pending or running in <paramref name="jobs"/>.</summary>
     private bool TryEnqueue(Dictionary<SessionId, JobHandle?> jobs, SessionId session, JobPriority priority, string name, SessionProcessingStage stage, double progress, Func<CancellationToken, Task> work)
@@ -387,41 +515,77 @@ public sealed class SessionProcessor : IDisposable
             return;
         }
 
-        if (_indexer is null)
+        // An indexing job that is already pending or running (e.g. a ReindexAll queued before a manual re-transcription)
+        // picks the Transcribed session up itself: IndexAsync chooses its path from the state it reads.
+        if (CanIndex && (EnqueueIndexing(id) || HasActiveIndexJob(id)))
         {
-            await UpdateAsync(id, SessionState.Ready, null, CancellationToken.None).ConfigureAwait(false);
-            SetStatus(id, SessionProcessingStage.Completed, 1);
+            return;
         }
-        else
+
+        // No indexer, or the AI is not installed (or no index job could be queued): Ready without vectors, indexed later.
+        if (_indexer is not null)
         {
-            EnqueueIndexing(id);
+            MarkNeedsIndex(id);
         }
+
+        await UpdateAsync(id, SessionState.Ready, null, CancellationToken.None).ConfigureAwait(false);
+        SetStatus(id, SessionProcessingStage.Completed, 1);
     }
 
-    private async Task IndexAsync(SessionId id, CancellationToken cancellationToken)
+    /// <param name="reindex">The job was queued for a Ready session; whether it runs in place is decided by the state read at run time.</param>
+    private async Task IndexAsync(SessionId id, bool reindex, CancellationToken cancellationToken)
     {
+        // The path follows the state at run time, not the flag: a re-transcription may have moved a Ready session back
+        // to Transcribed after this job was queued. Transcribed/Indexing walk Indexing -> Ready; Ready with reindex
+        // indexes in place; anything else (deleted, recording, being transcribed...) is not ours.
         var session = await _sessions.GetSessionAsync(id, cancellationToken).ConfigureAwait(false);
-        if (session is null || session.State is not (SessionState.Transcribed or SessionState.Indexing))
+        var fresh = session?.State is SessionState.Transcribed or SessionState.Indexing;
+        if (!fresh && !(reindex && session?.State == SessionState.Ready))
         {
             ClearStatus(id);
             return;
         }
 
+        reindex = !fresh;
+
+        if (!CanIndex)
+        {
+            // The AI models went away after queuing: Ready without vectors, to be indexed later.
+            MarkNeedsIndex(id);
+            if (!reindex)
+            {
+                await UpdateAsync(id, SessionState.Ready, null, cancellationToken).ConfigureAwait(false);
+            }
+
+            SetStatus(id, SessionProcessingStage.Completed, 1);
+            return;
+        }
+
         try
         {
-            await UpdateAsync(id, SessionState.Indexing, null, cancellationToken).ConfigureAwait(false);
+            if (!reindex)
+            {
+                await UpdateAsync(id, SessionState.Indexing, null, cancellationToken).ConfigureAwait(false);
+            }
+
             SetStatus(id, SessionProcessingStage.Indexing, 1);
             await _indexer!(id, cancellationToken).ConfigureAwait(false);
+            ClearNeedsIndex(id);
             await UpdateAsync(id, SessionState.Ready, null, cancellationToken).ConfigureAwait(false);
             SetStatus(id, SessionProcessingStage.Completed, 1);
         }
         catch (Exception) when (cancellationToken.IsCancellationRequested)
         {
+            // Pre-empted by a recording: a fresh run stays Indexing (resumed later); a reindex stays in NeedsIndex.
             throw;
         }
         catch (Exception ex)
         {
-            await FailAsync(id, ex).ConfigureAwait(false);
+            // The transcript is intact: Ready (keyword search works) with the reason in Error.
+            MarkNeedsIndex(id);
+            var message = IndexingFailedPrefix + (string.IsNullOrWhiteSpace(ex.Message) ? ex.GetType().Name : ex.Message);
+            await UpdateAsync(id, SessionState.Ready, message, CancellationToken.None).ConfigureAwait(false);
+            SetStatus(id, SessionProcessingStage.Completed, 1, message);
         }
     }
 

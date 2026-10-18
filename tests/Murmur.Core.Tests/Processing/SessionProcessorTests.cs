@@ -130,16 +130,492 @@ public sealed class SessionProcessorTests : IAsyncDisposable
     }
 
     [Fact]
-    public async Task IndexerFailure_FailsTheSession()
+    public async Task IndexerFailure_KeepsTheTranscript_AndLeavesTheSessionReadyWithAnError()
     {
         using var processor = Create((_, _) => throw new InvalidOperationException("index broke"));
         var session = await RecordAsync(mic: true, system: false);
 
-        var failed = await WaitForStateAsync(session.Id, SessionState.Failed);
+        var ready = await WaitForStateAsync(session.Id, SessionState.Ready);
 
-        Assert.Equal("index broke", failed.Error);
+        Assert.Equal("Індексування не вдалося: index broke", ready.Error);
+        Assert.StartsWith(SessionProcessor.IndexingFailedPrefix, ready.Error, StringComparison.Ordinal);
         Assert.NotNull(await _transcripts.GetTranscriptAsync(session.Id, CancellationToken.None));
-        Assert.Equal(SessionProcessingStage.Failed, processor.GetStatus(session.Id)!.Stage);
+        Assert.Equal([session.Id], processor.NeedsIndex);
+        Assert.Equal(SessionProcessingStage.Completed, processor.GetStatus(session.Id)!.Stage);
+        Assert.Equal(ready.Error, processor.GetStatus(session.Id)!.Message);
+    }
+
+    [Fact]
+    public async Task AiInstalled_IndexesAfterTranscription()
+    {
+        var calls = 0;
+        using var processor = Create(
+            (_, _) =>
+            {
+                Interlocked.Increment(ref calls);
+                return Task.CompletedTask;
+            },
+            isAiInstalled: () => true);
+        Assert.True(processor.CanIndex);
+        var session = await RecordAsync(mic: true, system: false);
+
+        await WaitForStateAsync(session.Id, SessionState.Ready);
+
+        Assert.Equal(1, calls);
+        Assert.Empty(processor.NeedsIndex);
+        Assert.Equal([SessionState.Transcribing, SessionState.Transcribed, SessionState.Indexing, SessionState.Ready], StatesAfterRecording(session.Id));
+    }
+
+    [Fact]
+    public async Task AiNotInstalled_BecomesReadyWithoutIndexing_AndRemembersNeedsIndex()
+    {
+        var calls = 0;
+        using var processor = Create(
+            (_, _) =>
+            {
+                Interlocked.Increment(ref calls);
+                return Task.CompletedTask;
+            },
+            isAiInstalled: () => false);
+        Assert.False(processor.CanIndex);
+        var session = await RecordAsync(mic: true, system: false);
+
+        var ready = await WaitForStateAsync(session.Id, SessionState.Ready);
+
+        Assert.Equal(0, calls);
+        Assert.Null(ready.Error);
+        Assert.Equal([session.Id], processor.NeedsIndex);
+        Assert.Equal([SessionState.Transcribing, SessionState.Transcribed, SessionState.Ready], StatesAfterRecording(session.Id));
+        Assert.Equal(new SessionProcessingStatus(session.Id, SessionProcessingStage.Completed, 1), processor.GetStatus(session.Id));
+        Assert.NotNull(await _transcripts.GetTranscriptAsync(session.Id, CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task ReindexAll_IndexesTheSessionsThatNeededIndexing_WhenAiAppears()
+    {
+        var installed = false;
+        var indexed = new List<SessionId>();
+        using var processor = Create(
+            (id, _) =>
+            {
+                lock (indexed)
+                {
+                    indexed.Add(id);
+                }
+
+                return Task.CompletedTask;
+            },
+            isAiInstalled: () => installed);
+        var first = await RecordAsync(mic: true, system: false);
+        await WaitForStateAsync(first.Id, SessionState.Ready);
+        var second = await RecordAsync(mic: true, system: false);
+        await WaitForStateAsync(second.Id, SessionState.Ready);
+        var unrelated = await CreateSessionAsync(mic: true, system: false, SessionState.Ready);
+        Assert.Equal(2, processor.NeedsIndex.Count);
+
+        Assert.Equal(0, await processor.ReindexAllAsync(cancellationToken: Ct)); // still not installed
+        installed = true;
+        Assert.Equal(2, await processor.ReindexAllAsync(cancellationToken: Ct));
+
+        await WaitUntilAsync(() => _queue.Status.Running == 0 && _queue.Status.Pending == 0);
+        lock (indexed)
+        {
+            Assert.Equal(2, indexed.Count);
+            Assert.Contains(first.Id, indexed);
+            Assert.Contains(second.Id, indexed);
+            Assert.DoesNotContain(unrelated.Id, indexed);
+        }
+
+        Assert.Empty(processor.NeedsIndex);
+        Assert.Equal(SessionState.Ready, _sessions.Get(first.Id)!.State);
+        Assert.Empty(_asr.Requests.Skip(2)); // no re-transcription
+
+        // Nothing left to do, unless every Ready session is requested.
+        Assert.Equal(0, await processor.ReindexAllAsync(cancellationToken: Ct));
+        Assert.Equal(3, await processor.ReindexAllAsync(allReady: true, cancellationToken: Ct));
+    }
+
+    [Fact]
+    public async Task ReindexAll_RetriesAFailedIndexing_AndClearsTheError()
+    {
+        var fail = true;
+        using var processor = Create((_, _) => fail ? throw new InvalidOperationException("no server") : Task.CompletedTask);
+        var session = await RecordAsync(mic: true, system: false);
+        var ready = await WaitForStateAsync(session.Id, SessionState.Ready);
+        Assert.NotNull(ready.Error);
+
+        fail = false;
+        Assert.Equal(1, await processor.ReindexAllAsync(cancellationToken: Ct));
+
+        await WaitUntilAsync(() => _sessions.Get(session.Id)!.Error is null && _queue.Status.Running == 0 && _queue.Status.Pending == 0);
+        Assert.Equal(SessionState.Ready, _sessions.Get(session.Id)!.State);
+        Assert.Empty(processor.NeedsIndex);
+    }
+
+    [Fact]
+    public async Task ReindexAll_FindsFailedIndexingAfterARestart_ByTheErrorText()
+    {
+        var failed = await CreateSessionAsync(mic: true, system: false, SessionState.Ready);
+        _sessions.Seed(failed with { Error = SessionProcessor.IndexingFailedPrefix + "old" });
+        var calls = 0;
+        using var processor = Create((_, _) =>
+        {
+            Interlocked.Increment(ref calls);
+            return Task.CompletedTask;
+        });
+
+        Assert.Equal(1, await processor.ReindexAllAsync(cancellationToken: Ct));
+
+        await WaitUntilAsync(() => _sessions.Get(failed.Id)!.Error is null && _queue.Status.Running == 0);
+        Assert.Equal(1, calls);
+    }
+
+    [Fact]
+    public async Task ReindexAll_FindsSessionsWithoutVectorsAfterARestart_ByThePersistedMarker()
+    {
+        var aiInstalled = false;
+        var indexed = new List<SessionId>();
+        Task Index(SessionId id, CancellationToken _)
+        {
+            lock (indexed)
+            {
+                indexed.Add(id);
+            }
+
+            return Task.CompletedTask;
+        }
+
+        SessionId session;
+        string marker;
+        using (var first = Create(Index, () => aiInstalled))
+        {
+            var recorded = await RecordAsync(mic: true, system: false);
+            session = recorded.Id;
+            await WaitForStateAsync(session, SessionState.Ready);
+            marker = Path.Combine(_sessions.GetFiles(session).Directory, "needs-index");
+            Assert.True(File.Exists(marker));
+        }
+
+        // "Restart": a new processor over the same store knows nothing in memory; the AI models are installed meanwhile.
+        aiInstalled = true;
+        using var second = Create(Index, () => aiInstalled);
+        Assert.Empty(second.NeedsIndex);
+
+        Assert.Equal(1, await second.ReindexAllAsync(cancellationToken: Ct));
+
+        await WaitUntilAsync(() => !File.Exists(marker) && _queue.Status.Running == 0 && _queue.Status.Pending == 0);
+        lock (indexed)
+        {
+            Assert.Equal([session], indexed);
+        }
+
+        Assert.Equal(SessionState.Ready, _sessions.Get(session)!.State);
+        Assert.Equal(0, await second.ReindexAllAsync(cancellationToken: Ct)); // marker gone: nothing left
+    }
+
+    [Fact]
+    public async Task ReindexQueuedBeforeAManualRetranscription_DoesNotLeaveTheSessionTranscribed()
+    {
+        var indexed = new List<SessionId>();
+        using var processor = Create(
+            (id, _) =>
+            {
+                lock (indexed)
+                {
+                    indexed.Add(id);
+                }
+
+                return Task.CompletedTask;
+            });
+        var ready = await CreateSessionAsync(mic: true, system: false, SessionState.Ready);
+        var other = await CreateSessionAsync(mic: true, system: false, SessionState.Recording);
+        _recorder.BeginRecording(other); // pauses the queue: both jobs below wait
+
+        Assert.Equal(1, await processor.ReindexAllAsync(allReady: true, cancellationToken: Ct));
+        Assert.True(await processor.EnqueueAsync(ready.Id, Ct));
+
+        await _sessions.UpdateSessionAsync(_sessions.Get(other.Id)! with { State = SessionState.Recorded }, Ct);
+        _recorder.EndRecording();
+
+        await WaitForStateAsync(other.Id, SessionState.Ready);
+        var final = await WaitForStateAsync(ready.Id, SessionState.Ready);
+
+        Assert.Null(final.Error);
+        Assert.Equal(SessionProcessingStage.Completed, processor.GetStatus(ready.Id)!.Stage);
+        Assert.Equal(SessionState.Ready, StatesAfterRecording(ready.Id)[^1]);
+        lock (indexed)
+        {
+            Assert.Contains(ready.Id, indexed);
+        }
+    }
+
+    [Fact]
+    public async Task ReindexAll_WithoutAnIndexer_DoesNothing()
+    {
+        using var processor = Create();
+        await CreateSessionAsync(mic: true, system: false, SessionState.Ready);
+
+        Assert.False(processor.CanIndex);
+        Assert.Equal(0, await processor.ReindexAllAsync(allReady: true, cancellationToken: Ct));
+    }
+
+    [Fact]
+    public async Task Indexing_NeverRunsWhileRecording()
+    {
+        var calls = 0;
+        using var processor = Create((_, _) =>
+        {
+            Interlocked.Increment(ref calls);
+            return Task.CompletedTask;
+        });
+        var ready = await CreateSessionAsync(mic: true, system: false, SessionState.Ready);
+        var next = await CreateSessionAsync(mic: true, system: false, SessionState.Recording);
+        _recorder.BeginRecording(next);
+
+        Assert.Equal(1, await processor.ReindexAllAsync(allReady: true, cancellationToken: Ct));
+        await Task.Delay(100, Ct);
+        Assert.Equal(0, calls);
+        Assert.True(_queue.Paused);
+
+        await _sessions.UpdateSessionAsync(_sessions.Get(next.Id)! with { State = SessionState.Recorded }, Ct);
+        _recorder.EndRecording();
+
+        await WaitForStateAsync(next.Id, SessionState.Ready);
+        Assert.Equal(2, calls); // the queued reindex and the new recording's own indexing
+        Assert.Equal(SessionState.Ready, _sessions.Get(ready.Id)!.State);
+    }
+
+    [Fact]
+    public async Task Indexing_RunningWhenARecordingStarts_IsPreemptedAndResumedAfterwards()
+    {
+        var started = new SemaphoreSlim(0);
+        var attempts = 0;
+        using var processor = Create(async (_, ct) =>
+        {
+            if (Interlocked.Increment(ref attempts) == 1)
+            {
+                started.Release();
+                await Task.Delay(Timeout, ct);
+            }
+        });
+        var session = await RecordAsync(mic: true, system: false);
+        Assert.True(await started.WaitAsync(Timeout, Ct));
+
+        var next = await CreateSessionAsync(mic: true, system: false, SessionState.Recording);
+        _recorder.BeginRecording(next);
+        await WaitUntilAsync(() => _queue.Status.Running == 0);
+        Assert.Equal(SessionState.Indexing, _sessions.Get(session.Id)!.State); // not failed, not Ready
+
+        await _sessions.UpdateSessionAsync(_sessions.Get(next.Id)! with { State = SessionState.Recorded }, Ct);
+        _recorder.EndRecording();
+
+        await WaitForStateAsync(session.Id, SessionState.Ready);
+        await WaitForStateAsync(next.Id, SessionState.Ready);
+        Assert.Null(_sessions.Get(session.Id)!.Error);
+        Assert.Equal(3, attempts);
+    }
+
+    [Fact]
+    public async Task AiRemovedAfterQueuing_LeavesReadyWithoutCallingTheIndexer_AndRemembersIt()
+    {
+        var aiInstalled = true;
+        var calls = 0;
+        using var processor = Create((_, _) =>
+        {
+            Interlocked.Increment(ref calls);
+            return Task.CompletedTask;
+        }, () => aiInstalled);
+        var ready = await CreateSessionAsync(mic: true, system: false, SessionState.Ready);
+        var next = await CreateSessionAsync(mic: true, system: false, SessionState.Recording);
+        _recorder.BeginRecording(next);
+        Assert.Equal(1, await processor.ReindexAllAsync(allReady: true, cancellationToken: Ct));
+
+        aiInstalled = false;
+        await _sessions.UpdateSessionAsync(_sessions.Get(next.Id)! with { State = SessionState.Failed }, Ct);
+        _recorder.EndRecording();
+        await WaitUntilAsync(() => processor.NeedsIndex.Contains(ready.Id) && _queue.Status.Running == 0 && _queue.Status.Pending == 0);
+
+        Assert.Equal(0, calls);
+        Assert.Equal(SessionState.Ready, _sessions.Get(ready.Id)!.State);
+        Assert.True(File.Exists(Path.Combine(_sessions.GetFiles(ready.Id).Directory, "needs-index")));
+    }
+
+    [Fact]
+    public async Task ReindexFailure_KeepsSessionReadyWithError_AndKeepsTheMarker()
+    {
+        var session = await CreateSessionAsync(mic: true, system: false, SessionState.Ready);
+        var marker = Path.Combine(_sessions.GetFiles(session.Id).Directory, "needs-index");
+        File.WriteAllBytes(marker, []);
+        using var processor = Create((_, _) => throw new InvalidOperationException("boom"));
+
+        Assert.Equal(1, await processor.ReindexAllAsync(cancellationToken: Ct));
+        await WaitUntilAsync(() => _sessions.Get(session.Id)!.Error is not null && _queue.Status.Running == 0);
+
+        var row = _sessions.Get(session.Id)!;
+        Assert.Equal(SessionState.Ready, row.State);
+        Assert.Equal(SessionProcessor.IndexingFailedPrefix + "boom", row.Error);
+        Assert.True(File.Exists(marker));
+        Assert.Contains(session.Id, processor.NeedsIndex);
+    }
+
+    [Fact]
+    public async Task IndexerFailureWithEmptyMessage_UsesTheExceptionTypeName()
+    {
+        using var processor = Create((_, _) => throw new InvalidOperationException(""));
+        var session = await RecordAsync(mic: true, system: false);
+
+        var ready = await WaitForStateAsync(session.Id, SessionState.Ready);
+
+        Assert.Equal(SessionProcessor.IndexingFailedPrefix + nameof(InvalidOperationException), ready.Error);
+    }
+
+    [Fact]
+    public async Task WithoutAnIndexer_NoNeedsIndexMarkerIsWritten()
+    {
+        using var processor = Create();
+        var session = await RecordAsync(mic: true, system: false);
+
+        await WaitForStateAsync(session.Id, SessionState.Ready);
+
+        Assert.Empty(processor.NeedsIndex);
+        Assert.False(File.Exists(Path.Combine(_sessions.GetFiles(session.Id).Directory, "needs-index")));
+        Assert.False(processor.CanIndex);
+    }
+
+    [Fact]
+    public async Task ReindexAll_IgnoresSessionsThatAreNotReady()
+    {
+        var calls = 0;
+        using var processor = Create((_, _) =>
+        {
+            Interlocked.Increment(ref calls);
+            return Task.CompletedTask;
+        });
+        foreach (var state in new[] { SessionState.Failed, SessionState.Recorded, SessionState.Transcribing })
+        {
+            var s = await CreateSessionAsync(mic: true, system: false, state);
+            File.WriteAllBytes(Path.Combine(_sessions.GetFiles(s.Id).Directory, "needs-index"), []);
+        }
+
+        Assert.Equal(0, await processor.ReindexAllAsync(allReady: true, cancellationToken: Ct));
+        Assert.Equal(0, calls);
+    }
+
+    [Fact]
+    public async Task ReindexAll_DoesNotQueueTheSameSessionTwice()
+    {
+        var release = new TaskCompletionSource();
+        var calls = 0;
+        using var processor = Create(async (_, _) =>
+        {
+            Interlocked.Increment(ref calls);
+            await release.Task;
+        });
+        await CreateSessionAsync(mic: true, system: false, SessionState.Ready);
+
+        Assert.Equal(1, await processor.ReindexAllAsync(allReady: true, cancellationToken: Ct));
+        Assert.Equal(0, await processor.ReindexAllAsync(allReady: true, cancellationToken: Ct));
+        release.SetResult();
+        await WaitUntilAsync(() => _queue.Status.Running == 0 && _queue.Status.Pending == 0);
+
+        Assert.Equal(1, calls);
+    }
+
+    [Fact]
+    public async Task RecordingActivity_RaisesStoppedWhenTheRecorderGoesIdle()
+    {
+        using var activity = new RecordingActivity(_recorder);
+        var stopped = 0;
+        activity.RecordingStopped += () => stopped++;
+        var s = await CreateSessionAsync(mic: true, system: false, SessionState.Recording);
+
+        _recorder.BeginRecording(s);
+        Assert.True(activity.IsRecording);
+        _recorder.EndRecording();
+
+        Assert.False(activity.IsRecording);
+        Assert.Equal(1, stopped);
+    }
+
+    [Fact]
+    public async Task ResumePending_WithAnIndexerButNoAi_PromotesTranscribedSessionsToReady_AndRemembersThem()
+    {
+        var transcribed = await CreateSessionAsync(mic: true, system: false, SessionState.Transcribed);
+        var calls = 0;
+        using var processor = Create(
+            (_, _) =>
+            {
+                Interlocked.Increment(ref calls);
+                return Task.CompletedTask;
+            },
+            isAiInstalled: () => false);
+
+        Assert.Equal(0, await processor.ResumePendingAsync(Ct));
+
+        Assert.Equal(SessionState.Ready, _sessions.Get(transcribed.Id)!.State);
+        Assert.Equal([transcribed.Id], processor.NeedsIndex);
+        Assert.Equal(0, calls);
+    }
+
+    [Fact]
+    public async Task RecordingActivity_ReflectsTheRecorder_AndRaisesStartedOncePerRecording()
+    {
+        using var activity = new RecordingActivity(_recorder);
+        var started = 0;
+        var stopped = 0;
+        activity.RecordingStarted += () => started++;
+        activity.RecordingStopped += () => stopped++;
+        Assert.False(activity.IsRecording);
+
+        var session = await CreateSessionAsync(mic: true, system: false, SessionState.Recording);
+        _recorder.BeginRecording(session); // Starting -> Recording
+        Assert.True(activity.IsRecording);
+        Assert.Equal(1, started);
+        Assert.Equal(0, stopped);
+
+        _recorder.EndRecording(); // Stopping -> Idle
+        Assert.False(activity.IsRecording);
+        Assert.Equal(1, started);
+        Assert.Equal(1, stopped);
+
+        _recorder.BeginRecording(session);
+        Assert.Equal(2, started);
+    }
+
+    [Fact]
+    public async Task RecordingActivity_SwallowsHandlerExceptions_AndStopsAfterDispose()
+    {
+        var activity = new RecordingActivity(_recorder);
+        var started = 0;
+        activity.RecordingStarted += () => throw new InvalidOperationException("handler broke");
+        activity.RecordingStarted += () => started++;
+        var session = await CreateSessionAsync(mic: true, system: false, SessionState.Recording);
+
+        _recorder.BeginRecording(session); // would throw into the recorder without the guard
+        Assert.Equal(0, started); // multicast stops at the throwing handler, but the recorder is unaffected
+        _recorder.EndRecording();
+
+        activity.Dispose();
+        activity.Dispose();
+        var after = 0;
+        activity.RecordingStarted += () => after++;
+        _recorder.BeginRecording(session);
+        Assert.Equal(0, after);
+    }
+
+    [Fact]
+    public async Task RecordingActivity_StartsActive_WhenTheRecorderIsAlreadyBusy()
+    {
+        var session = await CreateSessionAsync(mic: true, system: false, SessionState.Recording);
+        _recorder.BeginRecording(session);
+        using var activity = new RecordingActivity(_recorder);
+        var started = 0;
+        activity.RecordingStarted += () => started++;
+
+        Assert.True(activity.IsRecording);
+        _recorder.EndRecording();
+        Assert.False(activity.IsRecording);
+        Assert.Equal(0, started);
     }
 
     [Fact]
@@ -416,9 +892,9 @@ public sealed class SessionProcessorTests : IAsyncDisposable
         await Task.CompletedTask;
     }
 
-    private SessionProcessor Create(Func<SessionId, CancellationToken, Task>? indexer = null)
+    private SessionProcessor Create(Func<SessionId, CancellationToken, Task>? indexer = null, Func<bool>? isAiInstalled = null)
     {
-        var processor = new SessionProcessor(_recorder, _sessions, _transcripts, _asr, _queue, indexer);
+        var processor = new SessionProcessor(_recorder, _sessions, _transcripts, _asr, _queue, indexer, isAiInstalled);
         processor.ProgressChanged += s =>
         {
             lock (_statuses)
