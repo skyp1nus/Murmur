@@ -1,0 +1,222 @@
+name: perf-record
+
+# Long recording on a GitHub-hosted Windows runner with a virtual sound card (VB-Audio Virtual Cable) and a
+# looping tone:
+#   Run A: audio only for <minutes> minutes (default 60)  -> no losses, CPU < 3%, RAM < 150 MB
+#   Run B: audio + screen for 10 minutes (if `screen`)    -> no losses, CPU < 8%, RAM < 150 MB
+# Idle CPU < 1% is checked on both runs. Budgets come from docs/PLAN.md. Cloud runners are slower and noisier than a
+# real PC, so a budget miss here is a signal to look at, not a hard product verdict.
+
+on:
+  # The night-run environment cannot dispatch workflows that are not on the default branch, so a push that touches
+  # .github/perf-request.txt also starts a run with the default inputs (60 min audio-only + 10 min audio + screen).
+  push:
+    branches: [night-run]
+    paths: ['.github/perf-request.txt']
+  workflow_dispatch:
+    inputs:
+      minutes:
+        description: Length of the audio-only run in minutes (1-85)
+        required: false
+        default: "60"
+        type: number
+      screen:
+        description: Also run the 10-minute audio + screen recording
+        required: false
+        default: true
+        type: boolean
+
+concurrency:
+  group: perf-record
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  DOTNET_NOLOGO: "1"
+  DOTNET_CLI_TELEMETRY_OPTOUT: "1"
+  NUGET_PACKAGES: ${{ github.workspace }}/.nuget/packages
+
+jobs:
+  perf-record:
+    name: perf record (win-x64)
+    runs-on: windows-latest
+    timeout-minutes: 120
+    defaults:
+      run:
+        shell: pwsh
+    env:
+      MINUTES: ${{ inputs.minutes || 60 }}
+      # `inputs` is empty on push, and `null != false` is false in GitHub expressions (both coerce to 0), so the
+      # screen run is decided by the event: always on push, the `screen` checkbox on workflow_dispatch.
+      SCREEN: ${{ github.event_name != 'workflow_dispatch' || inputs.screen }}
+    steps:
+      # Budget: publish ~15 min + A (<= 85 min) + B (10 min) + setup must fit into the 120 min timeout.
+      - name: Validate inputs
+        run: |
+          $m = 0
+          if (-not [int]::TryParse($env:MINUTES, [ref]$m) -or $m -lt 1 -or $m -gt 85) {
+            throw "minutes must be an integer between 1 and 85, got '$($env:MINUTES)'"
+          }
+
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-dotnet@v5
+        with:
+          global-json-file: global.json
+          dotnet-version: 11.0.100-rc.2.26504.105
+
+      - name: Verify SDK matches global.json
+        run: |
+          $expected = (Get-Content global.json -Raw | ConvertFrom-Json).sdk.version
+          $actual = (dotnet --version).Trim()
+          if ($actual -ne $expected) { throw "SDK mismatch: dotnet --version is $actual, global.json pins $expected" }
+
+      - uses: actions/cache@v4
+        with:
+          path: ${{ env.NUGET_PACKAGES }}
+          key: nuget-${{ runner.os }}-${{ hashFiles('Directory.Packages.props', '**/*.csproj') }}
+          restore-keys: nuget-${{ runner.os }}-
+
+      # The recorder runs in Murmur.exe; the transcription worker is not needed for recording.
+      - name: Publish Native AOT (Murmur.Desktop, win-x64)
+        run: |
+          dotnet publish src/Murmur.Desktop -c Release -f net11.0-windows10.0.22621.0 -r win-x64 -o artifacts/publish/win-x64
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Virtual audio device (VB-CABLE)
+        id: audio
+        continue-on-error: true
+        uses: LABSN/sound-ci-helpers@v1
+
+      - name: Media Foundation
+        id: mf
+        continue-on-error: true
+        run: |
+          $line = & ./scripts/ensure-media-foundation.ps1 | Select-Object -Last 1
+          Write-Host $line
+          "mf_status=$line" | Out-File $env:GITHUB_OUTPUT -Append -Encoding utf8
+
+      - name: Audio environment report
+        if: ${{ !cancelled() }}
+        env:
+          AUDIO_OUTCOME: ${{ steps.audio.outcome }}
+          MF_STATUS: ${{ steps.mf.outputs.mf_status }}
+        run: |
+          $devices = @(Get-CimInstance Win32_SoundDevice -ErrorAction SilentlyContinue)
+          $devices | Format-Table Name, Status, Manufacturer | Out-String | Write-Host
+          $audio = if ($env:AUDIO_OUTCOME -eq 'success' -and $devices.Count -gt 0) { "installed ($($devices.Count) device(s): $(($devices | ForEach-Object Name) -join ', '))" }
+                   elseif ($devices.Count -gt 0) { "install step $env:AUDIO_OUTCOME, but $($devices.Count) device(s) present: $(($devices | ForEach-Object Name) -join ', ')" }
+                   else { "**no audio device** (install step: $env:AUDIO_OUTCOME)" }
+          @(
+            '### Perf record environment', '',
+            '| Item | Status |', '|---|---|',
+            "| Virtual audio device | $audio |",
+            "| Media Foundation | $(if ($env:MF_STATUS) { $env:MF_STATUS } else { 'step did not report' }) |",
+            "| Audio-only run | $($env:MINUTES) min |",
+            "| Audio + screen run | $(if ($env:SCREEN -eq 'true') { '10 min' } else { 'skipped' }) |",
+            ''
+          ) | Out-File $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
+          if ($devices.Count -eq 0) { Write-Host '::warning::No audio device: WASAPI loopback has no render endpoint, the recording checks are expected to fail.' }
+
+      # The player process must outlive both runs: minutes*60 + 600 s + 20 min margin.
+      - name: Start looping tone
+        run: |
+          $duration = [int]$env:MINUTES * 60 + 600 + 1200
+          $out = & ./scripts/start-tone.ps1 -DurationS $duration | Select-Object -Last 1
+          $code = $LASTEXITCODE
+          Write-Host $out
+          "- $out" | Out-File $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
+          exit $code
+
+      - name: "Tone alive (before Run A)"
+        run: pwsh scripts/check-tone.ps1 -Label 'before Run A'
+
+      - name: "Run A: audio only"
+        run: |
+          $seconds = [int]$env:MINUTES * 60
+          pwsh scripts/run-autorecord.ps1 -Exe artifacts/publish/win-x64/Murmur.exe -Seconds $seconds -PerfOut artifacts/perf/recA.json
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: "Check A: audio only"
+        if: ${{ !cancelled() }}
+        run: |
+          pwsh scripts/check-recording.ps1 -PerfJson artifacts/perf/recA.json -ExpectTone -Title "Run A: audio only, $($env:MINUTES) min" -IdleCpuBudgetPct 1 -CpuBudgetPct 3 -RamBudgetMb 150 -MarkdownOut artifacts/perf/checkA.md
+          $code = $LASTEXITCODE
+          if (Test-Path artifacts/perf/checkA.md) {
+            Get-Content artifacts/perf/checkA.md -Raw | Out-File $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
+          }
+          exit $code
+
+      - name: "Tone alive (before Run B)"
+        if: ${{ !cancelled() && env.SCREEN == 'true' }}
+        run: pwsh scripts/check-tone.ps1 -Label 'before Run B'
+
+      - name: "Run B: audio + screen"
+        if: ${{ !cancelled() && env.SCREEN == 'true' }}
+        run: |
+          pwsh scripts/run-autorecord.ps1 -Exe artifacts/publish/win-x64/Murmur.exe -Seconds 600 -Screen -PerfOut artifacts/perf/recB.json
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: "Check B: audio + screen"
+        if: ${{ !cancelled() && env.SCREEN == 'true' }}
+        run: |
+          pwsh scripts/check-recording.ps1 -PerfJson artifacts/perf/recB.json -ExpectTone -ExpectScreen -Title 'Run B: audio + screen, 10 min' -IdleCpuBudgetPct 1 -CpuBudgetPct 8 -RamBudgetMb 150 -MarkdownOut artifacts/perf/checkB.md
+          $code = $LASTEXITCODE
+          if (Test-Path artifacts/perf/checkB.md) {
+            Get-Content artifacts/perf/checkB.md -Raw | Out-File $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
+          }
+          exit $code
+
+      - name: Stop tone
+        if: always()
+        run: |
+          $pidFile = 'artifacts/tone/tone.pid'
+          if (Test-Path $pidFile) {
+            Stop-Process -Id ([int](Get-Content $pidFile -Raw).Trim()) -Force -ErrorAction SilentlyContinue
+          }
+
+      # Side-by-side view of the numbers against the PLAN.md budgets (details are in the check tables above).
+      - name: Budget summary
+        if: always()
+        run: |
+          function Read-Perf([string] $Path) {
+            if (Test-Path $Path) { return Get-Content $Path -Raw | ConvertFrom-Json }
+            return $null
+          }
+          function Fmt($Obj, [string] $Name) {
+            if ($null -eq $Obj) { return 'n/a' }
+            $p = $Obj.PSObject.Properties[$Name]
+            if ($null -eq $p -or $null -eq $p.Value) { return 'n/a' }
+            return ([double]$p.Value).ToString('N2', [System.Globalization.CultureInfo]::InvariantCulture)
+          }
+          $a = Read-Perf artifacts/perf/recA.json
+          $b = Read-Perf artifacts/perf/recB.json
+          $lines = @(
+            '### Perf record vs budgets (docs/PLAN.md)', '',
+            '| Metric | Budget | A: audio only | B: audio + screen |', '|---|---|---:|---:|',
+            "| Idle CPU, % | < 1 | $(Fmt $a 'idleCpuPct') | $(Fmt $b 'idleCpuPct') |",
+            "| CPU avg, % (A budget < 3, B budget < 8) | < 3 / < 8 | $(Fmt $a 'cpuAvgPct') | $(Fmt $b 'cpuAvgPct') |",
+            "| CPU p95, % | - | $(Fmt $a 'cpuP95Pct') | $(Fmt $b 'cpuP95Pct') |",
+            "| CPU avg, % of one core | - | $(Fmt $a 'cpuAvgPctOneCore') | $(Fmt $b 'cpuAvgPctOneCore') |",
+            "| Working set max, MB | < 150 | $(Fmt $a 'wsMaxMb') | $(Fmt $b 'wsMaxMb') |",
+            "| Working set avg, MB | - | $(Fmt $a 'wsAvgMb') | $(Fmt $b 'wsAvgMb') |",
+            "| Private max, MB | - | $(Fmt $a 'privateMaxMb') | $(Fmt $b 'privateMaxMb') |",
+            ''
+          )
+          $lines | Out-File $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
+
+      - name: Upload perf JSON
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: perf-record
+          path: |
+            artifacts/perf/recA.json
+            artifacts/perf/recB.json
+            artifacts/perf/checkA.md
+            artifacts/perf/checkB.md
+            artifacts/tone/*.log
+          if-no-files-found: warn
+          retention-days: 30

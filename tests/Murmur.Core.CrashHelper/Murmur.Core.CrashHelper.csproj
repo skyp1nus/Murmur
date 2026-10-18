@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Child process for the crash test in Murmur.Core.Tests: records with SyntheticCapture until it is killed. -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <IsPackable>false</IsPackable>
+    <RootNamespace>Murmur.Core.CrashHelper</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Murmur.Core\Murmur.Core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Include="..\Murmur.Core.Tests\Fakes\InMemorySessionStore.cs" Link="InMemorySessionStore.cs" />
+  </ItemGroup>
+
+</Project>

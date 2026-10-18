@@ -1,0 +1,13 @@
+# Task p3-core-index: Wire indexing into post-recording processing; AI model fetch scripts
+
+## Scope
+src/Murmur.Core/** (processing only; no interface changes), tests/Murmur.Core.Tests/**, scripts/fetch-models.sh, scripts/fetch-models.ps1
+
+## Spec
+1. SessionProcessor (phase 2) already has an optional indexer hook. Make the pipeline final: after a successful transcription, if an indexer is configured and AI is installed (a `Func<bool> isAiInstalled` or a status provider), run Indexing (priority below transcription) -> State Ready; when AI is not installed set Ready without vectors (keyword search still works) and remember `NeedsIndex` so a later `ReindexAllAsync()` (called when AI models appear) indexes them; indexing failure leaves the transcript intact (State Ready + Error text "Індексування не вдалося: …"). Never run while recording (queue paused).
+2. LLM recording guard glue in Core: a small `RecordingActivity` helper exposing `bool IsRecording` (from IRecorder.State) and raising `RecordingStarted` so the composition root can call LocalLlm.NotifyRecordingStarted() (Intelligence is not referenced by Core — keep it as events/delegates).
+3. scripts/fetch-models.(sh|ps1): add optional `--ai` / `-Ai` switch that also downloads into <models>/llama.cpp the llama.cpp release b11716 server binaries (Windows: https://github.com/ggml-org/llama.cpp/releases/download/b11716/llama-b11716-bin-win-cpu-x64.zip; Linux: .../llama-b11716-bin-ubuntu-x64.tar.gz; extract so that llama-server(.exe) and its shared libraries sit in <models>/llama.cpp/) and the GGUF models from Hugging Face into <models>/gguf/: Gemma 4 E4B instruct Q4_K_M and EmbeddingGemma 300M (Q8_0). Hugging Face repo names are not verifiable from this machine (HF is blocked here): try a list of candidates in order and stop at the first that works — chat: ggml-org/gemma-4-E4B-it-GGUF, unsloth/gemma-4-E4B-it-GGUF, bartowski/google_gemma-4-E4B-it-GGUF; embeddings: ggml-org/embeddinggemma-300M-GGUF, unsloth/embeddinggemma-300m-GGUF; resolve file names via the HF API (`https://huggingface.co/api/models/<repo>` -> siblings[].rfilename matching Q4_K_M / Q8_0), download with `https://huggingface.co/<repo>/resolve/main/<file>`; write <models>/gguf/models.json {chat: path, embed: path, repo, file}; print the env vars MURMUR_LLM_MODEL / MURMUR_EMBED_MODEL / MURMUR_LLAMA_SERVER to use. Idempotent, retries, fails loudly.
+4. Tests for the processor changes (installed / not installed / failure / reindex / never during recording).
+
+## Acceptance
+Build 0 warnings; Core tests green; bash -n passes; the scripts' download logic is reviewed for both OSes (Windows behaviour UNVERIFIED).

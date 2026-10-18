@@ -1,0 +1,89 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Executable and composition root. The only project allowed to reference Murmur.Capture.*. -->
+  <PropertyGroup>
+    <!-- Clear the single-TFM default from Directory.Build.props, otherwise multi-targeting is disabled. -->
+    <TargetFramework></TargetFramework>
+    <TargetFrameworks>$(MurmurTargetFramework);$(MurmurWindowsTargetFramework)</TargetFrameworks>
+    <OutputType>Exe</OutputType>
+    <AssemblyName>Murmur</AssemblyName>
+    <RootNamespace>Murmur.Desktop</RootNamespace>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <PublishAot>true</PublishAot>
+    <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(TargetFramework)' == '$(MurmurWindowsTargetFramework)'">
+    <OutputType>WinExe</OutputType>
+    <SupportedOSPlatformVersion>$(MurmurWindowsMinVersion)</SupportedOSPlatformVersion>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Avalonia.Desktop" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Murmur.App\Murmur.App.csproj" />
+    <ProjectReference Include="..\Murmur.Core\Murmur.Core.csproj" />
+    <ProjectReference Include="..\Murmur.Storage\Murmur.Storage.csproj" />
+    <ProjectReference Include="..\Murmur.Intelligence\Murmur.Intelligence.csproj" />
+  </ItemGroup>
+
+  <!--
+    The ASR worker is a separate process (models never live in the recorder's memory), so it is built before the app
+    but not referenced as an assembly. WorkerAsrClient looks for Murmur.Transcription(.exe) next to the app.
+    Private="false": the SDK would otherwise copy the worker's deps.json and runtimeconfig.json (but nothing else) into
+    the app's output and publish folders; the two targets below ship the complete worker instead.
+  -->
+  <ItemGroup>
+    <ProjectReference Include="..\Murmur.Transcription\Murmur.Transcription.csproj" ReferenceOutputAssembly="false" Private="false" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <MurmurWorkerProject>..\Murmur.Transcription\Murmur.Transcription.csproj</MurmurWorkerProject>
+  </PropertyGroup>
+
+  <!--
+    Build/run: copy the worker into the app's output folder.
+    - Its own files (apphost, dll, deps.json, runtimeconfig.json) come from its output folder.
+    - Its dependencies (the native sherpa-onnx and onnxruntime libs) come from its ReferenceCopyLocalPaths, at the
+      TargetPath its own build uses: runtimes/<rid>/native/<lib> for a RID-less build, flat <lib> for a RID-specific one
+      (dotnet build/run -r <rid>). Dependencies the app already ships (Murmur.Core) are left alone.
+  -->
+  <Target Name="MurmurCopyWorkerToOutput" AfterTargets="Build" Condition="'$(TargetFramework)' != ''">
+    <MSBuild Projects="$(MurmurWorkerProject)" Targets="GetTargetPath" Properties="TargetFramework=$(MurmurTargetFramework)">
+      <Output TaskParameter="TargetOutputs" PropertyName="MurmurWorkerDll" />
+    </MSBuild>
+    <MSBuild Projects="$(MurmurWorkerProject)" Targets="ReferenceCopyLocalPathsOutputGroup" Properties="TargetFramework=$(MurmurTargetFramework)">
+      <Output TaskParameter="TargetOutputs" ItemName="MurmurWorkerDependency" />
+    </MSBuild>
+    <PropertyGroup>
+      <MurmurWorkerDir>$([MSBuild]::NormalizeDirectory($([System.IO.Path]::GetDirectoryName('$(MurmurWorkerDll)'))))</MurmurWorkerDir>
+    </PropertyGroup>
+    <ItemGroup>
+      <MurmurWorkerFile Include="$(MurmurWorkerDir)Murmur.Transcription*" Exclude="$(MurmurWorkerDir)*.pdb" />
+      <MurmurWorkerDependency Remove="@(ReferenceCopyLocalPaths)" />
+    </ItemGroup>
+    <Error Condition="'@(MurmurWorkerDependency)' == ''" Text="Murmur.Desktop: the ASR worker reported no dependencies to copy next to the app (expected the sherpa-onnx native runtime)." />
+    <Copy SourceFiles="@(MurmurWorkerFile)" DestinationFolder="$(OutDir)" SkipUnchangedFiles="true" />
+    <Copy SourceFiles="@(MurmurWorkerDependency)" DestinationFiles="@(MurmurWorkerDependency->'$(OutDir)%(TargetPath)')" SkipUnchangedFiles="true" />
+  </Target>
+
+  <!--
+    Publish: Native-AOT publish of the worker into the app's publish folder (native executable plus the native libs).
+    PublishDir defaults to a path relative to this project, which the worker would resolve against its own folder, so it
+    is passed as an absolute path. The RID is passed explicitly, so the worker matches the app even when the app's RID
+    comes from a publish profile or RID inference rather than the command line.
+  -->
+  <Target Name="MurmurPublishWorker" AfterTargets="Publish" Condition="'$(TargetFramework)' != '' And '$(PublishAot)' == 'true' And '$(RuntimeIdentifier)' != ''">
+    <PropertyGroup>
+      <MurmurWorkerPublishDir>$([MSBuild]::NormalizeDirectory('$(MSBuildProjectDirectory)', '$(PublishDir)'))</MurmurWorkerPublishDir>
+    </PropertyGroup>
+    <MSBuild Projects="$(MurmurWorkerProject)" Targets="Publish" Properties="TargetFramework=$(MurmurTargetFramework);RuntimeIdentifier=$(RuntimeIdentifier);PublishDir=$(MurmurWorkerPublishDir)" />
+  </Target>
+
+  <ItemGroup Condition="'$(TargetFramework)' == '$(MurmurWindowsTargetFramework)'">
+    <ProjectReference Include="..\Murmur.Capture.Windows\Murmur.Capture.Windows.csproj" />
+  </ItemGroup>
+
+</Project>

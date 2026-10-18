@@ -55,3 +55,9 @@ CodeCoverage/
 *.VisualState.xml
 TestResult.xml
 nunit-*.xml
+
+# Murmur
+BenchmarkDotNet.Artifacts/
+*.trx
+# Local model files (repo root only, so source folders named "Models" stay tracked)
+/models/

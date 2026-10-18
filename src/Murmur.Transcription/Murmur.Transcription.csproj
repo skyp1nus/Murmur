@@ -1,0 +1,46 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- ASR worker process: runs out of process so models never live in the recorder's memory. -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <RootNamespace>Murmur.Transcription</RootNamespace>
+    <PublishAot>true</PublishAot>
+    <InvariantGlobalization>true</InvariantGlobalization>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <!-- Surface every trim/AOT warning per call site instead of one summary warning per assembly. -->
+    <TrimmerSingleWarn>false</TrimmerSingleWarn>
+    <!-- activeCodePage=UTF-8: sherpa-onnx opens model files via narrow (ANSI code page) paths on Windows. -->
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+  </PropertyGroup>
+
+  <!--
+    Native runtime of sherpa-onnx (libsherpa-onnx-c-api + libonnxruntime). We bind the C API ourselves
+    (Native/SherpaOnnxNative.cs), so only the per-RID runtime package is needed - not the meta-package, which
+    drags the binaries of 9 RIDs (~260 MB) into every bin folder (DECISIONS D-012/D-013).
+    The RID is the publish RuntimeIdentifier, or the SDK host RID for a plain RID-less `dotnet build`.
+  -->
+  <PropertyGroup>
+    <SherpaOnnxRid Condition="'$(RuntimeIdentifier)' != ''">$(RuntimeIdentifier)</SherpaOnnxRid>
+    <SherpaOnnxRid Condition="'$(SherpaOnnxRid)' == ''">$(NETCoreSdkPortableRuntimeIdentifier)</SherpaOnnxRid>
+    <SherpaOnnxRid Condition="'$(SherpaOnnxRid)' == ''">$(NETCoreSdkRuntimeIdentifier)</SherpaOnnxRid>
+    <SherpaOnnxRidSupported>false</SherpaOnnxRidSupported>
+    <SherpaOnnxRidSupported Condition="'$(SherpaOnnxRid)' == 'linux-x64' Or '$(SherpaOnnxRid)' == 'linux-arm64' Or '$(SherpaOnnxRid)' == 'win-x64' Or '$(SherpaOnnxRid)' == 'win-arm64' Or '$(SherpaOnnxRid)' == 'osx-x64' Or '$(SherpaOnnxRid)' == 'osx-arm64'">true</SherpaOnnxRidSupported>
+  </PropertyGroup>
+
+  <ItemGroup Condition="'$(SherpaOnnxRidSupported)' == 'true'">
+    <PackageReference Include="org.k2fsa.sherpa.onnx.runtime.$(SherpaOnnxRid)" />
+  </ItemGroup>
+
+  <Target Name="MurmurCheckSherpaOnnxRid" BeforeTargets="CollectPackageReferences;Build" Condition="'$(SherpaOnnxRidSupported)' != 'true'">
+    <Error Text="Murmur.Transcription: no sherpa-onnx runtime package for RID '$(SherpaOnnxRid)'. Supported: linux-x64, linux-arm64, win-x64, win-arm64, osx-x64, osx-arm64." />
+  </Target>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Murmur.Core\Murmur.Core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Murmur.Transcription.Tests" />
+  </ItemGroup>
+
+</Project>

@@ -1,0 +1,33 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:Murmur.App.ViewModels"
+        xmlns:views="using:Murmur.App.Views"
+        x:Class="Murmur.App.Views.MainWindow"
+        x:DataType="vm:ShellViewModel"
+        Title="Murmur"
+        Width="1200"
+        Height="780"
+        MinWidth="900"
+        MinHeight="600">
+
+  <!-- Navigation: the shell exposes the current page view model; templates are keyed by its type (no reflection). -->
+  <Window.DataTemplates>
+    <DataTemplate DataType="vm:LibraryViewModel">
+      <views:LibraryView />
+    </DataTemplate>
+    <DataTemplate DataType="vm:RecordingViewModel">
+      <views:RecordingView />
+    </DataTemplate>
+    <DataTemplate DataType="vm:SessionViewModel">
+      <views:SessionView />
+    </DataTemplate>
+    <DataTemplate DataType="vm:LibraryChatViewModel">
+      <views:LibraryChatView />
+    </DataTemplate>
+  </Window.DataTemplates>
+
+  <ContentControl Margin="{StaticResource Inset.48}"
+                  HorizontalContentAlignment="Stretch"
+                  VerticalContentAlignment="Stretch"
+                  Content="{Binding CurrentPage}" />
+</Window>

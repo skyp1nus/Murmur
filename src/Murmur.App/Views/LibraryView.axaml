@@ -1,0 +1,219 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Murmur.App.ViewModels"
+             x:Class="Murmur.App.Views.LibraryView"
+             x:DataType="vm:LibraryViewModel">
+
+  <Grid RowDefinitions="Auto,Auto,*"
+        RowSpacing="{StaticResource Space.24}">
+
+    <!-- Header: wordmark, search, primary action -->
+    <Grid Grid.Row="0"
+          ColumnDefinitions="Auto,*,Auto"
+          ColumnSpacing="{StaticResource Space.24}">
+      <TextBlock Grid.Column="0"
+                 Classes="heading"
+                 VerticalAlignment="Center"
+                 Text="Murmur" />
+      <TextBox Grid.Column="1"
+               Classes="pill"
+               HorizontalAlignment="Right"
+               Width="360"
+               VerticalAlignment="Center"
+               PlaceholderText="Пошук по записах"
+               Text="{Binding SearchText}" />
+      <Button Grid.Column="2"
+              Classes="primary"
+              VerticalAlignment="Center"
+              Content="Новий запис"
+              Command="{Binding NewRecordingCommand}" />
+    </Grid>
+
+    <!-- Date filters, the inline error and the library-wide chat -->
+    <Grid Grid.Row="1"
+          ColumnDefinitions="Auto,*,Auto"
+          ColumnSpacing="{StaticResource Space.24}">
+      <StackPanel Grid.Column="0"
+                  Orientation="Horizontal"
+                  Spacing="{StaticResource Space.8}">
+        <ToggleButton Classes="pill"
+                      Content="Сьогодні"
+                      IsChecked="{Binding IsTodayFilter, Mode=TwoWay}" />
+        <ToggleButton Classes="pill"
+                      Content="Тиждень"
+                      IsChecked="{Binding IsWeekFilter, Mode=TwoWay}" />
+        <ToggleButton Classes="pill"
+                      Content="Усі"
+                      IsChecked="{Binding IsAllFilter, Mode=TwoWay}" />
+      </StackPanel>
+      <TextBlock Grid.Column="1"
+                 Classes="bodySm"
+                 VerticalAlignment="Center"
+                 TextWrapping="Wrap"
+                 IsVisible="{Binding HasError}"
+                 Text="{Binding Error}" />
+      <Button Grid.Column="2"
+              Classes="outline"
+              VerticalAlignment="Center"
+              Content="Запитати AI по всіх записах"
+              IsVisible="{Binding CanAskAll}"
+              Command="{Binding AskAllCommand}" />
+    </Grid>
+
+    <!-- Session list (virtualised: ListBox uses a VirtualizingStackPanel) -->
+    <Border Grid.Row="2"
+            Classes="card"
+            Padding="{StaticResource Inset.8}"
+            IsVisible="{Binding ShowSessionList}">
+      <ListBox Classes="sessions"
+               ItemsSource="{Binding Sessions}"
+               SelectedItem="{Binding SelectedSession, Mode=TwoWay}"
+               ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+        <ListBox.ItemTemplate>
+          <DataTemplate x:DataType="vm:SessionItemViewModel">
+            <Grid ColumnDefinitions="*,Auto,Auto"
+                  ColumnSpacing="{StaticResource Space.24}"
+                  Margin="{StaticResource Inset.16}">
+              <StackPanel Grid.Column="0"
+                          VerticalAlignment="Center">
+                <TextBlock Classes="body"
+                           FontWeight="{StaticResource FontWeight.BodyMedium}"
+                           TextTrimming="CharacterEllipsis"
+                           Text="{Binding Title}" />
+                <TextBlock Classes="bodySm"
+                           Foreground="{StaticResource Brush.Smoke}"
+                           Text="{Binding DateText}" />
+              </StackPanel>
+              <StackPanel Grid.Column="1"
+                          Orientation="Horizontal"
+                          Spacing="{StaticResource Space.8}"
+                          VerticalAlignment="Center">
+                <Border Classes="badge"
+                        IsVisible="{Binding HasStatus}">
+                  <TextBlock Classes="caption"
+                             Text="{Binding StatusText}" />
+                </Border>
+                <Border Classes="badge"
+                        IsVisible="{Binding HasMicrophone}">
+                  <TextBlock Classes="caption"
+                             Text="Мікрофон" />
+                </Border>
+                <Border Classes="badge"
+                        IsVisible="{Binding HasSystemAudio}">
+                  <TextBlock Classes="caption"
+                             Text="Системний" />
+                </Border>
+                <Border Classes="badge"
+                        IsVisible="{Binding HasScreen}">
+                  <TextBlock Classes="caption"
+                             Text="Екран" />
+                </Border>
+              </StackPanel>
+              <TextBlock Grid.Column="2"
+                         Classes="mono"
+                         VerticalAlignment="Center"
+                         Foreground="{StaticResource Brush.Graphite}"
+                         Text="{Binding DurationText}" />
+            </Grid>
+          </DataTemplate>
+        </ListBox.ItemTemplate>
+      </ListBox>
+    </Border>
+
+    <!-- Transcript search: title, time chip, snippet (virtualised like the session list) -->
+    <Grid Grid.Row="2"
+          RowDefinitions="Auto,*"
+          RowSpacing="{StaticResource Space.12}"
+          IsVisible="{Binding ShowSearchResults}">
+      <TextBlock Grid.Row="0"
+                 Classes="bodySm"
+                 Foreground="{StaticResource Brush.Smoke}"
+                 TextWrapping="Wrap"
+                 IsVisible="{Binding HasSearchStatus}"
+                 Text="{Binding SearchStatusText}" />
+      <Border Grid.Row="1"
+              Classes="card"
+              Padding="{StaticResource Inset.8}"
+              IsVisible="{Binding HasSearchResults}">
+        <ListBox x:Name="SearchResultList"
+                 Classes="sessions"
+                 ItemsSource="{Binding SearchResults}"
+                 SelectedItem="{Binding SelectedSearchResult, Mode=TwoWay}"
+                 ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+          <ListBox.ItemTemplate>
+            <DataTemplate x:DataType="vm:SearchResultViewModel">
+              <StackPanel Margin="{StaticResource Inset.16}"
+                          Spacing="{StaticResource Space.4}">
+                <Grid ColumnDefinitions="Auto,*"
+                      ColumnSpacing="{StaticResource Space.8}">
+                  <Border Grid.Column="0"
+                          Classes="chip"
+                          IsVisible="{Binding HasTime}">
+                    <TextBlock Text="{Binding TimeText}" />
+                  </Border>
+                  <TextBlock Grid.Column="1"
+                             Classes="body"
+                             VerticalAlignment="Center"
+                             FontWeight="{StaticResource FontWeight.BodyMedium}"
+                             TextTrimming="CharacterEllipsis"
+                             Text="{Binding Title}" />
+                </Grid>
+                <TextBlock Classes="bodySm"
+                           Foreground="{StaticResource Brush.Graphite}"
+                           TextWrapping="Wrap"
+                           MaxLines="2"
+                           TextTrimming="CharacterEllipsis"
+                           Text="{Binding Snippet}" />
+              </StackPanel>
+            </DataTemplate>
+          </ListBox.ItemTemplate>
+        </ListBox>
+      </Border>
+      <Border Grid.Row="1"
+              Classes="card"
+              Width="560"
+              HorizontalAlignment="Center"
+              VerticalAlignment="Center"
+              IsVisible="{Binding ShowNoSearchResults}">
+        <StackPanel Spacing="{StaticResource Space.16}">
+          <TextBlock Classes="headingSm"
+                     HorizontalAlignment="Center"
+                     TextAlignment="Center"
+                     Text="Нічого не знайдено" />
+          <TextBlock Classes="body"
+                     HorizontalAlignment="Center"
+                     TextAlignment="Center"
+                     TextWrapping="Wrap"
+                     Foreground="{StaticResource Brush.Graphite}"
+                     Text="Ні в назвах, ні в транскриптах немає збігів. Спробуй інші слова або інший період." />
+        </StackPanel>
+      </Border>
+    </Grid>
+
+    <!-- Empty state (phase 0) -->
+    <Border Grid.Row="2"
+            Classes="card"
+            Width="560"
+            HorizontalAlignment="Center"
+            VerticalAlignment="Center"
+            IsVisible="{Binding ShowEmptyState}">
+      <StackPanel Spacing="{StaticResource Space.24}"
+                  HorizontalAlignment="Stretch">
+        <TextBlock Classes="headingSm"
+                   HorizontalAlignment="Center"
+                   TextAlignment="Center"
+                   Text="{Binding EmptyTitle}" />
+        <TextBlock Classes="body"
+                   HorizontalAlignment="Center"
+                   TextAlignment="Center"
+                   TextWrapping="Wrap"
+                   Foreground="{StaticResource Brush.Graphite}"
+                   Text="{Binding EmptyText}" />
+        <Button Classes="primary"
+                HorizontalAlignment="Center"
+                Content="Новий запис"
+                Command="{Binding NewRecordingCommand}" />
+      </StackPanel>
+    </Border>
+  </Grid>
+</UserControl>

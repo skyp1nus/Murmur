@@ -1,0 +1,34 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Throwaway spike: 10 s of WASAPI loopback (or a WAV file) -> 16 kHz mono -> sherpa-onnx Parakeet TDT v3.
+    Proves that sherpa-onnx survives Native AOT. See README.md.
+
+    Two ASR bindings can be compiled in:
+      default                     our own thin [LibraryImport] layer over sherpa-onnx's C API (AOT-clean);
+      -p:SherpaBinding=managed    the managed SherpaOnnx.* classes shipped in org.k2fsa.sherpa.onnx
+                                  (kept only to reproduce the AOT findings documented in README.md).
+    The NuGet package is referenced in both cases: it brings the native runtime (sherpa-onnx-c-api + onnxruntime).
+  -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <IsPackable>false</IsPackable>
+    <RootNamespace>Murmur.Spike.LoopbackAsr</RootNamespace>
+    <AssemblyName>Murmur.Spike.LoopbackAsr</AssemblyName>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <PublishAot>true</PublishAot>
+    <InvariantGlobalization>true</InvariantGlobalization>
+    <!-- Surface every trim/AOT warning per call site instead of one summary warning per assembly. -->
+    <TrimmerSingleWarn>false</TrimmerSingleWarn>
+    <SherpaBinding Condition="'$(SherpaBinding)' == ''">native</SherpaBinding>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(SherpaBinding)' == 'managed'">
+    <DefineConstants>$(DefineConstants);SHERPA_MANAGED</DefineConstants>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="org.k2fsa.sherpa.onnx" />
+  </ItemGroup>
+
+</Project>

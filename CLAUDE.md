@@ -14,20 +14,25 @@
 ## Жорсткі правила
 - **Native AOT завжди.** Жодної рефлексії, `dynamic`, `Activator.CreateInstance`, runtime-кодогенерації. JSON — `System.Text.Json` source-gen, MVVM і DI — source-gen. Збірка з trim-попередженнями = червона.
 - **Гарячі шляхи без алокацій:** аудіо/відео-callback'и — тільки `Span<T>`, `ArrayPool`, lock-free буфери. Жодних LINQ, `async`, логування з інтерполяцією всередині callback'ів.
-- **Межі модулів:** `Murmur.App` залежить лише від `Murmur.Core`. Платформний код — тільки в `Murmur.Capture.*`. Інтерфейси в `Murmur.Core` змінює лише архітектор.
+- **Межі модулів:** `Murmur.App` (бібліотека UI) залежить лише від `Murmur.Core`; реалізації збирає composition root `Murmur.Desktop` (exe). Платформний код — тільки в `Murmur.Capture.*`. Інтерфейси в `Murmur.Core` змінює лише архітектор.
 - **Моделі (ASR, LLM)** працюють в окремому процесі-воркері, вантажаться ліниво, ніколи не тримаються в памʼяті під час запису.
 - **Нова залежність** — тільки після перевірки AOT-сумісності, ліцензії й погодження власника.
 - **Дизайн** — тільки токени з `docs/design/tokens.json`. Violet/Ember — лише для «сфери» запису та іконок, ніколи для кнопок і тексту.
 - **Тести** до кожної публічної поведінки; бенчмарк до кожного гарячого шляху.
 - **Комміти** — Conventional Commits (`feat(capture): ...`), одна задача = одна гілка = один PR.
+- **Без трейлерів у коммітах:** жодних `Co-Authored-By:` і `Claude-Session:` рядків у повідомленнях коммітів; в описах PR — без посилань на сесію Claude.
 
 ## Команди
 ```bash
 dotnet build Murmur.sln -c Release
 dotnet test Murmur.sln -c Release
-dotnet publish src/Murmur.App -c Release -r win-x64 -p:PublishAot=true
+dotnet publish src/Murmur.Desktop -c Release -f net11.0-windows10.0.22621.0 -r win-x64   # Native AOT, exe = Murmur.exe
 dotnet run -c Release --project tests/Murmur.Benchmarks
 ```
+
+## Перевірка на Windows
+- Windows-поведінку (WASAPI, WGC/MF, AOT win-x64, старт) доводить CI: `ci.yml` (тести, AOT, `startup`, `capture-e2e`), `perf-record.yml` (1 год запису; запуск — зміна `.github/perf-request.txt`), `asr.yml` (бенч 1 год ASR), `ai-eval.yml` (Gemma 4). Раннер без GPU (WARP) і з забороненим мікрофоном — не плутати це з багами продукту.
+- Теги `phase-N-done` — рядком у `.github/phase-tags.txt` (створює `tags.yml`).
 
 ## Середовище
 Код захоплення (WASAPI, WGC, Media Foundation) і AOT-збірку win-x64 можна запускати й перевіряти лише на Windows. На Linux — тільки Core, Storage, Intelligence і тести без платформного коду.

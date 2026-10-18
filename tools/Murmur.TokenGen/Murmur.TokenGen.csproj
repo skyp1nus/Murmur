@@ -1,0 +1,10 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Generates design-token code from docs/design/tokens.json. Filled in by a later task. -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <IsPackable>false</IsPackable>
+    <RootNamespace>Murmur.TokenGen</RootNamespace>
+  </PropertyGroup>
+
+</Project>

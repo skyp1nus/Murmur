@@ -1,0 +1,126 @@
+<!--
+  AUTO-GENERATED from docs/design/tokens.json by tools/Murmur.TokenGen - DO NOT EDIT.
+  Regenerate: run the tools/Murmur.TokenGen project with the arguments docs/design/tokens.json and src/Murmur.App/Styles/Tokens.axaml
+
+  Naming
+    Color.<Name>        Color              Brush.<Name>        SolidColorBrush (one pair per colour token)
+    Font.Display/Body   Inter (embedded via Avalonia.Fonts.Inter)    Font.Mono   Geist Mono (embedded asset)
+    FontWeight.<Role>   Display = 300, Body = first body weight, BodyMedium = second body weight, Mono
+    FontSize.<Scale>    double, one per typeScale entry (plus FontSize.Mono)
+    LineHeight.<Scale>  double = size * ratio (Avalonia TextBlock.LineHeight is absolute, not a multiplier)
+    LetterSpacing.<Scale>
+                        double in DIPs = em * size, because Avalonia TextBlock.LetterSpacing is absolute.
+                        display, heading and headingSm use font.display.letterSpacingEm; every other entry
+                        uses font.body.letterSpacingEm. Mono uses no tracking.
+    Space.<n>           double, spacing scale          Inset.<n>      uniform Thickness from the scale
+    Inset.<Component>   Thickness (horizontal, vertical) pairs taken from the scale, see TokenGenerator.Insets
+    Radius.<Name>       CornerRadius                   Hairline.*     border hairline width / thickness (brush: Brush.Hairline)
+    Shadow.<Name>       BoxShadows (rgba converted to #AARRGGBB, px dropped; Avalonia parses unitless numbers)
+
+  Accent colours are only for the recording orb and icons; Orb*.axaml and Icons/ may reference them.
+-->
+<ResourceDictionary xmlns="https://github.com/avaloniaui"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+  <!-- Colours -->
+  <Color x:Key="Color.Canvas">#fdfcfc</Color>
+  <Color x:Key="Color.Surface">#f5f3f1</Color>
+  <Color x:Key="Color.Stone">#ebe8e4</Color>
+  <Color x:Key="Color.Ink">#000000</Color>
+  <Color x:Key="Color.Graphite">#44403b</Color>
+  <Color x:Key="Color.Smoke">#777169</Color>
+  <Color x:Key="Color.Ash">#a59f97</Color>
+  <Color x:Key="Color.ButtonBorder">#e5e5e5</Color>
+  <Color x:Key="Color.AccentViolet">#0447ff</Color>
+  <Color x:Key="Color.AccentEmber">#ff4704</Color>
+  <SolidColorBrush x:Key="Brush.Canvas" Color="{StaticResource Color.Canvas}" />
+  <SolidColorBrush x:Key="Brush.Surface" Color="{StaticResource Color.Surface}" />
+  <SolidColorBrush x:Key="Brush.Stone" Color="{StaticResource Color.Stone}" />
+  <SolidColorBrush x:Key="Brush.Ink" Color="{StaticResource Color.Ink}" />
+  <SolidColorBrush x:Key="Brush.Graphite" Color="{StaticResource Color.Graphite}" />
+  <SolidColorBrush x:Key="Brush.Smoke" Color="{StaticResource Color.Smoke}" />
+  <SolidColorBrush x:Key="Brush.Ash" Color="{StaticResource Color.Ash}" />
+  <SolidColorBrush x:Key="Brush.ButtonBorder" Color="{StaticResource Color.ButtonBorder}" />
+  <SolidColorBrush x:Key="Brush.AccentViolet" Color="{StaticResource Color.AccentViolet}" />
+  <SolidColorBrush x:Key="Brush.AccentEmber" Color="{StaticResource Color.AccentEmber}" />
+
+  <!-- Fonts -->
+  <FontFamily x:Key="Font.Display">fonts:Inter#Inter</FontFamily>
+  <FontFamily x:Key="Font.Body">fonts:Inter#Inter</FontFamily>
+  <FontFamily x:Key="Font.Mono">avares://Murmur.App/Assets/Fonts#Geist Mono</FontFamily>
+  <FontWeight x:Key="FontWeight.Display">Light</FontWeight>
+  <FontWeight x:Key="FontWeight.Body">Normal</FontWeight>
+  <FontWeight x:Key="FontWeight.BodyMedium">Medium</FontWeight>
+  <FontWeight x:Key="FontWeight.Mono">Normal</FontWeight>
+
+  <!-- Type scale: size, absolute line height and absolute letter spacing (em * size) -->
+  <x:Double x:Key="FontSize.Caption">10</x:Double>
+  <x:Double x:Key="LineHeight.Caption">16</x:Double>
+  <x:Double x:Key="LetterSpacing.Caption">0.1</x:Double>
+  <x:Double x:Key="FontSize.BodySm">14</x:Double>
+  <x:Double x:Key="LineHeight.BodySm">21</x:Double>
+  <x:Double x:Key="LetterSpacing.BodySm">0.14</x:Double>
+  <x:Double x:Key="FontSize.Body">16</x:Double>
+  <x:Double x:Key="LineHeight.Body">24</x:Double>
+  <x:Double x:Key="LetterSpacing.Body">0.16</x:Double>
+  <x:Double x:Key="FontSize.Subheading">18</x:Double>
+  <x:Double x:Key="LineHeight.Subheading">28.8</x:Double>
+  <x:Double x:Key="LetterSpacing.Subheading">0.18</x:Double>
+  <x:Double x:Key="FontSize.BodyLg">20</x:Double>
+  <x:Double x:Key="LineHeight.BodyLg">27</x:Double>
+  <x:Double x:Key="LetterSpacing.BodyLg">0.2</x:Double>
+  <x:Double x:Key="FontSize.HeadingSm">32</x:Double>
+  <x:Double x:Key="LineHeight.HeadingSm">36.16</x:Double>
+  <x:Double x:Key="LetterSpacing.HeadingSm">-0.64</x:Double>
+  <x:Double x:Key="FontSize.Heading">36</x:Double>
+  <x:Double x:Key="LineHeight.Heading">42.12</x:Double>
+  <x:Double x:Key="LetterSpacing.Heading">-0.72</x:Double>
+  <x:Double x:Key="FontSize.Display">48</x:Double>
+  <x:Double x:Key="LineHeight.Display">51.84</x:Double>
+  <x:Double x:Key="LetterSpacing.Display">-0.96</x:Double>
+  <x:Double x:Key="FontSize.Mono">13</x:Double>
+  <x:Double x:Key="LineHeight.Mono">21.97</x:Double>
+
+  <!-- Spacing scale -->
+  <x:Double x:Key="Space.4">4</x:Double>
+  <x:Double x:Key="Space.8">8</x:Double>
+  <x:Double x:Key="Space.12">12</x:Double>
+  <x:Double x:Key="Space.16">16</x:Double>
+  <x:Double x:Key="Space.20">20</x:Double>
+  <x:Double x:Key="Space.24">24</x:Double>
+  <x:Double x:Key="Space.32">32</x:Double>
+  <x:Double x:Key="Space.40">40</x:Double>
+  <x:Double x:Key="Space.48">48</x:Double>
+  <x:Double x:Key="Space.64">64</x:Double>
+  <x:Double x:Key="Space.96">96</x:Double>
+  <Thickness x:Key="Inset.4">4</Thickness>
+  <Thickness x:Key="Inset.8">8</Thickness>
+  <Thickness x:Key="Inset.12">12</Thickness>
+  <Thickness x:Key="Inset.16">16</Thickness>
+  <Thickness x:Key="Inset.20">20</Thickness>
+  <Thickness x:Key="Inset.24">24</Thickness>
+  <Thickness x:Key="Inset.32">32</Thickness>
+  <Thickness x:Key="Inset.40">40</Thickness>
+  <Thickness x:Key="Inset.48">48</Thickness>
+  <Thickness x:Key="Inset.64">64</Thickness>
+  <Thickness x:Key="Inset.96">96</Thickness>
+  <Thickness x:Key="Inset.Button">24,12</Thickness>
+  <Thickness x:Key="Inset.Input">12,8</Thickness>
+  <Thickness x:Key="Inset.Search">20,12</Thickness>
+  <Thickness x:Key="Inset.Card">32,32</Thickness>
+
+  <!-- Radii -->
+  <CornerRadius x:Key="Radius.Input">4</CornerRadius>
+  <CornerRadius x:Key="Radius.Small">8</CornerRadius>
+  <CornerRadius x:Key="Radius.Card">20</CornerRadius>
+  <CornerRadius x:Key="Radius.CardLarge">24</CornerRadius>
+  <CornerRadius x:Key="Radius.Pill">9999</CornerRadius>
+
+  <!-- Hairline border -->
+  <x:Double x:Key="Hairline.Width">1</x:Double>
+  <Thickness x:Key="Hairline.Thickness">1</Thickness>
+  <SolidColorBrush x:Key="Brush.Hairline" Color="{StaticResource Color.Stone}" />
+
+  <!-- Shadows -->
+  <BoxShadows x:Key="Shadow.Subtle">0 0 1 0 #66000000, 0 1 1 0 #0A000000, 0 2 4 0 #0A000000</BoxShadows>
+</ResourceDictionary>

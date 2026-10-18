@@ -1,0 +1,153 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Murmur.App.ViewModels"
+             x:Class="Murmur.App.Views.ChatView"
+             x:DataType="vm:ChatViewModel">
+
+  <UserControl.Resources>
+    <!-- Widest a bubble may grow (a layout size of this screen, not a design token). -->
+    <x:Double x:Key="Chat.BubbleMaxWidth">560</x:Double>
+    <x:Double x:Key="Chat.NoticeWidth">480</x:Double>
+  </UserControl.Resources>
+
+  <Grid RowDefinitions="*,Auto"
+        RowSpacing="{StaticResource Space.16}">
+
+    <!-- Conversation (virtualised) -->
+    <Border Grid.Row="0"
+            Classes="card transcript">
+      <Panel>
+        <ScrollViewer x:Name="Scroller"
+                      HorizontalScrollBarVisibility="Disabled"
+                      VerticalScrollBarVisibility="Auto">
+          <ItemsControl x:Name="MessageList"
+                        ItemsSource="{Binding Messages}">
+            <ItemsControl.ItemsPanel>
+              <ItemsPanelTemplate>
+                <VirtualizingStackPanel />
+              </ItemsPanelTemplate>
+            </ItemsControl.ItemsPanel>
+            <ItemsControl.ItemTemplate>
+              <DataTemplate x:DataType="vm:ChatMessageViewModel">
+                <Panel Margin="{StaticResource Inset.12}">
+                  <!-- Question: right, on Surface -->
+                  <Border Classes="bubble"
+                          HorizontalAlignment="Right"
+                          MaxWidth="{StaticResource Chat.BubbleMaxWidth}"
+                          IsVisible="{Binding IsUser}">
+                    <TextBlock Classes="body"
+                               TextWrapping="Wrap"
+                               Text="{Binding Text}" />
+                  </Border>
+
+                  <!-- Answer: left, plain text, then the time chips -->
+                  <StackPanel HorizontalAlignment="Left"
+                              Spacing="{StaticResource Space.12}"
+                              IsVisible="{Binding IsAssistant}">
+                    <TextBlock Classes="bodySm"
+                               Foreground="{StaticResource Brush.Smoke}"
+                               IsVisible="{Binding ShowThinking}"
+                               Text="Думаю…" />
+                    <TextBlock Classes="body"
+                               TextWrapping="Wrap"
+                               IsVisible="{Binding HasText}"
+                               Text="{Binding Text}" />
+                    <ItemsControl ItemsSource="{Binding Citations}"
+                                  IsVisible="{Binding HasCitations}">
+                      <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                          <WrapPanel ItemSpacing="{StaticResource Space.8}"
+                                     LineSpacing="{StaticResource Space.8}" />
+                        </ItemsPanelTemplate>
+                      </ItemsControl.ItemsPanel>
+                      <ItemsControl.ItemTemplate>
+                        <DataTemplate x:DataType="vm:CitationChipViewModel">
+                          <Button Classes="chip"
+                                  Content="{Binding Label}"
+                                  ToolTip.Tip="{Binding Snippet}"
+                                  Command="{Binding ActivateCommand}" />
+                        </DataTemplate>
+                      </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                    <TextBlock Classes="bodySm"
+                               TextWrapping="Wrap"
+                               Foreground="{StaticResource Brush.Smoke}"
+                               IsVisible="{Binding HasStatus}"
+                               Text="{Binding StatusText}" />
+                  </StackPanel>
+                </Panel>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+        </ScrollViewer>
+
+        <!-- Empty chat: what to ask -->
+        <StackPanel Width="{StaticResource Chat.NoticeWidth}"
+                    HorizontalAlignment="Center"
+                    VerticalAlignment="Center"
+                    Spacing="{StaticResource Space.12}"
+                    IsVisible="{Binding ShowEmptyHint}">
+          <TextBlock Classes="headingSm"
+                     HorizontalAlignment="Center"
+                     TextAlignment="Center"
+                     TextWrapping="Wrap"
+                     Text="{Binding EmptyTitle}" />
+          <TextBlock Classes="body"
+                     HorizontalAlignment="Center"
+                     TextAlignment="Center"
+                     TextWrapping="Wrap"
+                     Foreground="{StaticResource Brush.Graphite}"
+                     Text="{Binding EmptyText}" />
+        </StackPanel>
+
+        <!-- AI not installed / paused while recording -->
+        <Border Classes="card"
+                Width="{StaticResource Chat.NoticeWidth}"
+                HorizontalAlignment="Center"
+                VerticalAlignment="Center"
+                IsVisible="{Binding ShowNotice}">
+          <StackPanel Spacing="{StaticResource Space.16}">
+            <TextBlock Classes="subheading"
+                       FontWeight="{StaticResource FontWeight.BodyMedium}"
+                       TextWrapping="Wrap"
+                       Text="{Binding NoticeTitle}" />
+            <TextBlock Classes="body"
+                       TextWrapping="Wrap"
+                       Foreground="{StaticResource Brush.Graphite}"
+                       Text="{Binding NoticeText}" />
+            <Button Classes="outline"
+                    HorizontalAlignment="Left"
+                    Content="Перевірити знову"
+                    IsVisible="{Binding CanCheckAgain}"
+                    Command="{Binding RefreshAvailabilityCommand}" />
+          </StackPanel>
+        </Border>
+      </Panel>
+    </Border>
+
+    <!-- Input pill and the primary action (Stop while generating) -->
+    <Grid Grid.Row="1"
+          ColumnDefinitions="*,Auto"
+          ColumnSpacing="{StaticResource Space.12}">
+      <TextBox x:Name="QuestionBox"
+               Grid.Column="0"
+               Classes="pill"
+               VerticalAlignment="Center"
+               PlaceholderText="{Binding PlaceholderText}"
+               IsEnabled="{Binding CanEditQuestion}"
+               Text="{Binding Question}" />
+      <Button Grid.Column="1"
+              Classes="primary"
+              VerticalAlignment="Center"
+              Content="Запитати"
+              IsVisible="{Binding !IsGenerating}"
+              Command="{Binding AskCommand}" />
+      <Button Grid.Column="1"
+              Classes="outline"
+              VerticalAlignment="Center"
+              Content="Зупинити"
+              IsVisible="{Binding IsGenerating}"
+              Command="{Binding CancelCommand}" />
+    </Grid>
+  </Grid>
+</UserControl>
