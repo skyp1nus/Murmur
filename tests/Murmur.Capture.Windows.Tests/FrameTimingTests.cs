@@ -139,35 +139,104 @@ public sealed class FrameTimingTests
     }
 
     [Fact]
-    public void Tail_ExtendsToStop_WhenNotFaulted()
+    public void End_IsTheStop_WhenNotFaulted()
     {
-        var frame = MediaTime.FrameDuration(30);
         const long start = 100 * Second;
         const long stop = start + (3600 * Second);
 
-        Assert.True(RepeatPolicy.TryGetTail(true, true, stop, RepeatPolicy.NoFault, frame, start, 5 * Second, out var tail));
-        Assert.Equal(stop - frame, tail);
+        Assert.Equal(stop, RepeatPolicy.EndTicks(stopRequested: true, stop, RepeatPolicy.NoFault, now: stop + Second));
 
-        // The last sample already reaches the end: no tail.
-        Assert.False(RepeatPolicy.TryGetTail(true, true, stop, RepeatPolicy.NoFault, frame, start, stop - start - frame, out _));
-        Assert.False(RepeatPolicy.TryGetTail(false, true, stop, RepeatPolicy.NoFault, frame, start, -1, out _));
-        Assert.False(RepeatPolicy.TryGetTail(true, false, stop, RepeatPolicy.NoFault, frame, start, 5 * Second, out _));
+        // The encoder thread failed (no stop request): its fault time wins, else "now".
+        Assert.Equal(stop + Second, RepeatPolicy.EndTicks(stopRequested: false, 0, RepeatPolicy.NoFault, now: stop + Second));
     }
 
     [Fact]
-    public void Tail_StopsAtTheFault_NotAtTheStop()
+    public void End_IsTheFault_NotTheStop()
     {
-        // Display unplugged 5 min into a 1 h segment: the file must end at ~5 min, not at 60 min.
-        var frame = MediaTime.FrameDuration(30);
+        // Display unplugged 5 min into a 1 h segment: the file must end at 5 min, not at 60 min.
         const long start = 100 * Second;
         const long stop = start + (3600 * Second);
         const long fault = start + (300 * Second);
 
-        Assert.True(RepeatPolicy.TryGetTail(true, true, stop, fault, frame, start, 290 * Second, out var tail));
-        Assert.Equal(fault - frame, tail);
+        Assert.Equal(fault, RepeatPolicy.EndTicks(stopRequested: true, stop, fault, now: stop));
+        Assert.Equal(fault, RepeatPolicy.EndTicks(stopRequested: false, 0, fault, now: stop));
 
-        // The last frame was written right before the fault: nothing to extend.
-        Assert.False(RepeatPolicy.TryGetTail(true, true, stop, fault, frame, start, 300 * Second - frame, out _));
+        // The last frame held at 290 s lasts until the fault.
+        var timing = new HeldFrameTiming();
+        timing.Advance(0, out _, out _);
+        timing.Advance(290 * Second, out _, out _);
+        Assert.True(timing.Close(fault - start, out var time, out var duration));
+        Assert.Equal((290 * Second, 10 * Second), (time, duration));
+    }
+
+    [Fact]
+    public void HeldTiming_StaticScreen_DurationsAddUpToWallClock()
+    {
+        // 600 s mostly static: 30 frames at 30 fps, then a repeat once a second, stop at 600 s. Before the fix every
+        // sample lasted 1/30 s and the file collapsed to about 23 s.
+        var frame = MediaTime.FrameDuration(30);
+        var timeline = new SegmentTimeline();
+        var timing = new HeldFrameTiming();
+        const long start = 50 * Second;
+        timeline.Reset(start);
+        long total = 0, written = 0, expectedNext = 0;
+
+        void Take(long ticks)
+        {
+            if (timing.Advance(timeline.ToSampleTime(ticks), out var time, out var duration))
+            {
+                Assert.Equal(expectedNext, time); // contiguous: no gaps, no overlaps
+                Assert.True(duration >= 1);
+                expectedNext = time + duration;
+                total += duration;
+                written++;
+            }
+        }
+
+        for (var i = 0; i < 30; i++)
+        {
+            Take(start + (Second / 20) + (i * frame)); // the first frame arrives 50 ms after the start
+        }
+
+        for (var s = 2; s < 600; s++)
+        {
+            Take(start + (s * Second));
+        }
+
+        Assert.True(timing.Close(600 * Second, out var lastTime, out var lastDuration));
+        Assert.Equal(expectedNext, lastTime);
+        total += lastDuration;
+        written++;
+
+        Assert.Equal(30 + 598, written);
+        Assert.Equal(600 * Second, total);
+        Assert.False(timing.HasHeld);
+    }
+
+    [Fact]
+    public void HeldTiming_FirstFrameStartsAtZero_AndDurationsArePositive()
+    {
+        var timing = new HeldFrameTiming();
+        Assert.False(timing.HasHeld);
+        Assert.Equal(HeldFrameTiming.None, timing.HeldTime);
+        Assert.False(timing.Close(10 * Second, out _, out _));
+
+        Assert.False(timing.Advance(2 * Second, out _, out _)); // first frame: nothing to write yet
+        Assert.Equal(0, timing.HeldTime);
+        Assert.True(timing.Advance(3 * Second, out var time, out var duration));
+        Assert.Equal((0L, 3 * Second), (time, duration));
+
+        // The end before the held frame (a fault raced the last frame): still a positive duration.
+        Assert.True(timing.Close(Second, out time, out duration));
+        Assert.Equal((3 * Second, 1L), (time, duration));
+        Assert.False(timing.HasHeld);
+
+        // Discard forgets the held frame; the next one starts at 0 again.
+        timing.Advance(5 * Second, out _, out _);
+        timing.Discard();
+        Assert.False(timing.HasHeld);
+        Assert.False(timing.Advance(7 * Second, out _, out _));
+        Assert.Equal(0, timing.HeldTime);
     }
 
     [Fact]
