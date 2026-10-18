@@ -1,3 +1,4 @@
 # <tag> <commit sha> <message>
 phase-0-done 0426896e4aec355c248704caf2e97717ec33b7ad Phase 0 done: AOT cold start median 289 ms, cold 362 ms on windows-latest (CI run 39088738986)
 phase-1-done b9cdd55feb98d947b6a8c10eca276be304b43c23 Phase 1 done: WASAPI mic+loopback, WGC+MF screen, crash-safe recorder; 1 h no-loss test green on windows-latest (CI run 39107037891); see docs/REPORTS/night-run.md
+phase-2-done d7aef80667aa3aba8bdab1a05451ffd43a599ca6 Phase 2 done: Parakeet worker + VAD, word timestamps, transcripts, player with synced transcript; 1 h audio -> text 197 s (Linux) / 227 s (Windows) on 4-vCPU CI runners vs 180 s budget (NOT met there); see docs/REPORTS/night-run.md
