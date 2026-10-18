@@ -1,0 +1,269 @@
+name: ci
+
+on:
+  push:
+    branches: [master, night-run]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  DOTNET_NOLOGO: "1"
+  DOTNET_CLI_TELEMETRY_OPTOUT: "1"
+  NUGET_PACKAGES: ${{ github.workspace }}/.nuget/packages
+
+jobs:
+  linux:
+    name: build, test, AOT publish (linux-x64)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    # Explicit shell: GitHub then runs steps as `bash --noprofile --norc -eo pipefail {0}`,
+    # so a failing `dotnet publish | tee` fails the step (the default `bash -e {0}` has no pipefail).
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v5
+
+      # global.json pins a prerelease SDK with rollForward=latestFeature, and setup-dotnet alone would
+      # only install channel 11.0 (major.minor). dotnet-version pins the exact SDK; the check step
+      # below fails the job if `dotnet --version` is anything other than the global.json pin.
+      - uses: actions/setup-dotnet@v5
+        with:
+          global-json-file: global.json
+          dotnet-version: 11.0.100-rc.2.26504.105
+
+      - name: Verify SDK matches global.json
+        run: test "$(dotnet --version)" = "$(jq -r .sdk.version global.json)"
+
+      - uses: actions/cache@v4
+        with:
+          path: ${{ env.NUGET_PACKAGES }}
+          key: nuget-${{ runner.os }}-${{ hashFiles('Directory.Packages.props', '**/*.csproj') }}
+          restore-keys: nuget-${{ runner.os }}-
+
+      - name: Native AOT prerequisites
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends clang zlib1g-dev
+
+      - name: Build
+        run: dotnet build Murmur.sln -c Release
+
+      # Tests run on Microsoft.Testing.Platform (global.json); xunit.v3 provides --report-xunit-trx
+      # (the VSTest-style "--logger trx" is rejected with exit code 5 on this runner).
+      - name: Test
+        run: dotnet test Murmur.sln -c Release --no-build --report-xunit-trx --results-directory artifacts/test-results
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results-linux
+          path: artifacts/test-results
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Publish Native AOT (Murmur.Desktop, linux-x64)
+        run: |
+          mkdir -p artifacts/logs
+          dotnet publish src/Murmur.Desktop -c Release -f net11.0 -r linux-x64 -o artifacts/publish/linux-x64/desktop 2>&1 | tee artifacts/logs/publish-desktop.log
+
+      - name: Publish Native AOT (Murmur.Transcription, linux-x64)
+        run: |
+          mkdir -p artifacts/logs
+          dotnet publish src/Murmur.Transcription -c Release -r linux-x64 -o artifacts/publish/linux-x64/transcription 2>&1 | tee artifacts/logs/publish-transcription.log
+
+      # Any compiler, trim (IL2xxx) or AOT (IL3xxx) warning in the publish logs is a red build.
+      - name: Fail on publish warnings
+        run: |
+          if grep -nE ': (warning|error) ' artifacts/logs/publish-*.log; then
+            echo "::error::Native AOT publish produced warnings or errors (see above)"
+            exit 1
+          fi
+          echo "No publish warnings."
+
+  windows:
+    name: build, test, AOT publish (win-x64)
+    runs-on: windows-latest
+    timeout-minutes: 45
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@v5
+
+      # See the linux job: dotnet-version pins the exact prerelease SDK, the next step verifies it.
+      - uses: actions/setup-dotnet@v5
+        with:
+          global-json-file: global.json
+          dotnet-version: 11.0.100-rc.2.26504.105
+
+      - name: Verify SDK matches global.json
+        run: |
+          $expected = (Get-Content global.json -Raw | ConvertFrom-Json).sdk.version
+          $actual = (dotnet --version).Trim()
+          if ($actual -ne $expected) { throw "SDK mismatch: dotnet --version is $actual, global.json pins $expected" }
+
+      - uses: actions/cache@v4
+        with:
+          path: ${{ env.NUGET_PACKAGES }}
+          key: nuget-${{ runner.os }}-${{ hashFiles('Directory.Packages.props', '**/*.csproj') }}
+          restore-keys: nuget-${{ runner.os }}-
+
+      - name: Build
+        run: |
+          dotnet build Murmur.sln -c Release
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Test
+        run: |
+          dotnet test Murmur.sln -c Release --no-build --report-xunit-trx --results-directory artifacts/test-results
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results-windows
+          path: artifacts/test-results
+          if-no-files-found: warn
+          retention-days: 14
+
+      # Murmur.exe and Murmur.Transcription.exe are published side by side into one folder.
+      - name: Publish Native AOT (Murmur.Desktop, win-x64)
+        run: |
+          New-Item -ItemType Directory -Force artifacts/logs | Out-Null
+          dotnet publish src/Murmur.Desktop -c Release -f net11.0-windows10.0.22621.0 -r win-x64 -o artifacts/publish/win-x64 2>&1 | Tee-Object -FilePath artifacts/logs/publish-desktop.log
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Publish Native AOT (Murmur.Transcription, win-x64)
+        run: |
+          dotnet publish src/Murmur.Transcription -c Release -r win-x64 -o artifacts/publish/win-x64 2>&1 | Tee-Object -FilePath artifacts/logs/publish-transcription.log
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Fail on publish warnings
+        run: |
+          $hits = Select-String -Path artifacts/logs/publish-*.log -Pattern ': (warning|error) '
+          if ($hits) {
+            $hits | ForEach-Object { Write-Host $_.Line }
+            Write-Host "::error::Native AOT publish produced warnings or errors (see above)"
+            exit 1
+          }
+          Write-Host "No publish warnings."
+
+      - name: Publish size table
+        if: always()
+        run: |
+          $dir = 'artifacts/publish/win-x64'
+          if (-not (Test-Path $dir)) {
+            'No publish output.' | Out-File $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
+            exit 0
+          }
+          $files = Get-ChildItem $dir -File -Recurse | Where-Object { $_.Extension -in '.exe', '.dll' } | Sort-Object Length -Descending
+          $lines = @('### win-x64 publish size', '', '| File | Size, MB |', '|---|---:|')
+          foreach ($f in $files) {
+            $lines += ('| {0} | {1:N2} |' -f $f.Name, ($f.Length / 1MB))
+          }
+          $total = ($files | Measure-Object Length -Sum).Sum
+          $lines += ('| **Total (exe + dll)** | **{0:N2}** |' -f ($total / 1MB))
+          $lines | Out-File $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
+
+      - name: Upload win-x64 publish
+        uses: actions/upload-artifact@v4
+        with:
+          name: murmur-win-x64
+          path: artifacts/publish/win-x64
+          if-no-files-found: error
+          retention-days: 14
+
+  startup:
+    name: startup budget (win-x64)
+    needs: windows
+    runs-on: windows-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/download-artifact@v5
+        with:
+          name: murmur-win-x64
+          path: artifacts/publish/win-x64
+
+      # Run 1 is the cold run (first launch after extraction); the median of 7 runs must stay within 400 ms.
+      - name: Measure startup
+        run: |
+          pwsh scripts/measure-startup.ps1 -Exe artifacts/publish/win-x64/Murmur.exe -Runs 7 -BudgetMs 400
+          $code = $LASTEXITCODE
+          if (Test-Path artifacts/perf/startup.md) {
+            Get-Content artifacts/perf/startup.md -Raw | Out-File $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
+          }
+          exit $code
+
+      - name: Upload startup measurement
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: perf-startup
+          path: artifacts/perf/startup.json
+          if-no-files-found: warn
+          retention-days: 14
+
+  bench:
+    name: benchmarks
+    runs-on: windows-latest
+    timeout-minutes: 40
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@v5
+
+      # See the linux job: dotnet-version pins the exact prerelease SDK, the next step verifies it.
+      - uses: actions/setup-dotnet@v5
+        with:
+          global-json-file: global.json
+          dotnet-version: 11.0.100-rc.2.26504.105
+
+      - name: Verify SDK matches global.json
+        run: |
+          $expected = (Get-Content global.json -Raw | ConvertFrom-Json).sdk.version
+          $actual = (dotnet --version).Trim()
+          if ($actual -ne $expected) { throw "SDK mismatch: dotnet --version is $actual, global.json pins $expected" }
+
+      - uses: actions/cache@v4
+        with:
+          path: ${{ env.NUGET_PACKAGES }}
+          key: nuget-${{ runner.os }}-${{ hashFiles('Directory.Packages.props', '**/*.csproj') }}
+          restore-keys: nuget-${{ runner.os }}-
+
+      - name: Run BenchmarkDotNet
+        run: |
+          dotnet run -c Release --project tests/Murmur.Benchmarks -- --filter "*" --job short --exporters json github --artifacts artifacts/bench
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Benchmark summary
+        if: always()
+        run: |
+          if (Test-Path artifacts/bench) {
+            Get-ChildItem artifacts/bench -Recurse -Filter '*-report-github.md' | ForEach-Object {
+              "### $($_.BaseName -replace '-report-github$', '')" | Out-File $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
+              Get-Content $_.FullName -Raw | Out-File $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
+            }
+          }
+
+      - name: Upload benchmark results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: bench
+          path: artifacts/bench
+          if-no-files-found: warn
+          retention-days: 14
