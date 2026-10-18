@@ -438,14 +438,11 @@ public sealed class SqliteStorageTests : IDisposable
     }
 
     [Fact]
-    public void TranscriptAndSearchMembers_ThrowNotSupported()
+    public void SearchMembers_ThrowNotSupported()
     {
         var storage = Open();
         var id = SessionId.New();
-        var transcript = new Transcript(id, [], "parakeet");
 
-        Assert.Equal("Arrives in phase 2", Assert.Throws<NotSupportedException>(() => storage.SaveTranscriptAsync(transcript, Ct)).Message);
-        Assert.Throws<NotSupportedException>(() => storage.GetTranscriptAsync(id, Ct));
         Assert.Throws<NotSupportedException>(() => storage.SearchKeywordAsync("q", null, 5, Ct));
         Assert.Equal("Arrives in phase 3", Assert.Throws<NotSupportedException>(() => storage.ReplaceChunksAsync(id, [], [], Ct)).Message);
         Assert.Throws<NotSupportedException>(() => storage.SearchVectorAsync(new float[4], null, 5, Ct));
