@@ -13,6 +13,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\Murmur.Core\Murmur.Core.csproj" />
+    <ProjectReference Include="..\..\src\Murmur.Storage\Murmur.Storage.csproj" />
   </ItemGroup>
 
 </Project>

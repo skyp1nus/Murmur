@@ -438,17 +438,6 @@ public sealed class SqliteStorageTests : IDisposable
     }
 
     [Fact]
-    public void SearchMembers_ThrowNotSupported()
-    {
-        var storage = Open();
-        var id = SessionId.New();
-
-        Assert.Throws<NotSupportedException>(() => storage.SearchKeywordAsync("q", null, 5, Ct));
-        Assert.Equal("Arrives in phase 3", Assert.Throws<NotSupportedException>(() => storage.ReplaceChunksAsync(id, [], [], Ct)).Message);
-        Assert.Throws<NotSupportedException>(() => storage.SearchVectorAsync(new float[4], null, 5, Ct));
-    }
-
-    [Fact]
     public async Task UsedAfterDispose_Throws()
     {
         var storage = _root.Open();

@@ -29,6 +29,7 @@
 
   <ItemGroup Label="Storage">
     <PackageVersion Include="Microsoft.Data.Sqlite" Version="11.0.0-rc.2.26504.105" />
+    <PackageVersion Include="System.Numerics.Tensors" Version="11.0.0-rc.2.26504.105" />
   </ItemGroup>
 
   <ItemGroup Label="Tests and benchmarks">

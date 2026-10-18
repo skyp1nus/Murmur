@@ -65,6 +65,22 @@ internal static class SchemaMigrator
             INSERT INTO segments_fts (rowid, text) VALUES (new.id, new.text);
         END;
         """,
+
+        // 3: embedded transcript chunks. Vectors are L2-normalized little-endian float32 BLOBs (dim * 4 bytes) searched
+        // by managed SIMD brute force (D-017), so there is no vector index, only the per-session lookup index.
+        """
+        CREATE TABLE chunks (
+            id         INTEGER PRIMARY KEY,
+            session_id TEXT    NOT NULL REFERENCES sessions (id) ON DELETE CASCADE,
+            idx        INTEGER NOT NULL,
+            start_ms   INTEGER NOT NULL,
+            end_ms     INTEGER NOT NULL,
+            text       TEXT    NOT NULL,
+            dim        INTEGER NOT NULL,
+            vector     BLOB    NOT NULL
+        );
+        CREATE INDEX ix_chunks_session_idx ON chunks (session_id, idx);
+        """,
     ];
 
     public static int LatestVersion => Migrations.Length;

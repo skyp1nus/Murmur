@@ -180,12 +180,19 @@ public sealed partial class SqliteStorage
             }
         }
 
-        using (var connection = OpenConnection())
+        // The cascade removes the chunk rows; the vector cache entry goes in the same critical section so a
+        // concurrent search can never load rows that are about to disappear and keep them cached.
+        lock (_vectorLock)
         {
-            using var command = connection.CreateCommand();
-            command.CommandText = "DELETE FROM sessions WHERE id = $id";
-            command.Parameters.AddWithValue("$id", id.ToString());
-            command.ExecuteNonQuery();
+            using (var connection = OpenConnection())
+            {
+                using var command = connection.CreateCommand();
+                command.CommandText = "DELETE FROM sessions WHERE id = $id";
+                command.Parameters.AddWithValue("$id", id.ToString());
+                command.ExecuteNonQuery();
+            }
+
+            InvalidateVectors(id);
         }
 
         _folders.TryRemove(id, out _);

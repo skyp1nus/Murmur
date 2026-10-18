@@ -8,7 +8,7 @@ namespace Murmur.Storage;
 /// <summary>
 /// SQLite-backed <see cref="IStorage"/>: session metadata plus one folder per session under the data root.
 /// Every operation opens its own pooled connection (WAL, foreign keys on) and runs on the thread pool, so calls are
-/// safe from any thread and never block the caller's thread. Transcripts live in SQLite with an FTS5 index; search members arrive in later phases.
+/// safe from any thread and never block the caller's thread. Transcripts live in SQLite with an FTS5 index; embedded chunks are searched by BM25 (FTS5) and by managed SIMD brute-force cosine (D-017).
 /// </summary>
 public sealed partial class SqliteStorage : IStorage, IDisposable
 {
