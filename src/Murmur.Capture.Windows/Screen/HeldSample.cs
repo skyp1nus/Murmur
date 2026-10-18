@@ -6,8 +6,11 @@ namespace Murmur.Capture.Windows.Screen;
 /// <summary>Where the encoder thread writes its samples (<see cref="H264SinkWriter"/>; tests use fakes).</summary>
 internal interface ISampleSink
 {
-    /// <summary>Writes <paramref name="sample"/>; the sink takes its own reference. Returns the HRESULT.</summary>
-    int WriteSample(nint sample);
+    /// <summary>
+    /// Writes <paramref name="sample"/>, already stamped with sample time <paramref name="time"/> (100 ns); the sink
+    /// takes its own reference. Returns the HRESULT.
+    /// </summary>
+    int WriteSample(nint sample, long time);
 }
 
 /// <summary>How taking a copy of the held frame for a static-screen repeat ended (see <see cref="HeldSample.CopyForRepeat"/>).</summary>
@@ -64,7 +67,7 @@ internal static class HeldSample
             if (hr >= 0)
             {
                 step = WriteSampleStep;
-                hr = sink!.WriteSample(sample);
+                hr = sink!.WriteSample(sample, time);
             }
 
             return hr;

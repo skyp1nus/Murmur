@@ -406,4 +406,8 @@ internal static unsafe class ICodecAPI
     // HRESULT GetValue(const GUID *Api, VARIANT *Value)
     public static int GetValue(nint self, Guid* api, Variant* value) =>
         ((delegate* unmanaged[MemberFunction]<nint, Guid*, Variant*, int>)ComCall.Vtbl(self)[8])(self, api, value);
+
+    // HRESULT SetValue(const GUID *Api, VARIANT *Value)
+    public static int SetValue(nint self, Guid* api, Variant* value) =>
+        ((delegate* unmanaged[MemberFunction]<nint, Guid*, Variant*, int>)ComCall.Vtbl(self)[9])(self, api, value);
 }

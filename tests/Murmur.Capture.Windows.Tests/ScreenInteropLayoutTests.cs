@@ -242,6 +242,7 @@ public sealed unsafe class ScreenInteropLayoutTests
         { "IClosable::Close", 6 },
         { "ICodecAPI::IsSupported", 3 },
         { "ICodecAPI::GetValue", 8 },
+        { "ICodecAPI::SetValue", 9 },
     };
 
     [Theory]
@@ -357,6 +358,7 @@ public sealed unsafe class ScreenInteropLayoutTests
             case "IClosable::Close": IClosable.Close(s); break;
             case "ICodecAPI::IsSupported": ICodecAPI.IsSupported(s, &g); break;
             case "ICodecAPI::GetValue": ICodecAPI.GetValue(s, &g, &v); break;
+            case "ICodecAPI::SetValue": ICodecAPI.SetValue(s, &g, &v); break;
             default: throw new ArgumentOutOfRangeException(nameof(method), method, null);
         }
     }

@@ -122,6 +122,7 @@ public sealed unsafe class EncoderConfigurationTests
         Assert.Equal(new Guid("F7222374-2144-4815-B550-A37F8E12EE52"), ScreenConstants.CodecApiAVEncCommonMeanBitRate);
         Assert.Equal(new Guid("9651EAE4-39B9-4EBF-85EF-D7F444EC7465"), ScreenConstants.CodecApiAVEncCommonMaxBitRate);
         Assert.Equal(new Guid("FCBF57A3-7EA5-4B0C-9644-69B40C39C391"), ScreenConstants.CodecApiAVEncCommonQuality);
+        Assert.Equal(new Guid("398C1B98-8353-475A-9EF2-8F265D260345"), ScreenConstants.CodecApiAVEncVideoForceKeyFrame);
         Assert.Equal((0u, 1u, 2u, 3u), (ScreenConstants.RateControlCbr, ScreenConstants.RateControlPeakConstrainedVbr, ScreenConstants.RateControlUnconstrainedVbr, ScreenConstants.RateControlQuality));
         Assert.Equal((3, 11, 19, 21, 22, 23), ((int)ScreenConstants.VtI4, (int)ScreenConstants.VtBool, (int)ScreenConstants.VtUI4, (int)ScreenConstants.VtUI8, (int)ScreenConstants.VtInt, (int)ScreenConstants.VtUInt));
     }
@@ -144,5 +145,23 @@ public sealed unsafe class EncoderConfigurationTests
         Assert.True(WgcScreenRecorder.InitialSamples <= WgcScreenRecorder.MaximumSamples);
         Assert.True(WgcScreenRecorder.MaximumSamples <= 32, "GpuFrameCopier caches at most 32 samples");
         Assert.True(WgcScreenRecorder.QueueCapacity * 1000 / 60 >= 100, "the frame queue should absorb 100 ms of encoder stalls at 60 fps");
+    }
+}
+
+/// <summary>Sizing of the CPU readback sample pool against the frame queue (pure).</summary>
+public sealed class CpuSamplePoolSizingTests
+{
+    [Fact]
+    public async Task CpuSamplePool_OutlastsAFullQueue()
+    {
+        // A stalled encoder must fill the queue before the pool runs dry: queue + held frame + the one being filled +
+        // what the encoder pipeline holds. The pool used to be as large as the queue alone (8 and 8).
+        Assert.Equal(
+            WgcScreenRecorder.QueueCapacity + 1 + 1 + WgcScreenRecorder.CpuEncoderHeldSamples,
+            WgcScreenRecorder.MaximumCpuSamples);
+        Assert.True(WgcScreenRecorder.CpuEncoderHeldSamples >= 1);
+        Assert.InRange(WgcScreenRecorder.InitialCpuSamples, 3, WgcScreenRecorder.MaximumCpuSamples);
+        await using var recorder = new WgcScreenRecorder(new Murmur.Core.Capture.ScreenCaptureOptions());
+        Assert.Equal(WgcScreenRecorder.MaximumCpuSamples, recorder.CpuSampleLimit);
     }
 }

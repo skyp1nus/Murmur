@@ -255,7 +255,8 @@ internal struct D3D11VideoColorRgba
 /// <summary>
 /// oaidl.h <c>VARIANT</c> for the scalar values ICodecAPI exchanges (VT_UI4 / VT_UI8 / VT_I4 / VT_BOOL): <c>vt</c> at 0,
 /// the value union at 8. 24 bytes, the size of a VARIANT on 64-bit (16 on 32-bit, where the extra bytes are unused).
-/// Holds no owned memory for these types, so nothing needs VariantClear.
+/// Holds no owned memory for these types; a value read back with ICodecAPI::GetValue is still cleared with
+/// VariantClear, as an encoder may answer with a type that does.
 /// </summary>
 [StructLayout(LayoutKind.Explicit, Size = 24)]
 internal struct Variant

@@ -82,28 +82,33 @@ public sealed unsafe class GpuEncoder1080p60Tests(ITestOutputHelper output)
     }
 
     [Fact]
-    public void StaticScreen_VbrRepeats_AreFarSmallerThanCbr()
+    public void StaticScreen_VbrRepeats_AreNotPadded_AndForcedKeyFramesCostLittle()
     {
         // What the recorder writes for a static screen: the held frame once a second (two minutes of timeline, encoded
-        // faster than real time). CBR (the old configuration) pads repeats towards bitrate / fps; VBR must not.
+        // faster than real time, but with the encoder idle between repeats as in real time), with an IDR frame forced
+        // every 2 s (KeyFrameSchedule). CBR (the old configuration) pads repeats towards bitrate / fps; VBR must not.
+        // The IDR frames (and the frame refining each of them) are what a static screen costs now: ~0.3 Mbit/s for this
+        // detailed synthetic picture, against ~10 kbit/s with the GOP alone (one keyframe in two minutes).
         using var gpu = GpuTestDevice.HardwareOrSkip();
         var duration = TimeSpan.FromSeconds(120);
-        var cbr = Encode(gpu, RateControl.Cbr, moving: false, duration, framesPerSecond: 1, realTime: false);
-        var vbr = Encode(gpu, RateControl.PeakConstrainedVbr, moving: false, duration, framesPerSecond: 1, realTime: false);
+        var cbr = Encode(gpu, RateControl.Cbr, moving: false, duration, framesPerSecond: 1, realTime: false, gapMs: 30);
+        var vbr = Encode(gpu, RateControl.PeakConstrainedVbr, moving: false, duration, framesPerSecond: 1, realTime: false, gapMs: 30);
         output.WriteLine("CBR: " + cbr);
         output.WriteLine("VBR: " + vbr);
 
         var cbrPerSecond = cbr.Scan.FileBytes / cbr.Scan.DurationS;
         var vbrPerSecond = vbr.Scan.FileBytes / vbr.Scan.DurationS;
         output.WriteLine($"static screen, whole file: CBR {cbrPerSecond / 1024:F1} KiB/s ({cbrPerSecond * 3600 / 1024 / 1024:F0} MiB/h), VBR {vbrPerSecond / 1024:F1} KiB/s ({vbrPerSecond * 3600 / 1024 / 1024:F0} MiB/h)");
-        output.WriteLine($"static screen, per repeat: CBR {cbr.RepeatBytes:F0} B, VBR {vbr.RepeatBytes:F0} B");
+        output.WriteLine($"static screen, per repeat: CBR {cbr.RepeatBytes:F0} B, VBR {vbr.RepeatBytes:F0} B; without the keyframes: CBR {cbr.DeltaRepeatBytes:F0} B, VBR {vbr.DeltaRepeatBytes:F0} B; keyframes CBR {cbr.KeyFrameBytes:F0} B, VBR {vbr.KeyFrameBytes:F0} B");
         Assert.Equal(ScreenConstants.RateControlPeakConstrainedVbr, vbr.RateControl.Mode);
         Assert.InRange(vbr.Scan.DurationS, 119.9, 120.1);
         Assert.Equal(120, vbr.Probe.SampleBytes.Count);
-        Assert.True(vbrPerSecond <= cbrPerSecond, $"VBR {vbrPerSecond:F0} B/s is above CBR {cbrPerSecond:F0} B/s on a static screen");
+        Assert.Equal(60, vbr.Fragments.SyncTimesS.Count); // every second repeat is an IDR frame
 
-        // Far below the 12 Mbit/s mean: an unchanged picture costs next to nothing once the encoder has refined it.
-        Assert.True(vbrPerSecond * 8 < BitrateKbps * 1000 / 50, $"a static screen costs {vbrPerSecond * 8 / 1000:F0} kbit/s with VBR");
+        // Not padded: a repeat between keyframes stays below the CBR frame size (bitrate / fps), and the static screen
+        // as a whole, keyframes included, below 1/24 of the 12 Mbit/s mean.
+        Assert.True(vbr.DeltaRepeatBytes < BitrateKbps * 1000 / 8 / FrameRate, $"a repeat costs {vbr.DeltaRepeatBytes:F0} B with VBR");
+        Assert.True(vbrPerSecond * 8 < BitrateKbps * 1000 / 24, $"a static screen costs {vbrPerSecond * 8 / 1000:F0} kbit/s with VBR");
     }
 
     /// <summary>
@@ -111,7 +116,7 @@ public sealed unsafe class GpuEncoder1080p60Tests(ITestOutputHelper output)
     /// the recorder does (non-blocking allocation, the last written sample stays referenced while the next is filled,
     /// every sample lasts until the next one).
     /// </summary>
-    private static EncodeRun Encode(GpuDevice gpu, RateControl rateControl, bool moving, TimeSpan duration, int framesPerSecond, bool realTime = true)
+    private static EncodeRun Encode(GpuDevice gpu, RateControl rateControl, bool moving, TimeSpan duration, int framesPerSecond, bool realTime = true, int gapMs = 0)
     {
         var path = TempMp4();
         nint world = 0, capture = 0, last = 0;
@@ -159,6 +164,10 @@ public sealed unsafe class GpuEncoder1080p60Tests(ITestOutputHelper output)
                         Assert.Equal(ScreenConstants.SOk, Write(writer, last, lastIndex * interval, (i - lastIndex) * interval));
                         written++;
                         ComCall.Release(ref last);
+                        if (gapMs > 0)
+                        {
+                            Thread.Sleep(gapMs); // the encoder is idle when the next repeat comes, as in real time
+                        }
                     }
 
                     last = sample;
@@ -171,7 +180,7 @@ public sealed unsafe class GpuEncoder1080p60Tests(ITestOutputHelper output)
                 Assert.Equal(ScreenConstants.SOk, writer.FinalizeFile());
             }
 
-            return new EncodeRun(MurmurMp4Scan.Scan(path), Mp4Probe.Read(path), readback, written, exhausted, frames.MinAvailableSamples, frames.SamplesHandedOut);
+            return new EncodeRun(MurmurMp4Scan.Scan(path), Mp4Probe.Read(path), Mp4Fragments.Read(path), readback, written, exhausted, frames.MinAvailableSamples, frames.SamplesHandedOut);
         }
         finally
         {
@@ -186,7 +195,7 @@ public sealed unsafe class GpuEncoder1080p60Tests(ITestOutputHelper output)
     {
         var hr = IMFSample.SetSampleTime(sample, time);
         hr = hr < 0 ? hr : IMFSample.SetSampleDuration(sample, duration);
-        return hr < 0 ? hr : writer.WriteSample(sample);
+        return hr < 0 ? hr : writer.WriteSample(sample, time);
     }
 
     private static void WaitUntil(long start, long ticks)
@@ -213,15 +222,27 @@ public sealed unsafe class GpuEncoder1080p60Tests(ITestOutputHelper output)
 
     private static string TempMp4() => Path.Combine(Path.GetTempPath(), $"murmur-1080p60-{Guid.NewGuid():N}.mp4");
 
-    private sealed record EncodeRun(MurmurMp4ScanResult Scan, Mp4ProbeResult Probe, RateControlReadback RateControl, int Written, int Exhausted, int MinAvailable, int HandedOut)
+    private sealed record EncodeRun(MurmurMp4ScanResult Scan, Mp4ProbeResult Probe, Mp4FragmentScan Fragments, RateControlReadback RateControl, int Written, int Exhausted, int MinAvailable, int HandedOut)
     {
         /// <summary>Mean compressed size of every sample after the first (the first is the IDR frame).</summary>
         public double RepeatBytes => Probe.SampleBytes.Count > 1 ? Probe.SampleBytes.Skip(1).Average() : 0;
+
+        /// <summary>Mean compressed size of the samples that are not keyframes.</summary>
+        public double DeltaRepeatBytes => Sizes(sync: false);
+
+        /// <summary>Mean compressed size of the keyframes.</summary>
+        public double KeyFrameBytes => Sizes(sync: true);
 
         public override string ToString() =>
             $"{Scan.Frames} frames, {Scan.DurationS:F3} s (trun), {Scan.FileBytes} bytes ({Scan.FileBytes * 8 / Math.Max(0.001, Scan.DurationS) / 1000:F0} kbps), "
             + $"sample bytes [{string.Join(", ", Probe.SampleBytes.Take(12))}], later samples {RepeatBytes:F0} B on average, "
             + $"written {Written}, pool empty {Exhausted}, min available {MinAvailable}, samples handed out {HandedOut}, rate control {RateControl}, error: {Scan.Error ?? "none"}";
+
+        private double Sizes(bool sync)
+        {
+            var sizes = Probe.SampleBytes.Zip(Fragments.Samples, (bytes, sample) => (bytes, sample.Sync)).Where(s => s.Sync == sync).Select(s => (double)s.bytes).ToList();
+            return sizes.Count == 0 ? 0 : sizes.Average();
+        }
     }
 }
 

@@ -41,7 +41,7 @@ public sealed unsafe class GpuEncoderPathTests(ITestOutputHelper output)
                         Assert.Equal(ScreenConstants.SOk, frames.CopyFrame(sample, source, Size));
                         Assert.Equal(ScreenConstants.SOk, IMFSample.SetSampleTime(sample, i * duration));
                         Assert.Equal(ScreenConstants.SOk, IMFSample.SetSampleDuration(sample, duration));
-                        Assert.Equal(ScreenConstants.SOk, writer.WriteSample(sample));
+                        Assert.Equal(ScreenConstants.SOk, writer.WriteSample(sample, i * duration));
                         ComCall.Release(ref last);
                         last = sample;
                     }

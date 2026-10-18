@@ -121,6 +121,11 @@ internal static class ScreenConstants
     /// <summary>CODECAPI_AVEncCommonQuality (VT_UI4, 0..100; quality-based VBR).</summary>
     public static readonly Guid CodecApiAVEncCommonQuality = new("FCBF57A3-7EA5-4B0C-9644-69B40C39C391");
 
+    /// <summary>
+    /// CODECAPI_AVEncVideoForceKeyFrame (VT_UI4, write-only: a non-zero value makes the next input frame an IDR frame).
+    /// </summary>
+    public static readonly Guid CodecApiAVEncVideoForceKeyFrame = new("398C1B98-8353-475A-9EF2-8F265D260345");
+
     // ---- Numeric constants ----
 
     /// <summary>MF_VERSION = (MF_SDK_VERSION 0x0002 &lt;&lt; 16) | MF_API_VERSION 0x0070.</summary>
@@ -219,6 +224,20 @@ internal static class ScreenConstants
     public const int EFail = unchecked((int)0x80004005);
     public const int ENoInterface = unchecked((int)0x80004002);
     public const int EInvalidArg = unchecked((int)0x80070057);
+    public const int ENotImpl = unchecked((int)0x80004001);
+
+    // Refusals of an encoder parameter or configuration (RateControlFallbackPolicy).
+    public const int MfEInvalidMediaType = unchecked((int)0xC00D36B4);
+    public const int MfEInvalidType = unchecked((int)0xC00D36BD);
+    public const int MfEAttributeNotFound = unchecked((int)0xC00D36E6);
+    public const int MfETopoCodecNotFound = unchecked((int)0xC00D5212);
+    public const int MfETransformTypeNotSet = unchecked((int)0xC00D6D60);
+
+    /// <summary>VFW_E_CODECAPI_LINEAR_RANGE (vfwmsgs.h): the first of the ICodecAPI errors.</summary>
+    public const int VfwECodecApiFirst = unchecked((int)0x80040310);
+
+    /// <summary>VFW_E_CODECAPI_NO_CURRENT_VALUE: the last of the ICodecAPI errors.</summary>
+    public const int VfwECodecApiLast = unchecked((int)0x80040314);
 
     /// <summary>HRESULT_FROM_WIN32(ERROR_SHARING_VIOLATION): the file is still open elsewhere.</summary>
     public const int ESharingViolation = unchecked((int)0x80070020);

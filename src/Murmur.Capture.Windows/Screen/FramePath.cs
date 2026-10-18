@@ -39,16 +39,30 @@ internal static class FramePathPolicy
     /// The encoder settings of a segment on <paramref name="input"/>: the zero-copy path encodes what was asked for;
     /// CPU readback caps the frame rate at <see cref="CpuMaxFrameRate"/> and scales the bit rate with it, so a frame
     /// gets as many bits as at the requested rate.
+    /// <para>
+    /// Keyframes are forced (<see cref="H264EncoderSettings.KeyFrameInterval"/>) on the zero-copy path only. The hardware
+    /// encoder encodes exactly the samples it is given, so on a static screen (about one repeat a second) its GOP of
+    /// frames would put minutes between keyframes. The CPU readback pipeline (the Microsoft H.264 encoder behind the
+    /// sink writer's RGB32 converter) emits a constant frame rate whatever the sample times (150 samples for 5 s of a
+    /// static screen at 30 fps), so its GOP of 2 s of frames is already 2 s of media time; requests there land on
+    /// whatever frame the encoder is at and only add keyframes (KeyFrameIntervalTests measure both).
+    /// </para>
     /// </summary>
     public static H264EncoderSettings Settings(EncoderInput input, H264EncoderSettings requested)
     {
-        if (input == EncoderInput.Gpu || requested.FrameRate <= CpuMaxFrameRate)
+        if (input == EncoderInput.Gpu)
         {
             return requested;
         }
 
+        var cpu = requested with { KeyFrameInterval = 0 };
+        if (requested.FrameRate <= CpuMaxFrameRate)
+        {
+            return cpu;
+        }
+
         var bitrate = (int)Math.Max(1, (long)requested.BitrateKbps * CpuMaxFrameRate / requested.FrameRate);
-        return requested with { FrameRate = CpuMaxFrameRate, BitrateKbps = bitrate };
+        return cpu with { FrameRate = CpuMaxFrameRate, BitrateKbps = bitrate };
     }
 
     /// <summary>Why <see cref="Choose"/> picked what it picked (diagnostics).</summary>
