@@ -5,6 +5,12 @@
     <IsPackable>false</IsPackable>
     <IsTestProject>true</IsTestProject>
     <RootNamespace>Murmur.Core.Tests</RootNamespace>
+    <!--
+      The app ships as Native AOT (no JIT tiering). With tiering on, the runtime occasionally allocates on whichever
+      thread triggers a tier-up (e.g. re-creating the tiering background worker), which the zero-allocation assertions
+      on hot paths would blame on our code. Fully optimized JIT from the first call matches AOT behaviour.
+    -->
+    <TieredCompilation>false</TieredCompilation>
   </PropertyGroup>
 
   <ItemGroup>
@@ -19,6 +25,8 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\Murmur.Core\Murmur.Core.csproj" />
+    <!-- Child process of the crash test; referenced so it is built and copied next to the tests. -->
+    <ProjectReference Include="..\Murmur.Core.CrashHelper\Murmur.Core.CrashHelper.csproj" />
   </ItemGroup>
 
 </Project>
