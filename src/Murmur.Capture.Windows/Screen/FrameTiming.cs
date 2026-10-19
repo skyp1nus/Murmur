@@ -161,6 +161,22 @@ internal static class RepeatPolicy
 }
 
 /// <summary>
+/// The published stop time of a segment (<see cref="RepeatPolicy.NoStop"/> until a stop is requested): a lock-free cell
+/// shared by the thread that requests the stop and the encoder thread. The earliest request wins; a request that did
+/// not lead to a stop (its wait for the recorder was cancelled) is retracted.
+/// </summary>
+internal static class StopRequest
+{
+    /// <summary>Publishes <paramref name="stopTicks"/> unless an earlier request already did. True when this call published.</summary>
+    public static bool Publish(ref long cell, long stopTicks) =>
+        Interlocked.CompareExchange(ref cell, stopTicks, RepeatPolicy.NoStop) == RepeatPolicy.NoStop;
+
+    /// <summary>Takes <paramref name="stopTicks"/> back, only if it is still the published value. True when it was retracted.</summary>
+    public static bool Retract(ref long cell, long stopTicks) =>
+        Interlocked.CompareExchange(ref cell, RepeatPolicy.NoStop, stopTicks) == stopTicks;
+}
+
+/// <summary>
 /// Variable-frame-rate sample timing of the fragmented MP4. Media Foundation's FMPEG4 sink writes each sample's duration
 /// into the fragment's <c>trun</c> box and writes no <c>tfdt</c> (base decode time), so players lay the samples end to
 /// end: the file's timeline is the sum of the sample durations, the sample times are not stored. A fixed 1/fps duration

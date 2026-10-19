@@ -100,8 +100,9 @@ public sealed class RecorderScreenSegmentClockTests : IDisposable
         var calls = Assert.Single(capture.Recorders).Calls;
         var screenStop = Assert.Single(calls.Stops);
         Assert.NotEmpty(capture.AudioStops);
-        // Both stops are queued to the thread pool together: the screen's may trail an audio source's by scheduling
-        // noise, never by the time the audio needs (the old order stopped the screen after the audio: 3+ s).
+        // The screen stop is called before the audio stop is queued, so it normally precedes every audio Stop(); the
+        // margin is only scheduling noise, never the time the audio needs (the old order stopped the screen after the
+        // audio: 3+ s).
         Assert.All(capture.AudioStops, audioStop => Assert.True(
             clock.Between(audioStop, screenStop) < TimeSpan.FromSeconds(1),
             $"the screen stop came {clock.Between(audioStop, screenStop)} after an audio source had stopped"));

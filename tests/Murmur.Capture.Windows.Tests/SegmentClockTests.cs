@@ -119,6 +119,33 @@ public sealed class SegmentClockTests
     }
 
     [Fact]
+    public void StopRequest_TheEarliestRequestWins()
+    {
+        long cell = RepeatPolicy.NoStop;
+
+        Assert.True(StopRequest.Publish(ref cell, 10 * Second));
+        Assert.False(StopRequest.Publish(ref cell, 11 * Second));
+        Assert.Equal(10 * Second, cell);
+    }
+
+    [Fact]
+    public void StopRequest_ACancelledRequestIsRetracted_ButNeverSomeoneElsesStop()
+    {
+        long cell = RepeatPolicy.NoStop;
+        Assert.True(StopRequest.Publish(ref cell, 10 * Second));
+
+        Assert.True(StopRequest.Retract(ref cell, 10 * Second));
+        Assert.Equal(RepeatPolicy.NoStop, cell);
+        Assert.False(RepeatPolicy.IsAfterEnd(50 * Second, cell)); // the segment records on
+
+        // A later request lost the race to an earlier stop: retracting it must leave the earlier stop alone.
+        Assert.True(StopRequest.Publish(ref cell, 20 * Second));
+        Assert.False(StopRequest.Publish(ref cell, 21 * Second));
+        Assert.False(StopRequest.Retract(ref cell, 21 * Second));
+        Assert.Equal(20 * Second, cell);
+    }
+
+    [Fact]
     public void End_UsesTheStopCallTime_NotTheTimeTheEncoderThreadFinishes()
     {
         Assert.Equal(10 * Second, RepeatPolicy.EndTicks(true, 10 * Second, RepeatPolicy.NoFault, 11 * Second));

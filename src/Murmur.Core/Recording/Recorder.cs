@@ -45,7 +45,10 @@ namespace Murmur.Core.Recording;
 /// file closed, the open screen segment finalized (and kept on the timeline even if finalizing fails) and the screen
 /// recorder released; the recorder always returns to <see cref="RecorderState.Idle"/>. A failure is reported in
 /// <see cref="SessionRecord.Error"/> (audio before screen); an audio failure also makes the session
-/// <see cref="SessionState.Failed"/>, a screen failure alone does not.
+/// <see cref="SessionState.Failed"/>, a screen failure alone does not. The final stop asks the screen recorder to stop
+/// the open segment and stops the audio side by side, so both end where the user stopped; that relies on
+/// <see cref="IScreenRecorder.StopSegmentAsync"/> taking the stop time and returning from its synchronous part
+/// promptly (the audio stop is queued right after it).
 /// </para>
 /// <para>
 /// <b>Threads.</b> <see cref="StartAsync"/>, <see cref="StopAsync"/> and <see cref="SetScreenEnabledAsync"/> are
@@ -476,18 +479,14 @@ public sealed class Recorder : IRecorder
             return;
         }
 
-        // The stop runs on the thread pool, so a screen recorder that does its work synchronously before its first
-        // await cannot delay the audio stop that runs next to it; the end is read on that thread, as the last step
-        // before the call. The value read here is only the fallback should the call never start.
+        // The end is read, and StopSegmentAsync called, on the calling thread as the last steps: the screen recorder
+        // takes the stop time and returns from its synchronous part promptly (IScreenRecorder.StopSegmentAsync), so the
+        // audio stop queued right after by StopCoreAsync runs next to the finalize instead of after it. Hopping to the
+        // thread pool here would not help: its work queue can run the audio stop first.
         var end = _time.GetElapsedTime(active.StartTimestamp);
-        var screen = active.Screen;
         try
         {
-            await Task.Run(async () =>
-            {
-                end = _time.GetElapsedTime(active.StartTimestamp);
-                await screen.StopSegmentAsync(cancellationToken).ConfigureAwait(false);
-            }, CancellationToken.None).ConfigureAwait(false);
+            await active.Screen.StopSegmentAsync(cancellationToken).ConfigureAwait(false);
         }
         finally
         {

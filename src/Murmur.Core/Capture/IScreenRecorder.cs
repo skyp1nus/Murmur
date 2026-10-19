@@ -28,6 +28,12 @@ public interface IScreenRecorder : IAsyncDisposable
     /// Finalizes the current segment. No-op when not recording. The file ends at the moment this call starts, so its
     /// media duration is the time between the start and stop calls.
     /// </summary>
+    /// <remarks>
+    /// Implementations must take the stop time first thing and return from the synchronous part of the call (up to
+    /// its first await that actually yields) promptly: the caller stops the audio side by side with the finalize and
+    /// relies on that to end both where the user stopped. Anything slow (flushing, finalizing) belongs after the
+    /// first yield.
+    /// </remarks>
     ValueTask StopSegmentAsync(CancellationToken cancellationToken);
 
     event Action<CaptureFault>? Faulted;

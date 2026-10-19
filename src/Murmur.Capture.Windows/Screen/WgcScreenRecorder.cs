@@ -352,8 +352,23 @@ internal sealed class WgcScreenRecorder : IScreenRecorder
         // The end of the file: the very first thing, before the gate, the thread-pool hop and the spin for the frame
         // handler, none of which are part of the segment.
         var stopTicks = MediaTime.Now();
+        cancellationToken.ThrowIfCancellationRequested();
         PublishStop(stopTicks); // the encoder thread stops taking frames and repeats past this moment at once
-        await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException)
+        {
+            // The stop did not happen: the segment keeps recording, so its end must not stay published.
+            if (Volatile.Read(ref _segment) is { } running)
+            {
+                StopRequest.Retract(ref running.StopTicks, stopTicks);
+            }
+
+            throw;
+        }
+
         try
         {
             if (!_recording || _segment is not { } segment)
@@ -494,14 +509,14 @@ internal sealed class WgcScreenRecorder : IScreenRecorder
     {
         if (Volatile.Read(ref _segment) is { } running)
         {
-            Interlocked.CompareExchange(ref running.StopTicks, stopTicks, RepeatPolicy.NoStop);
+            StopRequest.Publish(ref running.StopTicks, stopTicks);
         }
     }
 
     private void StopCore(Segment segment, long stopTicks)
     {
         // The earliest stop request wins (normally the one published when the call came in, before the gate).
-        Interlocked.CompareExchange(ref segment.StopTicks, stopTicks, RepeatPolicy.NoStop);
+        StopRequest.Publish(ref segment.StopTicks, stopTicks);
         segment.Accepting = false;
         Volatile.Write(ref _segment, null);
         if (StopDelay > TimeSpan.Zero)
