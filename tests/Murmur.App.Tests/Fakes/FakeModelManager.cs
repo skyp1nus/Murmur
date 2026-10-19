@@ -16,6 +16,8 @@ internal sealed class FakeModelManager : IModelManager
     public const string ChatLargeId = "chat-large";
 
     private readonly object _gate = new();
+    private long _freeSpace = 123_456_000_000;
+    private int _freeSpaceReads;
     private readonly Dictionary<string, ModelStatus> _status = [];
     private readonly Dictionary<string, TaskCompletionSource> _pending = [];
     private readonly Dictionary<string, CancellationToken> _tokens = [];
@@ -46,7 +48,19 @@ internal sealed class FakeModelManager : IModelManager
 
     public string RecommendedChatModelId { get; set; } = ChatSmallId;
 
-    public long AvailableFreeSpaceBytes { get; set; } = 123_456_000_000;
+    public long AvailableFreeSpaceBytes
+    {
+        get
+        {
+            Interlocked.Increment(ref _freeSpaceReads);
+            return _freeSpace;
+        }
+
+        set => _freeSpace = value;
+    }
+
+    /// <summary>How often <see cref="AvailableFreeSpaceBytes"/> was read.</summary>
+    public int FreeSpaceReads => Volatile.Read(ref _freeSpaceReads);
 
     /// <summary>Install calls in the order they were made.</summary>
     public List<string> InstallCalls { get; } = [];

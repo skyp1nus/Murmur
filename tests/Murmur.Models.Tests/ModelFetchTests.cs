@@ -65,7 +65,7 @@ public sealed class ModelFetchTests
     public async Task Run_HeadOnlyChecksTheUrlsWithoutDownloading()
     {
         await using var h = new Harness();
-        h.Server.Add("/unsloth/gemma-4-E4B-it-GGUF/resolve/main/gemma-4-E4B-it-Q4_K_M.gguf", Harness.Bytes(7777));
+        h.Server.Add("/unsloth/gemma-4-E4B-it-GGUF/resolve/bfc15c382204943c3a8fff0c750b94ae2364d7a3/gemma-4-E4B-it-Q4_K_M.gguf", Harness.Bytes(7777));
 
         var (code, output, _) = await RunAsync(h, "--dir", h.Models, "--head-only", $"{ModelCatalog.ChatE4BId},{ModelCatalog.Chat26BId}");
 
@@ -80,17 +80,17 @@ public sealed class ModelFetchTests
     {
         await using var h = new Harness();
         // E4B: the first source (unsloth) is missing, the second (bartowski) answers.
-        h.Server.Add("/unsloth/gemma-4-E4B-it-GGUF/resolve/main/gemma-4-E4B-it-Q4_K_M.gguf", Harness.Bytes(1)).NotFound = true;
-        h.Server.Add("/bartowski/google_gemma-4-E4B-it-GGUF/resolve/main/google_gemma-4-E4B-it-Q4_K_M.gguf", Harness.Bytes(2468));
+        h.Server.Add("/unsloth/gemma-4-E4B-it-GGUF/resolve/bfc15c382204943c3a8fff0c750b94ae2364d7a3/gemma-4-E4B-it-Q4_K_M.gguf", Harness.Bytes(1)).NotFound = true;
+        h.Server.Add("/bartowski/google_gemma-4-E4B-it-GGUF/resolve/029e94146666900b08caf49a3b47b413dfa8ec66/google_gemma-4-E4B-it-Q4_K_M.gguf", Harness.Bytes(2468));
         var summary = Path.Combine(h.Root, "summary.md");
         Directory.CreateDirectory(h.Root);
 
         var (code, output, _) = await RunAsync(h, "--dir", h.Models, "--head-only", ModelCatalog.ChatE4BId, "--summary", summary);
 
         Assert.Equal(0, code);
-        Assert.Contains("skipped " + h.Server.Url("/unsloth/gemma-4-E4B-it-GGUF/resolve/main/gemma-4-E4B-it-Q4_K_M.gguf"), output);
+        Assert.Contains("skipped " + h.Server.Url("/unsloth/gemma-4-E4B-it-GGUF/resolve/bfc15c382204943c3a8fff0c750b94ae2364d7a3/gemma-4-E4B-it-Q4_K_M.gguf"), output);
         Assert.Contains("404", output);
-        Assert.Contains("bartowski/google_gemma-4-E4B-it-GGUF/resolve/main/google_gemma-4-E4B-it-Q4_K_M.gguf: Content-Length 2468", output);
+        Assert.Contains("bartowski/google_gemma-4-E4B-it-GGUF/resolve/029e94146666900b08caf49a3b47b413dfa8ec66/google_gemma-4-E4B-it-Q4_K_M.gguf: Content-Length 2468", output);
         Assert.Contains("(skipped:", await File.ReadAllTextAsync(summary, TestContext.Current.CancellationToken));
     }
 

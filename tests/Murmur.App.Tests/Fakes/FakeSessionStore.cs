@@ -41,7 +41,15 @@ internal sealed class FakeSessionStore : ISessionStore
         return ValueTask.FromResult(result);
     }
 
-    public ValueTask DeleteSessionAsync(SessionId id, CancellationToken cancellationToken) => throw new NotSupportedException();
+    /// <summary>Ids passed to <see cref="DeleteSessionAsync"/>, in order.</summary>
+    public List<SessionId> Deleted { get; } = [];
+
+    public ValueTask DeleteSessionAsync(SessionId id, CancellationToken cancellationToken)
+    {
+        Deleted.Add(id);
+        _sessions.RemoveAll(s => s.Id == id);
+        return ValueTask.CompletedTask;
+    }
 
     public SessionFiles GetFiles(SessionId id) => new(Path.Combine(Root, id.ToString()));
 }

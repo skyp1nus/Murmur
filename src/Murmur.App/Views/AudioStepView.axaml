@@ -1,0 +1,257 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Murmur.App.ViewModels"
+             xmlns:res="using:Murmur.App.Resources"
+             xmlns:controls="using:Murmur.App.Controls"
+             x:Class="Murmur.App.Views.AudioStepView"
+             x:DataType="vm:AudioStepViewModel">
+
+  <!-- Step 2: two device cards with live level meters, and a card about the microphone permission. -->
+  <StackPanel HorizontalAlignment="Stretch"
+              Spacing="{StaticResource Space.40}">
+
+    <StackPanel Spacing="{StaticResource Space.12}"
+                HorizontalAlignment="Center">
+      <TextBlock Classes="heading onbHeadline"
+                 TextAlignment="Center"
+                 TextWrapping="Wrap"
+                 Text="{Binding Title}" />
+      <TextBlock Classes="body"
+                 TextAlignment="Center"
+                 TextWrapping="Wrap"
+                 Foreground="{DynamicResource Brush.Smoke}"
+                 Text="{Binding Subtitle}" />
+    </StackPanel>
+
+    <StackPanel MaxWidth="{StaticResource Size.OnbAudioWidth}"
+                HorizontalAlignment="Stretch"
+                Spacing="{StaticResource Space.16}">
+
+      <Grid ColumnDefinitions="*,*"
+            ColumnSpacing="{StaticResource Space.16}">
+
+        <!-- Microphone: track "Me" -->
+        <Border Grid.Column="0"
+                Classes="panel"
+                Padding="{StaticResource Inset.24}">
+          <StackPanel Spacing="{StaticResource Space.16}">
+            <Grid ColumnDefinitions="*,Auto">
+              <StackPanel Orientation="Horizontal"
+                          Spacing="{StaticResource Space.12}">
+                <Border Classes="iconBadge">
+                  <controls:IconControl Width="{StaticResource Size.SmallIcon}"
+                                        Height="{StaticResource Size.SmallIcon}"
+                                        HorizontalAlignment="Center"
+                                        Data="{StaticResource Icon.Microphone}" />
+                </Border>
+                <TextBlock Classes="body"
+                           FontWeight="{StaticResource FontWeight.BodyMedium}"
+                           VerticalAlignment="Center"
+                           Text="{x:Static res:Strings.Common_Microphone}" />
+              </StackPanel>
+              <TextBlock Grid.Column="1"
+                         Classes="bodySm"
+                         VerticalAlignment="Center"
+                         Foreground="{DynamicResource Brush.Smoke}"
+                         Text="{x:Static res:Strings.Onb2_TrackYou}" />
+            </Grid>
+            <StackPanel Spacing="{StaticResource Space.4}">
+              <TextBlock Classes="bodySm"
+                         Foreground="{DynamicResource Brush.Smoke}"
+                         Text="{x:Static res:Strings.Onb2_InputDevice}" />
+              <ComboBox x:Name="MicrophoneBox"
+                        ItemsSource="{Binding Devices.Microphones}"
+                        SelectedItem="{Binding Devices.SelectedMicrophone, Mode=TwoWay}"
+                        IsEnabled="{Binding Devices.MicrophoneAvailable}">
+                <ComboBox.ItemTemplate>
+                  <DataTemplate x:DataType="vm:ChoiceItem">
+                    <TextBlock Text="{Binding Name}"
+                               TextTrimming="CharacterEllipsis" />
+                  </DataTemplate>
+                </ComboBox.ItemTemplate>
+              </ComboBox>
+            </StackPanel>
+            <controls:LevelMeterControl x:Name="MicrophoneMeter"
+                                        LevelSource="{Binding Microphone.Meter}"
+                                        IsActive="{Binding Microphone.IsLive}" />
+          </StackPanel>
+        </Border>
+
+        <!-- System audio: track "Others" -->
+        <Border Grid.Column="1"
+                Classes="panel"
+                Padding="{StaticResource Inset.24}">
+          <StackPanel Spacing="{StaticResource Space.16}">
+            <Grid ColumnDefinitions="*,Auto">
+              <StackPanel Orientation="Horizontal"
+                          Spacing="{StaticResource Space.12}">
+                <Border Classes="iconBadge">
+                  <controls:IconControl Width="{StaticResource Size.SmallIcon}"
+                                        Height="{StaticResource Size.SmallIcon}"
+                                        HorizontalAlignment="Center"
+                                        Data="{StaticResource Icon.Speaker}" />
+                </Border>
+                <TextBlock Classes="body"
+                           FontWeight="{StaticResource FontWeight.BodyMedium}"
+                           VerticalAlignment="Center"
+                           Text="{x:Static res:Strings.Recording_SystemAudio}" />
+              </StackPanel>
+              <TextBlock Grid.Column="1"
+                         Classes="bodySm"
+                         VerticalAlignment="Center"
+                         Foreground="{DynamicResource Brush.Smoke}"
+                         Text="{x:Static res:Strings.Onb2_TrackOthers}" />
+            </Grid>
+            <StackPanel Spacing="{StaticResource Space.4}">
+              <TextBlock Classes="bodySm"
+                         Foreground="{DynamicResource Brush.Smoke}"
+                         Text="{x:Static res:Strings.Onb2_OutputDevice}" />
+              <ComboBox x:Name="SystemAudioBox"
+                        ItemsSource="{Binding Devices.SystemDevices}"
+                        SelectedItem="{Binding Devices.SelectedSystemDevice, Mode=TwoWay}"
+                        IsEnabled="{Binding Devices.SystemAudioAvailable}">
+                <ComboBox.ItemTemplate>
+                  <DataTemplate x:DataType="vm:ChoiceItem">
+                    <TextBlock Text="{Binding Name}"
+                               TextTrimming="CharacterEllipsis" />
+                  </DataTemplate>
+                </ComboBox.ItemTemplate>
+              </ComboBox>
+            </StackPanel>
+            <controls:LevelMeterControl x:Name="SystemAudioMeter"
+                                        LevelSource="{Binding SystemAudio.Meter}"
+                                        IsActive="{Binding SystemAudio.IsLive}" />
+            <TextBlock Classes="note"
+                       IsVisible="{Binding ShowSystemUnavailable}"
+                       Text="{Binding SystemUnavailableText}" />
+          </StackPanel>
+        </Border>
+      </Grid>
+
+      <!-- The microphone is allowed: the meter should move. -->
+      <Border x:Name="GrantedBanner"
+              Classes="well"
+              Padding="{StaticResource Inset.Banner}"
+              IsVisible="{Binding ShowGranted}">
+        <Grid ColumnDefinitions="Auto,*"
+              ColumnSpacing="{StaticResource Space.16}">
+          <Border Classes="bannerIcon ok">
+            <controls:IconControl Width="{StaticResource Size.NavIcon}"
+                                  Height="{StaticResource Size.NavIcon}"
+                                  HorizontalAlignment="Center"
+                                  TextElement.Foreground="{DynamicResource Brush.Canvas}"
+                                  Data="{StaticResource Icon.Check}" />
+          </Border>
+          <StackPanel Grid.Column="1"
+                      VerticalAlignment="Center"
+                      Spacing="{StaticResource Space.4}">
+            <TextBlock Classes="label"
+                       Text="{x:Static res:Strings.Onb2_GrantedTitle}" />
+            <TextBlock Classes="note"
+                       Text="{x:Static res:Strings.Onb2_GrantedText}" />
+          </StackPanel>
+        </Grid>
+      </Border>
+
+      <!-- Windows refuses the microphone: how to allow it, and try again. -->
+      <Border x:Name="DeniedBanner"
+              Classes="well"
+              Padding="{StaticResource Inset.Banner}"
+              IsVisible="{Binding ShowDenied}">
+        <Grid ColumnDefinitions="Auto,*,Auto"
+              ColumnSpacing="{StaticResource Space.16}">
+          <Border Classes="bannerIcon">
+            <controls:IconControl Width="{StaticResource Size.NavIcon}"
+                                  Height="{StaticResource Size.NavIcon}"
+                                  HorizontalAlignment="Center"
+                                  Data="{StaticResource Icon.Lock}" />
+          </Border>
+          <StackPanel Grid.Column="1"
+                      VerticalAlignment="Center"
+                      Spacing="{StaticResource Space.4}">
+            <TextBlock Classes="label"
+                       Text="{x:Static res:Strings.Onb2_DeniedTitle}" />
+            <TextBlock Classes="note"
+                       Text="{x:Static res:Strings.Onb2_DeniedText}" />
+            <TextBlock Classes="note"
+                       Foreground="{DynamicResource Brush.Graphite}"
+                       IsVisible="{Binding HasLauncherError}"
+                       Text="{Binding LauncherError}" />
+          </StackPanel>
+          <StackPanel Grid.Column="2"
+                      Orientation="Horizontal"
+                      VerticalAlignment="Center"
+                      Spacing="{StaticResource Space.12}">
+            <Button x:Name="OpenSettingsButton"
+                    Classes="primary compact"
+                    IsVisible="{Binding CanOpenSettings}"
+                    Content="{x:Static res:Strings.Onb2_OpenSettings}"
+                    Command="{Binding OpenSettingsCommand}" />
+            <Button x:Name="TryAgainButton"
+                    Classes="outline compact"
+                    Content="{x:Static res:Strings.Onb2_TryAgain}"
+                    Command="{Binding TryAgainCommand}" />
+          </StackPanel>
+        </Grid>
+      </Border>
+
+      <!-- No microphone at all. -->
+      <Border x:Name="NoMicrophoneBanner"
+              Classes="well"
+              Padding="{StaticResource Inset.Banner}"
+              IsVisible="{Binding ShowNoMicrophone}">
+        <Grid ColumnDefinitions="Auto,*,Auto"
+              ColumnSpacing="{StaticResource Space.16}">
+          <Border Classes="bannerIcon">
+            <controls:IconControl Width="{StaticResource Size.NavIcon}"
+                                  Height="{StaticResource Size.NavIcon}"
+                                  HorizontalAlignment="Center"
+                                  Data="{StaticResource Icon.Microphone}" />
+          </Border>
+          <StackPanel Grid.Column="1"
+                      VerticalAlignment="Center"
+                      Spacing="{StaticResource Space.4}">
+            <TextBlock Classes="label"
+                       Text="{x:Static res:Strings.Onb2_NoMicTitle}" />
+            <TextBlock Classes="note"
+                       Text="{x:Static res:Strings.Onb2_NoMicText}" />
+          </StackPanel>
+          <Button Grid.Column="2"
+                  Classes="outline compact"
+                  VerticalAlignment="Center"
+                  Content="{x:Static res:Strings.Onb2_TryAgain}"
+                  Command="{Binding TryAgainCommand}" />
+        </Grid>
+      </Border>
+
+      <!-- The microphone is there but does not start. -->
+      <Border x:Name="MicrophoneFailedBanner"
+              Classes="well"
+              Padding="{StaticResource Inset.Banner}"
+              IsVisible="{Binding ShowMicrophoneFailed}">
+        <Grid ColumnDefinitions="Auto,*,Auto"
+              ColumnSpacing="{StaticResource Space.16}">
+          <Border Classes="bannerIcon">
+            <controls:IconControl Width="{StaticResource Size.NavIcon}"
+                                  Height="{StaticResource Size.NavIcon}"
+                                  HorizontalAlignment="Center"
+                                  Data="{StaticResource Icon.Info}" />
+          </Border>
+          <StackPanel Grid.Column="1"
+                      VerticalAlignment="Center"
+                      Spacing="{StaticResource Space.4}">
+            <TextBlock Classes="label"
+                       Text="{x:Static res:Strings.Onb2_MicFailedTitle}" />
+            <TextBlock Classes="note"
+                       Text="{Binding MicrophoneFailedText}" />
+          </StackPanel>
+          <Button Grid.Column="2"
+                  Classes="outline compact"
+                  VerticalAlignment="Center"
+                  Content="{x:Static res:Strings.Onb2_TryAgain}"
+                  Command="{Binding TryAgainCommand}" />
+        </Grid>
+      </Border>
+    </StackPanel>
+  </StackPanel>
+</UserControl>

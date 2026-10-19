@@ -183,9 +183,10 @@ public sealed class MediaEngineVideoPlayerTests(TestVideoFile video, ITestOutput
         var frame = new byte[FrameStride * FrameHeight];
         player.Play();
 
-        // Warm-up: the surfaces for this size and the first calls of every path.
+        // Warm-up: the surfaces for this size and the first calls of every path. Warm-up and measuring must both fit in
+        // the 4 s test file: Thread.Sleep(10) lasts ~15.6 ms on Windows, so 60 + 60 polls take about 2 s.
         var copies = 0;
-        for (var i = 0; i < 150; i++)
+        for (var i = 0; i < 60; i++)
         {
             copies += Poll(player, frame) ? 1 : 0;
             Thread.Sleep(10);

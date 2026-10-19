@@ -1,8 +1,10 @@
 using Murmur.Capture.Windows.Audio;
+using Murmur.Capture.Windows.Input;
 using Murmur.Capture.Windows.Playback;
 using Murmur.Capture.Windows.Screen;
 using Murmur.Capture.Windows.Video;
 using Murmur.Core.Capture;
+using Murmur.Core.Input;
 
 namespace Murmur.Capture.Windows;
 
@@ -61,6 +63,12 @@ public sealed class WindowsCapture : ICapture, IAudioPlayback, IVideoPlayback
     /// <see cref="IAudioPlayer.OpenAsync"/>.
     /// </summary>
     public IAudioPlayer CreatePlayer() => new WasapiAudioPlayer();
+
+    /// <summary>
+    /// A <see cref="WindowsGlobalHotkeys"/> (RegisterHotKey on its own message-loop thread); nothing native is touched
+    /// until the first <see cref="IGlobalHotkeys.Register"/> with a gesture. The caller owns and disposes it.
+    /// </summary>
+    public IGlobalHotkeys CreateGlobalHotkeys() => new WindowsGlobalHotkeys();
 
     /// <summary>Media Foundation and the Media Engine are available (checked once, see <see cref="WindowsVideoPlayback"/>).</summary>
     bool IVideoPlayback.IsSupported => _video.IsSupported;

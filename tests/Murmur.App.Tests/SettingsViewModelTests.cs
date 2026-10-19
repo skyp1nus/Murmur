@@ -616,13 +616,13 @@ public sealed class SettingsViewModelTests
         var hotkeys = rig.Vm.Hotkeys;
 
         hotkeys.Rows[1].CaptureCommand.Execute(null);
-        hotkeys.HandleKey(Key.F9, KeyModifiers.None);
+        hotkeys.HandleKey(Key.F13, KeyModifiers.None);
         await hotkeys.LastSave;
         hotkeys.Rows[2].CaptureCommand.Execute(null);
         hotkeys.HandleKey(Key.J, KeyModifiers.Control | KeyModifiers.Shift);
         await hotkeys.LastSave;
 
-        Assert.Equal("F9", rig.Store.Current.ToggleScreenHotkey);
+        Assert.Equal("F13", rig.Store.Current.ToggleScreenHotkey);
         Assert.Equal("Ctrl+Shift+J", rig.Store.Current.ShowAppHotkey);
         Assert.Equal("Ctrl+Shift+R", rig.Store.Current.RecordHotkey);
     }
@@ -682,6 +682,11 @@ public sealed class SettingsViewModelTests
     [InlineData(Key.A, KeyModifiers.None)]
     [InlineData(Key.A, KeyModifiers.Shift)]
     [InlineData(Key.Space, KeyModifiers.None)]
+    [InlineData(Key.F1, KeyModifiers.None)]
+    [InlineData(Key.F9, KeyModifiers.None)]
+    [InlineData(Key.F12, KeyModifiers.Shift)]
+    [InlineData(Key.Pause, KeyModifiers.None)]
+    [InlineData(Key.PrintScreen, KeyModifiers.None)]
     public void Hotkeys_AKeyWithoutCtrlAltOrWin_IsRefused(Key key, KeyModifiers modifiers)
     {
         var rig = new Rig();
@@ -710,7 +715,9 @@ public sealed class SettingsViewModelTests
 
     [Theory]
     [InlineData(Key.R, KeyModifiers.Control | KeyModifiers.Shift, "Ctrl+Shift+R")]
-    [InlineData(Key.F9, KeyModifiers.None, "F9")]
+    [InlineData(Key.F13, KeyModifiers.None, "F13")]
+    [InlineData(Key.F24, KeyModifiers.Shift, "Shift+F24")]
+    [InlineData(Key.F9, KeyModifiers.Control, "Ctrl+F9")]
     [InlineData(Key.D1, KeyModifiers.Alt, "Alt+D1")]
     [InlineData(Key.OemPlus, KeyModifiers.Control, "Ctrl+OemPlus")]
     public void HotkeyGestures_TryFormat_ReturnsTheAvaloniaSyntax_ThatParsesBack(Key key, KeyModifiers modifiers, string expected)
@@ -719,7 +726,10 @@ public sealed class SettingsViewModelTests
 
         Assert.Equal(HotkeyProblem.None, problem);
         Assert.Equal(expected, text);
-        Assert.True(HotkeyGestures.TryParse(text, out var parsed));
+        Assert.True(Murmur.Core.Input.HotkeyGesture.TryParse(text, out var core));
+        Assert.NotNull(text); // what Core registers
+        Assert.Equal(text, core.ToString());
+        var parsed = KeyGesture.Parse(text); // what Avalonia shows
         Assert.Equal(key, parsed.Key);
         Assert.Equal(modifiers, parsed.KeyModifiers);
     }
@@ -729,6 +739,11 @@ public sealed class SettingsViewModelTests
     [InlineData(Key.RightShift, KeyModifiers.Shift, HotkeyProblem.ModifierOnly)]
     [InlineData(Key.None, KeyModifiers.Control, HotkeyProblem.ModifierOnly)]
     [InlineData(Key.A, KeyModifiers.None, HotkeyProblem.NeedsModifier)]
+    [InlineData(Key.F12, KeyModifiers.None, HotkeyProblem.NeedsModifier)]
+    [InlineData(Key.PrintScreen, KeyModifiers.Shift, HotkeyProblem.NeedsModifier)]
+    [InlineData(Key.Escape, KeyModifiers.Control, HotkeyProblem.Unsupported)]
+    [InlineData(Key.Enter, KeyModifiers.Alt, HotkeyProblem.Unsupported)]
+    [InlineData(Key.Tab, KeyModifiers.None, HotkeyProblem.Unsupported)]
     public void HotkeyGestures_TryFormat_ExplainsWhyACombinationCannotBeUsed(Key key, KeyModifiers modifiers, HotkeyProblem expected)
     {
         Assert.Null(HotkeyGestures.TryFormat(key, modifiers, out var problem));
@@ -739,6 +754,7 @@ public sealed class SettingsViewModelTests
     [InlineData("Ctrl+Shift+R", "shift+ctrl+r", true)]
     [InlineData("Ctrl+Shift+R", "Ctrl+Shift+S", false)]
     [InlineData("Ctrl+Shift+R", null, false)]
+    [InlineData("Win+E", "Cmd+e", true)]
     [InlineData(null, null, false)]
     public void HotkeyGestures_Same_IgnoresOrderAndCase(string? a, string? b, bool expected) =>
         Assert.Equal(expected, HotkeyGestures.Same(a, b));

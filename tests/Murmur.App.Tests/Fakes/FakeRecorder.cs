@@ -57,7 +57,7 @@ internal sealed class FakeRecorder : IRecorder
         Current = new SessionRecord
         {
             Id = SessionId.New(),
-            Title = "Fake",
+            Title = options.Title ?? "Fake",
             StartedAt = DateTimeOffset.UnixEpoch,
             State = SessionState.Recording,
             HasMicrophone = options.Microphone && StartWarning is null,

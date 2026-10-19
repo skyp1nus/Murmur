@@ -152,6 +152,16 @@
   <data name="Session_Pause" xml:space="preserve">
     <value>Pause</value>
   </data>
+  <data name="Session_VideoOff" xml:space="preserve">
+    <value>Screen off</value>
+  </data>
+  <data name="Session_VideoUnplayable" xml:space="preserve">
+    <value>This part of the screen recording cannot be played</value>
+  </data>
+  <data name="Session_VideoInfo" xml:space="preserve">
+    <value>{0}×{1} · H.264</value>
+    <comment>{0} = width, {1} = height in pixels</comment>
+  </data>
   <data name="Session_Loading" xml:space="preserve">
     <value>Loading…</value>
   </data>
@@ -579,7 +589,7 @@
     <value>Esc cancels, Backspace clears the shortcut.</value>
   </data>
   <data name="Hotkeys_NeedModifier" xml:space="preserve">
-    <value>Add Ctrl, Alt or Win.</value>
+    <value>Needs Ctrl, Alt or Win, or one of F13–F24.</value>
   </data>
   <data name="Hotkeys_Invalid" xml:space="preserve">
     <value>This shortcut cannot be used.</value>
@@ -618,12 +628,271 @@
     <value>Go through the introduction again</value>
   </data>
   <data name="Appearance_OnboardingDone" xml:space="preserve">
-    <value>The introduction will appear on the next start.</value>
+    <value>The introduction opens now.</value>
   </data>
   <data name="About_License" xml:space="preserve">
     <value>Project licence — {0}</value>
   </data>
   <data name="About_Credit" xml:space="preserve">
     <value>{0} — {1}</value>
+  </data>
+  <data name="Onb_Continue" xml:space="preserve">
+    <value>Continue</value>
+  </data>
+  <data name="Onb_Skip" xml:space="preserve">
+    <value>Skip</value>
+  </data>
+  <data name="Onb_StepAutomation" xml:space="preserve">
+    <value>Step {0} of {1}</value>
+    <comment>{0} = current step, {1} = number of steps (screen reader)</comment>
+  </data>
+  <data name="Onb1_Headline" xml:space="preserve">
+    <value>Record and transcribe your meetings.</value>
+  </data>
+  <data name="Onb1_Subline" xml:space="preserve">
+    <value>Everything stays on your computer.</value>
+  </data>
+  <data name="Onb1_Start" xml:space="preserve">
+    <value>Get started</value>
+  </data>
+  <data name="Onb2_Headline" xml:space="preserve">
+    <value>Let’s check your sound.</value>
+  </data>
+  <data name="Onb2_Subline" xml:space="preserve">
+    <value>Your voice and the other side of the call are recorded as separate tracks.</value>
+  </data>
+  <data name="Onb2_TrackYou" xml:space="preserve">
+    <value>Track “You”</value>
+  </data>
+  <data name="Onb2_TrackOthers" xml:space="preserve">
+    <value>Track “Others”</value>
+  </data>
+  <data name="Onb2_InputDevice" xml:space="preserve">
+    <value>Input device</value>
+  </data>
+  <data name="Onb2_OutputDevice" xml:space="preserve">
+    <value>Output device</value>
+  </data>
+  <data name="Onb2_GrantedTitle" xml:space="preserve">
+    <value>Microphone allowed</value>
+  </data>
+  <data name="Onb2_GrantedText" xml:space="preserve">
+    <value>Say a few words — the meter should move.</value>
+  </data>
+  <data name="Onb2_DeniedTitle" xml:space="preserve">
+    <value>Murmur needs access to your microphone</value>
+  </data>
+  <data name="Onb2_DeniedText" xml:space="preserve">
+    <value>Allow microphone access for desktop apps in the Windows privacy settings. Audio is processed on this PC only.</value>
+  </data>
+  <data name="Onb2_OpenSettings" xml:space="preserve">
+    <value>Open Windows settings</value>
+  </data>
+  <data name="Onb2_TryAgain" xml:space="preserve">
+    <value>Try again</value>
+  </data>
+  <data name="Onb2_NoMicTitle" xml:space="preserve">
+    <value>No microphone found</value>
+  </data>
+  <data name="Onb2_NoMicText" xml:space="preserve">
+    <value>Plug in a microphone and try again, or continue — system audio is still recorded.</value>
+  </data>
+  <data name="Onb2_MicFailedTitle" xml:space="preserve">
+    <value>The microphone does not start</value>
+  </data>
+  <data name="Onb2_MicFailedText" xml:space="preserve">
+    <value>Reason: {0}</value>
+    <comment>{0} = error message of the audio device</comment>
+  </data>
+  <data name="Onb2_NoOutput" xml:space="preserve">
+    <value>No sound output device found.</value>
+  </data>
+  <data name="Onb2_SystemFailed" xml:space="preserve">
+    <value>System audio is not available: {0}</value>
+    <comment>{0} = error message of the audio device</comment>
+  </data>
+  <data name="Onb2_SettingsFailed" xml:space="preserve">
+    <value>Could not open the settings: {0}</value>
+    <comment>{0} = error message</comment>
+  </data>
+  <data name="Onb2_ContinueWithoutMic" xml:space="preserve">
+    <value>Continue without microphone</value>
+  </data>
+  <data name="Onb3_Headline" xml:space="preserve">
+    <value>Download the brains.</value>
+  </data>
+  <data name="Onb3_Subline" xml:space="preserve">
+    <value>Models run on your PC. Pick what fits your hardware.</value>
+  </data>
+  <data name="Onb3_Transcription" xml:space="preserve">
+    <value>Transcription · Parakeet v3</value>
+  </data>
+  <data name="Onb3_TranscriptionText" xml:space="preserve">
+    <value>Speech to text · 25 European languages</value>
+  </data>
+  <data name="Onb3_Required" xml:space="preserve">
+    <value>Required</value>
+  </data>
+  <data name="Onb3_Downloading" xml:space="preserve">
+    <value>Downloading…</value>
+  </data>
+  <data name="Onb3_Waiting" xml:space="preserve">
+    <value>Waiting…</value>
+  </data>
+  <data name="Onb3_Ready" xml:space="preserve">
+    <value>Ready</value>
+  </data>
+  <data name="Onb3_Failed" xml:space="preserve">
+    <value>Download failed</value>
+  </data>
+  <data name="Onb3_Transfer" xml:space="preserve">
+    <value>{0} / {1}</value>
+    <comment>{0} = downloaded size, {1} = total size</comment>
+  </data>
+  <data name="Onb3_DownloadingPercent" xml:space="preserve">
+    <value>Downloading… {0}</value>
+    <comment>{0} = percent, e.g. 42 %</comment>
+  </data>
+  <data name="Onb3_WaitingForParts" xml:space="preserve">
+    <value>Waiting for the other AI components…</value>
+  </data>
+  <data name="Onb3_FailedRetry" xml:space="preserve">
+    <value>Download failed. Click to try again.</value>
+  </data>
+  <data name="Onb3_NotDownloaded" xml:space="preserve">
+    <value>Not downloaded</value>
+  </data>
+  <data name="Onb3_AiTitle" xml:space="preserve">
+    <value>AI assistant</value>
+  </data>
+  <data name="Onb3_AiText" xml:space="preserve">
+    <value>Search, chat and summaries</value>
+  </data>
+  <data name="Onb3_Recommended" xml:space="preserve">
+    <value>Recommended for your PC</value>
+  </data>
+  <data name="Onb3_BestQuality" xml:space="preserve">
+    <value>Best quality, needs a strong GPU</value>
+  </data>
+  <data name="Onb3_Light" xml:space="preserve">
+    <value>Fast and light on memory</value>
+  </data>
+  <data name="Onb3_SkipAi" xml:space="preserve">
+    <value>Skip AI for now</value>
+  </data>
+  <data name="Onb3_Background" xml:space="preserve">
+    <value>Downloads continue in the background.</value>
+  </data>
+  <data name="Onb3_AllDone" xml:space="preserve">
+    <value>All downloads finished.</value>
+  </data>
+  <data name="Onb3_NoSpace" xml:space="preserve">
+    <value>Not enough free space: {0} needed, {1} free.</value>
+    <comment>{0} = size still to download, {1} = free space</comment>
+  </data>
+  <data name="Onb3_Unavailable" xml:space="preserve">
+    <value>Model downloads are not available in this build.</value>
+  </data>
+  <data name="Onb4_Headline" xml:space="preserve">
+    <value>Make it yours.</value>
+  </data>
+  <data name="Onb4_Subline" xml:space="preserve">
+    <value>You can change any of this later in Settings.</value>
+  </data>
+  <data name="Onb4_Language" xml:space="preserve">
+    <value>Transcription language</value>
+  </data>
+  <data name="Onb4_LanguageText" xml:space="preserve">
+    <value>Detected per recording</value>
+  </data>
+  <data name="Onb4_Auto" xml:space="preserve">
+    <value>Auto-detect</value>
+  </data>
+  <data name="Onb4_Folder" xml:space="preserve">
+    <value>Recordings folder</value>
+  </data>
+  <data name="Onb4_FreeSpace" xml:space="preserve">
+    <value>{0} free</value>
+    <comment>{0} = size</comment>
+  </data>
+  <data name="Onb4_Hotkey" xml:space="preserve">
+    <value>Start / stop hotkey</value>
+  </data>
+  <data name="Onb4_HotkeyText" xml:space="preserve">
+    <value>Click the field and press a new shortcut</value>
+  </data>
+  <data name="Onb4_PressShortcut" xml:space="preserve">
+    <value>Press a new shortcut…</value>
+  </data>
+  <data name="Onb4_EscToCancel" xml:space="preserve">
+    <value>Esc to cancel</value>
+  </data>
+  <data name="Onb4_Screen" xml:space="preserve">
+    <value>Record screen by default</value>
+  </data>
+  <data name="Onb4_ScreenText" xml:space="preserve">
+    <value>You can still switch it on for any single recording</value>
+  </data>
+  <data name="Onb5_Headline" xml:space="preserve">
+    <value>Try it: say something.</value>
+  </data>
+  <data name="Onb5_Subline" xml:space="preserve">
+    <value>Speak for a few seconds — we’ll transcribe it right here, offline.</value>
+  </data>
+  <data name="Onb5_Starting" xml:space="preserve">
+    <value>Starting</value>
+  </data>
+  <data name="Onb5_Listening" xml:space="preserve">
+    <value>Listening</value>
+  </data>
+  <data name="Onb5_Transcribing" xml:space="preserve">
+    <value>Transcribing…</value>
+  </data>
+  <data name="Onb5_Done" xml:space="preserve">
+    <value>Done</value>
+  </data>
+  <data name="Onb5_Placeholder" xml:space="preserve">
+    <value>Your words will appear here.</value>
+  </data>
+  <data name="Onb5_WaitingModel" xml:space="preserve">
+    <value>Waiting for the transcription model…</value>
+  </data>
+  <data name="Onb5_ModelFailed" xml:space="preserve">
+    <value>The transcription model could not be downloaded. You can try again in Settings.</value>
+  </data>
+  <data name="Onb5_TryAgain" xml:space="preserve">
+    <value>Try again</value>
+  </data>
+  <data name="Onb5_Consent" xml:space="preserve">
+    <value>Always tell people when you’re recording a meeting.</value>
+  </data>
+  <data name="Onb5_Open" xml:space="preserve">
+    <value>Open Murmur</value>
+  </data>
+  <data name="Onb5_NothingRecognised" xml:space="preserve">
+    <value>Nothing was recognised. Try again and speak a little louder.</value>
+  </data>
+  <data name="Onb5_NoAudio" xml:space="preserve">
+    <value>There is no audio device to record from. You can finish now and set one up later.</value>
+  </data>
+  <data name="Onb5_Busy" xml:space="preserve">
+    <value>A recording is already running. Stop it and try again.</value>
+  </data>
+  <data name="Onb5_RecordFailed" xml:space="preserve">
+    <value>Recording failed: {0}</value>
+    <comment>{0} = error message</comment>
+  </data>
+  <data name="Onb5_StoppedItself" xml:space="preserve">
+    <value>The recording stopped by itself. Check the microphone and try again.</value>
+  </data>
+  <data name="Onb5_TranscribeFailed" xml:space="preserve">
+    <value>Transcription failed: {0}</value>
+    <comment>{0} = error message</comment>
+  </data>
+  <data name="Onb5_NoTranscription" xml:space="preserve">
+    <value>The recording is saved, but transcription is not available in this build.</value>
+  </data>
+  <data name="Onb5_TrialTitle" xml:space="preserve">
+    <value>Test recording</value>
   </data>
 </root>
