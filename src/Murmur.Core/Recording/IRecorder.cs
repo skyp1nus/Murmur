@@ -1,3 +1,4 @@
+using Murmur.Core.Capture;
 using Murmur.Core.Sessions;
 
 namespace Murmur.Core.Recording;
@@ -32,7 +33,8 @@ public readonly record struct RecorderStats(long MicrophoneFrames, long SystemFr
 /// <param name="Source">What reported it, e.g. <c>screen</c>; for logs.</param>
 /// <param name="Message">Short Ukrainian text for the user; it is also kept in the session (see <see cref="SessionRecord.Error"/>).</param>
 /// <param name="ScreenStopped">The screen recording ended because of it (the audio goes on).</param>
-public sealed record RecorderWarning(string Source, string Message, bool ScreenStopped);
+/// <param name="Kind">The kind of the underlying fault; the UI shows its own localized text for it.</param>
+public sealed record RecorderWarning(string Source, string Message, bool ScreenStopped, CaptureFaultKind Kind = CaptureFaultKind.Other);
 
 /// <summary>Records one session at a time. Never waits on AI: heavy work starts only after <see cref="StopAsync"/>.</summary>
 public interface IRecorder

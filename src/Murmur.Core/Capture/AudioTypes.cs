@@ -18,4 +18,17 @@ public enum AudioDeviceKind
 
 public sealed record AudioDevice(string Id, string Name, AudioDeviceKind Kind, bool IsDefault);
 
-public sealed record CaptureFault(string Source, string Message, bool IsFatal);
+/// <summary>What kind of problem a <see cref="CaptureFault"/> is, so callers never parse <see cref="CaptureFault.Message"/>.</summary>
+public enum CaptureFaultKind
+{
+    Other,
+
+    /// <summary>Frames were lost (e.g. the screen encoder's sample pool ran dry).</summary>
+    FramesDropped,
+
+    /// <summary>The screen recorder fell back from the GPU path to CPU readback: it records on, at a higher CPU cost.</summary>
+    CpuFallback,
+}
+
+/// <param name="Message">English, for logs.</param>
+public sealed record CaptureFault(string Source, string Message, bool IsFatal, CaptureFaultKind Kind = CaptureFaultKind.Other);
