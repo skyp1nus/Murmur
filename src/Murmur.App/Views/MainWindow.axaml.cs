@@ -12,6 +12,7 @@ public partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
+        Activated += (_, _) => (DataContext as ShellViewModel)?.OnWindowActivated();
     }
 
     /// <summary>Completes when the stop-then-close sequence has finished (for tests); <c>null</c> if it never started.</summary>

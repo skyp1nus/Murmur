@@ -15,6 +15,13 @@ internal sealed class FakeSessionStore : ISessionStore
 
     public void Add(SessionRecord session) => _sessions.Add(session);
 
+    /// <summary>Replaces the stored session with the same id (what a background recovery does to a row).</summary>
+    public void Replace(SessionRecord session)
+    {
+        var index = _sessions.FindIndex(s => s.Id == session.Id);
+        _sessions[index] = session;
+    }
+
     public ValueTask<SessionRecord> CreateSessionAsync(string title, DateTimeOffset startedAt, CancellationToken cancellationToken) =>
         throw new NotSupportedException();
 

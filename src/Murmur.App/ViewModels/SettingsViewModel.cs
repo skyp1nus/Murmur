@@ -15,6 +15,14 @@ public sealed record SettingsSection(string Id, string Title);
 /// The Settings screen: models, devices, storage, hotkeys, appearance and "about". Every change is saved through
 /// <see cref="ISettingsStore.SaveAsync"/> immediately; errors are shown inline in the section that caused them.
 /// </summary>
+/// <remarks>
+/// <para><b>Lazy sections.</b> Building the section view models is the expensive part of the screen (device enumeration,
+/// the status of every catalog item, free space, subscriptions), so each one is created on first use: when the Settings
+/// are first shown, or when the onboarding, which shares them, first needs one. The section list for the sidebar needs
+/// nothing but the ids and titles.</para>
+/// <para><b>Follows the store.</b> A change saved by anyone else (the onboarding, the hotkey registration) is re-read into
+/// the sections that exist; the event is marshalled to the UI thread. <see cref="Dispose"/> unsubscribes.</para>
+/// </remarks>
 public sealed partial class SettingsViewModel : ObservableObject, IDisposable
 {
     public const string ModelsSectionId = "models";
@@ -24,7 +32,20 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable
     public const string AppearanceSectionId = "appearance";
     public const string AboutSectionId = "about";
 
+    private readonly ISettingsStore _store;
     private readonly SettingsWriter _writer;
+    private readonly ICapture _capture;
+    private readonly IModelManager? _modelManager;
+    private readonly Func<ModelKind, string?>? _activeModel;
+    private readonly string? _defaultRecordingsDirectory;
+    private readonly IFolderLauncher _launcher;
+    private readonly Action<Action> _post;
+    private ModelsSettingsViewModel? _models;
+    private DevicesSettingsViewModel? _devices;
+    private StorageSettingsViewModel? _storage;
+    private HotkeysSettingsViewModel? _hotkeys;
+    private AppearanceSettingsViewModel? _appearance;
+    private bool _disposed;
 
     /// <param name="settings">Where preferences are read and saved.</param>
     /// <param name="capture">Lists the audio devices and displays.</param>
@@ -32,8 +53,8 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable
     /// <param name="activeModel">The chat/embedding model active on disk, see <see cref="AppServices.ActiveModelId"/>.</param>
     /// <param name="defaultRecordingsDirectory">Shown while no folder is chosen.</param>
     /// <param name="launcher">Opens the recordings folder; the OS shell by default.</param>
-    /// <param name="post">Marshals model-manager events to the UI thread; the UI dispatcher by default.</param>
-    /// <param name="version">The version shown under "Про програму"; the program's informational version by default.</param>
+    /// <param name="post">Marshals model-manager and settings-store events to the UI thread; the UI dispatcher by default.</param>
+    /// <param name="version">The version shown under "Про програму"; the build-time version by default.</param>
     public SettingsViewModel(
         ISettingsStore settings,
         ICapture capture,
@@ -46,18 +67,18 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable
     {
         ArgumentNullException.ThrowIfNull(settings);
         ArgumentNullException.ThrowIfNull(capture);
+        _store = settings;
         _writer = new SettingsWriter(settings);
-        post ??= action => Avalonia.Threading.Dispatcher.UIThread.Post(action);
-
-        Models = models is null ? null : new ModelsSettingsViewModel(models, _writer, activeModel, post);
-        Devices = new DevicesSettingsViewModel(capture, _writer);
-        Storage = new StorageSettingsViewModel(_writer, defaultRecordingsDirectory, launcher ?? SystemFolderLauncher.Instance);
-        Hotkeys = new HotkeysSettingsViewModel(_writer);
-        Appearance = new AppearanceSettingsViewModel(_writer);
+        _capture = capture;
+        _modelManager = models;
+        _activeModel = activeModel;
+        _defaultRecordingsDirectory = defaultRecordingsDirectory;
+        _launcher = launcher ?? SystemFolderLauncher.Instance;
+        _post = post ?? (action => Avalonia.Threading.Dispatcher.UIThread.Post(action));
         About = new AboutViewModel(version);
 
         var sections = new List<SettingsSection>(6);
-        if (Models is not null)
+        if (models is not null)
         {
             sections.Add(new SettingsSection(ModelsSectionId, Strings.Settings_ModelsTitle));
         }
@@ -68,24 +89,40 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable
         sections.Add(new SettingsSection(AppearanceSectionId, Strings.Settings_AppearanceTitle));
         sections.Add(new SettingsSection(AboutSectionId, Strings.Settings_AboutTitle));
         Sections = sections;
+        _store.Changed += OnStoreChanged;
     }
 
-    /// <summary><c>null</c> when no model manager is wired.</summary>
-    public ModelsSettingsViewModel? Models { get; }
+    /// <summary>Created on first use; <c>null</c> when no model manager is wired.</summary>
+    public ModelsSettingsViewModel? Models =>
+        _models ??= _modelManager is null || _disposed ? null : new ModelsSettingsViewModel(_modelManager, _writer, _activeModel, _post);
 
-    public bool HasModels => Models is not null;
+    public bool HasModels => _modelManager is not null;
 
-    public DevicesSettingsViewModel Devices { get; }
+    /// <summary>Created on first use.</summary>
+    public DevicesSettingsViewModel Devices => _devices ?? (CanCreate() ? _devices = new DevicesSettingsViewModel(_capture, _writer) : null!);
 
-    public StorageSettingsViewModel Storage { get; }
+    /// <summary>Created on first use.</summary>
+    public StorageSettingsViewModel Storage => _storage ?? (CanCreate() ? _storage = new StorageSettingsViewModel(_writer, _defaultRecordingsDirectory, _launcher) : null!);
 
-    public HotkeysSettingsViewModel Hotkeys { get; }
+    /// <summary>Created on first use.</summary>
+    public HotkeysSettingsViewModel Hotkeys => _hotkeys ?? (CanCreate() ? _hotkeys = new HotkeysSettingsViewModel(_writer) : null!);
 
-    public AppearanceSettingsViewModel Appearance { get; }
+    /// <summary>Created on first use.</summary>
+    public AppearanceSettingsViewModel Appearance => _appearance ?? (CanCreate() ? _appearance = new AppearanceSettingsViewModel(_writer) : null!);
 
     public AboutViewModel About { get; }
 
     public IReadOnlyList<SettingsSection> Sections { get; }
+
+    /// <summary>A section that does not exist yet is never created after <see cref="Dispose"/> (it would subscribe to things nobody releases).</summary>
+    private bool CanCreate()
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        return true;
+    }
+
+    /// <summary>Which section view models exist yet (for tests of the lazy creation).</summary>
+    internal bool AreSectionsCreated => _devices is not null || _models is not null || _storage is not null || _hotkeys is not null || _appearance is not null;
 
     /// <summary>The last settings change started by any section (for tests).</summary>
     internal Task LastSave => _writer.LastSave;
@@ -99,12 +136,29 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable
     /// <summary>Re-reads devices, model states, free space and the saved values; called every time the screen is shown.</summary>
     public void Refresh()
     {
-        Models?.Refresh();
-        Devices.Refresh();
-        Storage.Refresh();
-        Hotkeys.Refresh();
-        Appearance.Refresh();
+        // A section that was never needed has nothing to refresh: its first use reads everything.
+        _models?.Refresh();
+        _devices?.Refresh();
+        _storage?.Refresh();
+        _hotkeys?.Refresh();
+        _appearance?.Refresh();
     }
+
+    private void OnStoreChanged(AppSettings settings) => _post(() =>
+    {
+        if (_disposed)
+        {
+            return;
+        }
+
+        // Only the saved values are re-read (ReloadSaved): no device enumeration, and no inline error, hotkey registration
+        // status or capture in progress is lost. The full Refresh() is for showing the screen.
+        _models?.RefreshActive();
+        _devices?.ReloadSaved();
+        _storage?.Refresh();
+        _hotkeys?.ReloadSaved();
+        _appearance?.ReloadSaved();
+    });
 
     [RelayCommand]
     private void ShowSection(SettingsSection? section)
@@ -115,5 +169,15 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable
         }
     }
 
-    public void Dispose() => Models?.Dispose();
+    public void Dispose()
+    {
+        if (_disposed)
+        {
+            return;
+        }
+
+        _disposed = true;
+        _store.Changed -= OnStoreChanged;
+        _models?.Dispose();
+    }
 }

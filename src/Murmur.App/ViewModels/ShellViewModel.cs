@@ -24,6 +24,7 @@ public sealed partial class ShellViewModel : ObservableObject
     private OnboardingViewModel? _onboarding;
     private bool _wasCompleted;
     private bool _sessionReturnsToChat;
+    private bool _closed;
 
     /// <param name="sessionFactory">Builds the recording view for a session; <c>null</c> = sessions cannot be opened.</param>
     /// <param name="chatFactory">Builds a chat for a scope (<c>null</c> = the whole library); <c>null</c> = no library-wide chat.</param>
@@ -162,7 +163,7 @@ public sealed partial class ShellViewModel : ObservableObject
             services.Time);
 
         return new ShellViewModel(
-            new LibraryViewModel(services.Sessions, services.Time, processing, keywordSearch: services.Search, assistant: ai?.Assistant),
+            new LibraryViewModel(services.Sessions, services.Time, processing, keywordSearch: services.Search, assistant: ai?.Assistant, recorder: services.Recorder),
             new RecordingViewModel(services.Recorder, services.Capture, services.Sessions, settings: store),
             services.Startup,
             sessionFactory,
@@ -237,7 +238,7 @@ public sealed partial class ShellViewModel : ObservableObject
     /// <summary>Shows the onboarding from its first step, full window. Ignored without one, and while a recording is running.</summary>
     public void ShowOnboarding()
     {
-        if (_onboardingFactory is null || Recording.State != RecorderState.Idle)
+        if (_closed || _onboardingFactory is null || Recording.State != RecorderState.Idle)
         {
             return;
         }
@@ -283,7 +284,7 @@ public sealed partial class ShellViewModel : ObservableObject
     /// <summary>Opens the Settings screen. Ignored without one.</summary>
     public void ShowSettings()
     {
-        if (Settings is not { } settings)
+        if (_closed || Settings is not { } settings)
         {
             return;
         }
@@ -446,6 +447,17 @@ public sealed partial class ShellViewModel : ObservableObject
         }
     }
 
-    /// <summary>The window closed: stop what the onboarding runs (meters, the trial recording).</summary>
-    public void OnWindowClosed() => _onboarding?.Suspend();
+    /// <summary>The window closed: stop what the onboarding runs (meters, the trial recording) and release the Settings and the library.</summary>
+    public void OnWindowClosed()
+    {
+        _closed = true;
+        _onboarding?.Suspend();
+
+        // The app ends with its window: release what the screens subscribed to.
+        Settings?.Dispose();
+        Library.Dispose();
+    }
+
+    /// <summary>The window came to the front: the library re-reads sessions that may have been recovered meanwhile.</summary>
+    public void OnWindowActivated() => Library.OnWindowActivated();
 }

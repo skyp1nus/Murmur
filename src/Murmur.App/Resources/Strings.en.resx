@@ -487,10 +487,10 @@
     <value>Make default</value>
   </data>
   <data name="Models_InstallFailed" xml:space="preserve">
-    <value>Download failed. Check your connection and try again.</value>
+    <value>Install failed. Try again.</value>
   </data>
   <data name="Models_ActionFailed" xml:space="preserve">
-    <value>The action failed: {0}</value>
+    <value>The action failed. Try again.</value>
   </data>
   <data name="Models_DescAsr" xml:space="preserve">
     <value>Transcription · 25 European languages · CPU</value>
@@ -619,7 +619,7 @@
     <value>Dark</value>
   </data>
   <data name="Appearance_ThemeSystem" xml:space="preserve">
-    <value>Like the system</value>
+    <value>Match system</value>
   </data>
   <data name="Appearance_Language" xml:space="preserve">
     <value>Language</value>
@@ -906,5 +906,17 @@
   </data>
   <data name="Onb5_TrialTitle" xml:space="preserve">
     <value>Test recording</value>
+  </data>
+  <data name="Models_NoSpace" xml:space="preserve">
+    <value>Not enough disk space. Free some space and try again.</value>
+  </data>
+  <data name="Models_RemoveFailed" xml:space="preserve">
+    <value>Could not remove it. Try again.</value>
+  </data>
+  <data name="Models_WaitForOther" xml:space="preserve">
+    <value>Wait for the other download to finish.</value>
+  </data>
+  <data name="Storage_NotAbsolute" xml:space="preserve">
+    <value>Use a full folder path, for example C:\Recordings.</value>
   </data>
 </root>

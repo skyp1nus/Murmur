@@ -488,11 +488,10 @@
     <value>Зробити основною</value>
   </data>
   <data name="Models_InstallFailed" xml:space="preserve">
-    <value>Не вдалося завантажити. Перевірте зʼєднання й спробуйте ще раз.</value>
+    <value>Не вдалося встановити. Спробуйте ще раз.</value>
   </data>
   <data name="Models_ActionFailed" xml:space="preserve">
-    <value>Не вдалося виконати дію: {0}</value>
-    <comment>{0} = error message</comment>
+    <value>Не вдалося виконати дію. Спробуйте ще раз.</value>
   </data>
   <data name="Models_DescAsr" xml:space="preserve">
     <value>Транскрипція · 25 європейських мов · CPU</value>
@@ -916,5 +915,17 @@
   </data>
   <data name="Onb5_TrialTitle" xml:space="preserve">
     <value>Пробний запис</value>
+  </data>
+  <data name="Models_NoSpace" xml:space="preserve">
+    <value>Недостатньо місця на диску. Звільніть місце й спробуйте ще раз.</value>
+  </data>
+  <data name="Models_RemoveFailed" xml:space="preserve">
+    <value>Не вдалося видалити. Спробуйте ще раз.</value>
+  </data>
+  <data name="Models_WaitForOther" xml:space="preserve">
+    <value>Зачекайте, поки завершиться інше завантаження.</value>
+  </data>
+  <data name="Storage_NotAbsolute" xml:space="preserve">
+    <value>Вкажіть повний шлях до папки, наприклад C:\Записи.</value>
   </data>
 </root>

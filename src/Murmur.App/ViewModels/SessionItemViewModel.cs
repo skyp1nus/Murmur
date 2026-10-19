@@ -7,7 +7,8 @@ namespace Murmur.App.ViewModels;
 
 /// <summary>
 /// One row of the library list. Everything is fixed for the row's lifetime except the status badge, which follows the
-/// processing pipeline (see <see cref="ApplyProcessing"/>); a reload builds new rows.
+/// processing pipeline (see <see cref="ApplyProcessing"/>), and the stored facts, which <see cref="Update"/> re-reads when
+/// the session changed behind the library's back (a background recovery); a reload builds new rows.
 /// </summary>
 public sealed partial class SessionItemViewModel : ObservableObject
 {
@@ -15,9 +16,9 @@ public sealed partial class SessionItemViewModel : ObservableObject
     {
         ArgumentNullException.ThrowIfNull(record);
         ArgumentNullException.ThrowIfNull(time);
-        Record = record;
         Id = record.Id;
-        Title = string.IsNullOrWhiteSpace(record.Title) ? Strings.Common_UntitledRecording : record.Title;
+        Record = record;
+        Title = TitleOf(record);
         DateText = UiFormat.Date(record.StartedAt, time);
         DurationText = UiFormat.Duration(record.Duration);
         HasMicrophone = record.HasMicrophone;
@@ -27,22 +28,28 @@ public sealed partial class SessionItemViewModel : ObservableObject
     }
 
     /// <summary>The stored session this row shows (handed to the recording view when the row is opened).</summary>
-    public SessionRecord Record { get; }
+    public SessionRecord Record { get; private set; }
 
     public SessionId Id { get; }
 
-    public string Title { get; }
+    [ObservableProperty]
+    public partial string Title { get; private set; }
 
-    public string DateText { get; }
+    [ObservableProperty]
+    public partial string DateText { get; private set; }
 
     /// <summary>Shown in Geist Mono.</summary>
-    public string DurationText { get; }
+    [ObservableProperty]
+    public partial string DurationText { get; private set; }
 
-    public bool HasMicrophone { get; }
+    [ObservableProperty]
+    public partial bool HasMicrophone { get; private set; }
 
-    public bool HasSystemAudio { get; }
+    [ObservableProperty]
+    public partial bool HasSystemAudio { get; private set; }
 
-    public bool HasScreen { get; }
+    [ObservableProperty]
+    public partial bool HasScreen { get; private set; }
 
     /// <summary>Processing / outcome badge ("Транскрибується 42 %", "Готово", "Помилка", "Перервано"); <c>null</c> = none.</summary>
     [ObservableProperty]
@@ -57,4 +64,20 @@ public sealed partial class SessionItemViewModel : ObservableObject
         ArgumentNullException.ThrowIfNull(status);
         StatusText = ProcessingText.Badge(Record.State, status);
     }
+
+    /// <summary>Shows a newer stored version of the same session in place (the row object, and so the list, stays).</summary>
+    internal void Update(SessionRecord record, TimeProvider time, SessionProcessingStatus? processing)
+    {
+        Record = record;
+        Title = TitleOf(record);
+        DateText = UiFormat.Date(record.StartedAt, time);
+        DurationText = UiFormat.Duration(record.Duration);
+        HasMicrophone = record.HasMicrophone;
+        HasSystemAudio = record.HasSystemAudio;
+        HasScreen = record.ScreenSegments.Count > 0;
+        StatusText = ProcessingText.Badge(record.State, processing);
+    }
+
+    private static string TitleOf(SessionRecord record) =>
+        string.IsNullOrWhiteSpace(record.Title) ? Strings.Common_UntitledRecording : record.Title;
 }

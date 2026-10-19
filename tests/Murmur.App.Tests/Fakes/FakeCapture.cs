@@ -21,8 +21,14 @@ internal sealed class FakeCapture : ICapture
 
     public CaptureCapabilities Capabilities => new(Microphones.Count > 0, Outputs.Count > 0, Screen);
 
-    public IReadOnlyList<AudioDevice> GetAudioDevices(AudioDeviceKind kind) =>
-        kind == AudioDeviceKind.Microphone ? [.. Microphones] : [.. Outputs];
+    /// <summary>How often the devices were enumerated.</summary>
+    public int DeviceQueries { get; private set; }
+
+    public IReadOnlyList<AudioDevice> GetAudioDevices(AudioDeviceKind kind)
+    {
+        DeviceQueries++;
+        return kind == AudioDeviceKind.Microphone ? [.. Microphones] : [.. Outputs];
+    }
 
     /// <summary>Every source opened so far, in order.</summary>
     public List<FakeAudioSource> Sources { get; } = [];

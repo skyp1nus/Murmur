@@ -26,19 +26,35 @@ public sealed class TopLevelFolderPicker(Func<TopLevel?> topLevel) : IFolderPick
             return null;
         }
 
+        // The storage items wrap OS handles (COM objects on Windows): dispose every one that was handed out.
         IStorageFolder? start = null;
-        if (!string.IsNullOrEmpty(startPath) && Directory.Exists(startPath))
+        IReadOnlyList<IStorageFolder>? result = null;
+        try
         {
-            start = await provider.TryGetFolderFromPathAsync(startPath);
+            if (!string.IsNullOrEmpty(startPath) && Directory.Exists(startPath))
+            {
+                start = await provider.TryGetFolderFromPathAsync(startPath);
+            }
+
+            result = await provider.OpenFolderPickerAsync(new FolderPickerOpenOptions
+            {
+                Title = title,
+                AllowMultiple = false,
+                SuggestedStartLocation = start,
+            });
+
+            return result.Count > 0 ? result[0].TryGetLocalPath() : null;
         }
-
-        var result = await provider.OpenFolderPickerAsync(new FolderPickerOpenOptions
+        finally
         {
-            Title = title,
-            AllowMultiple = false,
-            SuggestedStartLocation = start,
-        });
-
-        return result.Count > 0 ? result[0].TryGetLocalPath() : null;
+            start?.Dispose();
+            if (result is not null)
+            {
+                foreach (var folder in result)
+                {
+                    folder.Dispose();
+                }
+            }
+        }
     }
 }

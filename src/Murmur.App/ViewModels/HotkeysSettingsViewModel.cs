@@ -54,6 +54,23 @@ public sealed partial class HotkeysSettingsViewModel : ObservableObject
         Error = null;
     }
 
+    /// <summary>
+    /// The store changed elsewhere: shows the saved gestures of the rows that differ. Never touches errors, the registration
+    /// status or a capture in progress (an unrelated save must not wipe "taken by another app").
+    /// </summary>
+    internal void ReloadSaved()
+    {
+        var settings = _writer.Current;
+        foreach (var row in Rows)
+        {
+            var saved = GestureOf(settings, row.Action);
+            if (!string.Equals(row.Gesture, saved, StringComparison.Ordinal) && !row.IsCapturing)
+            {
+                row.Gesture = saved;
+            }
+        }
+    }
+
     internal void BeginCapture(HotkeyRowViewModel row)
     {
         EndCapture();

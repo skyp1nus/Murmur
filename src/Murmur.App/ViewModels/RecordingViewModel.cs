@@ -348,8 +348,9 @@ public sealed partial class RecordingViewModel : ObservableObject, ILevelSource
         }
 
         var settings = store.Current;
-        SelectedMicrophone = Saved(MicrophoneDevices, settings.MicrophoneDeviceId) ?? SelectedMicrophone;
-        SelectedSystemDevice = Saved(SystemDevices, settings.SystemAudioDeviceId) ?? SelectedSystemDevice;
+        // A saved device that is gone falls back to the system default (as the Settings screen shows it), not to the last pick.
+        SelectedMicrophone = Saved(MicrophoneDevices, settings.MicrophoneDeviceId) ?? Saved(MicrophoneDevices, null);
+        SelectedSystemDevice = Saved(SystemDevices, settings.SystemAudioDeviceId) ?? Saved(SystemDevices, null);
 
         // The recorder is idle here, so the toggle only changes the pill, not a running recording.
         Screen = settings.ScreenByDefault && ScreenAvailable;

@@ -1,4 +1,3 @@
-using System.Reflection;
 using Murmur.App.Resources;
 
 namespace Murmur.App.ViewModels;
@@ -11,7 +10,7 @@ public sealed class AboutViewModel
 
     public AboutViewModel(string? version = null)
     {
-        Version = version ?? ReadVersion();
+        Version = version ?? BuildInfo.Version;
         License = UiText.Format(Strings.About_License, LicenseName);
 
         // Licence names follow THIRD-PARTY-NOTICES.md. Parakeet's CC-BY-4.0 requires the attribution shown here.
@@ -33,15 +32,4 @@ public sealed class AboutViewModel
     public IReadOnlyList<string> Credits { get; }
 
     private static string Credit(string component, string licence) => UiText.Format(Strings.About_Credit, component, licence);
-
-    /// <summary>The informational version of the running program without the source revision suffix (<c>1.2.3+abcdef</c> becomes <c>1.2.3</c>).</summary>
-    private static string ReadVersion()
-    {
-        var assembly = Assembly.GetEntryAssembly() ?? typeof(AboutViewModel).Assembly;
-        var version = assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion
-            ?? assembly.GetName().Version?.ToString()
-            ?? string.Empty;
-        var plus = version.IndexOf('+', StringComparison.Ordinal);
-        return plus >= 0 ? version[..plus] : version;
-    }
 }

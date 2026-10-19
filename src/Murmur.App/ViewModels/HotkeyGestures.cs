@@ -64,8 +64,50 @@ public static class HotkeyGestures
         return string.Equals(a, b, StringComparison.OrdinalIgnoreCase);
     }
 
-    /// <summary><c>Ctrl+Shift+R</c> as the caps shown in the mockup: <c>Ctrl Shift R</c>.</summary>
-    public static string Display(string gesture) => gesture.Replace('+', ' ');
+    /// <summary>
+    /// <c>Ctrl+Shift+R</c> as the caps shown in the mockup: <c>Ctrl Shift R</c>. Digit and punctuation keys show as the
+    /// character on the key (<c>Ctrl Shift 1</c>, <c>Ctrl ,</c>), not as their enum names (<c>D1</c>, <c>OemComma</c>).
+    /// Display only: the stored text stays canonical.
+    /// </summary>
+    public static string Display(string gesture)
+    {
+        if (!HotkeyGesture.TryParse(gesture, out var parsed))
+        {
+            return gesture.Replace('+', ' ');
+        }
+
+        var canonical = parsed.ToString();
+        var plus = canonical.LastIndexOf('+');
+        var key = KeyCap(parsed.Key);
+        return plus < 0 ? key : string.Concat(canonical.AsSpan(0, plus).ToString().Replace('+', ' '), " ", key);
+    }
+
+    private static string KeyCap(HotkeyKey key) => key switch
+    {
+        HotkeyKey.D0 => "0",
+        HotkeyKey.D1 => "1",
+        HotkeyKey.D2 => "2",
+        HotkeyKey.D3 => "3",
+        HotkeyKey.D4 => "4",
+        HotkeyKey.D5 => "5",
+        HotkeyKey.D6 => "6",
+        HotkeyKey.D7 => "7",
+        HotkeyKey.D8 => "8",
+        HotkeyKey.D9 => "9",
+        HotkeyKey.OemSemicolon => ";",
+        HotkeyKey.OemPlus => "=",
+        HotkeyKey.OemComma => ",",
+        HotkeyKey.OemMinus => "-",
+        HotkeyKey.OemPeriod => ".",
+        HotkeyKey.OemQuestion => "/",
+        HotkeyKey.OemTilde => "`",
+        HotkeyKey.OemOpenBrackets => "[",
+        HotkeyKey.OemPipe => "\\",
+        HotkeyKey.OemCloseBrackets => "]",
+        HotkeyKey.OemQuotes => "'",
+        HotkeyKey.OemBackslash => "\\",
+        _ => HotkeyGesture.KeyName(key),
+    };
 
     private static bool IsModifierKey(Key key) => key is Key.LeftCtrl or Key.RightCtrl or Key.LeftShift or Key.RightShift
         or Key.LeftAlt or Key.RightAlt or Key.LWin or Key.RWin or Key.System or Key.CapsLock or Key.NumLock or Key.Scroll;
