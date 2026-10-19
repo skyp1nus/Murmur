@@ -524,11 +524,13 @@ public sealed class SettingsViewModelTests
         Assert.True(storage.IsDefaultFolder);
         Assert.False(storage.CanReset);
 
-        picker.Result = "/mnt/big/meetings";
+        // Fully qualified on every OS: the view model rejects a rooted-but-driveless "/mnt/..." on Windows.
+        var chosen = OperatingSystem.IsWindows() ? @"D:\big\meetings" : "/mnt/big/meetings";
+        picker.Result = chosen;
         await storage.ChangeCommand.ExecuteAsync(null);
 
-        Assert.Equal("/mnt/big/meetings", rig.Store.Current.RecordingsDirectory);
-        Assert.Equal("/mnt/big/meetings", storage.EffectivePath);
+        Assert.Equal(chosen, rig.Store.Current.RecordingsDirectory);
+        Assert.Equal(chosen, storage.EffectivePath);
         Assert.False(storage.IsDefaultFolder);
         Assert.True(storage.CanReset);
         Assert.Equal(Strings.Storage_PickerTitle, picker.Calls[0].Title);
@@ -536,7 +538,7 @@ public sealed class SettingsViewModelTests
 
         picker.Result = null;
         await storage.ChangeCommand.ExecuteAsync(null);
-        Assert.Equal("/mnt/big/meetings", rig.Store.Current.RecordingsDirectory);
+        Assert.Equal(chosen, rig.Store.Current.RecordingsDirectory);
 
         await storage.ResetCommand.ExecuteAsync(null);
         Assert.Null(rig.Store.Current.RecordingsDirectory);

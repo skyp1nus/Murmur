@@ -297,7 +297,18 @@ public sealed class WgcScreenRecorderTests(ITestOutputHelper output)
             output.WriteLine($"{recorder.Stats} framePath='{recorder.FramePath}'; faults: {Describe(faults)}");
             Assert.Equal(given, recorder.FramePath);
             Assert.Contains("CPU readback", recorder.Stats.Encoder, StringComparison.Ordinal);
-            Assert.Empty(faults);
+
+            // D-038: a segment that starts on CPU readback after the GPU path was given up says so once, as a non-fatal warning.
+            CaptureFault fault;
+            lock (faults)
+            {
+                fault = Assert.Single(faults);
+            }
+
+            Assert.False(fault.IsFatal);
+            Assert.Equal(CaptureFaultKind.CpuFallback, fault.Kind);
+            Assert.Equal("screen", fault.Source);
+            Assert.Equal(given, fault.Message);
         }
         finally
         {

@@ -133,6 +133,24 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
+# The report carries the warnings the user was shown (Ukrainian), so stdout is UTF-8 whatever the console code page is
+# (a redirected pwsh on Windows writes in the OEM code page and turns Cyrillic into '?').
+$script:Utf8 = [System.Text.UTF8Encoding]::new($false)
+try { [Console]::OutputEncoding = $script:Utf8 } catch { $null = $_ }  # no console attached: there is no code page to set
+
+function Write-Utf8Line([string] $Text) {
+    if ([Console]::IsOutputRedirected) {
+        # Straight to the stdout handle: independent of the encoding the host's writer was created with.
+        $bytes = $script:Utf8.GetBytes($Text + [Environment]::NewLine)
+        $stdout = [Console]::OpenStandardOutput()
+        $stdout.Write($bytes, 0, $bytes.Length)
+        $stdout.Flush()
+    }
+    else {
+        Write-Host $Text
+    }
+}
+
 if (-not ('MurmurWavScan' -as [type])) {
     Add-Type -Language CSharp -TypeDefinition @'
 using System;
@@ -645,7 +663,7 @@ if ($failed) {
     foreach ($v in $violations) { [void]$sb.AppendLine("- $v") }
 }
 $report = $sb.ToString()
-Write-Host $report
+Write-Utf8Line $report
 
 if ($MarkdownOut) {
     $mdFull = [System.IO.Path]::GetFullPath($MarkdownOut, (Get-Location).ProviderPath)
@@ -655,7 +673,7 @@ if ($MarkdownOut) {
 }
 
 if ($failed) {
-    foreach ($v in $violations) { Write-Host "::error::$Title - $v" }
+    foreach ($v in $violations) { Write-Utf8Line "::error::$Title - $v" }
     exit 1
 }
 exit 0
