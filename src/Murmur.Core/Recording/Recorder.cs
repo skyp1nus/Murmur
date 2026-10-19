@@ -1250,7 +1250,9 @@ public sealed class Recorder : IRecorder
         /// <summary>Final once the start has succeeded; replaced (never mutated) when a source fails to start.</summary>
         public volatile List<Track> Tracks = [];
         public readonly List<ScreenSegment> Segments = [];
-        public readonly ManualResetEventSlim StopSignal = new(false);
+        // No spinning: the writer only sleeps out its period here, and spinning first can use up the whole period on a busy
+        // machine, which pushes the first blocking wait (and its one-time lazy allocation) past the allocation baseline.
+        public readonly ManualResetEventSlim StopSignal = new(false, spinCount: 0);
         public readonly AutoResetEvent FlushRequest = new(false);
         public int MicrophoneLevelBits;
         public int SystemLevelBits;
