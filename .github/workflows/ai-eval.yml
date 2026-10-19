@@ -2,9 +2,8 @@ name: ai-eval
 
 # Phase-3 criterion: the AI answer leads to the right minute of the recording.
 # Separate from ci.yml on purpose (that workflow is changed by other tasks); see docs/CI.md.
+# Manual only (owner decision 2026-10-19): the same eval runs locally with `pwsh scripts/verify-local.ps1 -AiEval`.
 on:
-  push:
-    branches: [master, night-run]
   workflow_dispatch:
     inputs:
       windows:

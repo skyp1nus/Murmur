@@ -1,4 +1,0 @@
-# Touch this file on night-run to start .github/workflows/perf-record.yml with default inputs.
-request 1: phase 1 criterion — 60 min audio-only + 10 min audio+screen (2026-10-18)
-request 2: rerun after the microphone-denied fix (2026-10-18)
-request 3: Run B (audio + screen) after the push-trigger condition fix (2026-10-18)
