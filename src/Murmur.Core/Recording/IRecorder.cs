@@ -25,7 +25,14 @@ public sealed record RecordingOptions(
 public readonly record struct AudioLevels(float Microphone, float SystemAudio);
 
 /// <param name="DroppedFrames">Frames lost because a buffer overflowed. Must stay 0.</param>
-public readonly record struct RecorderStats(long MicrophoneFrames, long SystemFrames, long DroppedFrames, long ScreenFramesDropped);
+/// <param name="ScreenFaults">Faults the screen recorder reported during this recording (fatal and non-fatal).</param>
+public readonly record struct RecorderStats(long MicrophoneFrames, long SystemFrames, long DroppedFrames, long ScreenFramesDropped, int ScreenFaults = 0);
+
+/// <summary>A problem during a recording that did not stop it.</summary>
+/// <param name="Source">What reported it, e.g. <c>screen</c>; for logs.</param>
+/// <param name="Message">Short Ukrainian text for the user; it is also kept in the session (see <see cref="SessionRecord.Error"/>).</param>
+/// <param name="ScreenStopped">The screen recording ended because of it (the audio goes on).</param>
+public sealed record RecorderWarning(string Source, string Message, bool ScreenStopped);
 
 /// <summary>Records one session at a time. Never waits on AI: heavy work starts only after <see cref="StopAsync"/>.</summary>
 public interface IRecorder
@@ -44,6 +51,9 @@ public interface IRecorder
 
     ValueTask<SessionRecord> StartAsync(RecordingOptions options, CancellationToken cancellationToken);
 
+    /// <summary>A screen segment is being recorded now. Turns false when the screen is switched off or fails.</summary>
+    bool IsScreenRecording { get; }
+
     /// <summary>Turns screen recording on or off while recording; each "on" starts a new screen segment.</summary>
     ValueTask SetScreenEnabledAsync(bool enabled, CancellationToken cancellationToken);
 
@@ -51,4 +61,11 @@ public interface IRecorder
     ValueTask<SessionRecord> StopAsync(CancellationToken cancellationToken);
 
     event Action<RecorderState>? StateChanged;
+
+    /// <summary>
+    /// Raised off the UI thread when something went wrong without stopping the recording, e.g. the screen recorder
+    /// faulted (the segment ends, the audio goes on) or fell back to a slower path. Each distinct problem is raised
+    /// once per recording and added to the session's warnings.
+    /// </summary>
+    event Action<RecorderWarning>? Warning;
 }
