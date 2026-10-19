@@ -16,7 +16,8 @@
       -Startup   scripts/measure-startup.ps1, 7 runs, median budget 400 ms
       -Installer Inno Setup installer (scripts/build-installer.ps1) from the -Publish folder: silent per-user install into a
                  temp folder, Murmur.exe + Murmur.Transcription.exe + native libs present, the startup check of the
-                 installed Murmur.exe (same as -Startup), silent uninstall, folder gone, user data kept.
+                 installed Murmur.exe (every run must render a frame; the median is only reported, -Startup
+                 enforces the budget), silent uninstall, folder gone, user data kept.
                  Needs Inno Setup 6 (winget install JRSoftware.InnoSetup); skipped when Murmur is installed on this PC
       -Capture   60 s recording with audio + screen (Murmur.exe --autorecord) + scripts/check-recording.ps1
       -Perf      long recordings with the PLAN.md budgets: -PerfMinutes audio only (CPU < 3 %, RAM < 150 MB, no growth),
@@ -178,14 +179,22 @@ if ($Publish -and (Require-Windows 'Publish')) {
 }
 
 # --- Startup (also used on the installed exe by -Installer) -----------------------------------------------------------
-function Invoke-StartupCheck([string] $Step, [string] $Exe, [string] $Name) {
+# -BudgetIsInfo: every run must still start and render a frame, but a median over the budget is only reported (INFO).
+# The installed exe is the same binary the Startup step measures, so that step alone enforces the budget; a second
+# measurement of a ~400 ms median on a shared runner would only add noise.
+function Invoke-StartupCheck([string] $Step, [string] $Exe, [string] $Name, [switch] $BudgetIsInfo) {
     $out = Join-Path $runDir "$Name.json"
     $code = Invoke-Logged (Join-Path $runDir "$Name.log") { pwsh -NoProfile -File scripts/measure-startup.ps1 -Exe $Exe -Runs 7 -BudgetMs 400 -Out $out }
     $json = if (Test-Path -LiteralPath $out) { Get-Content -LiteralPath $out -Raw | ConvertFrom-Json } else { $null }
     $summary = if ($json -and $json.stats) {
         "median $([math]::Round([double]$json.stats.median)) ms (budget 400), first run $([math]::Round([double]$json.cold.startupMs)) ms"
     } else { "see $Name.log" }
-    Add-Result $Step ($(if ($code -eq 0) { 'PASS' } else { 'FAIL' })) $summary
+    $status = if ($code -eq 0) { 'PASS' } else { 'FAIL' }
+    if ($status -eq 'FAIL' -and $BudgetIsInfo -and $json -and $json.stats -and [int]$json.failedRuns -eq 0) {
+        $status = 'INFO'
+        $summary += '; over budget here, the budget is checked by the Startup step'
+    }
+    Add-Result $Step $status $summary
     $md = Read-Text ([System.IO.Path]::ChangeExtension($out, '.md'))
     if ($md) { Add-Section $Step $md }
 }
@@ -293,7 +302,7 @@ function Invoke-InstallerCheck {
             $icons = Get-IconGroupCount $installedExe
             $facts += $(if ($icons -gt 0) { '; exe has an icon resource' } else { '; exe has NO icon resource' })
             Write-Host "Installed exe: ProductVersion '$productVersion', $icons icon group resource(s)."
-            Invoke-StartupCheck 'Installer startup' $installedExe 'installer-startup'
+            Invoke-StartupCheck 'Installer startup' $installedExe 'installer-startup' -BudgetIsInfo
         }
     }
     finally {
