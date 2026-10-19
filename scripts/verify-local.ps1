@@ -14,12 +14,18 @@
       -Publish   Native AOT win-x64 of Murmur.Desktop + Murmur.Transcription into artifacts/publish/win-x64;
                  fails on any publish warning (same rule as ci.yml)
       -Startup   scripts/measure-startup.ps1, 7 runs, median budget 400 ms
+      -Installer Inno Setup installer (scripts/build-installer.ps1) from the -Publish folder: silent per-user install into a
+                 temp folder, Murmur.exe + Murmur.Transcription.exe + native libs present, the startup check of the
+                 installed Murmur.exe (same as -Startup), silent uninstall, folder gone, user data kept.
+                 Needs Inno Setup 6 (winget install JRSoftware.InnoSetup); skipped when Murmur is installed on this PC
       -Capture   60 s recording with audio + screen (Murmur.exe --autorecord) + scripts/check-recording.ps1
       -Perf      long recordings with the PLAN.md budgets: -PerfMinutes audio only (CPU < 3 %, RAM < 150 MB, no growth),
                  then 10 min audio + screen (CPU < 8 %, working set must not grow)
       -Asr       1 h of audio -> text with Murmur.Transcription --bench, budget 180 s (needs scripts/fetch-models.ps1)
       -AiEval    "AI answer leads to the right minute" with Gemma 4 (needs scripts/fetch-models.ps1 -Ai)
       -All       everything above
+
+    -SetupExe <path> makes -Installer test an existing Murmur-Setup-*.exe instead of building one (CI builds it first).
 
     Recordings use the default devices. Play something (a video with speech) during -Capture and -Perf, or pass -Tone
     to play a 440 Hz test tone through the default output device (loud!) and also check that the tone was recorded
@@ -43,6 +49,7 @@ param(
     [switch] $Test,
     [switch] $Publish,
     [switch] $Startup,
+    [switch] $Installer,
     [switch] $Capture,
     [switch] $Perf,
     [switch] $Asr,
@@ -50,7 +57,8 @@ param(
     [switch] $All,
     [switch] $Tone,
     [ValidateRange(1, 240)] [int] $PerfMinutes = 60,
-    [string] $ModelsDir = ''
+    [string] $ModelsDir = '',
+    [string] $SetupExe = ''
 )
 
 Set-StrictMode -Version Latest
@@ -60,8 +68,8 @@ $ProgressPreference = 'SilentlyContinue'
 $repo = (Resolve-Path (Join-Path $PSScriptRoot '..')).ProviderPath
 Set-Location -LiteralPath $repo
 
-if ($All) { $Build = $Test = $Publish = $Startup = $Capture = $Perf = $Asr = $AiEval = $true }
-if (-not ($Build -or $Test -or $Publish -or $Startup -or $Capture -or $Perf -or $Asr -or $AiEval)) {
+if ($All) { $Build = $Test = $Publish = $Startup = $Installer = $Capture = $Perf = $Asr = $AiEval = $true }
+if (-not ($Build -or $Test -or $Publish -or $Startup -or $Installer -or $Capture -or $Perf -or $Asr -or $AiEval)) {
     $Build = $Test = $Publish = $Startup = $true
 }
 
@@ -169,17 +177,109 @@ if ($Publish -and (Require-Windows 'Publish')) {
     }
 }
 
-# --- Startup ---------------------------------------------------------------------------------------------------------
-if ($Startup -and (Require-Windows 'Startup') -and (Test-Published 'Startup' $murmurExe)) {
-    $out = Join-Path $runDir 'startup.json'
-    $code = Invoke-Logged (Join-Path $runDir 'startup.log') { pwsh -NoProfile -File scripts/measure-startup.ps1 -Exe $murmurExe -Runs 7 -BudgetMs 400 -Out $out }
+# --- Startup (also used on the installed exe by -Installer) -----------------------------------------------------------
+function Invoke-StartupCheck([string] $Step, [string] $Exe, [string] $Name) {
+    $out = Join-Path $runDir "$Name.json"
+    $code = Invoke-Logged (Join-Path $runDir "$Name.log") { pwsh -NoProfile -File scripts/measure-startup.ps1 -Exe $Exe -Runs 7 -BudgetMs 400 -Out $out }
     $json = if (Test-Path -LiteralPath $out) { Get-Content -LiteralPath $out -Raw | ConvertFrom-Json } else { $null }
     $summary = if ($json -and $json.stats) {
         "median $([math]::Round([double]$json.stats.median)) ms (budget 400), first run $([math]::Round([double]$json.cold.startupMs)) ms"
-    } else { 'see startup.log' }
-    Add-Result 'Startup' ($(if ($code -eq 0) { 'PASS' } else { 'FAIL' })) $summary
+    } else { "see $Name.log" }
+    Add-Result $Step ($(if ($code -eq 0) { 'PASS' } else { 'FAIL' })) $summary
     $md = Read-Text ([System.IO.Path]::ChangeExtension($out, '.md'))
-    if ($md) { Add-Section 'Startup' $md }
+    if ($md) { Add-Section $Step $md }
+}
+
+if ($Startup -and (Require-Windows 'Startup') -and (Test-Published 'Startup' $murmurExe)) {
+    Invoke-StartupCheck 'Startup' $murmurExe 'startup'
+}
+
+# --- Installer -------------------------------------------------------------------------------------------------------
+# Builds the setup exe from the publish folder, installs it silently into a temp folder as the current user, starts the
+# installed app, uninstalls silently and checks what is left. The installer keeps %LOCALAPPDATA%\Murmur (user data) on a
+# silent uninstall; a sentinel file in it proves that.
+function Wait-Until([scriptblock] $Condition, [int] $TimeoutS) {
+    $deadline = [DateTime]::UtcNow.AddSeconds($TimeoutS)
+    while ([DateTime]::UtcNow -lt $deadline) {
+        if (& $Condition) { return $true }
+        Start-Sleep -Milliseconds 500
+    }
+    return [bool](& $Condition)
+}
+
+function Invoke-InstallerCheck {
+    $appId = [regex]::Match((Get-Content -LiteralPath 'installer/Murmur.iss' -Raw), 'AppId=\{\{([0-9A-Fa-f-]+)\}').Groups[1].Value
+    $uninstallKey = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\{$appId}_is1"
+    if (-not $appId) { Add-Result 'Installer' 'FAIL' 'AppId not found in installer/Murmur.iss'; return }
+    if (Test-Path -LiteralPath $uninstallKey) {
+        Add-Result 'Installer' 'SKIP' 'Murmur is installed for this user (same AppId): uninstall it first, the smoke test would replace its uninstaller entry'
+        return
+    }
+
+    if ($SetupExe) {
+        $setup = Get-Item -LiteralPath $SetupExe -ErrorAction SilentlyContinue
+        if (-not $setup) { Add-Result 'Installer' 'FAIL' "-SetupExe not found: $SetupExe"; return }
+    }
+    else {
+        $installerDir = Join-Path $runDir 'installer'
+        $code = Invoke-Logged (Join-Path $runDir 'installer-build.log') { pwsh -NoProfile -File scripts/build-installer.ps1 -SkipPublish -PublishDir $publishDir -OutDir $installerDir }
+        $setup = Get-ChildItem -LiteralPath $installerDir -Filter 'Murmur-Setup-*.exe' -ErrorAction SilentlyContinue | Select-Object -First 1
+        if ($code -ne 0 -or -not $setup) { Add-Result 'Installer' 'FAIL' "build-installer.ps1 failed (exit $code, see installer-build.log)"; return }
+        $payload = Join-Path $installerDir 'payload.md'
+        if (Test-Path -LiteralPath $payload) { Add-Section 'Installer payload' (Get-Content -LiteralPath $payload -Raw) }
+    }
+
+    $installDir = Join-Path ([System.IO.Path]::GetTempPath()) ('murmur-installer-' + [guid]::NewGuid().ToString('N').Substring(0, 8))
+    $installLog = Join-Path $runDir 'installer-install.log'
+    $uninstallLog = Join-Path $runDir 'installer-uninstall.log'
+    $shortcut = Join-Path ([Environment]::GetFolderPath('Programs')) 'Murmur.lnk'
+    $dataDir = Join-Path ([Environment]::GetFolderPath('LocalApplicationData')) 'Murmur'
+    $sentinel = Join-Path $dataDir 'installer-smoke.keep'
+    $dataDirExisted = Test-Path -LiteralPath $dataDir
+    $problems = [System.Collections.Generic.List[string]]::new()
+    $installed = $false
+
+    try {
+        New-Item -ItemType Directory -Force -Path $dataDir | Out-Null
+        Set-Content -LiteralPath $sentinel -Value 'created by verify-local.ps1 -Installer; must survive a silent uninstall' -Encoding utf8
+
+        $p = Start-Process -FilePath $setup.FullName -ArgumentList @('/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', '/CURRENTUSER', "/DIR=`"$installDir`"", "/LOG=`"$installLog`"") -Wait -PassThru
+        if ($p.ExitCode -ne 0) { $problems.Add("setup exit code $($p.ExitCode) (see installer-install.log)") }
+        $installed = Test-Path -LiteralPath (Join-Path $installDir 'unins000.exe')
+
+        foreach ($f in 'Murmur.exe', 'Murmur.Transcription.exe', 'onnxruntime.dll', 'sherpa-onnx-c-api.dll', 'unins000.exe') {
+            if (-not (Test-Path -LiteralPath (Join-Path $installDir $f))) { $problems.Add("$f not installed") }
+        }
+        if (@(Get-ChildItem -LiteralPath $installDir -Filter '*.pdb' -Recurse -ErrorAction SilentlyContinue).Count -gt 0) { $problems.Add('*.pdb files were installed') }
+        if (-not (Test-Path -LiteralPath $uninstallKey)) { $problems.Add('no uninstall entry in HKCU') }
+        if (-not (Test-Path -LiteralPath $shortcut)) { $problems.Add('no Start-menu shortcut') }
+
+        $installedExe = Join-Path $installDir 'Murmur.exe'
+        if (Test-Path -LiteralPath $installedExe) { Invoke-StartupCheck 'Installer startup' $installedExe 'installer-startup' }
+    }
+    finally {
+        if ($installed) {
+            Start-Process -FilePath (Join-Path $installDir 'unins000.exe') -ArgumentList @('/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', "/LOG=`"$uninstallLog`"") -Wait | Out-Null
+            # unins000.exe hands over to a copy of itself in %TEMP% and may return before the files are gone.
+            if (-not (Wait-Until { -not (Test-Path -LiteralPath $installDir) } 60)) { $problems.Add('install folder still exists after the silent uninstall') }
+            if (Test-Path -LiteralPath $uninstallKey) { $problems.Add('uninstall entry still in HKCU') }
+            if (Test-Path -LiteralPath $shortcut) { $problems.Add('Start-menu shortcut still there') }
+        }
+        if (-not (Test-Path -LiteralPath $sentinel)) { $problems.Add('user data was deleted by a silent uninstall') }
+        Remove-Item -LiteralPath $sentinel -Force -ErrorAction SilentlyContinue
+        if (-not $dataDirExisted -and (Test-Path -LiteralPath $dataDir) -and -not (Get-ChildItem -LiteralPath $dataDir -Force)) {
+            Remove-Item -LiteralPath $dataDir -Force -ErrorAction SilentlyContinue
+        }
+        if (Test-Path -LiteralPath $installDir) { Remove-Item -LiteralPath $installDir -Recurse -Force -ErrorAction SilentlyContinue }
+    }
+
+    $sizeMb = [math]::Round($setup.Length / 1MB, 1)
+    if ($problems.Count -eq 0) { Add-Result 'Installer' 'PASS' "$($setup.Name) $sizeMb MB; silent install, uninstall, user data kept" }
+    else { Add-Result 'Installer' 'FAIL' "$($setup.Name) $sizeMb MB: $($problems -join '; ')" }
+}
+
+if ($Installer -and (Require-Windows 'Installer') -and (Test-Published 'Installer' $murmurExe)) {
+    Invoke-InstallerCheck
 }
 
 # --- Recordings (shared by -Capture and -Perf) -------------------------------------------------------------------------
