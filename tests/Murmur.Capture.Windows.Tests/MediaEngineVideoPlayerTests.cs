@@ -86,7 +86,7 @@ public sealed class MediaEngineVideoPlayerTests(TestVideoFile video, ITestOutput
             var target = TimeSpan.FromSeconds(seconds);
             player.Seek(target);
             Assert.InRange(player.Position, target - TimeSpan.FromMilliseconds(40), target + TimeSpan.FromMilliseconds(40));
-            Assert.Equal(TestVideo.SlotAt(target), await WaitForSlotAsync(player, frame, TestVideo.SlotAt(target)));
+            Assert.True(TestVideo.SlotAt(target) == await WaitForSlotAsync(player, frame, TestVideo.SlotAt(target)), player.DescribeState());
         }
 
         Assert.False(player.IsPlaying);
@@ -97,22 +97,42 @@ public sealed class MediaEngineVideoPlayerTests(TestVideoFile video, ITestOutput
     {
         using var player = await OpenAsync(VideoOutput.Auto);
         var frame = new byte[FrameStride * FrameHeight];
+        Assert.True(await WaitForFrameAsync(player, frame), player.DescribeState());
 
+        // Like the session view: pull frames on every render tick while playing (frame-server mode).
         player.Play();
         var clock = Stopwatch.StartNew();
-        await Task.Delay(TimeSpan.FromSeconds(1), TestContext.Current.CancellationToken);
+        var copies = 0;
+        while (clock.Elapsed < TimeSpan.FromSeconds(1))
+        {
+            copies += player.TryCopyFrame(frame, FrameWidth, FrameHeight, FrameStride) ? 1 : 0;
+            await Task.Delay(16, TestContext.Current.CancellationToken);
+        }
+
         var position = player.Position;
         var elapsed = clock.Elapsed;
-        output.WriteLine($"after {elapsed.TotalMilliseconds:F0} ms: position {position.TotalMilliseconds:F0} ms ({player.Output}, {player.DeviceDescription ?? "no D3D11 device"})");
-        Assert.True(player.IsPlaying);
-        Assert.InRange(position, elapsed - TimeSpan.FromMilliseconds(200) - TimeSpan.FromMilliseconds(100), elapsed + TimeSpan.FromMilliseconds(200));
-        Assert.True(player.TryCopyFrame(frame, FrameWidth, FrameHeight, FrameStride) || await WaitForFrameAsync(player, frame));
+        output.WriteLine($"after {elapsed.TotalMilliseconds:F0} ms: position {position.TotalMilliseconds:F0} ms, {copies} frames copied ({player.DeviceDescription})");
+        output.WriteLine(player.DescribeState());
+        Assert.True(player.IsPlaying, player.DescribeState());
+        Assert.InRange(position, elapsed - TimeSpan.FromMilliseconds(300), elapsed + TimeSpan.FromMilliseconds(200));
+        Assert.True(copies > 5, $"{copies} frames copied while playing; HRESULT 0x{player.LastTransferResult:X8}");
 
         player.Pause();
         Assert.False(player.IsPlaying);
         var paused = player.Position;
         await Task.Delay(TimeSpan.FromMilliseconds(400), TestContext.Current.CancellationToken);
         Assert.InRange(player.Position, paused - TimeSpan.FromMilliseconds(50), paused + TimeSpan.FromMilliseconds(50));
+    }
+
+    [Fact]
+    public async Task Play_WithoutPullingFrames_DiagnosticsOnly()
+    {
+        // Not a contract (the view pulls frames every tick): records whether the engine's clock runs when nobody calls
+        // OnVideoStreamTick, so a CI log answers it.
+        using var player = await OpenAsync(VideoOutput.Auto);
+        player.Play();
+        await Task.Delay(TimeSpan.FromSeconds(1), TestContext.Current.CancellationToken);
+        output.WriteLine($"position after 1 s of play without pulling frames: {player.Position.TotalMilliseconds:F0} ms; {player.DescribeState()}");
     }
 
     [Fact]
@@ -123,12 +143,27 @@ public sealed class MediaEngineVideoPlayerTests(TestVideoFile video, ITestOutput
         player.Seek(TimeSpan.FromSeconds(1.25));
         Assert.Equal(2, await WaitForSlotAsync(player, frame, 2));
 
+        // Late engine events (SEEKED, LOADEDDATA, FIRSTFRAMEREADY) may still bring one more copy of the same picture:
+        // drain until nothing has come for 200 ms.
+        var quiet = Stopwatch.StartNew();
+        var drain = Stopwatch.StartNew();
+        while (quiet.Elapsed < TimeSpan.FromMilliseconds(200))
+        {
+            Assert.True(drain.Elapsed < Timeout, player.DescribeState());
+            if (player.TryCopyFrame(frame, FrameWidth, FrameHeight, FrameStride))
+            {
+                quiet.Restart();
+            }
+
+            await Task.Delay(15, TestContext.Current.CancellationToken);
+        }
+
         // Paused, nothing changes: false, and the buffer is left untouched.
         frame.AsSpan().Fill(0x5A);
         var deadline = Stopwatch.StartNew();
         while (deadline.Elapsed < TimeSpan.FromMilliseconds(500))
         {
-            Assert.False(player.TryCopyFrame(frame, FrameWidth, FrameHeight, FrameStride));
+            Assert.False(player.TryCopyFrame(frame, FrameWidth, FrameHeight, FrameStride), player.DescribeState());
             await Task.Delay(15, TestContext.Current.CancellationToken);
         }
 
@@ -148,8 +183,7 @@ public sealed class MediaEngineVideoPlayerTests(TestVideoFile video, ITestOutput
         var frame = new byte[FrameStride * FrameHeight];
         player.Play();
 
-        // Warm-up: the surfaces for this size, the JIT of every path (tiered compilation is on in this project).
-        // 1.5 s of polling leaves time for the tier-1 recompilation, which may allocate on the calling thread.
+        // Warm-up: the surfaces for this size and the first calls of every path.
         var copies = 0;
         for (var i = 0; i < 150; i++)
         {
@@ -246,36 +280,6 @@ public sealed class MediaEngineVideoPlayerTests(TestVideoFile video, ITestOutput
     }
 
     [Fact]
-    public async Task OpenAndDispose_20Times_DoesNotLeakHandles()
-    {
-        var path = video.GetOrSkip();
-        var frame = new byte[FrameStride * FrameHeight];
-
-        async Task Cycle()
-        {
-            using var player = new MediaEngineVideoPlayer();
-            await player.OpenAsync(path, TestContext.Current.CancellationToken);
-            await WaitForFrameAsync(player, frame);
-        }
-
-        // Media Foundation's work queues and the D3D11 runtime keep a few threads and handles after the first use.
-        for (var i = 0; i < 3; i++)
-        {
-            await Cycle();
-        }
-
-        var before = HandleCount();
-        for (var i = 0; i < 20; i++)
-        {
-            await Cycle();
-        }
-
-        var after = HandleCount();
-        output.WriteLine($"handles: {before} before, {after} after 20 open/dispose cycles");
-        Assert.InRange(after - before, int.MinValue, 30);
-    }
-
-    [Fact]
     public void WindowsVideoPlayback_IsSupported_WhereMediaFoundationIs()
     {
         Skip();
@@ -290,17 +294,6 @@ public sealed class MediaEngineVideoPlayerTests(TestVideoFile video, ITestOutput
         Assert.SkipWhen(reason is not null, reason ?? string.Empty);
     }
 
-    private static int HandleCount()
-    {
-        GC.Collect();
-        GC.WaitForPendingFinalizers();
-        GC.Collect();
-        Thread.Sleep(200); // Media Foundation releases some objects on its own threads
-        using var process = Process.GetCurrentProcess();
-        process.Refresh();
-        return process.HandleCount;
-    }
-
     private static bool Poll(MediaEngineVideoPlayer player, byte[] frame)
     {
         _ = player.Position;
@@ -311,6 +304,8 @@ public sealed class MediaEngineVideoPlayerTests(TestVideoFile video, ITestOutput
     private async Task<MediaEngineVideoPlayer> OpenAsync(VideoOutput requested)
     {
         var path = video.GetOrSkip();
+        var gpu = MediaEngineVideoPlayer.GpuCapability;
+        Assert.SkipWhen(requested == VideoOutput.Direct3D && !gpu.IsHardwareVideo, $"The D3D11 output needs a real GPU with video support; this machine has {gpu.Description}.");
         var player = new MediaEngineVideoPlayer(requested);
         var failures = new List<string>();
         player.Failed += message =>
@@ -337,7 +332,7 @@ public sealed class MediaEngineVideoPlayerTests(TestVideoFile video, ITestOutput
             throw;
         }
 
-        output.WriteLine($"opened with {player.Output} output ({player.DeviceDescription ?? "no D3D11 device"})");
+        output.WriteLine($"opened with {player.Output} output ({player.DeviceDescription})");
         Assert.Equal(requested == VideoOutput.Auto ? player.Output : requested, player.Output);
         return player;
     }
@@ -382,5 +377,60 @@ public sealed class MediaEngineVideoPlayerTests(TestVideoFile video, ITestOutput
 
         output.WriteLine($"no frame within {Timeout}; last transfer HRESULT 0x{player.LastTransferResult:X8}");
         return false;
+    }
+}
+
+/// <summary>Runs alone: the process handle count must not be moved by tests running in parallel.</summary>
+[CollectionDefinition(nameof(HandleCountCollection), DisableParallelization = true)]
+public sealed class HandleCountCollection;
+
+/// <summary>Open/dispose cycles of the Media Engine player leave no handles behind.</summary>
+[Trait("Category", "Windows")]
+[Collection(nameof(HandleCountCollection))]
+public sealed class MediaEngineHandleLeakTests(TestVideoFile video, ITestOutputHelper output) : IClassFixture<TestVideoFile>
+{
+    [Fact]
+    public async Task OpenAndDispose_20Times_DoesNotLeakHandles()
+    {
+        var path = video.GetOrSkip();
+        var frame = new byte[160 * 4 * 120];
+
+        async Task Cycle()
+        {
+            using var player = new MediaEngineVideoPlayer();
+            await player.OpenAsync(path, TestContext.Current.CancellationToken);
+            var clock = Stopwatch.StartNew();
+            while (!player.TryCopyFrame(frame, 160, 120, 160 * 4) && clock.Elapsed < TimeSpan.FromSeconds(10))
+            {
+                await Task.Delay(10, TestContext.Current.CancellationToken);
+            }
+        }
+
+        // Media Foundation's work queues, WIC and the D3D11 runtime start threads and keep handles after the first uses.
+        for (var i = 0; i < 5; i++)
+        {
+            await Cycle();
+        }
+
+        var counts = new List<int> { HandleCount() };
+        for (var i = 0; i < 20; i++)
+        {
+            await Cycle();
+            counts.Add(HandleCount());
+        }
+
+        output.WriteLine($"handles after the warm-up and after each of 20 open/dispose cycles: {string.Join(", ", counts)}");
+        Assert.InRange(counts[^1] - counts[0], int.MinValue, 30);
+    }
+
+    private static int HandleCount()
+    {
+        GC.Collect();
+        GC.WaitForPendingFinalizers();
+        GC.Collect();
+        Thread.Sleep(200); // Media Foundation releases some objects and ends threads on its own threads
+        using var process = Process.GetCurrentProcess();
+        process.Refresh();
+        return process.HandleCount;
     }
 }

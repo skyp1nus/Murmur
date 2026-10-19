@@ -25,10 +25,15 @@ namespace Murmur.Core.Playback;
 /// the tolerance between two updates) and while paused to a new target: at once. Otherwise while playing: at most once per
 /// <see cref="ScreenPlaybackSyncOptions.MinSeekInterval"/>, so a slow decoder is not buried in seeks; a paused re-seek to
 /// the same target is limited the same way.</item>
+/// <item>Pending seek: while playing and the video still reports exactly the last seek target, the seek has not landed
+/// yet; nothing is measured or re-sought until it moves, or for at most
+/// <see cref="ScreenPlaybackSyncOptions.SeekPendingTimeout"/> (a seek slower than the interval is not answered with another
+/// one).</item>
 /// <item>Seek lead: a seek while playing lands <see cref="SeekLead"/> ahead of the audio. The lead is learned from how far
-/// behind the video is one <see cref="ScreenPlaybackSyncOptions.MinSeekInterval"/> after such a seek (clamped to
-/// [0, <see cref="ScreenPlaybackSyncOptions.MaxSeekLead"/>]), so a decoder that needs time to seek does not drift back
-/// out of tolerance after every seek.</item>
+/// behind the video is once such a seek has landed and <see cref="ScreenPlaybackSyncOptions.MinSeekInterval"/> has
+/// passed: half of that error is added each time (damped, so a seek latency that varies does not make it flip), clamped
+/// to [0, <see cref="ScreenPlaybackSyncOptions.MaxSeekLead"/>]. A decoder that needs time to seek then does not drift
+/// back out of tolerance after every seek.</item>
 /// <item>Play / pause follow the audio. Within <see cref="ScreenPlaybackSyncOptions.Tolerance"/> of the end of the file
 /// the video is not started (a media player restarts an ended file from 0); it holds the last frame until the audio
 /// leaves the segment, which then closes it.</item>
@@ -65,6 +70,9 @@ namespace Murmur.Core.Playback;
 /// </remarks>
 public sealed class ScreenPlaybackSync
 {
+    /// <summary>How close the video position must be to the last seek target to count as "still there".</summary>
+    private static readonly TimeSpan PendingEpsilon = TimeSpan.FromMilliseconds(1);
+
     private readonly ScreenSegment[] _segments;
     private readonly bool[] _unplayable;
     private readonly ScreenPlaybackSyncOptions _options;
@@ -210,20 +218,24 @@ public sealed class ScreenPlaybackSync
 
         if (audioPlaying)
         {
+            // The video still stands exactly on the last seek target while it should play: the seek has not landed.
+            var pending = !first && !jumped && _seekedSinceReady && video.IsPlaying
+                && (video.Position - _lastSeekTarget).Duration() < PendingEpsilon
+                && sinceSeek < _options.SeekPendingTimeout;
             if (jumped || first)
             {
                 _leadMeasurable = false; // the last seek's outcome says nothing about the decoder any more
             }
-            else if (_leadMeasurable && sinceSeek >= _options.MinSeekInterval)
+            else if (_leadMeasurable && !pending && sinceSeek >= _options.MinSeekInterval)
             {
                 _leadMeasurable = false;
                 if (error.Duration() > tolerance)
                 {
-                    SeekLead = Clamp(SeekLead + error, _options.MaxSeekLead);
+                    SeekLead = Clamp(SeekLead + (error / 2), _options.MaxSeekLead);
                 }
             }
 
-            if (error.Duration() > tolerance && (first || jumped || sinceSeek >= _options.MinSeekInterval))
+            if (error.Duration() > tolerance && (first || jumped || (!pending && sinceSeek >= _options.MinSeekInterval)))
             {
                 actions |= VideoSyncActions.Seek;
                 seekTo = Clamp(target + SeekLead, end);

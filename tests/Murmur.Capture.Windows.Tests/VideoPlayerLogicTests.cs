@@ -211,4 +211,82 @@ public sealed class VideoPlayerLogicTests
         Assert.IsType<MediaEngineVideoPlayer>(player);
         Assert.False(player.IsOpen);
     }
+
+    [Fact]
+    public void SeekQueue_SendsTheFirstSeekAtOnce_AndQueuesTheNextUntilSeeked()
+    {
+        var queue = new SeekQueue(timeout: 2_000);
+        Assert.False(queue.IsBusy);
+        Assert.True(queue.Request(S(2.25), seekedEvents: 0, now: 0));
+        Assert.True(queue.IsBusy);
+        Assert.Equal(S(2.25), queue.LatestTarget);
+
+        // A second seek before SEEKED: queued, and the position reports it already.
+        Assert.False(queue.Request(S(0.75), 0, 10));
+        Assert.Equal(S(0.75), queue.LatestTarget);
+        Assert.False(queue.TryNext(0, 20, out _));
+
+        // A third one replaces the queued target; only the latest is sent.
+        Assert.False(queue.Request(S(3.75), 0, 30));
+        Assert.Equal(S(3.75), queue.LatestTarget);
+
+        // SEEKED of the first: the queued one goes out, and is in flight until its own SEEKED.
+        Assert.True(queue.TryNext(1, 40, out var next));
+        Assert.Equal(S(3.75), next);
+        Assert.True(queue.IsBusy);
+        Assert.False(queue.TryNext(1, 50, out _));
+        Assert.False(queue.TryNext(2, 60, out _));
+        Assert.False(queue.IsBusy);
+
+        // Idle again: the next seek is sent at once.
+        Assert.True(queue.Request(S(1), 2, 70));
+    }
+
+    [Fact]
+    public void SeekQueue_GivesUpWaitingAfterTheTimeout()
+    {
+        var queue = new SeekQueue(timeout: 2_000);
+        Assert.True(queue.Request(S(1), 0, 0));
+        Assert.False(queue.Request(S(2), 0, 100));
+        Assert.False(queue.TryNext(0, 1_999, out _));
+        Assert.True(queue.TryNext(0, 2_000, out var next)); // SEEKED never came
+        Assert.Equal(S(2), next);
+        Assert.False(queue.Request(S(3), 0, 2_100)); // the timed-out one's successor is in flight now
+        Assert.True(queue.TryNext(0, 4_000, out next));
+        Assert.Equal(S(3), next);
+        queue.Reset();
+        Assert.False(queue.IsBusy);
+    }
+
+    [Fact]
+    public void GpuCapability_OnlyARealGpuWithVideoSupport_IsHardwareVideo()
+    {
+        Assert.True(new GpuCapability(true, false, true, "gpu").IsHardwareVideo);
+        Assert.False(new GpuCapability(true, true, true, "warp").IsHardwareVideo);
+        Assert.False(new GpuCapability(true, false, false, "no video").IsHardwareVideo);
+        Assert.False(new GpuCapability(false, true, false, "none").IsHardwareVideo);
+    }
+
+    [Fact]
+    public void EventNames_CoverTheEngineEvents()
+    {
+        Assert.Equal("LOADEDMETADATA", MediaEngineEvents.Name(VideoConstants.EventLoadedMetadata));
+        Assert.Equal("SEEKED", MediaEngineEvents.Name(VideoConstants.EventSeeked));
+        Assert.Equal("FIRSTFRAMEREADY", MediaEngineEvents.Name(VideoConstants.EventFirstFrameReady));
+        Assert.Equal("CANPLAY", MediaEngineEvents.Name(14));
+        Assert.Equal("4242", MediaEngineEvents.Name(4242));
+    }
+
+    [Fact]
+    public void FrameTracker_HasCopy_AfterTheFirstCopyOnly()
+    {
+        var tracker = new FrameChangeTracker();
+        Assert.False(tracker.HasCopy);
+        tracker.Copied(1, 1, 1);
+        Assert.True(tracker.HasCopy);
+        tracker.Reset();
+        Assert.False(tracker.HasCopy);
+    }
+
+    private static TimeSpan S(double seconds) => TimeSpan.FromSeconds(seconds);
 }

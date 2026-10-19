@@ -27,6 +27,9 @@ internal struct FrameChangeTracker
     /// <summary>Time stamp (100 ns) of the frame copied last; null before the first copy.</summary>
     public readonly long? CopiedPts => _hasCopy && _copiedPts != None ? _copiedPts : null;
 
+    /// <summary>At least one copy succeeded since the last <see cref="Reset"/>.</summary>
+    public readonly bool HasCopy => _hasCopy;
+
     /// <summary>Forgets everything (a new file was opened).</summary>
     public void Reset()
     {
@@ -173,4 +176,97 @@ internal static class VideoOutputPolicy
         VideoOutput.Wic => VideoOutput.Wic,
         _ => deviceCreated && !softwareRenderer && videoSupport ? VideoOutput.Direct3D : VideoOutput.Wic,
     };
+}
+
+/// <summary>
+/// Serializes seeks for the Media Engine (pure; UI thread). A seek requested while another one is in flight is not sent
+/// at once (the engine may coalesce or drop it): the latest such target is kept and sent when the engine reports the
+/// first one done (MF_MEDIA_ENGINE_EVENT_SEEKED, counted by the caller) or after <see cref="Timeout"/>. While anything is
+/// in flight or queued, <see cref="LatestTarget"/> is the position the player reports.
+/// </summary>
+internal struct SeekQueue
+{
+    private bool _inFlight;
+    private long _issuedAt;
+    private int _seekedAtIssue;
+    private TimeSpan _inFlightTarget;
+    private bool _hasQueued;
+    private TimeSpan _queued;
+
+    public SeekQueue(long timeout)
+    {
+        Timeout = timeout;
+    }
+
+    /// <summary>How long (in the caller's timestamp units) an in-flight seek is waited for at most.</summary>
+    public long Timeout { get; }
+
+    /// <summary>A seek is in flight or queued.</summary>
+    public readonly bool IsBusy => _inFlight || _hasQueued;
+
+    /// <summary>The newest requested target (meaningful while <see cref="IsBusy"/>).</summary>
+    public readonly TimeSpan LatestTarget => _hasQueued ? _queued : _inFlightTarget;
+
+    public void Reset()
+    {
+        _inFlight = false;
+        _hasQueued = false;
+    }
+
+    /// <summary>
+    /// A seek to <paramref name="target"/> is requested; true when the caller must send it now (nothing in flight),
+    /// false when it was queued behind the one in flight.
+    /// </summary>
+    public bool Request(TimeSpan target, int seekedEvents, long now)
+    {
+        Complete(seekedEvents, now);
+        if (_inFlight)
+        {
+            _queued = target;
+            _hasQueued = true;
+            return false;
+        }
+
+        Issue(target, seekedEvents, now);
+        return true;
+    }
+
+    /// <summary>True (with the target) when the in-flight seek is done and a queued one must be sent now.</summary>
+    public bool TryNext(int seekedEvents, long now, out TimeSpan target)
+    {
+        Complete(seekedEvents, now);
+        if (!_inFlight && _hasQueued)
+        {
+            target = _queued;
+            _hasQueued = false;
+            Issue(target, seekedEvents, now);
+            return true;
+        }
+
+        target = default;
+        return false;
+    }
+
+    private void Issue(TimeSpan target, int seekedEvents, long now)
+    {
+        _inFlight = true;
+        _inFlightTarget = target;
+        _seekedAtIssue = seekedEvents;
+        _issuedAt = now;
+    }
+
+    private void Complete(int seekedEvents, long now)
+    {
+        if (_inFlight && (seekedEvents != _seekedAtIssue || now - _issuedAt >= Timeout))
+        {
+            _inFlight = false;
+        }
+    }
+}
+
+/// <summary>What the D3D11 hardware of this machine offers the player, probed once per process.</summary>
+internal sealed record GpuCapability(bool DeviceCreated, bool SoftwareRenderer, bool VideoSupport, string Description)
+{
+    /// <summary>Usable for <see cref="VideoOutput.Direct3D"/>: a real GPU with video support.</summary>
+    public bool IsHardwareVideo => DeviceCreated && !SoftwareRenderer && VideoSupport;
 }

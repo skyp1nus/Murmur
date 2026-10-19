@@ -363,6 +363,7 @@ public sealed class ScreenPlaybackSyncTests
 
         // At most one seek per 500 ms (plus the first one), never a storm.
         Assert.InRange(sim.Video.Seeks.Count, 2, 21);
+        Assert.True(sim.Video.Seeks.Count <= 7, $"{sim.Video.Seeks.Count} seeks: a pending seek waits up to 2 s");
         for (var i = 1; i < sim.Video.Seeks.Count; i++)
         {
             Assert.True(sim.Video.Seeks[i].At - sim.Video.Seeks[i - 1].At >= 500 * Ms);
@@ -389,17 +390,57 @@ public sealed class ScreenPlaybackSyncTests
         Assert.True(Math.Abs((sim.Audio.Position - sim.Video.Position).TotalMilliseconds) <= 150);
     }
 
+    [Fact]
+    public void Simulation_SeekSlowerThanTheInterval_IsWaitedFor_NotRepeated()
+    {
+        // Every seek takes 700 ms (more than MinSeekInterval): the sync must wait for it to land instead of seeking twice
+        // a second forever, then learn the lead and settle.
+        var segments = new[] { new ScreenSegment(0, S(0), S(60)) };
+        var sim = new Simulation(segments, openLatency: 50 * Ms, seekLatency: 700 * Ms);
+        sim.Audio.Play();
+        sim.Audio.Seek(S(10));
+        sim.Run(S(25));
+
+        var seeks = sim.Video.Seeks;
+        Assert.True(seeks.Count <= 7, $"{seeks.Count} seeks: {string.Join(", ", seeks.Select(x => x.At.TotalSeconds.ToString("F2")))}; lead {sim.Sync.SeekLead}");
+        for (var i = 1; i < seeks.Count; i++)
+        {
+            Assert.True(seeks[i].At - seeks[i - 1].At >= 700 * Ms, $"seeks at {seeks[i - 1].At} and {seeks[i].At}");
+        }
+
+        Assert.True(seeks[^1].At < S(12), $"still seeking at {seeks[^1].At}");
+        Assert.InRange(sim.Sync.SeekLead, 500 * Ms, 900 * Ms);
+        Assert.True(Math.Abs((sim.Audio.Position - sim.Video.Position).TotalMilliseconds) <= 150);
+    }
+
+    [Fact]
+    public void Simulation_VariableSeekLatency_GetsBoundedSeeks_AndSettles()
+    {
+        // Seek latency alternating between 400 and 100 ms: the damped lead settles between them instead of flipping.
+        var segments = new[] { new ScreenSegment(0, S(0), S(60)) };
+        var sim = new Simulation(segments, openLatency: 50 * Ms, seekLatency: TimeSpan.Zero, seekLatencies: [400 * Ms, 100 * Ms]);
+        sim.Audio.Play();
+        sim.Audio.Seek(S(10));
+        sim.Run(S(30));
+
+        var seeks = sim.Video.Seeks;
+        Assert.True(seeks.Count <= 8, $"{seeks.Count} seeks: {string.Join(", ", seeks.Select(x => x.At.TotalSeconds.ToString("F2")))}; lead {sim.Sync.SeekLead}");
+        Assert.True(seeks[^1].At < S(15), $"still seeking at {seeks[^1].At}");
+        Assert.InRange(sim.Sync.SeekLead, 100 * Ms, 400 * Ms);
+        Assert.True(Math.Abs((sim.Audio.Position - sim.Video.Position).TotalMilliseconds) <= 150);
+    }
+
     /// <summary>A UI timer at 30 Hz driving a fake audio clock and a fake video player through the sync.</summary>
     private sealed class Simulation
     {
         private static readonly TimeSpan Tick = TimeSpan.FromMilliseconds(33);
 
-        public Simulation(ScreenSegment[] segments, TimeSpan openLatency, TimeSpan seekLatency, bool frozen = false)
+        public Simulation(ScreenSegment[] segments, TimeSpan openLatency, TimeSpan seekLatency, bool frozen = false, TimeSpan[]? seekLatencies = null)
         {
             Time = new ManualTimeProvider();
             Sync = new ScreenPlaybackSync(segments, time: Time);
             Audio = new FakeAudio(S(40));
-            Video = new FakeVideo(Time, segments, openLatency, seekLatency, frozen);
+            Video = new FakeVideo(Time, segments, openLatency, seekLatencies ?? [seekLatency], frozen);
         }
 
         public ManualTimeProvider Time { get; }
@@ -507,7 +548,7 @@ public sealed class ScreenPlaybackSyncTests
     /// the picture stands still for the seek latency; at its end playback stops. A frozen one never advances (a decoder
     /// that cannot keep up at all).
     /// </summary>
-    private sealed class FakeVideo(ManualTimeProvider time, ScreenSegment[] segments, TimeSpan openLatency, TimeSpan seekLatency, bool frozen)
+    private sealed class FakeVideo(ManualTimeProvider time, ScreenSegment[] segments, TimeSpan openLatency, TimeSpan[] seekLatencies, bool frozen)
     {
         private int _segment = VideoPlayerState.NoSegment;
         private TimeSpan _openRemaining;
@@ -547,7 +588,7 @@ public sealed class ScreenPlaybackSyncTests
             Assert.False(State.IsOpening || State.IsClosed, "seek on a player that is not open");
             Seeks.Add((time.GetUtcNow() - new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero), position));
             Position = position < TimeSpan.Zero ? TimeSpan.Zero : position > _duration ? _duration : position;
-            _stallRemaining = seekLatency;
+            _stallRemaining = seekLatencies[(Seeks.Count - 1) % seekLatencies.Length];
         }
 
         public void Play()

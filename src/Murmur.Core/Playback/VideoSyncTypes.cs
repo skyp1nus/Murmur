@@ -100,10 +100,17 @@ public sealed record ScreenPlaybackSyncOptions
     /// </summary>
     public TimeSpan MaxSeekLead { get; init; } = TimeSpan.FromSeconds(1);
 
+    /// <summary>
+    /// How long a seek may stay pending while playing (the video still reports exactly the seek target: the decoder has
+    /// not got there yet) before the sync gives up waiting and may measure and seek again. Default 2 s.
+    /// </summary>
+    public TimeSpan SeekPendingTimeout { get; init; } = TimeSpan.FromSeconds(2);
+
     internal void Validate()
     {
         ArgumentOutOfRangeException.ThrowIfLessThan(Tolerance, TimeSpan.Zero, nameof(Tolerance));
         ArgumentOutOfRangeException.ThrowIfLessThan(MinSeekInterval, TimeSpan.Zero, nameof(MinSeekInterval));
         ArgumentOutOfRangeException.ThrowIfLessThan(MaxSeekLead, TimeSpan.Zero, nameof(MaxSeekLead));
+        ArgumentOutOfRangeException.ThrowIfLessThan(SeekPendingTimeout, TimeSpan.Zero, nameof(SeekPendingTimeout));
     }
 }

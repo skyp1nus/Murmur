@@ -63,7 +63,7 @@ public sealed class WindowsCapture : ICapture, IAudioPlayback, IVideoPlayback
     public IAudioPlayer CreatePlayer() => new WasapiAudioPlayer();
 
     /// <summary>Media Foundation and the Media Engine are available (checked once, see <see cref="WindowsVideoPlayback"/>).</summary>
-    public bool IsSupported => _video.IsSupported;
+    bool IVideoPlayback.IsSupported => _video.IsSupported;
 
     /// <summary>A closed <see cref="MediaEngineVideoPlayer"/>; nothing native is touched until <see cref="IVideoPlayer.OpenAsync"/>.</summary>
     public IVideoPlayer CreateVideoPlayer() => _video.CreateVideoPlayer();
