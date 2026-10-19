@@ -30,7 +30,7 @@ public sealed class CatalogTests
         Assert.True(parakeet.IsDirectory);
         Assert.Equal(ModelLocator.ParakeetFiles, parakeet.Files.Select(f => f.RelativePath));
         Assert.Equal(
-            "http://hf.test/csukuangfj/sherpa-onnx-nemo-parakeet-tdt-0.6b-v3-int8/resolve/main/encoder.int8.onnx",
+            "http://hf.test/csukuangfj/sherpa-onnx-nemo-parakeet-tdt-0.6b-v3-int8/resolve/2bda32ec70b097a55adaa07d9a7173915b43cc78/encoder.int8.onnx",
             parakeet.Files[0].Url);
     }
 
@@ -42,7 +42,6 @@ public sealed class CatalogTests
 
         var embed = items.Single(i => i.Id == ModelCatalog.EmbeddingId).Files.Single();
         Assert.Equal("http://hf.test/ggml-org/embeddinggemma-300M-GGUF/resolve/0123456789abcdef0123456789abcdef01234567/embeddinggemma-300M-Q8_0.gguf", embed.Url);
-        Assert.Equal("http://hf.test/unsloth/embeddinggemma-300m-GGUF/resolve/main/embeddinggemma-300m-Q8_0.gguf", embed.Fallbacks![0].Url);
         Assert.Equal(
             "http://hf.test/csukuangfj/sherpa-onnx-nemo-parakeet-tdt-0.6b-v3-int8/resolve/main/encoder.int8.onnx",
             items.Single(i => i.Id == ModelCatalog.ParakeetId).Files[0].Url);
@@ -52,6 +51,22 @@ public sealed class CatalogTests
     public void EveryRevisionInTheCatalog_IsACommitSha()
     {
         Assert.All(ModelCatalog.HuggingFaceRevisions.Values, v => Assert.Matches("^[0-9a-f]{40}$", v));
+    }
+
+    [Fact]
+    public void EveryHuggingFaceRepositoryOfTheCatalog_IsDownloadedFromAPinnedCommit()
+    {
+        Assert.Equal(
+            [
+                "bartowski/google_gemma-4-26B-A4B-it-GGUF",
+                "bartowski/google_gemma-4-E4B-it-GGUF",
+                "csukuangfj/sherpa-onnx-nemo-parakeet-tdt-0.6b-v3-int8",
+                "ggml-org/embeddinggemma-300M-GGUF",
+                "unsloth/gemma-4-E4B-it-GGUF",
+            ],
+            ModelCatalog.HuggingFaceRevisions.Keys.Order(StringComparer.Ordinal));
+        var urls = ModelCatalog.Create(Hosts, ModelPlatform.Linux).SelectMany(i => i.Files).SelectMany(f => f.Sources).Select(m => m.Url).Where(u => u.StartsWith("http://hf.test/", StringComparison.Ordinal));
+        Assert.All(urls, u => Assert.DoesNotContain("/resolve/main/", u));
     }
 
     [Fact]
@@ -97,10 +112,7 @@ public sealed class CatalogTests
         var embed = items.Single(i => i.Id == ModelCatalog.EmbeddingId);
         Assert.Equal("gguf/embeddinggemma-300M-Q8_0.gguf", embed.TargetPath);
         Assert.Equal(
-            [
-                "http://hf.test/ggml-org/embeddinggemma-300M-GGUF/resolve/main/embeddinggemma-300M-Q8_0.gguf",
-                "http://hf.test/unsloth/embeddinggemma-300m-GGUF/resolve/main/embeddinggemma-300m-Q8_0.gguf",
-            ],
+            ["http://hf.test/ggml-org/embeddinggemma-300M-GGUF/resolve/0f741b5a6585bd53aeb15cd1372c56f2a0f65e12/embeddinggemma-300M-Q8_0.gguf"],
             embed.Files.Single().Sources.Select(m => m.Url));
 
         var chat = items.Single(i => i.Id == ModelCatalog.ChatE4BId);
@@ -108,21 +120,16 @@ public sealed class CatalogTests
         Assert.Equal("gemma-4-E4B-it-Q4_K_M.gguf", chat.Files.Single().RelativePath);
         Assert.Equal(
             [
-                "http://hf.test/unsloth/gemma-4-E4B-it-GGUF/resolve/main/gemma-4-E4B-it-Q4_K_M.gguf",
-                "http://hf.test/bartowski/google_gemma-4-E4B-it-GGUF/resolve/main/google_gemma-4-E4B-it-Q4_K_M.gguf",
-                "http://hf.test/ggml-org/gemma-4-E4B-it-GGUF/resolve/main/gemma-4-E4B-it-Q4_K_M.gguf",
+                "http://hf.test/unsloth/gemma-4-E4B-it-GGUF/resolve/bfc15c382204943c3a8fff0c750b94ae2364d7a3/gemma-4-E4B-it-Q4_K_M.gguf",
+                "http://hf.test/bartowski/google_gemma-4-E4B-it-GGUF/resolve/029e94146666900b08caf49a3b47b413dfa8ec66/google_gemma-4-E4B-it-Q4_K_M.gguf",
             ],
             chat.Files.Single().Sources.Select(m => m.Url));
-        Assert.Equal(["unsloth/gemma-4-E4B-it-GGUF", "bartowski/google_gemma-4-E4B-it-GGUF", "ggml-org/gemma-4-E4B-it-GGUF"], chat.Files.Single().Sources.Select(m => m.Repo));
+        Assert.Equal(["unsloth/gemma-4-E4B-it-GGUF", "bartowski/google_gemma-4-E4B-it-GGUF"], chat.Files.Single().Sources.Select(m => m.Repo));
         Assert.Equal("google_gemma-4-E4B-it-Q4_K_M.gguf", chat.Files.Single().Sources[1].FileName);
 
         var big = items.Single(i => i.Id == ModelCatalog.Chat26BId);
         Assert.Equal(
-            [
-                "http://hf.test/unsloth/gemma-4-26B-A4B-it-GGUF/resolve/main/gemma-4-26B-A4B-it-Q4_K_M.gguf",
-                "http://hf.test/bartowski/google_gemma-4-26B-A4B-it-GGUF/resolve/main/google_gemma-4-26B-A4B-it-Q4_K_M.gguf",
-                "http://hf.test/ggml-org/gemma-4-26B-A4B-it-GGUF/resolve/main/gemma-4-26B-A4B-it-Q4_K_M.gguf",
-            ],
+            ["http://hf.test/bartowski/google_gemma-4-26B-A4B-it-GGUF/resolve/10f3b41bcf8d3047f4e136e7197ffc2dd1654c9d/google_gemma-4-26B-A4B-it-Q4_K_M.gguf"],
             big.Files.Single().Sources.Select(m => m.Url));
     }
 
@@ -156,21 +163,31 @@ public sealed class CatalogTests
 
         var embed = items.Single(i => i.Id == ModelCatalog.EmbeddingId).Files.Single();
         Assert.Equal(("b5ce9d77a3fc4b3b39ccb5643c36777911cc4eb46a66962eadfa3f5f60490d63", 333_590_944L), (embed.Sha256, embed.SizeBytes));
-        Assert.Null(embed.Sources[1].Sha256); // the unsloth file is not known to be the same bytes
-        Assert.Null(embed.Sources[1].SizeBytes);
+
+        // Each source of a chat model carries its own pin: the same quantisation from another publisher is another file.
+        var e4b = items.Single(i => i.Id == ModelCatalog.ChatE4BId).Files.Single().Sources;
+        Assert.Equal(("85a896a047553e842f25297ee5b031d64ff30147d9c4af17b1e4b394cd1fab87", 4_977_171_584L), (e4b[0].Sha256, e4b[0].SizeBytes));
+        Assert.Equal(("d35a3aa7a6d47de237fd488bb6f7f3efd62908d828f85a63da0ee93acdbefe9f", 5_405_170_144L), (e4b[1].Sha256, e4b[1].SizeBytes));
+        var big = items.Single(i => i.Id == ModelCatalog.Chat26BId).Files.Single();
+        Assert.Equal(("a07f72221e8e3f77455ab0d7f7652d01a9f63c262b954aa6932a53275a0e895a", 17_035_039_872L), (big.Sha256, big.SizeBytes));
     }
 
     [Fact]
-    public void ChatModelsAndTheWindowsRuntime_AreNotPinned()
+    public void DisplaySizes_AreTheSizeOfTheFirstSource()
     {
-        Assert.All(ModelCatalog.Create(Hosts, ModelPlatform.Linux).Where(i => i.Info.Kind == ModelKind.Chat).SelectMany(i => i.Files.SelectMany(f => f.Sources)), m =>
-        {
-            Assert.Null(m.Sha256);
-            Assert.Null(m.SizeBytes);
-        });
+        var items = ModelCatalog.Create(Hosts, ModelPlatform.Linux);
+
+        Assert.All(
+            items.Where(i => i.Info.Kind is ModelKind.Chat or ModelKind.Embedding),
+            i => Assert.Equal(i.Files.Single().SizeBytes, i.Info.SizeBytes));
+    }
+
+    [Fact]
+    public void TheWindowsRuntime_IsPinnedLikeTheLinuxOne()
+    {
         var windows = ModelCatalog.Create(Hosts, ModelPlatform.Windows).Single(i => i.Info.Kind == ModelKind.LlmRuntime).Files.Single();
-        Assert.Null(windows.Sha256);
-        Assert.Null(windows.SizeBytes);
+
+        Assert.Equal(("79b143075ab87fb5aff6f8f8ca80500a984f4120b5199fa9f9b70b284f17428e", 19_662_702L), (windows.Sha256, windows.SizeBytes));
     }
 
     [Fact]

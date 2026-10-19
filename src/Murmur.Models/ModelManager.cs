@@ -627,9 +627,10 @@ public sealed class ModelManager : IModelManager, IDisposable
             reports.Add(new ModelFileReport(mirror.Url, spec.RelativePath, length, hash));
         }
 
-        // A crash between the rename of a file and the deletion of its validator leaves the validator behind, and the
-        // side files naming the sources are only for resuming: none of them may travel into the installed folder.
-        foreach (var stray in Directory.EnumerateFiles(dl, "*.validator", SearchOption.AllDirectories).Concat(Directory.EnumerateFiles(dl, "*" + SourceRecordSuffix, SearchOption.AllDirectories)).ToList())
+        // A crash between the rename of a file and the deletion of its validator leaves the validator behind; it may not
+        // travel into the installed folder. The side files naming the sources (*.source) are kept until the placement
+        // succeeded: a failed placement is retried from the finished downloads, which need them to know their source.
+        foreach (var stray in Directory.EnumerateFiles(dl, "*.validator", SearchOption.AllDirectories).ToList())
         {
             File.Delete(stray);
         }
@@ -637,6 +638,7 @@ public sealed class ModelManager : IModelManager, IDisposable
         // Written before the file is placed: a crash in between leaves a record next to nothing, which the next install overwrites.
         WriteProvenance(item, chosen[0]);
         await PlaceAsync(item, root, dl, cancellationToken).ConfigureAwait(false);
+        DeleteSourceRecords(dl);
         Activate(item, chosen[0]);
 
         lock (_gate)
@@ -720,6 +722,9 @@ public sealed class ModelManager : IModelManager, IDisposable
             if (item.IsDirectory)
             {
                 ReplaceDirectory(dl, target, Path.Combine(root, "old"));
+
+                // The download folder travelled as a whole: the resume records in it are of no use any more.
+                DeleteSourceRecords(target);
             }
             else
             {
@@ -766,6 +771,20 @@ public sealed class ModelManager : IModelManager, IDisposable
 
         FileOps.MoveDirectory(serverDirectory, ready);
         ReplaceDirectory(ready, target, Path.Combine(root, "old"));
+    }
+
+    /// <summary>Removes the <c>*.source</c> resume records below a directory (nothing happens when it is gone).</summary>
+    private static void DeleteSourceRecords(string directory)
+    {
+        if (!Directory.Exists(directory))
+        {
+            return;
+        }
+
+        foreach (var record in Directory.EnumerateFiles(directory, "*" + SourceRecordSuffix, SearchOption.AllDirectories).ToList())
+        {
+            File.Delete(record);
+        }
     }
 
     private static void ReplaceDirectory(string source, string target, string backup)

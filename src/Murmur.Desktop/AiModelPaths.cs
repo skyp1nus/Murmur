@@ -50,7 +50,8 @@ internal static class AiModelPaths
                 return null;
             }
 
-            using var stream = File.OpenRead(path);
+            // Share everything: the model manager replaces this file with File.Move, which a plain read handle would block on Windows.
+            using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
             return JsonSerializer.Deserialize(stream, ManifestJsonContext.Default.ModelsManifest);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException)

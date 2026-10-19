@@ -75,7 +75,9 @@ public sealed class WindowsCaptureTests(ITestOutputHelper output)
         Assert.Empty(faults);
         Assert.Equal(0, sink.BadLengths);
         Assert.InRange(seconds, (CaptureDuration - CaptureTolerance).TotalSeconds, (CaptureDuration + CaptureTolerance).TotalSeconds);
-        Assert.True(seconds <= stopwatch.Elapsed.TotalSeconds + 0.001, "the source ran ahead of wall clock");
+        // The first packet can carry audio the endpoint buffered just before the start (seen: +4 ms through a virtual
+        // cable on CI), so allow up to two 10 ms device periods; a source that really runs fast drifts far beyond that.
+        Assert.True(seconds <= stopwatch.Elapsed.TotalSeconds + 0.02, "the source ran ahead of wall clock");
 
         // No sink calls after Stop returns.
         var framesAtStop = sink.Frames;

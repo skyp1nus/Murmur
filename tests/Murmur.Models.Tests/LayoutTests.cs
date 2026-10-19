@@ -44,7 +44,7 @@ public sealed class LayoutTests
 
         Assert.True(locator.IsAsrInstalled);
         Assert.Empty(locator.MissingAsrFiles());
-        var encoder = served["/csukuangfj/sherpa-onnx-nemo-parakeet-tdt-0.6b-v3-int8/resolve/main/encoder.int8.onnx"];
+        var encoder = served["/csukuangfj/sherpa-onnx-nemo-parakeet-tdt-0.6b-v3-int8/resolve/2bda32ec70b097a55adaa07d9a7173915b43cc78/encoder.int8.onnx"];
         Assert.Equal(encoder, await File.ReadAllBytesAsync(Path.Combine(locator.ParakeetDirectory, "encoder.int8.onnx"), TestContext.Current.CancellationToken));
         Assert.Equal(ModelInstallState.Installed, manager.GetStatus(ModelCatalog.ParakeetId).State);
         Assert.Equal(ModelInstallState.Installed, manager.GetStatus(ModelCatalog.SileroVadId).State);

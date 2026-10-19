@@ -3,6 +3,7 @@ using Murmur.App.Diagnostics;
 using Murmur.App.Tests.Fakes;
 using Murmur.App.ViewModels;
 using Murmur.Core.Recording;
+using Murmur.Core.Sessions;
 
 namespace Murmur.App.Tests;
 
@@ -234,6 +235,7 @@ public sealed class AutoRecordTests : IDisposable
     {
         var path = Path.Combine(_dir, "nested", "perf.json");
         _recorder.Stats = new RecorderStats(100, 200, 0, 3);
+        _recorder.Elapsed = TimeSpan.FromSeconds(2.3);
         var runner = CreateRunner(new AutoRecordOptions(2, Screen: false, path, IdleSeconds: 0));
 
         var code = await runner.RunAsync(TestContext.Current.CancellationToken);
@@ -241,7 +243,9 @@ public sealed class AutoRecordTests : IDisposable
         Assert.Equal(0, code);
         using var doc = JsonDocument.Parse(File.ReadAllText(path));
         var root = doc.RootElement;
-        Assert.InRange(root.GetProperty("durationS").GetDouble(), 1.8, 3.5);
+        Assert.Equal(2.3, root.GetProperty("durationS").GetDouble());
+        Assert.False(root.TryGetProperty("screenStartMs", out _));
+        Assert.Equal(0, root.GetProperty("session").GetProperty("screenSegmentTimes").GetArrayLength());
         Assert.True(root.GetProperty("wsMaxMb").GetDouble() >= root.GetProperty("wsAvgMb").GetDouble());
         Assert.True(root.GetProperty("cpuP95Pct").GetDouble() >= 0);
         Assert.Equal(200, root.GetProperty("recorderStats").GetProperty("systemFrames").GetInt64());
@@ -276,6 +280,7 @@ public sealed class AutoRecordTests : IDisposable
     {
         const string warning = "Мікрофон недоступний: Windows забороняє доступ (Параметри → Конфіденційність і безпека → Мікрофон). Записую лише системний звук.";
         _recorder.StartWarning = warning;
+        _recorder.Elapsed = TimeSpan.FromSeconds(1.2);
         _recorder.Stats = new RecorderStats(0, 200, 0, 0);
         var path = Path.Combine(_dir, "perf.json");
         var runner = CreateRunner(new AutoRecordOptions(1, Screen: false, path, IdleSeconds: 0));
@@ -321,6 +326,77 @@ public sealed class AutoRecordTests : IDisposable
 
         Assert.Equal(0, code);
         Assert.True(Assert.Single(_recorder.Starts).Screen);
+    }
+
+    [Fact]
+    public async Task Run_DurationIsTheRecorderTimeline_NotTheSamplingWindow()
+    {
+        // The sampling window starts when StartAsync returns (one second here); the files are on the recorder's
+        // timeline, which started with the audio before the screen start-up: durationS is that timeline's length.
+        _recorder.Elapsed = TimeSpan.FromSeconds(12.5);
+        var path = Path.Combine(_dir, "perf.json");
+        var runner = CreateRunner(new AutoRecordOptions(1, Screen: false, path, IdleSeconds: 0));
+
+        Assert.Equal(0, await runner.RunAsync(TestContext.Current.CancellationToken));
+
+        using var doc = JsonDocument.Parse(File.ReadAllText(path));
+        Assert.Equal(12.5, doc.RootElement.GetProperty("durationS").GetDouble());
+    }
+
+    [Fact]
+    public async Task Run_WhenTheRecorderReportsNoElapsedTime_FallsBackToTheSessionDuration()
+    {
+        // Elapsed is 0 once the recorder has ended the session by itself; the fake finishes with Duration = Elapsed,
+        // so give it the duration the finished session carries through the stop error path instead.
+        var path = Path.Combine(_dir, "perf.json");
+        _recorder.Elapsed = TimeSpan.Zero;
+        _recorder.FinishedDuration = TimeSpan.FromSeconds(7.5);
+        var runner = CreateRunner(new AutoRecordOptions(1, Screen: false, path, IdleSeconds: 0));
+
+        Assert.Equal(0, await runner.RunAsync(TestContext.Current.CancellationToken));
+
+        using var doc = JsonDocument.Parse(File.ReadAllText(path));
+        Assert.Equal(7.5, doc.RootElement.GetProperty("durationS").GetDouble());
+    }
+
+    [Fact]
+    public async Task Run_WithScreen_ReportsTheSegmentsAndHowLongTheScreenStartTook()
+    {
+        // The start call returned at session time 2.0 s; the recorder asked the screen to start at 0.45 s.
+        _recorder.Elapsed = TimeSpan.FromSeconds(2.0);
+        _recorder.Segments.Add(new ScreenSegment(0, TimeSpan.FromSeconds(0.45), TimeSpan.FromSeconds(1.55)));
+        _recorder.Segments.Add(new ScreenSegment(1, TimeSpan.FromSeconds(3.25), TimeSpan.FromSeconds(0.5)));
+        var path = Path.Combine(_dir, "perf.json");
+        var runner = CreateRunner(new AutoRecordOptions(1, Screen: true, path, IdleSeconds: 0));
+
+        Assert.Equal(0, await runner.RunAsync(TestContext.Current.CancellationToken));
+
+        using var doc = JsonDocument.Parse(File.ReadAllText(path));
+        var root = doc.RootElement;
+        Assert.Equal(2.0, root.GetProperty("durationS").GetDouble());
+        Assert.Equal(1550, root.GetProperty("screenStartMs").GetDouble());
+        var session = root.GetProperty("session");
+        Assert.Equal(2, session.GetProperty("screenSegments").GetInt32());
+        var segments = session.GetProperty("screenSegmentTimes");
+        Assert.Equal(2, segments.GetArrayLength());
+        Assert.Equal(0, segments[0].GetProperty("index").GetInt32());
+        Assert.Equal(0.45, segments[0].GetProperty("offsetS").GetDouble());
+        Assert.Equal(1.55, segments[0].GetProperty("durationS").GetDouble());
+        Assert.Equal(1, segments[1].GetProperty("index").GetInt32());
+        Assert.Equal(3.25, segments[1].GetProperty("offsetS").GetDouble());
+        Assert.Equal(0.5, segments[1].GetProperty("durationS").GetDouble());
+    }
+
+    [Fact]
+    public async Task Run_WhenTheScreenProducedNoSegment_OmitsTheScreenStart()
+    {
+        var path = Path.Combine(_dir, "perf.json");
+        var runner = CreateRunner(new AutoRecordOptions(1, Screen: true, path, IdleSeconds: 0));
+
+        Assert.Equal(0, await runner.RunAsync(TestContext.Current.CancellationToken));
+
+        using var doc = JsonDocument.Parse(File.ReadAllText(path));
+        Assert.False(doc.RootElement.TryGetProperty("screenStartMs", out _));
     }
 
     [Fact]
