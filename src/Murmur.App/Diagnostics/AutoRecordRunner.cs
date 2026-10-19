@@ -79,6 +79,19 @@ public sealed class AutoRecordRunner
         SessionRecord? stopped = null;
         void OnStopped(SessionRecord session) => stopped = session;
 
+        // Screen problems that did not stop the recording, in the order they were raised (any thread).
+        var faultWarnings = new List<string>();
+        void OnWarning(RecorderWarning warning)
+        {
+            lock (faultWarnings)
+            {
+                if (!faultWarnings.Contains(warning.Message))
+                {
+                    faultWarnings.Add(warning.Message);
+                }
+            }
+        }
+
         using var sampler = new ProcessSampler();
         var report = new PerfReport();
         _recording.Stopped += OnStopped;
@@ -93,6 +106,7 @@ public sealed class AutoRecordRunner
                 report = report with { IdleCpuPct = sampler.Sample().CpuMachinePct };
             }
 
+            _recorder.Warning += OnWarning;
             var started = await StartRecordingAsync();
             if (started.Error is not null)
             {
@@ -168,9 +182,20 @@ public sealed class AutoRecordRunner
             });
 
             var session = stopped ?? throw new InvalidOperationException("The recording did not stop cleanly.");
+
+            // The start-up warning, then the screen problems in the order they were raised; whatever else the stop
+            // reported (e.g. a screen segment that could not be finalized) comes last.
+            lock (faultWarnings)
+            {
+                foreach (var problem in faultWarnings)
+                {
+                    AddWarning(warnings, problem);
+                }
+            }
+
             if (session.State != SessionState.Failed)
             {
-                AddWarning(warnings, session.Error);
+                AddStopError(warnings, session.Error);
             }
 
             report = report with
@@ -203,6 +228,7 @@ public sealed class AutoRecordRunner
         finally
         {
             _recording.Stopped -= OnStopped;
+            _recorder.Warning -= OnWarning;
             if (_recorder.State == RecorderState.Recording)
             {
                 await StopRecordingAsync();
@@ -278,27 +304,37 @@ public sealed class AutoRecordRunner
         return bytes;
     }
 
-    /// <summary>
-    /// Adds a session warning once. The stop repeats the start's warning, possibly with a screen error in front: the
-    /// fuller text then replaces the one it contains.
-    /// </summary>
+    /// <summary>Adds a warning unless the list already says it (a text that contains it, e.g. a joined start warning).</summary>
     private static void AddWarning(List<string> warnings, string? warning)
     {
-        if (string.IsNullOrWhiteSpace(warning))
+        if (string.IsNullOrWhiteSpace(warning) || warnings.Exists(existing => existing.Contains(warning, StringComparison.Ordinal)))
         {
             return;
         }
 
-        foreach (var existing in warnings)
+        warnings.Add(warning);
+    }
+
+    /// <summary>
+    /// The session's error text is the recorder's own composition: a stop failure (if any) in front of the warnings it
+    /// kept. What the run already knows is not repeated; anything in front of it is the stop failure.
+    /// </summary>
+    private static void AddStopError(List<string> warnings, string? error)
+    {
+        if (string.IsNullOrWhiteSpace(error))
         {
-            if (existing.Contains(warning, StringComparison.Ordinal))
-            {
-                return;
-            }
+            return;
         }
 
-        warnings.RemoveAll(existing => warning.Contains(existing, StringComparison.Ordinal));
-        warnings.Add(warning);
+        var known = string.Join(' ', warnings);
+        if (known.Length > 0 && error.EndsWith(known, StringComparison.Ordinal))
+        {
+            AddWarning(warnings, error[..^known.Length].Trim());
+        }
+        else if (!error.Equals(known, StringComparison.Ordinal))
+        {
+            AddWarning(warnings, error);
+        }
     }
 
     private PerfSession DescribeSession(SessionRecord session)
@@ -344,6 +380,7 @@ public sealed class AutoRecordRunner
         SystemFrames = stats.SystemFrames,
         DroppedFrames = stats.DroppedFrames,
         ScreenFramesDropped = stats.ScreenFramesDropped,
+        ScreenFaults = stats.ScreenFaults,
     };
 
     private void Write(PerfReport report)

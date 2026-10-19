@@ -108,6 +108,15 @@
                 Content="{Binding StartStopLabel}"
                 Command="{Binding StartStopCommand}" />
 
+        <!-- Inline notice: a problem that did not stop the recording (e.g. the screen stopped, the audio goes on). -->
+        <Border Classes="card"
+                Padding="{StaticResource Inset.16}"
+                IsVisible="{Binding HasNotice}">
+          <TextBlock Classes="bodySm"
+                     TextWrapping="Wrap"
+                     Text="{Binding Notice}" />
+        </Border>
+
         <!-- Inline error -->
         <Border Classes="card"
                 Padding="{StaticResource Inset.16}"

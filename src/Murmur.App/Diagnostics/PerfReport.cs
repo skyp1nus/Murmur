@@ -71,8 +71,9 @@ public sealed record PerfReport
     public PerfSession Session { get; init; } = new();
 
     /// <summary>
-    /// Non-fatal problems of a run that still recorded (e.g. Windows denied the microphone, so only system audio was
-    /// recorded); omitted when there were none. The exit code stays 0.
+    /// Non-fatal problems of a run that still recorded, in the order they happened (e.g. Windows denied the microphone,
+    /// so only system audio was recorded; the screen skipped frames or stopped while the audio went on); omitted when
+    /// there were none. The exit code stays 0.
     /// </summary>
     public IReadOnlyList<string>? Warnings { get; init; }
 
@@ -89,6 +90,12 @@ public sealed record PerfRecorderStats
     public long DroppedFrames { get; init; }
 
     public long ScreenFramesDropped { get; init; }
+
+    /// <summary>
+    /// Faults the screen recorder reported during the run (fatal and non-fatal): pool exhaustion, the fall back to CPU
+    /// readback, a lost device, an encoder error. 0 on a clean run; the user texts are in <see cref="PerfReport.Warnings"/>.
+    /// </summary>
+    public int ScreenFaults { get; init; }
 }
 
 /// <summary>One memory reading of a recording (all sizes in MB).</summary>

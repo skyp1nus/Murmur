@@ -160,6 +160,7 @@ internal sealed class WgcScreenRecorder : IScreenRecorder
     private long _framesAfterStop;
     private readonly int _cpuSampleLimit = MaximumCpuSamples;
     private volatile string? _gpuPathDisabled;
+    private int _cpuFallbackReported;
 
     public WgcScreenRecorder(ScreenCaptureOptions options)
     {
@@ -493,6 +494,14 @@ internal sealed class WgcScreenRecorder : IScreenRecorder
             Volatile.Write(ref _segment, segment);
             segment.Accepting = true;
             segment.Session.StartCapture();
+
+            // A GPU path given up at run time (a persistent pool exhaustion earlier) is news to the user, once per
+            // recorder. A machine that has no GPU path from the start (WARP, no hardware encoder) records on CPU readback
+            // as its normal path and says nothing.
+            if (!ForceCpuReadback && _gpuPathDisabled is { } disabled && Interlocked.Exchange(ref _cpuFallbackReported, 1) == 0)
+            {
+                QueueFault(new CaptureFault("screen", disabled, IsFatal: false, CaptureFaultKind.CpuFallback));
+            }
         }
         catch
         {
@@ -1145,10 +1154,10 @@ internal sealed class WgcScreenRecorder : IScreenRecorder
             _gpuPathDisabled = PoolExhaustionNaming.FallbackReason(input, limit);
         }
 
-        RaiseFault(segment, PoolExhaustionNaming.Fault(input, limit, drops, elapsed), isFatal: false);
+        RaiseFault(segment, PoolExhaustionNaming.Fault(input, limit, drops, elapsed), isFatal: false, CaptureFaultKind.FramesDropped);
     }
 
-    private void RaiseFault(Segment segment, string message, bool isFatal)
+    private void RaiseFault(Segment segment, string message, bool isFatal, CaptureFaultKind kind = CaptureFaultKind.Other)
     {
         if (isFatal)
         {
@@ -1163,8 +1172,16 @@ internal sealed class WgcScreenRecorder : IScreenRecorder
             return;
         }
 
-        var fault = new CaptureFault("screen", message, isFatal);
-        ThreadPool.UnsafeQueueUserWorkItem(static state => state.Recorder.Faulted?.Invoke(state.Fault), (Recorder: this, Fault: fault), preferLocal: false);
+        QueueFault(new CaptureFault("screen", message, isFatal, kind));
+    }
+
+    /// <summary>
+    /// Delivers a fault on a thread-pool thread to the subscribers of this moment: the handler list is read here, not when
+    /// the work item runs, so a fault of one segment can never reach a subscriber that attached for the next one.
+    /// </summary>
+    private void QueueFault(CaptureFault fault)
+    {
+        FaultDispatch.Queue(Faulted, fault);
     }
 
     private readonly record struct QueuedFrame(nint Sample, long Ticks);
@@ -1236,5 +1253,27 @@ internal sealed class WgcScreenRecorder : IScreenRecorder
         public int FaultRaised;
         public int WarningRaised;
         public long FaultTicks = RepeatPolicy.NoFault; // QPC time of the first fatal fault (Interlocked)
+    }
+}
+
+/// <summary>Queues a fault for the handler list that exists when it is raised (pure; the scheduler is replaceable for tests).</summary>
+internal static class FaultDispatch
+{
+    /// <param name="handlers">The event's handler list read at the moment of raising; <c>null</c> = nobody listens.</param>
+    /// <param name="schedule">Runs the work item; <c>null</c> = a thread-pool thread.</param>
+    public static void Queue(Action<CaptureFault>? handlers, CaptureFault fault, Action<Action>? schedule = null)
+    {
+        if (handlers is null)
+        {
+            return;
+        }
+
+        if (schedule is not null)
+        {
+            schedule(() => handlers(fault));
+            return;
+        }
+
+        ThreadPool.UnsafeQueueUserWorkItem(static state => state.Handlers(state.Fault), (Handlers: handlers, Fault: fault), preferLocal: false);
     }
 }

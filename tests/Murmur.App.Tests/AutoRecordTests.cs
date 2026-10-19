@@ -301,7 +301,7 @@ public sealed class AutoRecordTests : IDisposable
     }
 
     [Fact]
-    public async Task Run_WhenTheStopAddsToTheWarning_KeepsOnlyTheFullerText()
+    public async Task Run_WhenTheStopAddsAFailure_ReportsItAfterTheStartWarning()
     {
         _recorder.StartWarning = "Mic denied.";
         _recorder.StopError = "Screen failed. Mic denied.";
@@ -312,8 +312,45 @@ public sealed class AutoRecordTests : IDisposable
 
         using var doc = JsonDocument.Parse(File.ReadAllText(path));
         var warnings = doc.RootElement.GetProperty("warnings");
-        Assert.Equal(1, warnings.GetArrayLength());
-        Assert.Equal("Screen failed. Mic denied.", warnings[0].GetString());
+        Assert.Equal(["Mic denied.", "Screen failed."], warnings.EnumerateArray().Select(w => w.GetString()));
+    }
+
+    [Fact]
+    public async Task Run_WithScreenProblems_ReportsTheFaultCountAndTheirTextsInOrder()
+    {
+        const string slow = "Запис екрана пропустив кадри: компʼютер не встигав.";
+        const string stopped = "Запис екрана зупинився через помилку; звук записується далі.";
+        _recorder.StartWarning = "Mic denied.";
+        _recorder.AfterStart = () =>
+        {
+            _recorder.RaiseWarning(slow);
+            _recorder.RaiseWarning(slow);
+            _recorder.FailScreen(stopped);
+        };
+        _recorder.StopError = $"Mic denied. {slow} {stopped}";
+        _recorder.Stats = new RecorderStats(0, 200, 0, 0, ScreenFaults: 3);
+        var path = Path.Combine(_dir, "perf.json");
+        var runner = CreateRunner(new AutoRecordOptions(1, Screen: true, path, IdleSeconds: 0));
+
+        Assert.Equal(0, await runner.RunAsync(TestContext.Current.CancellationToken));
+
+        using var doc = JsonDocument.Parse(File.ReadAllText(path));
+        var root = doc.RootElement;
+        Assert.Equal(3, root.GetProperty("recorderStats").GetProperty("screenFaults").GetInt32());
+        Assert.Equal(["Mic denied.", slow, stopped], root.GetProperty("warnings").EnumerateArray().Select(w => w.GetString()));
+    }
+
+    [Fact]
+    public async Task Run_WithoutScreenProblems_ReportsZeroFaultsAndNoWarnings()
+    {
+        var path = Path.Combine(_dir, "perf.json");
+        var runner = CreateRunner(new AutoRecordOptions(1, Screen: false, path, IdleSeconds: 0));
+
+        Assert.Equal(0, await runner.RunAsync(TestContext.Current.CancellationToken));
+
+        using var doc = JsonDocument.Parse(File.ReadAllText(path));
+        Assert.Equal(0, doc.RootElement.GetProperty("recorderStats").GetProperty("screenFaults").GetInt32());
+        Assert.False(doc.RootElement.TryGetProperty("warnings", out _));
     }
 
     [Fact]
