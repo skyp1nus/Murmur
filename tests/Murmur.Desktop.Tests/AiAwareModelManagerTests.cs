@@ -9,24 +9,52 @@ public sealed class AiAwareModelManagerTests
 {
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
 
+    private static string Path(string id) => "/models/gguf/" + id + ".gguf";
+
+    private static AiAwareModelManager Create(List<string> log, params string[] loaded) =>
+        new(new FakeManager(log), new FakeLlm(log), id => id == "unknown" ? null : Path(id), path => loaded.Contains(path));
+
     [Theory]
-    [InlineData("runtime", true)]
-    [InlineData("chat", true)]
-    [InlineData("chat-big", false)] // inactive chat model
-    [InlineData("embed", true)]
+    [InlineData("runtime", true)]  // the executable: always released
+    [InlineData("chat", true)]     // loaded
+    [InlineData("chat-big", false)] // not loaded
+    [InlineData("embed", true)]    // loaded
     [InlineData("embed-old", false)]
     [InlineData("asr", false)]
     [InlineData("vad", false)]
     [InlineData("unknown", false)]
-    public async Task Remove_UnloadsTheAiBeforeDeletingAiItemsOnly(string id, bool unloads)
+    public async Task Remove_UnloadsTheAiBeforeDeletingWhatIsHeldOnly(string id, bool unloads)
     {
         var log = new List<string>();
-        var manager = new FakeManager(log);
-        var manager2 = new AiAwareModelManager(manager, new FakeLlm(log), ActiveId);
+        var manager = Create(log, Path("chat"), Path("embed"));
 
-        await manager2.RemoveAsync(id, Ct);
+        await manager.RemoveAsync(id, Ct);
 
         Assert.Equal(unloads ? ["unload", "remove " + id] : ["remove " + id], log);
+    }
+
+    [Fact]
+    public async Task Remove_OfAModelNoLongerActiveButStillLoaded_Unloads()
+    {
+        // The user switched to another chat model while the server still holds the old one.
+        var log = new List<string>();
+        var manager = Create(log, Path("chat-big"));
+
+        await manager.RemoveAsync("chat-big", Ct);
+
+        Assert.Equal(["unload", "remove chat-big"], log);
+    }
+
+    [Fact]
+    public async Task Remove_WithNothingLoaded_DoesNotUnloadForChatOrEmbedding()
+    {
+        var log = new List<string>();
+        var manager = Create(log);
+
+        await manager.RemoveAsync("chat", Ct);
+        await manager.RemoveAsync("embed", Ct);
+
+        Assert.Equal(["remove chat", "remove embed"], log);
     }
 
     [Fact]
@@ -34,7 +62,7 @@ public sealed class AiAwareModelManagerTests
     {
         var log = new List<string>();
         var inner = new FakeManager(log);
-        var manager = new AiAwareModelManager(inner, new FakeLlm(log), ActiveId);
+        var manager = new AiAwareModelManager(inner, new FakeLlm(log), _ => null, _ => false);
         ModelStatus? seen = null;
         manager.StatusChanged += status => seen = status;
 
@@ -44,24 +72,6 @@ public sealed class AiAwareModelManagerTests
         Assert.Same(inner.Catalog, manager.Catalog);
         Assert.Equal("chat", manager.RecommendedChatModelId);
         Assert.Equal("chat", seen?.Model.Id);
-    }
-
-    private static string? ActiveId(ModelKind kind) => kind switch
-    {
-        ModelKind.Chat => "chat",
-        ModelKind.Embedding => "embed",
-        _ => null,
-    };
-
-    [Fact]
-    public async Task Remove_WithNoActiveModel_DoesNotUnloadForChatOrEmbedding()
-    {
-        var log = new List<string>();
-        var manager = new AiAwareModelManager(new FakeManager(log), new FakeLlm(log), _ => null);
-
-        await manager.RemoveAsync("chat", Ct);
-
-        Assert.Equal(["remove chat"], log);
     }
 
     private sealed class FakeLlm(List<string> log) : ILlm

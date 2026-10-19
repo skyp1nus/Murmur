@@ -835,6 +835,87 @@ public sealed class LocalLlmTests : IAsyncLifetime
         }
     }
 
+    [Fact]
+    public async Task IsUsingModel_TrueForLiveRetiredAndStoppingServers_FalseOtherwise()
+    {
+        await File.WriteAllTextAsync(SecondChatModel, "", Ct);
+        _live = Options;
+        await using var llm = CreateLive();
+        Assert.False(llm.IsUsingModel(ChatModel));
+
+        var client = await llm.GetChatClientAsync(Ct);
+        Assert.True(llm.IsUsingModel(ChatModel));
+        Assert.False(llm.IsUsingModel(EmbeddingModel));
+        Assert.False(llm.IsUsingModel(SecondChatModel));
+
+        // Switched in the manifest, but the old server is still serving a request: it still holds the old file.
+        RequestGate = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var inFlight = client.GetResponseAsync([new ChatMessage(ChatRole.User, "x")], cancellationToken: Ct);
+        await WaitUntilAsync(() => !_http.Requests.IsEmpty);
+        _live = Options with { ChatModelPath = SecondChatModel };
+        Assert.True(llm.IsUsingModel(ChatModel)); // before the next request even restarts anything
+        await llm.GetChatClientAsync(Ct);
+        Assert.True(llm.IsUsingModel(ChatModel));
+        Assert.True(llm.IsUsingModel(SecondChatModel));
+
+        // The old server is released once its request is done and it has stopped.
+        var old = _started.First().Handle;
+        old.StopGate = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        RequestGate.SetResult();
+        await inFlight;
+        await WaitUntilAsync(() => old.Stopped);
+        Assert.True(llm.IsUsingModel(ChatModel)); // stopping, not gone yet
+
+        old.StopGate.SetResult();
+        await WaitUntilAsync(() => old.Disposed);
+        Assert.False(llm.IsUsingModel(ChatModel));
+
+        await llm.UnloadAsync(Ct);
+        Assert.False(llm.IsUsingModel(SecondChatModel));
+    }
+
+    [Fact]
+    public async Task UnloadAsync_ServersAreTrackedAsStopping_SoARecordingKillsThem()
+    {
+        _live = Options;
+        await using var llm = CreateLive();
+        await llm.GetChatClientAsync(Ct);
+        var first = Assert.Single(_started).Handle;
+        first.StopGate = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        var unload = llm.UnloadAsync(Ct).AsTask();
+        await WaitUntilAsync(() => first.Stopped);
+        Assert.True(llm.IsUsingModel(ChatModel));
+        Assert.False(unload.IsCompleted);
+
+        _recording = true;
+        llm.NotifyRecordingStarted();
+        await unload;
+
+        Assert.True(first.Killed);
+        Assert.Equal(1, first.DisposeCount);
+    }
+
+    [Fact]
+    public async Task UnloadAsync_CancellationStopsWaiting_ButTheServerKeepsStopping()
+    {
+        _live = Options;
+        await using var llm = CreateLive();
+        await llm.GetChatClientAsync(Ct);
+        var first = Assert.Single(_started).Handle;
+        first.StopGate = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        using var cts = CancellationTokenSource.CreateLinkedTokenSource(Ct);
+
+        var unload = llm.UnloadAsync(cts.Token).AsTask();
+        await WaitUntilAsync(() => first.Stopped);
+        await cts.CancelAsync();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => unload);
+        first.StopGate.SetResult();
+        await WaitUntilAsync(() => first.Disposed);
+        Assert.Equal(1, first.DisposeCount);
+    }
+
     private static async Task WaitUntilAsync(Func<bool> condition)
     {
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(Ct);

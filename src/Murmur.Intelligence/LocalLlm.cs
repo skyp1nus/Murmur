@@ -44,7 +44,7 @@ public sealed class LocalLlm : ILlm
     private OptionsSnapshot? _snapshot;
 
     // Servers being stopped gracefully (idle, model switch): recording start kills them, unload and dispose wait for them.
-    private readonly Dictionary<ILlamaServer, Task> _stopping = [];
+    private readonly Dictionary<ILlamaServer, StopEntry> _stopping = [];
     private bool _disposed;
 
     // The shared idle timer is armed for the earliest due slot; guarded by _lock.
@@ -146,10 +146,10 @@ public sealed class LocalLlm : ILlm
     /// </summary>
     public void NotifyRecordingStarted()
     {
-        foreach (var server in Detach(_chat, _embedding))
+        foreach (var held in Detach(_chat, _embedding))
         {
-            server.Kill();
-            _ = DisposeQuietlyAsync(server);
+            held.Server.Kill();
+            _ = DisposeQuietlyAsync(held.Server);
         }
 
         // Servers already on their way down must not linger into the recording either.
@@ -161,9 +161,11 @@ public sealed class LocalLlm : ILlm
 
     public async ValueTask UnloadAsync(CancellationToken cancellationToken)
     {
-        foreach (var server in Detach(_chat, _embedding))
+        // Detached servers are registered as stopping inside Detach's lock, so a recording that starts right now kills them.
+        var detached = Detach(stop: true, [_chat, _embedding]);
+        foreach (var held in detached)
         {
-            await StopQuietlyAsync(server, cancellationToken).ConfigureAwait(false);
+            StartStop(held.Server, held.Stopping);
         }
 
         // Return only when no process still holds the model or the executable.
@@ -183,10 +185,10 @@ public sealed class LocalLlm : ILlm
         }
 
         await _idleTimer.DisposeAsync().ConfigureAwait(false);
-        foreach (var server in Detach(_chat, _embedding))
+        foreach (var held in Detach(_chat, _embedding))
         {
-            server.Kill();
-            await DisposeQuietlyAsync(server).ConfigureAwait(false);
+            held.Server.Kill();
+            await DisposeQuietlyAsync(held.Server).ConfigureAwait(false);
         }
 
         var stopping = SnapshotStopping();
@@ -302,6 +304,7 @@ public sealed class LocalLlm : ILlm
     private void Release(Slot slot, ILlamaServer server)
     {
         ILlamaServer? retiredDone = null;
+        TaskCompletionSource? stopping = null;
         lock (_lock)
         {
             if (ReferenceEquals(slot.Server, server))
@@ -315,24 +318,25 @@ public sealed class LocalLlm : ILlm
                     ArmIdleTimerIfEarlier(LastOptions.IdleUnload, slot.LastUse);
                 }
             }
-            else if (slot.Retired.TryGetValue(server, out var remaining))
+            else if (slot.Retired.TryGetValue(server, out var retired))
             {
                 // A retired server (its model was switched) stops once its last request is done.
-                if (remaining <= 1)
+                if (retired.Remaining <= 1)
                 {
                     slot.Retired.Remove(server);
                     retiredDone = server;
+                    stopping = MarkStopping(server, retired.ModelPath);
                 }
                 else
                 {
-                    slot.Retired[server] = remaining - 1;
+                    retired.Remaining--;
                 }
             }
         }
 
         if (retiredDone is not null)
         {
-            _ = BeginStop(retiredDone);
+            StartStop(retiredDone, stopping);
         }
     }
 
@@ -377,6 +381,7 @@ public sealed class LocalLlm : ILlm
             options = GetOptions(force: true);
             ILlamaServer? dead = null;
             ILlamaServer? retiredIdle = null;
+            TaskCompletionSource? retiredStopping = null;
             CancellationToken lifetime;
             lock (_lock)
             {
@@ -399,11 +404,12 @@ public sealed class LocalLlm : ILlm
                     else if (slot.InFlight > 0)
                     {
                         // Its model was switched or removed: requests in flight finish on it, the last one stops it.
-                        slot.Retired[old] = slot.InFlight;
+                        slot.Retired[old] = new RetiredEntry(slot.InFlight, slot.RunningModelPath);
                     }
                     else
                     {
                         retiredIdle = old;
+                        retiredStopping = MarkStopping(old, slot.RunningModelPath);
                     }
 
                     slot.InFlight = 0;
@@ -412,7 +418,8 @@ public sealed class LocalLlm : ILlm
 
             if (retiredIdle is not null)
             {
-                await BeginStop(retiredIdle).ConfigureAwait(false);
+                StartStop(retiredIdle, retiredStopping);
+                await WaitStoppedAsync(retiredIdle).ConfigureAwait(false);
             }
 
             if (dead is not null)
@@ -473,8 +480,8 @@ public sealed class LocalLlm : ILlm
                     // Detach returns the new server and any retired one still serving a request: all of them go.
                     foreach (var detached in Detach(slot))
                     {
-                        detached.Kill();
-                        await DisposeQuietlyAsync(detached).ConfigureAwait(false);
+                        detached.Server.Kill();
+                        await DisposeQuietlyAsync(detached.Server).ConfigureAwait(false);
                     }
                 }
                 else
@@ -496,9 +503,12 @@ public sealed class LocalLlm : ILlm
     }
 
     /// <summary>Takes the servers out of their slots and cancels loads in progress.</summary>
-    private List<ILlamaServer> Detach(params ReadOnlySpan<Slot> slots)
+    private List<Held> Detach(params ReadOnlySpan<Slot> slots) => Detach(stop: false, slots);
+
+    /// <param name="stop">Register the servers as stopping in the same lock section (the caller starts the stop with <see cref="StartStop"/>).</param>
+    private List<Held> Detach(bool stop, ReadOnlySpan<Slot> slots)
     {
-        var servers = new List<ILlamaServer>(slots.Length);
+        var servers = new List<Held>(2);
         var lifetimes = new List<CancellationTokenSource>(slots.Length);
         lock (_lock)
         {
@@ -508,12 +518,16 @@ public sealed class LocalLlm : ILlm
                 slot.Lifetime = new CancellationTokenSource();
                 if (slot.Server is { } server)
                 {
-                    servers.Add(server);
+                    servers.Add(new Held(server, stop ? MarkStopping(server, slot.RunningModelPath) : null));
                     slot.Server = null;
                 }
 
                 // Retired servers still serving a request go down with the rest.
-                servers.AddRange(slot.Retired.Keys);
+                foreach (var (retired, entry) in slot.Retired)
+                {
+                    servers.Add(new Held(retired, stop ? MarkStopping(retired, entry.ModelPath) : null));
+                }
+
                 slot.Retired.Clear();
                 slot.InFlight = 0;
             }
@@ -530,7 +544,7 @@ public sealed class LocalLlm : ILlm
 
     private void OnIdleTimer()
     {
-        var toStop = new List<ILlamaServer>(2);
+        var toStop = new List<(ILlamaServer Server, TaskCompletionSource? Stopping)>(2);
         TimeSpan? nextDue = null;
         var idleUnload = LastOptions.IdleUnload;
         lock (_lock)
@@ -551,7 +565,7 @@ public sealed class LocalLlm : ILlm
                 var idle = _time.GetElapsedTime(slot.LastUse);
                 if (slot.InFlight == 0 && idle >= idleUnload)
                 {
-                    toStop.Add(server);
+                    toStop.Add((server, MarkStopping(server, slot.RunningModelPath)));
                     slot.Server = null;
                     continue;
                 }
@@ -566,9 +580,9 @@ public sealed class LocalLlm : ILlm
             }
         }
 
-        foreach (var server in toStop)
+        foreach (var (server, stopping) in toStop)
         {
-            _ = BeginStop(server);
+            StartStop(server, stopping);
         }
     }
 
@@ -576,26 +590,95 @@ public sealed class LocalLlm : ILlm
     {
         lock (_lock)
         {
-            return new Dictionary<ILlamaServer, Task>(_stopping);
+            var snapshot = new Dictionary<ILlamaServer, Task>(_stopping.Count);
+            foreach (var (server, entry) in _stopping)
+            {
+                snapshot[server] = entry.Done.Task;
+            }
+
+            return snapshot;
         }
     }
 
-    /// <summary>Stops <paramref name="server"/> gracefully in the background; it stays visible to kill/unload/dispose until it is gone.</summary>
-    private Task BeginStop(ILlamaServer server)
+    /// <summary>
+    /// Registers a server that was just taken out of its slot as stopping. Call under <see cref="_lock"/>, in the same
+    /// section that removed it, so a recording start can never miss it; then run <see cref="StartStop"/> outside the lock.
+    /// </summary>
+    /// <returns>The completion source for <see cref="StartStop"/>, or <c>null</c> when the server is already stopping.</returns>
+    private TaskCompletionSource? MarkStopping(ILlamaServer server, string? modelPath)
     {
-        var done = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        lock (_lock)
+        if (_stopping.ContainsKey(server))
         {
-            if (_stopping.TryGetValue(server, out var existing))
-            {
-                return existing;
-            }
-
-            _stopping[server] = done.Task;
+            return null;
         }
 
-        _ = RunStopAsync(server, done);
-        return done.Task;
+        var done = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        _stopping[server] = new StopEntry(modelPath, done);
+        return done;
+    }
+
+    /// <summary>Stops a server registered by <see cref="MarkStopping"/> gracefully in the background.</summary>
+    private void StartStop(ILlamaServer server, TaskCompletionSource? stopping)
+    {
+        if (stopping is not null)
+        {
+            _ = RunStopAsync(server, stopping);
+        }
+    }
+
+    private async Task WaitStoppedAsync(ILlamaServer server)
+    {
+        Task? task;
+        lock (_lock)
+        {
+            task = _stopping.TryGetValue(server, out var entry) ? entry.Done.Task : null;
+        }
+
+        if (task is not null)
+        {
+            await task.ConfigureAwait(false);
+        }
+    }
+
+    /// <summary>
+    /// Whether a live, retired or stopping server still has <paramref name="modelPath"/> open, so the file cannot be
+    /// deleted yet. Call <see cref="UnloadAsync"/> first when it does.
+    /// </summary>
+    public bool IsUsingModel(string modelPath)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(modelPath);
+        var comparison = OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
+        var wanted = Path.GetFullPath(modelPath);
+        lock (_lock)
+        {
+            foreach (var slot in (ReadOnlySpan<Slot>)[_chat, _embedding])
+            {
+                if (slot.Server is not null && Same(slot.RunningModelPath))
+                {
+                    return true;
+                }
+
+                foreach (var retired in slot.Retired.Values)
+                {
+                    if (Same(retired.ModelPath))
+                    {
+                        return true;
+                    }
+                }
+            }
+
+            foreach (var entry in _stopping.Values)
+            {
+                if (Same(entry.ModelPath))
+                {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+
+        bool Same(string? path) => path is not null && string.Equals(Path.GetFullPath(path), wanted, comparison);
     }
 
     private async Task RunStopAsync(ILlamaServer server, TaskCompletionSource done)
@@ -645,6 +728,17 @@ public sealed class LocalLlm : ILlm
 
     private sealed record OptionsSnapshot(LocalLlmOptions Options, long At);
 
+    private readonly record struct Held(ILlamaServer Server, TaskCompletionSource? Stopping);
+
+    private sealed record StopEntry(string? ModelPath, TaskCompletionSource Done);
+
+    private sealed class RetiredEntry(int remaining, string? modelPath)
+    {
+        public int Remaining { get; set; } = remaining;
+
+        public string? ModelPath { get; } = modelPath;
+    }
+
     private sealed class Slot(bool embedding)
     {
         /// <summary>Model file the running <see cref="Server"/> was started with.</summary>
@@ -653,8 +747,8 @@ public sealed class LocalLlm : ILlm
         /// <summary><c>llama-server</c> binary the running <see cref="Server"/> was started from.</summary>
         public string? RunningServerPath { get; set; }
 
-        /// <summary>Servers replaced after a model switch that still have requests in flight (value = requests left).</summary>
-        public Dictionary<ILlamaServer, int> Retired { get; } = [];
+        /// <summary>Servers replaced after a model switch that still have requests in flight (requests left and the model it holds).</summary>
+        public Dictionary<ILlamaServer, RetiredEntry> Retired { get; } = [];
 
         public bool IsEmbedding { get; } = embedding;
 

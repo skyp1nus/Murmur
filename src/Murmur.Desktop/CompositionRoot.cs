@@ -89,7 +89,8 @@ internal sealed class CompositionRoot : IDisposable
         var modelManager = _modelManager ??= new ModelManager(models.ModelsDirectory);
 
         // The UI removes models through this wrapper: it stops the llama-server first, so the files are not held open.
-        var aiModels = _aiModels ??= new AiAwareModelManager(modelManager, llm, modelManager.ActiveModelId);
+        var aiModels = _aiModels ??= new AiAwareModelManager(
+            modelManager, llm, id => ItemPath(modelManager, id), llm.IsUsingModel);
         var processor = _processor ??= new SessionProcessor(
             recorder,
             storage,
@@ -185,6 +186,19 @@ internal sealed class CompositionRoot : IDisposable
         var llm = new LocalLlm(() => AiModelPaths.Resolve(modelsDirectory, Environment.GetEnvironmentVariable), () => activity.IsRecording);
         activity.RecordingStarted += llm.NotifyRecordingStarted;
         return llm;
+    }
+
+    private static string? ItemPath(ModelManager manager, string id)
+    {
+        foreach (var item in manager.Items)
+        {
+            if (string.Equals(item.Id, id, StringComparison.Ordinal))
+            {
+                return Path.GetFullPath(Path.Combine(manager.ModelsDirectory, item.TargetPath));
+            }
+        }
+
+        return null;
     }
 
     private static bool IsInstalled(IModelManager manager, ModelKind kind)

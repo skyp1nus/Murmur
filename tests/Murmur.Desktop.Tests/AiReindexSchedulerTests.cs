@@ -125,4 +125,52 @@ public sealed class AiReindexSchedulerTests
         await WaitUntilAsync(() => Volatile.Read(ref calls) == 2);
         Assert.IsType<IOException>(errors[0]);
     }
+
+    [Fact]
+    public async Task Dispose_CancelsARunningPass_AndWaitsForIt()
+    {
+        var started = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var finished = 0;
+        var scheduler = Create(work: async cancellationToken =>
+        {
+            started.SetResult();
+            try
+            {
+                await Task.Delay(Timeout.Infinite, cancellationToken);
+            }
+            finally
+            {
+                await Task.Delay(100); // cleanup that must be done before Dispose returns
+                Volatile.Write(ref finished, 1);
+            }
+        });
+        scheduler.Request();
+        await started.Task.WaitAsync(TimeSpan.FromSeconds(10), Ct);
+
+        scheduler.Dispose();
+
+        Assert.Equal(1, Volatile.Read(ref finished));
+        scheduler.Dispose(); // idempotent
+    }
+
+    [Fact]
+    public async Task Dispose_ReturnsAfterTheBoundedWait_WhenThePassIgnoresCancellation()
+    {
+        var started = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var scheduler = Create(work: async _ =>
+        {
+            started.SetResult();
+            await release.Task;
+        });
+        scheduler.Request();
+        await started.Task.WaitAsync(TimeSpan.FromSeconds(10), Ct);
+
+        var watch = System.Diagnostics.Stopwatch.StartNew();
+        scheduler.Dispose();
+        watch.Stop();
+
+        Assert.InRange(watch.Elapsed, TimeSpan.FromSeconds(3), TimeSpan.FromSeconds(20));
+        release.SetResult();
+    }
 }
