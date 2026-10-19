@@ -146,7 +146,14 @@ public sealed class SingleInstanceTests
 
         var secondStart = Task.Run(() => SingleInstance.Enter([], system.Open, slow), TestContext.Current.CancellationToken);
         await Task.Delay(300, TestContext.Current.CancellationToken);
-        first.Acknowledge();
+
+        // Late, then like the real first instance: it answers every request it gets. A single answer can be cleared by
+        // the second start's next request (it resets the ack before asking again), which a real first instance answers.
+        while (!secondStart.IsCompleted)
+        {
+            first.Acknowledge();
+            await Task.WhenAny(secondStart, Task.Delay(50, TestContext.Current.CancellationToken));
+        }
 
         using var second = await secondStart.WaitAsync(Patience, TestContext.Current.CancellationToken);
         Assert.False(second.IsPrimary);
