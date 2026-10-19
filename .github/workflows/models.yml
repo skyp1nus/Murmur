@@ -4,9 +4,13 @@ name: models
 # The unit tests of Murmur.Models run against a local fake server (ci.yml); this workflow is the only place that touches
 # the real hosts. It also prints the size and SHA-256 of every file so the catalog can pin them later.
 
-# Manual only (workflow_dispatch): the downloads are large and the hosts are external, so no automatic triggers.
+# On demand only: the downloads are large and the hosts are external. Run it from the Actions tab once this file is on
+# master, or add the label `ci:models` to a pull request (a dispatch cannot start a workflow that master does not have
+# yet); remove and re-add the label to run it again.
 on:
   workflow_dispatch:
+  pull_request:
+    types: [labeled]
 
 concurrency:
   group: models-${{ github.ref }}
@@ -24,6 +28,7 @@ env:
 jobs:
   models:
     name: install the catalog (ubuntu-latest)
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.label.name == 'ci:models' }}
     runs-on: ubuntu-latest
     timeout-minutes: 45
     defaults:

@@ -9,7 +9,8 @@
 | `ci.yml`, джоб `linux` | кожен pull request (крім події «додали мітку») | Actions → ci → Run workflow |
 | `ci.yml`, джоби `windows`, `startup`, `capture-e2e` | лише PR з міткою `ci:windows` (додавання мітки теж запускає) | Run workflow, `windows` = true |
 | `ci.yml`, джоб `bench` | ніколи | Run workflow, `bench` = true |
-| `asr.yml`, `ai-eval.yml`, `perf-record.yml`, `models.yml` | ніколи | Run workflow |
+| `asr.yml`, `ai-eval.yml`, `perf-record.yml` | ніколи | Run workflow |
+| `models.yml` | PR, якому додали мітку `ci:models` (по запуску на кожне додавання) | Run workflow |
 | `tags.yml` | push у `master`, що змінює `.github/phase-tags.txt` | Run workflow |
 
 ### Локально: `scripts/verify-local.ps1`
