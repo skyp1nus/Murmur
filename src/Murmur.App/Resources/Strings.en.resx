@@ -137,6 +137,9 @@
     <value>Couldn’t turn screen recording off: {0}</value>
     <comment>{0} = error message</comment>
   </data>
+  <data name="Recording_ScreenStopped" xml:space="preserve">
+    <value>Screen recording stopped because of an error; the audio keeps recording.</value>
+  </data>
   <data name="Session_TabTranscript" xml:space="preserve">
     <value>Transcript</value>
   </data>

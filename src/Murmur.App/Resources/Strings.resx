@@ -137,6 +137,9 @@
     <value>Не вдалося вимкнути запис екрана: {0}</value>
     <comment>{0} = error message</comment>
   </data>
+  <data name="Recording_ScreenStopped" xml:space="preserve">
+    <value>Запис екрана зупинився через помилку; звук записується далі.</value>
+  </data>
   <data name="Session_TabTranscript" xml:space="preserve">
     <value>Транскрипт</value>
   </data>

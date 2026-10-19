@@ -1,0 +1,408 @@
+using System.Collections.Concurrent;
+using System.Diagnostics;
+using Murmur.Core.Capture;
+using Murmur.Core.Capture.Synthetic;
+using Murmur.Core.Recording;
+using Murmur.Core.Sessions;
+using Murmur.Core.Tests.Fakes;
+
+namespace Murmur.Core.Tests.Recording;
+
+/// <summary>
+/// Faults of the screen recorder (raised on other threads, like the real one does) reach the stats, the
+/// <see cref="IRecorder.Warning"/> event and the session's warnings; a fatal one ends the segment without touching the audio.
+/// </summary>
+[Collection(RealtimeCollection.Name)]
+public sealed class RecorderScreenFaultTests : IDisposable
+{
+    private const string PoolMessage = "GPU zero-copy: all 12 encoder samples stayed in use for 2.0 s (61 frames dropped in a row); the encoder does not hand frames back; the next segments use CPU readback";
+    private const string CpuMessage = "CPU readback: the zero-copy writer picked a software encoder (Microsoft H.264)";
+    private static readonly TimeSpan Timeout = TimeSpan.FromSeconds(10);
+
+    private readonly TempDirectory _dir = new();
+    private readonly InMemorySessionStore _store;
+    private readonly ConcurrentQueue<RecorderWarning> _warnings = new();
+
+    public RecorderScreenFaultTests() => _store = new InMemorySessionStore(_dir.Path);
+
+    private static CancellationToken Ct => TestContext.Current.CancellationToken;
+
+    public void Dispose() => _dir.Dispose();
+
+    [Fact]
+    public async Task NonFatalFaults_AreCounted_WarnOncePerDistinctMessage_AndLandInTheSessionWarnings()
+    {
+        var (recorder, screen) = Create();
+        await recorder.StartAsync(new RecordingOptions(Screen: true), Ct);
+
+        await screen.RaiseFromOtherThreadAsync(Fault(PoolMessage));
+        await screen.RaiseFromOtherThreadAsync(Fault(PoolMessage));
+        await screen.RaiseFromOtherThreadAsync(Fault(CpuMessage));
+        await screen.RaiseFromOtherThreadAsync(Fault("Something odd happened"));
+        await screen.RaiseFromOtherThreadAsync(Fault("Something odd happened"));
+
+        Assert.True(recorder.IsScreenRecording);
+        Assert.Equal(5, recorder.Stats.ScreenFaults);
+        Assert.Equal(
+            [ScreenFaultTexts.PoolExhausted, ScreenFaultTexts.CpuReadback, ScreenFaultTexts.OtherNonFatal],
+            _warnings.Select(w => w.Message));
+        Assert.All(_warnings, w => Assert.False(w.ScreenStopped));
+        Assert.All(_warnings, w => Assert.Equal("screen", w.Source));
+
+        var finished = await recorder.StopAsync(Ct);
+
+        Assert.Equal(SessionState.Recorded, finished.State);
+        Assert.Equal(5, recorder.Stats.ScreenFaults);
+        Assert.Equal($"{ScreenFaultTexts.PoolExhausted} {ScreenFaultTexts.CpuReadback} {ScreenFaultTexts.OtherNonFatal}", finished.Error);
+        Assert.Single(finished.ScreenSegments);
+    }
+
+    [Fact]
+    public async Task TwoMessagesWithTheSameUserText_AreTwoWarnings_ButOneSessionText()
+    {
+        var (recorder, screen) = Create();
+        await recorder.StartAsync(new RecordingOptions(Screen: true), Ct);
+
+        await screen.RaiseFromOtherThreadAsync(Fault("first oddity"));
+        await screen.RaiseFromOtherThreadAsync(Fault("second oddity"));
+        var finished = await recorder.StopAsync(Ct);
+
+        Assert.Equal(2, _warnings.Count);
+        Assert.Equal(ScreenFaultTexts.OtherNonFatal, finished.Error);
+    }
+
+    [Theory]
+    [InlineData("GPU zero-copy: all 12 encoder samples stayed in use for 2.0 s", ScreenFaultTexts.PoolExhausted)]
+    [InlineData("CPU readback: all 40 encoder samples stayed in use for 2.0 s", ScreenFaultTexts.PoolExhausted)]
+    [InlineData("CPU readback: the zero-copy hardware encoder could not be set up", ScreenFaultTexts.CpuReadback)]
+    [InlineData("anything else", ScreenFaultTexts.OtherNonFatal)]
+    public void NonFatalFaults_GetTheirUkrainianText(string message, string expected) =>
+        Assert.Equal(expected, ScreenFaultTexts.Describe(Fault(message)));
+
+    [Fact]
+    public async Task FatalFault_EndsTheSegmentWithItsRealEnd_AndTheAudioGoesOn()
+    {
+        var (recorder, screen) = Create();
+        await recorder.StartAsync(new RecordingOptions(Screen: true), Ct);
+        await Task.Delay(150, Ct);
+        var systemBefore = recorder.Stats.SystemFrames;
+
+        await screen.RaiseFromOtherThreadAsync(Fault("device lost", fatal: true));
+
+        // The pill must turn off at once; the segment is cleaned up right behind.
+        Assert.False(recorder.IsScreenRecording);
+        await WaitUntilAsync(() => screen.StopTimestamps.Count == 1);
+        Assert.Equal(RecorderState.Recording, recorder.State);
+        await Task.Delay(300, Ct);
+        Assert.True(recorder.Stats.SystemFrames > systemBefore, "the audio stopped with the screen");
+        var finished = await recorder.StopAsync(Ct);
+
+        var warning = Assert.Single(_warnings);
+        Assert.True(warning.ScreenStopped);
+        Assert.Equal(ScreenFaultTexts.Stopped, warning.Message);
+        Assert.Single(finished.ScreenSegments);
+        Assert.Equal(SessionState.Recorded, finished.State);
+        Assert.True(finished.HasSystemAudio);
+        Assert.Equal(ScreenFaultTexts.Stopped, finished.Error);
+        Assert.Equal(1, recorder.Stats.ScreenFaults);
+
+        // The segment ends where the recorder stopped the screen (right after the fault), not at the final stop.
+        var segment = finished.ScreenSegments[0];
+        var expected = Stopwatch.GetElapsedTime(screen.StartTimestamps[0], screen.StopTimestamps[0]);
+        Assert.InRange(segment.Duration, expected - TimeSpan.FromMilliseconds(100), expected + TimeSpan.FromMilliseconds(100));
+        Assert.True(segment.Duration < finished.Duration - TimeSpan.FromMilliseconds(200), $"segment {segment.Duration}, session {finished.Duration}");
+        Assert.Single(screen.StopTimestamps);
+        Assert.Equal(0, screen.Subscribers);
+    }
+
+    [Fact]
+    public async Task AfterAFatalFault_TheScreenCanBeSwitchedOnAgain()
+    {
+        var (recorder, screen) = Create();
+        await recorder.StartAsync(new RecordingOptions(Screen: true), Ct);
+        await screen.RaiseFromOtherThreadAsync(Fault("encoder failed", fatal: true));
+
+        // Not waiting for the cleanup: "on" right after the fault must finish the failed segment itself.
+        await recorder.SetScreenEnabledAsync(true, Ct).AsTask().WaitAsync(Timeout, Ct);
+
+        Assert.True(recorder.IsScreenRecording);
+        Assert.Equal(2, screen.StartTimestamps.Count);
+        await screen.RaiseFromOtherThreadAsync(Fault("encoder failed again", fatal: true));
+        Assert.False(recorder.IsScreenRecording);
+        await recorder.SetScreenEnabledAsync(true, Ct).AsTask().WaitAsync(Timeout, Ct);
+        await Task.Delay(50, Ct);
+        var finished = await recorder.StopAsync(Ct);
+
+        Assert.Equal([0, 1, 2], finished.ScreenSegments.Select(s => s.Index));
+        Assert.Equal(3, screen.StartTimestamps.Count);
+        Assert.Equal(3, screen.StopTimestamps.Count);
+        Assert.Equal(2, _warnings.Count(w => w.ScreenStopped));
+        Assert.Equal(ScreenFaultTexts.Stopped, finished.Error);
+        Assert.Equal(2, recorder.Stats.ScreenFaults);
+        Assert.All(finished.ScreenSegments, s => Assert.True(s.Duration >= TimeSpan.Zero));
+    }
+
+    [Fact]
+    public async Task AFaultOfAFinishedSegment_IsIgnored()
+    {
+        var (recorder, screen) = Create();
+        await recorder.StartAsync(new RecordingOptions(Screen: true), Ct);
+        await recorder.SetScreenEnabledAsync(false, Ct);
+
+        Assert.Equal(0, screen.Subscribers);
+        Assert.False(recorder.IsScreenRecording);
+
+        // A fault that was queued before the unsubscribe and is delivered after it, through the old handler.
+        screen.RaiseThroughStaleHandler(Fault("late", fatal: true));
+        screen.RaiseThroughStaleHandler(Fault(PoolMessage));
+
+        Assert.Empty(_warnings);
+        Assert.Equal(0, recorder.Stats.ScreenFaults);
+        var finished = await recorder.StopAsync(Ct);
+        Assert.Null(finished.Error);
+        Assert.Equal(0, recorder.Stats.ScreenFaults);
+    }
+
+    [Fact]
+    public async Task AFaultAfterTheRecordingEnded_IsIgnored()
+    {
+        var (recorder, screen) = Create();
+        await recorder.StartAsync(new RecordingOptions(Screen: true), Ct);
+        await recorder.StopAsync(Ct);
+
+        screen.RaiseThroughStaleHandler(Fault("late", fatal: true));
+
+        Assert.Empty(_warnings);
+        Assert.Equal(0, recorder.Stats.ScreenFaults);
+        Assert.False(recorder.IsScreenRecording);
+        Assert.Equal(0, screen.Subscribers);
+    }
+
+    [Fact]
+    public async Task FaultsRaisedWhileTheSegmentStarts_DoNotDeadlock_AndAFatalOneEndsTheSegment()
+    {
+        var (recorder, screen) = Create();
+        await recorder.StartAsync(new RecordingOptions(Screen: false), Ct);
+        screen.OnStart = () =>
+        {
+            screen.RaiseFromOtherThreadAsync(Fault(PoolMessage)).GetAwaiter().GetResult();
+            screen.RaiseFromOtherThreadAsync(Fault("device lost", fatal: true)).GetAwaiter().GetResult();
+        };
+
+        await recorder.SetScreenEnabledAsync(true, Ct).AsTask().WaitAsync(Timeout, Ct);
+
+        Assert.False(recorder.IsScreenRecording);
+        await WaitUntilAsync(() => screen.StopTimestamps.Count == 1);
+        var finished = await recorder.StopAsync(Ct).AsTask().WaitAsync(Timeout, Ct);
+
+        Assert.Single(finished.ScreenSegments);
+        Assert.Equal(2, recorder.Stats.ScreenFaults);
+        Assert.Equal($"{ScreenFaultTexts.PoolExhausted} {ScreenFaultTexts.Stopped}", finished.Error);
+    }
+
+    [Fact]
+    public async Task FaultsRaisedWhileTheSegmentStops_DoNotDeadlock()
+    {
+        var (recorder, screen) = Create();
+        await recorder.StartAsync(new RecordingOptions(Screen: true), Ct);
+        screen.OnStop = () =>
+        {
+            screen.RaiseFromOtherThreadAsync(Fault(CpuMessage)).GetAwaiter().GetResult();
+            screen.RaiseFromOtherThreadAsync(Fault("encoder did not finish", fatal: true)).GetAwaiter().GetResult();
+        };
+
+        await recorder.SetScreenEnabledAsync(false, Ct).AsTask().WaitAsync(Timeout, Ct);
+
+        Assert.False(recorder.IsScreenRecording);
+        Assert.Single(screen.StopTimestamps);
+        var finished = await recorder.StopAsync(Ct).AsTask().WaitAsync(Timeout, Ct);
+        Assert.Single(finished.ScreenSegments);
+        Assert.Single(screen.StopTimestamps);
+    }
+
+    [Fact]
+    public async Task FaultsRaisedDuringTheFinalStop_DoNotDeadlock_AndTheSegmentIsKept()
+    {
+        var (recorder, screen) = Create();
+        await recorder.StartAsync(new RecordingOptions(Screen: true), Ct);
+        await Task.Delay(100, Ct);
+        screen.OnStop = () => screen.RaiseFromOtherThreadAsync(Fault("encoder did not finish", fatal: true)).GetAwaiter().GetResult();
+
+        var finished = await recorder.StopAsync(Ct).AsTask().WaitAsync(Timeout, Ct);
+
+        Assert.Equal(SessionState.Recorded, finished.State);
+        Assert.Single(finished.ScreenSegments);
+        Assert.Equal(RecorderState.Idle, recorder.State);
+        Assert.Equal(0, screen.Subscribers);
+        Assert.Equal(1, recorder.Stats.ScreenFaults);
+    }
+
+    [Fact]
+    public async Task AThrowingWarningSubscriber_DoesNotReachTheCaptureThread()
+    {
+        var (recorder, screen) = Create();
+        recorder.Warning += _ => throw new InvalidOperationException("subscriber failed");
+        await recorder.StartAsync(new RecordingOptions(Screen: true), Ct);
+
+        await screen.RaiseFromOtherThreadAsync(Fault(PoolMessage));
+
+        Assert.Equal(1, recorder.Stats.ScreenFaults);
+        await recorder.StopAsync(Ct);
+    }
+
+    [Fact]
+    public async Task AFreshRecording_StartsWithoutTheEarlierFaults()
+    {
+        var (recorder, screen) = Create();
+        await recorder.StartAsync(new RecordingOptions(Screen: true), Ct);
+        await screen.RaiseFromOtherThreadAsync(Fault(PoolMessage));
+        await recorder.StopAsync(Ct);
+
+        await recorder.StartAsync(new RecordingOptions(Screen: true), Ct);
+        Assert.Equal(0, recorder.Stats.ScreenFaults);
+        Assert.True(recorder.IsScreenRecording);
+        await screen.RaiseFromOtherThreadAsync(Fault(PoolMessage));
+        var finished = await recorder.StopAsync(Ct);
+
+        // The same message is a new problem in a new recording.
+        Assert.Equal(2, _warnings.Count);
+        Assert.Equal(ScreenFaultTexts.PoolExhausted, finished.Error);
+    }
+
+    private (Recorder Recorder, FaultingScreenRecorder Screen) Create()
+    {
+        var screen = new FaultingScreenRecorder();
+        var capture = new FaultingScreenCapture(new SyntheticCapture(new SyntheticCaptureOptions(SpeedFactor: 1, Screen: true)), screen);
+        var recorder = new Recorder(capture, _store, TimeProvider.System, RecorderSettings.Default);
+        recorder.Warning += _warnings.Enqueue;
+        return (recorder, screen);
+    }
+
+    private static CaptureFault Fault(string message, bool fatal = false) => new("screen", message, fatal);
+
+    private static async Task WaitUntilAsync(Func<bool> condition)
+    {
+        var deadline = Stopwatch.GetTimestamp() + (Stopwatch.Frequency * 10);
+        while (!condition())
+        {
+            Assert.True(Stopwatch.GetTimestamp() < deadline, "the condition did not become true in 10 s");
+            await Task.Delay(10, Ct);
+        }
+    }
+
+    private sealed class FaultingScreenCapture(SyntheticCapture inner, IScreenRecorder screen) : ICapture
+    {
+        public CaptureCapabilities Capabilities => inner.Capabilities;
+
+        public IReadOnlyList<AudioDevice> GetAudioDevices(AudioDeviceKind kind) => inner.GetAudioDevices(kind);
+
+        public IAudioSource CreateAudioSource(AudioDeviceKind kind, string? deviceId) => inner.CreateAudioSource(kind, deviceId);
+
+        public IReadOnlyList<DisplayInfo> GetDisplays() => inner.GetDisplays();
+
+        public IScreenRecorder CreateScreenRecorder(ScreenCaptureOptions options) => screen;
+    }
+
+    /// <summary>
+    /// A screen recorder that raises the faults it is told to, like the real one on a thread-pool thread. It stays
+    /// "recording" after a fatal fault until the segment is stopped, as the real one does.
+    /// </summary>
+    private sealed class FaultingScreenRecorder : IScreenRecorder
+    {
+        private readonly List<long> _starts = [];
+        private readonly List<long> _stops = [];
+        private Action<CaptureFault>? _faulted;
+        private Action<CaptureFault>? _lastHandler;
+        private int _subscribers;
+        private volatile bool _recording;
+
+        public Action? OnStart { get; set; }
+
+        public Action? OnStop { get; set; }
+
+        public int Subscribers => Volatile.Read(ref _subscribers);
+
+        public List<long> StartTimestamps
+        {
+            get
+            {
+                lock (_starts)
+                {
+                    return [.. _starts];
+                }
+            }
+        }
+
+        public List<long> StopTimestamps
+        {
+            get
+            {
+                lock (_stops)
+                {
+                    return [.. _stops];
+                }
+            }
+        }
+
+        public bool IsRecording => _recording;
+
+        public ScreenRecorderStats Stats => new(0, 0, 0, "faulting");
+
+        public event Action<CaptureFault>? Faulted
+        {
+            add
+            {
+                _faulted += value;
+                _lastHandler = value;
+                Interlocked.Increment(ref _subscribers);
+            }
+            remove
+            {
+                _faulted -= value;
+                Interlocked.Decrement(ref _subscribers);
+            }
+        }
+
+        /// <summary>Raises on a thread-pool thread and waits until every handler has returned.</summary>
+        public Task RaiseFromOtherThreadAsync(CaptureFault fault) => Task.Run(() => _faulted?.Invoke(fault));
+
+        /// <summary>Calls the handler the recorder registered last, whether or not it is still subscribed.</summary>
+        public void RaiseThroughStaleHandler(CaptureFault fault) => _lastHandler?.Invoke(fault);
+
+        public ValueTask StartSegmentAsync(string filePath, CancellationToken cancellationToken)
+        {
+            lock (_starts)
+            {
+                _starts.Add(Stopwatch.GetTimestamp());
+            }
+
+            File.Create(filePath).Dispose();
+            _recording = true;
+            OnStart?.Invoke();
+            return ValueTask.CompletedTask;
+        }
+
+        public ValueTask StopSegmentAsync(CancellationToken cancellationToken)
+        {
+            if (!_recording)
+            {
+                return ValueTask.CompletedTask;
+            }
+
+            lock (_stops)
+            {
+                _stops.Add(Stopwatch.GetTimestamp());
+            }
+
+            OnStop?.Invoke();
+            _recording = false;
+            return ValueTask.CompletedTask;
+        }
+
+        public ValueTask DisposeAsync()
+        {
+            _recording = false;
+            return ValueTask.CompletedTask;
+        }
+    }
+}

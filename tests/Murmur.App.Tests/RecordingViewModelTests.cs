@@ -283,6 +283,81 @@ public sealed class RecordingViewModelTests
     }
 
     [Fact]
+    public async Task AFatalScreenFault_TurnsThePillOffAndShowsANotice_WhileTheRecordingGoesOn()
+    {
+        var vm = Create();
+        vm.Screen = true;
+        await vm.StartStopAsync();
+        Assert.True(vm.Screen);
+        Assert.False(vm.HasNotice);
+
+        _recorder.FailScreen();
+
+        Assert.False(vm.Screen);
+        Assert.True(vm.IsRecording);
+        Assert.True(vm.HasNotice);
+        Assert.Equal(Resources.Strings.Recording_ScreenStopped, vm.Notice);
+        Assert.Empty(_recorder.ScreenCalls); // turning the pill off after the fault must not call the recorder
+        Assert.Null(vm.Error);
+
+        // The user can switch the screen on again.
+        vm.Screen = true;
+        await vm.PendingScreenChange;
+        Assert.Equal([true], _recorder.ScreenCalls);
+        Assert.True(_recorder.IsScreenRecording);
+    }
+
+    [Fact]
+    public async Task ThePill_FollowsTheRecorder_WhenTheScreenStopsWithoutAWarning()
+    {
+        var vm = Create();
+        vm.Screen = true;
+        await vm.StartStopAsync();
+
+        _recorder.IsScreenRecording = false;
+        vm.Refresh();
+
+        Assert.False(vm.Screen);
+        Assert.Empty(_recorder.ScreenCalls);
+    }
+
+    [Fact]
+    public async Task ANonFatalWarning_ShowsItsTextOnce_AndKeepsThePill()
+    {
+        const string text = "Запис екрана пропустив кадри: компʼютер не встигав.";
+        var vm = Create();
+        vm.Screen = true;
+        await vm.StartStopAsync();
+
+        _recorder.RaiseWarning(text);
+        _recorder.RaiseWarning(text);
+        _recorder.RaiseWarning("Під час запису екрана були збої.");
+
+        Assert.True(vm.Screen);
+        Assert.Equal(text + "\nПід час запису екрана були збої.", vm.Notice);
+    }
+
+    [Fact]
+    public async Task TheNotice_IsClearedWhenARecordingStartsOrEnds()
+    {
+        var vm = Create();
+        vm.Screen = true;
+        await vm.StartStopAsync();
+        _recorder.RaiseWarning("Під час запису екрана були збої.");
+        Assert.True(vm.HasNotice);
+
+        await vm.StartStopAsync();
+
+        Assert.False(vm.HasNotice);
+        _recorder.RaiseWarning("late"); // the recording is over: not a notice any more
+        Assert.False(vm.HasNotice);
+
+        vm.Screen = true;
+        await vm.StartStopAsync();
+        Assert.False(vm.HasNotice);
+    }
+
+    [Fact]
     public void ScreenUnavailable_DisablesThePill()
     {
         _capture.Screen = false;

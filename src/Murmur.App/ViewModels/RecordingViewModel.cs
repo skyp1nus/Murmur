@@ -30,6 +30,7 @@ public sealed partial class RecordingViewModel : ObservableObject, ILevelSource
     /// <summary>The stop in flight; meaningful only while it has not completed (a completed one is ignored).</summary>
     private Task? _stopTask;
     private bool _suppressScreenChange;
+    private readonly List<string> _notices = [];
 
     /// <param name="post">Marshals a callback to the UI thread; recorder events can arrive on any thread.</param>
     /// <param name="settings">
@@ -52,6 +53,7 @@ public sealed partial class RecordingViewModel : ObservableObject, ILevelSource
         ApplyDefaults();
         ApplyState(recorder.State);
         _recorder.StateChanged += OnRecorderStateChanged;
+        _recorder.Warning += OnRecorderWarning;
     }
 
     [ObservableProperty]
@@ -82,6 +84,13 @@ public sealed partial class RecordingViewModel : ObservableObject, ILevelSource
     /// <summary>Inline error text, or <c>null</c>.</summary>
     [ObservableProperty]
     public partial string? Error { get; set; }
+
+    /// <summary>
+    /// Problems that did not stop the recording (the screen fell behind or stopped; the audio goes on), one per line, shown
+    /// as a small notice under the controls; <c>null</c> when there are none. Cleared when a recording starts or ends.
+    /// </summary>
+    [ObservableProperty]
+    public partial string? Notice { get; set; }
 
     [ObservableProperty]
     public partial RecorderState State { get; set; }
@@ -118,6 +127,8 @@ public sealed partial class RecordingViewModel : ObservableObject, ILevelSource
     public string StartStopLabel => IsRecording ? Strings.Common_Stop : Strings.Recording_Start;
 
     public bool HasError => Error is not null;
+
+    public bool HasNotice => Notice is not null;
 
     /// <summary>Shown under the source pills when nothing can be recorded.</summary>
     public string? SourceHint => State != RecorderState.Idle ? null
@@ -162,6 +173,7 @@ public sealed partial class RecordingViewModel : ObservableObject, ILevelSource
         }
 
         Error = null;
+        ClearNotices();
         TimerText = UiFormat.Duration(TimeSpan.Zero);
         RefreshDevices();
         ApplyDefaults();
@@ -173,6 +185,7 @@ public sealed partial class RecordingViewModel : ObservableObject, ILevelSource
         if (State == RecorderState.Recording)
         {
             TimerText = UiFormat.Duration(_recorder.Elapsed);
+            SyncScreenWithRecorder();
         }
     }
 
@@ -236,6 +249,9 @@ public sealed partial class RecordingViewModel : ObservableObject, ILevelSource
             var session = await _recorder.StopAsync(CancellationToken.None);
             ApplyState(_recorder.State);
             TimerText = UiFormat.Duration(TimeSpan.Zero);
+
+            // The session's own text (Error below) carries every warning of the recording.
+            ClearNotices();
             if (session.Error is { Length: > 0 } sessionError)
             {
                 Error = sessionError;
@@ -278,6 +294,7 @@ public sealed partial class RecordingViewModel : ObservableObject, ILevelSource
         try
         {
             _sessionId = null;
+            ClearNotices();
             var session = await _recorder.StartAsync(options, CancellationToken.None);
             _sessionId = session.Id;
             TimerText = UiFormat.Duration(TimeSpan.Zero);
@@ -409,6 +426,63 @@ public sealed partial class RecordingViewModel : ObservableObject, ILevelSource
 
     private void OnRecorderStateChanged(RecorderState state) => _post(() => ApplyState(_recorder.State));
 
+    private void OnRecorderWarning(RecorderWarning warning) => _post(() => ApplyWarning(warning));
+
+    private void ApplyWarning(RecorderWarning warning)
+    {
+        // A warning that arrives after the recording has ended belongs to the session text, not to a notice.
+        if (_recorder.State is not (RecorderState.Starting or RecorderState.Recording))
+        {
+            return;
+        }
+
+        // The Core text is Ukrainian; the one that changes what the user sees is shown in the UI language.
+        AddNotice(warning.ScreenStopped ? Strings.Recording_ScreenStopped : warning.Message);
+        if (warning.ScreenStopped)
+        {
+            SyncScreenWithRecorder();
+        }
+    }
+
+    private void AddNotice(string text)
+    {
+        if (_notices.Contains(text))
+        {
+            return;
+        }
+
+        _notices.Add(text);
+        Notice = string.Join('\n', _notices);
+    }
+
+    private void ClearNotices()
+    {
+        _notices.Clear();
+        Notice = null;
+    }
+
+    /// <summary>
+    /// The screen pill shows what the recorder really does: a fatal screen fault ends the segment by itself, so the pill
+    /// turns off. Not while a toggle the user made is still being applied (the recorder has not caught up yet).
+    /// </summary>
+    private void SyncScreenWithRecorder()
+    {
+        if (State != RecorderState.Recording || !Screen || _recorder.IsScreenRecording || !PendingScreenChange.IsCompleted)
+        {
+            return;
+        }
+
+        _suppressScreenChange = true;
+        try
+        {
+            Screen = false;
+        }
+        finally
+        {
+            _suppressScreenChange = false;
+        }
+    }
+
     private void ApplyState(RecorderState state)
     {
         var wasActive = State is RecorderState.Recording or RecorderState.Stopping;
@@ -461,6 +535,8 @@ public sealed partial class RecordingViewModel : ObservableObject, ILevelSource
     partial void OnSystemDevicesChanged(IReadOnlyList<AudioDevice> value) => OnPropertyChanged(nameof(SystemAudioAvailable));
 
     partial void OnErrorChanged(string? value) => OnPropertyChanged(nameof(HasError));
+
+    partial void OnNoticeChanged(string? value) => OnPropertyChanged(nameof(HasNotice));
 
     partial void OnScreenChanged(bool value)
     {

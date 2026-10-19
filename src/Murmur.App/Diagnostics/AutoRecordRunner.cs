@@ -79,6 +79,19 @@ public sealed class AutoRecordRunner
         SessionRecord? stopped = null;
         void OnStopped(SessionRecord session) => stopped = session;
 
+        // Screen problems that did not stop the recording, in the order they were raised (any thread).
+        var faultWarnings = new List<string>();
+        void OnWarning(RecorderWarning warning)
+        {
+            lock (faultWarnings)
+            {
+                if (!faultWarnings.Contains(warning.Message))
+                {
+                    faultWarnings.Add(warning.Message);
+                }
+            }
+        }
+
         using var sampler = new ProcessSampler();
         var report = new PerfReport();
         _recording.Stopped += OnStopped;
@@ -93,6 +106,7 @@ public sealed class AutoRecordRunner
                 report = report with { IdleCpuPct = sampler.Sample().CpuMachinePct };
             }
 
+            _recorder.Warning += OnWarning;
             var started = await StartRecordingAsync();
             if (started.Error is not null)
             {
@@ -170,7 +184,13 @@ public sealed class AutoRecordRunner
             var session = stopped ?? throw new InvalidOperationException("The recording did not stop cleanly.");
             if (session.State != SessionState.Failed)
             {
-                AddWarning(warnings, session.Error);
+                AddSessionWarning(warnings, session.Error, faultWarnings);
+            }
+
+            // The screen problems follow the start-up warnings, in the order they were raised.
+            lock (faultWarnings)
+            {
+                warnings.AddRange(faultWarnings);
             }
 
             report = report with
@@ -192,6 +212,7 @@ public sealed class AutoRecordRunner
                 SamplerAllocatedMb = Round(samplerAllocated / BytesPerMb),
                 Memory = memory,
                 RecorderStats = ToReport(_recorder.Stats),
+                ScreenFaults = _recorder.Stats.ScreenFaults,
                 Session = DescribeSession(session),
                 Warnings = warnings.Count == 0 ? null : warnings,
             };
@@ -203,6 +224,7 @@ public sealed class AutoRecordRunner
         finally
         {
             _recording.Stopped -= OnStopped;
+            _recorder.Warning -= OnWarning;
             if (_recorder.State == RecorderState.Recording)
             {
                 await StopRecordingAsync();
@@ -299,6 +321,28 @@ public sealed class AutoRecordRunner
 
         warnings.RemoveAll(existing => warning.Contains(existing, StringComparison.Ordinal));
         warnings.Add(warning);
+    }
+
+    /// <summary>
+    /// Adds the session's warning text like <see cref="AddWarning"/>, but without the screen problems it contains: they
+    /// are reported on their own, in the order they were raised.
+    /// </summary>
+    private static void AddSessionWarning(List<string> warnings, string? text, List<string> screenProblems)
+    {
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            return;
+        }
+
+        lock (screenProblems)
+        {
+            foreach (var problem in screenProblems)
+            {
+                text = text.Replace(problem, " ", StringComparison.Ordinal);
+            }
+        }
+
+        AddWarning(warnings, string.Join(' ', text.Split(' ', StringSplitOptions.RemoveEmptyEntries)));
     }
 
     private PerfSession DescribeSession(SessionRecord session)

@@ -215,6 +215,51 @@ public sealed class CheckRecordingScriptTests : IDisposable
         Assert.Contains("| 452 |", run.Output);
     }
 
+    [Fact]
+    public void Screen_faults_and_warnings_are_reported_without_failing()
+    {
+        var run = Run(["screen-000.mp4"], [Video(10, 30)], [], expectScreen: true, memory: null, Segments((0, 0.0, 10.0)), extra: "\"screenFaults\": 2, \"warnings\": [\"Запис екрана пропустив кадри.\", \"Другий | збій.\"]");
+
+        Assert.Equal(0, run.ExitCode);
+        Assert.Equal("INFO", Status(run, "screenFaults"));
+        Assert.Contains("| screenFaults | 2 |", run.Output);
+        Assert.Contains("| warning | Запис екрана пропустив кадри. |", run.Output);
+        Assert.Contains("| warning | Другий / збій. |", run.Output);
+    }
+
+    [Fact]
+    public void A_single_warning_is_still_a_list()
+    {
+        var run = Run(["screen-000.mp4"], [Video(10, 30)], [], expectScreen: true, memory: null, Segments((0, 0.0, 10.0)), extra: "\"screenFaults\": 0, \"warnings\": [\"Один.\"]");
+
+        Assert.Equal(0, run.ExitCode);
+        Assert.Contains("| warning | Один. |", run.Output);
+    }
+
+    [Fact]
+    public void Screen_faults_fail_only_with_FailOnScreenFaults()
+    {
+        const string extra = "\"screenFaults\": 1, \"warnings\": [\"Під час запису екрана були збої.\"]";
+        var lenient = Run(["screen-000.mp4"], [Video(10, 30)], [], expectScreen: true, memory: null, Segments((0, 0.0, 10.0)), extra: extra);
+        var strict = Run(["screen-000.mp4"], [Video(10, 30)], ["-FailOnScreenFaults"], expectScreen: true, memory: null, Segments((0, 0.0, 10.0)), extra: extra);
+        var clean = Run(["screen-000.mp4"], [Video(10, 30)], ["-FailOnScreenFaults"], expectScreen: true, memory: null, Segments((0, 0.0, 10.0)), extra: "\"screenFaults\": 0");
+
+        Assert.Equal(0, lenient.ExitCode);
+        Assert.Equal(1, strict.ExitCode);
+        Assert.Equal("FAIL", Status(strict, "screenFaults"));
+        Assert.Equal(0, clean.ExitCode);
+        Assert.Equal("PASS", Status(clean, "screenFaults"));
+    }
+
+    [Fact]
+    public void An_older_perf_json_without_screen_faults_still_passes()
+    {
+        var run = Run(["screen-000.mp4"], [Video(10, 30)], ["-FailOnScreenFaults"], expectScreen: true, memory: null, Segments((0, 0.0, 10.0)));
+
+        Assert.Equal(0, run.ExitCode);
+        Assert.Equal("PASS", Status(run, "screenFaults"));
+    }
+
     private const string SlopeRow = "working-set slope after 60 s";
 
     [Fact]
@@ -316,7 +361,7 @@ public sealed class CheckRecordingScriptTests : IDisposable
     private ScriptRun RunWithSegments(string[] names, byte[][] files, string segments, string? option = null, string? value = null, double? screenStartMs = null) =>
         Run(names, files, option is null ? [] : [option, value!], expectScreen: true, memory: null, segments, screenStartMs);
 
-    private ScriptRun Run(string[] names, byte[][] files, string[] options, bool expectScreen, string? memory, string? segments = null, double? screenStartMs = null)
+    private ScriptRun Run(string[] names, byte[][] files, string[] options, bool expectScreen, string? memory, string? segments = null, double? screenStartMs = null, string? extra = null)
     {
         var pwsh = FindPwsh();
         Assert.SkipUnless(pwsh is not null, "pwsh (PowerShell 7) is not available; set MURMUR_PWSH to run the script tests.");
@@ -334,7 +379,7 @@ public sealed class CheckRecordingScriptTests : IDisposable
             json,
             $$"""
             { "durationS": {{DurationS}}, "idleCpuPct": 0.0, "cpuAvgPct": 0.0, "cpuP95Pct": 0.0, "cpuAvgPctOneCore": 0.0,
-              "wsAvgMb": 0.0, "wsMaxMb": 0.0, "privateMaxMb": 0.0, "wsSlopeMbPerMin": 0.0,{{(memory is null ? string.Empty : " \"memory\": " + memory + ",")}}{{(screenStartMs is null ? string.Empty : string.Create(System.Globalization.CultureInfo.InvariantCulture, $" \"screenStartMs\": {screenStartMs},"))}}
+              "wsAvgMb": 0.0, "wsMaxMb": 0.0, "privateMaxMb": 0.0, "wsSlopeMbPerMin": 0.0,{{(memory is null ? string.Empty : " \"memory\": " + memory + ",")}}{{(screenStartMs is null ? string.Empty : string.Create(System.Globalization.CultureInfo.InvariantCulture, $" \"screenStartMs\": {screenStartMs},"))}}{{(extra is null ? string.Empty : " " + extra + ",")}}
               "recorderStats": { "microphoneFrames": 0, "systemFrames": 160000, "droppedFrames": 0, "screenFramesDropped": 0 },
               "session": { "id": "test", "folder": "{{folder}}", "micSeconds": 0.0, "systemSeconds": {{DurationS}}, "screenSegments": {{names.Length}}{{(segments is null ? string.Empty : ", \"screenSegmentTimes\": " + segments)}} } }
             """);
