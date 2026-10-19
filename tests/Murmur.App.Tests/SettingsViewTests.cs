@@ -359,6 +359,8 @@ public sealed partial class SettingsViewTests
     [Fact]
     public async Task Storage_ChangeUsesTheFolderPickerOfTheView_AndOpenCallsTheLauncher()
     {
+        // Open creates the folder before launching it, so it must be one the test may create (CI runners cannot write /mnt).
+        var picked = Path.Combine(Path.GetTempPath(), "murmur-settings-" + Guid.NewGuid().ToString("N"), "meetings");
         var (pickerWired, opened, shownPath) = await Session.Dispatch(
             () =>
             {
@@ -366,7 +368,7 @@ public sealed partial class SettingsViewTests
                 var rig = new Rig();
                 var window = rig.Show();
                 var wired = rig.Settings.Storage.FolderPicker is TopLevelFolderPicker;
-                rig.Settings.Storage.FolderPicker = new FakeFolderPicker { Result = "/mnt/meetings" };
+                rig.Settings.Storage.FolderPicker = new FakeFolderPicker { Result = picked };
                 Named<Button>(window, "ChangeFolderButton").Command!.Execute(null);
                 UiHarness.Pump(4);
                 Named<Button>(window, "OpenFolderButton").Command!.Execute(null);
@@ -376,9 +378,16 @@ public sealed partial class SettingsViewTests
             },
             TestContext.Current.CancellationToken);
 
-        Assert.True(pickerWired);
-        Assert.Equal(["/mnt/meetings"], opened);
-        Assert.Equal("/mnt/meetings", shownPath);
+        try
+        {
+            Assert.True(pickerWired);
+            Assert.Equal([picked], opened);
+            Assert.Equal(picked, shownPath);
+        }
+        finally
+        {
+            Directory.Delete(Path.GetDirectoryName(picked)!, recursive: true);
+        }
     }
 
     [Fact]
