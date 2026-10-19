@@ -121,7 +121,9 @@ internal sealed class CompositionRoot : IDisposable
             settings,
             modelManager,
             modelManager.ActiveModelId,
-            storage.Paths.RecordingsDirectory);
+            storage.Paths.RecordingsDirectory,
+            // WindowsCapture also plays the screen recordings (Media Engine); the synthetic capture does not.
+            capture as IVideoPlayback);
     }
 
     public void Dispose()

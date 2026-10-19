@@ -4,6 +4,8 @@
   <PropertyGroup>
     <OutputType>Library</OutputType>
     <RootNamespace>Murmur.App</RootNamespace>
+    <!-- VideoSurface wraps the locked framebuffer of its bitmap in a Span (ILockedFramebuffer.Address). -->
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
     <!-- Resources/Strings.resx is Ukrainian, the neutral language of the resources (see the EmbeddedResource items below). -->
     <NeutralLanguage>uk</NeutralLanguage>

@@ -133,6 +133,7 @@
       <x:Double x:Key="Size.NavSubItem">36</x:Double>
       <x:Double x:Key="Size.NavIcon">18</x:Double>
       <x:Double x:Key="Size.SmallIcon">14</x:Double>
+      <x:Double x:Key="Size.VideoIcon">28</x:Double>
       <x:Double x:Key="Size.Field">40</x:Double>
       <x:Double x:Key="Size.Compact">36</x:Double>
       <x:Double x:Key="Size.Progress">4</x:Double>
@@ -619,6 +620,21 @@
     <Setter Property="FontSize" Value="{StaticResource FontSize.BodySm}" />
     <Setter Property="LineHeight" Value="{StaticResource LineHeight.BodySm}" />
     <Setter Property="LetterSpacing" Value="{StaticResource LetterSpacing.BodySm}" />
+  </Style>
+  <!-- Screen recording of the session view: a rounded panel on Surface, the picture inside, the size chip over it. -->
+  <Style Selector="Border.videoPanel">
+    <Setter Property="Background" Value="{DynamicResource Brush.Surface}" />
+    <Setter Property="CornerRadius" Value="{StaticResource Radius.Card}" />
+    <Setter Property="ClipToBounds" Value="True" />
+  </Style>
+  <Style Selector="Border.videoChip">
+    <Setter Property="Background" Value="{DynamicResource Brush.Canvas}" />
+    <Setter Property="Opacity" Value="0.9" />
+    <Setter Property="CornerRadius" Value="{StaticResource Radius.Pill}" />
+    <Setter Property="Padding" Value="{StaticResource Inset.Badge}" />
+    <Setter Property="Margin" Value="{StaticResource Inset.16}" />
+    <Setter Property="HorizontalAlignment" Value="Left" />
+    <Setter Property="VerticalAlignment" Value="Bottom" />
   </Style>
   <Style Selector="controls|IconControl">
     <Setter Property="VerticalAlignment" Value="Center" />

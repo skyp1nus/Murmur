@@ -88,7 +88,8 @@ public sealed partial class SessionViewModel : ObservableObject, IDisposable
         ISessionProcessing processing,
         TimeProvider time,
         Action<Action>? post = null,
-        ChatViewModel? chat = null)
+        ChatViewModel? chat = null,
+        IVideoPlayback? videoPlayback = null)
     {
         ArgumentNullException.ThrowIfNull(record);
         ArgumentNullException.ThrowIfNull(files);
@@ -102,6 +103,7 @@ public sealed partial class SessionViewModel : ObservableObject, IDisposable
         _player = player;
         _processing = processing;
         _time = time;
+        _videoPlayback = videoPlayback;
         _post = post ?? (action => Avalonia.Threading.Dispatcher.UIThread.Post(action));
 
         Title = string.IsNullOrWhiteSpace(record.Title) ? Strings.Common_UntitledRecording : record.Title;
@@ -249,6 +251,7 @@ public sealed partial class SessionViewModel : ObservableObject, IDisposable
     public async Task LoadAsync()
     {
         await OpenPlayerAsync().ConfigureAwait(true);
+        StartVideo();
         await LoadPeaksAsync().ConfigureAwait(true);
         await LoadTranscriptAsync().ConfigureAwait(true);
     }
@@ -266,6 +269,7 @@ public sealed partial class SessionViewModel : ObservableObject, IDisposable
         _processing.ProgressChanged -= OnProcessingChanged;
         Chat.CitationActivated -= OnCitationActivated;
         Chat.Dispose();
+        DisposeVideo();
         _player.Dispose();
     }
 
@@ -308,6 +312,8 @@ public sealed partial class SessionViewModel : ObservableObject, IDisposable
         {
             SyncPlayerState();
         }
+
+        SyncVideo();
     }
 
     /// <summary>Moves the playhead (clamped to the session) and keeps playing or paused.</summary>
@@ -334,6 +340,7 @@ public sealed partial class SessionViewModel : ObservableObject, IDisposable
         Position = position;
         UpdateCurrent(forceScroll: true);
         SyncPlayerState();
+        SyncVideo();
     }
 
     /// <summary>Seeks by a fraction of the duration (click on the waveform).</summary>
@@ -636,11 +643,17 @@ public sealed partial class SessionViewModel : ObservableObject, IDisposable
         }
 
         var state = _player.State;
+        var wasPlaying = IsPlaying;
         IsPlaying = state == PlaybackState.Playing;
         if (state == PlaybackState.Ended && !_scrubbing)
         {
             Position = Duration;
             UpdateCurrent(forceScroll: false);
+        }
+
+        if (wasPlaying != IsPlaying || state == PlaybackState.Ended)
+        {
+            SyncVideo();
         }
     }
 

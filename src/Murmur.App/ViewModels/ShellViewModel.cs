@@ -101,7 +101,8 @@ public sealed partial class ShellViewModel : ObservableObject
                 playback.CreatePlayer(),
                 processing ?? NullSessionProcessing.Instance,
                 services.Time,
-                chat: CreateChat(record.Id));
+                chat: CreateChat(record.Id),
+                videoPlayback: services.VideoPlayback);
         }
 
         // Without a store from the composition root (designer, tests) the settings live in memory for the run.

@@ -9,7 +9,9 @@
 
   <UserControl.Resources>
     <!-- Width of the player column and height of the waveform (layout sizes of this screen, not design tokens). -->
-    <GridLength x:Key="Session.PlayerWidth">340</GridLength>
+    <x:Double x:Key="Session.PlayerWidth">340</x:Double>
+    <!-- With the screen recording the player column is as wide as the mockup's player section (flex-basis 480). -->
+    <x:Double x:Key="Session.PlayerWidthVideo">480</x:Double>
     <x:Double x:Key="Session.WaveformHeight">96</x:Double>
     <x:Double x:Key="Session.StatusWidth">480</x:Double>
   </UserControl.Resources>
@@ -40,41 +42,88 @@
     <Grid Grid.Row="1"
           ColumnSpacing="{StaticResource Space.24}">
       <Grid.ColumnDefinitions>
-        <ColumnDefinition Width="{StaticResource Session.PlayerWidth}" />
+        <ColumnDefinition Width="Auto" />
         <ColumnDefinition Width="*" />
       </Grid.ColumnDefinitions>
 
-      <!-- Player (left) -->
-      <Border Grid.Column="0"
-              Classes="card"
-              VerticalAlignment="Top"
-              Padding="{StaticResource Inset.24}">
-        <StackPanel Spacing="{StaticResource Space.16}">
-          <controls:WaveformControl x:Name="Waveform"
-                                    Height="{StaticResource Session.WaveformHeight}"
-                                    Peaks="{Binding Peaks}"
-                                    Fraction="{Binding PositionFraction}" />
-          <Grid ColumnDefinitions="*,Auto">
-            <TextBlock Grid.Column="0"
-                       Classes="mono"
-                       Text="{Binding PositionText}" />
-            <TextBlock Grid.Column="1"
-                       Classes="mono"
+      <!-- Player (left): the screen recording above the waveform card -->
+      <StackPanel Grid.Column="0"
+                  Classes="player"
+                  Classes.video="{Binding HasVideo}"
+                  VerticalAlignment="Top"
+                  Spacing="{StaticResource Space.16}">
+        <StackPanel.Styles>
+          <Style Selector="StackPanel.player">
+            <Setter Property="Width" Value="{StaticResource Session.PlayerWidth}" />
+          </Style>
+          <Style Selector="StackPanel.player.video">
+            <Setter Property="Width" Value="{StaticResource Session.PlayerWidthVideo}" />
+          </Style>
+        </StackPanel.Styles>
+
+        <Border x:Name="VideoPanel"
+                Classes="videoPanel"
+                IsVisible="{Binding HasVideo}">
+          <Panel>
+            <controls:VideoSurface x:Name="Video"
+                                   Player="{Binding VideoPlayer}"
+                                   Active="{Binding IsVideoOpen}"
+                                   Revision="{Binding VideoRevision}" />
+            <StackPanel x:Name="VideoPlaceholder"
+                        HorizontalAlignment="Center"
+                        VerticalAlignment="Center"
+                        Spacing="{StaticResource Space.8}"
+                        IsVisible="{Binding ShowVideoPlaceholder}">
+              <controls:IconControl Width="{StaticResource Size.VideoIcon}"
+                                    Height="{StaticResource Size.VideoIcon}"
+                                    HorizontalAlignment="Center"
+                                    TextElement.Foreground="{DynamicResource Brush.Smoke}"
+                                    Data="{StaticResource Icon.Screen}" />
+              <TextBlock Classes="bodySm"
+                         HorizontalAlignment="Center"
+                         TextAlignment="Center"
+                         TextWrapping="Wrap"
+                         Foreground="{DynamicResource Brush.Smoke}"
+                         Text="{Binding VideoPlaceholderText}" />
+            </StackPanel>
+            <Border x:Name="VideoChip"
+                    Classes="videoChip"
+                    IsVisible="{Binding IsVideoOpen}">
+              <TextBlock Classes="mono"
+                         Text="{Binding VideoInfoText}" />
+            </Border>
+          </Panel>
+        </Border>
+
+        <Border Classes="card"
+                Padding="{StaticResource Inset.24}">
+          <StackPanel Spacing="{StaticResource Space.16}">
+            <controls:WaveformControl x:Name="Waveform"
+                                      Height="{StaticResource Session.WaveformHeight}"
+                                      Peaks="{Binding Peaks}"
+                                      Fraction="{Binding PositionFraction}" />
+            <Grid ColumnDefinitions="*,Auto">
+              <TextBlock Grid.Column="0"
+                         Classes="mono"
+                         Text="{Binding PositionText}" />
+              <TextBlock Grid.Column="1"
+                         Classes="mono"
+                         Foreground="{DynamicResource Brush.Smoke}"
+                         Text="{Binding DurationText}" />
+            </Grid>
+            <Button Classes="primary"
+                    HorizontalAlignment="Center"
+                    Content="{Binding PlayPauseLabel}"
+                    IsEnabled="{Binding CanPlay}"
+                    Command="{Binding PlayPauseCommand}" />
+            <TextBlock Classes="bodySm"
+                       TextWrapping="Wrap"
                        Foreground="{DynamicResource Brush.Smoke}"
-                       Text="{Binding DurationText}" />
-          </Grid>
-          <Button Classes="primary"
-                  HorizontalAlignment="Center"
-                  Content="{Binding PlayPauseLabel}"
-                  IsEnabled="{Binding CanPlay}"
-                  Command="{Binding PlayPauseCommand}" />
-          <TextBlock Classes="bodySm"
-                     TextWrapping="Wrap"
-                     Foreground="{DynamicResource Brush.Smoke}"
-                     IsVisible="{Binding HasPlayerError}"
-                     Text="{Binding PlayerError}" />
-        </StackPanel>
-      </Border>
+                       IsVisible="{Binding HasPlayerError}"
+                       Text="{Binding PlayerError}" />
+          </StackPanel>
+        </Border>
+      </StackPanel>
 
       <!-- Tabs and content (right) -->
       <Grid Grid.Column="1"
