@@ -265,9 +265,10 @@ jobs:
       # installer/Murmur.iss needs Inno Setup 6.3 (x64compatible): an older image copy is upgraded.
       - name: Inno Setup
         run: |
+          # The install folders first: PATH can hold a Chocolatey shim whose file version is 0.0.0.0.
           $known = @("${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe", "$env:ProgramFiles\Inno Setup 6\ISCC.exe")
-          $iscc = (Get-Command ISCC.exe -ErrorAction SilentlyContinue).Source
-          if (-not $iscc) { $iscc = $known | Where-Object { Test-Path $_ } | Select-Object -First 1 }
+          $iscc = $known | Where-Object { Test-Path $_ } | Select-Object -First 1
+          if (-not $iscc) { $iscc = (Get-Command ISCC.exe -ErrorAction SilentlyContinue).Source }
           if (-not $iscc) {
             choco install innosetup -y --no-progress
             if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }

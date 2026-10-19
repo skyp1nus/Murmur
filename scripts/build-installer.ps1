@@ -173,13 +173,15 @@ if ($DryRun) {
 
 # --- ISCC --------------------------------------------------------------------------------------------------------------
 function Find-Iscc {
-    $onPath = Get-Command 'ISCC.exe', 'ISCC' -ErrorAction SilentlyContinue | Select-Object -First 1
-    if ($onPath) { return $onPath.Source }
+    # The install folders first: PATH may hold a Chocolatey shim (C:\ProgramData\chocolatey\bin\ISCC.exe) whose file
+    # version is 0.0.0.0, not the Inno Setup version.
     $roots = @(${env:ProgramFiles(x86)}, $env:ProgramFiles, $(if ($env:LOCALAPPDATA) { Join-Path $env:LOCALAPPDATA 'Programs' })) | Where-Object { $_ }
     foreach ($root in $roots) {
         $candidate = Join-Path $root 'Inno Setup 6/ISCC.exe'
         if (Test-Path -LiteralPath $candidate) { return $candidate }
     }
+    $onPath = Get-Command 'ISCC.exe', 'ISCC' -ErrorAction SilentlyContinue | Select-Object -First 1
+    if ($onPath) { return $onPath.Source }
     return $null
 }
 
@@ -193,7 +195,8 @@ if (-not $iscc) {
 # ArchitecturesAllowed=x64compatible needs Inno Setup 6.3. ISCC.exe carries the Inno Setup version as its file version.
 $isccVersion = (Get-Item -LiteralPath $iscc).VersionInfo.FileVersionRaw
 Write-Host "ISCC: $iscc ($isccVersion)"
-if ($isccVersion -and $isccVersion -lt [version]'6.3') {
+# A shim or a build without version info reads 0.0.0.0: unknown, so ISCC's own #error check in Murmur.iss decides.
+if ($isccVersion -and $isccVersion -gt [version]'0.0.0.0' -and $isccVersion -lt [version]'6.3') {
     Write-Host "Inno Setup $isccVersion is too old: installer/Murmur.iss needs 6.3 or newer. Upgrade it with:" -ForegroundColor Red
     Write-Host '    winget upgrade JRSoftware.InnoSetup   (or: choco upgrade innosetup -y)' -ForegroundColor Red
     exit 1
