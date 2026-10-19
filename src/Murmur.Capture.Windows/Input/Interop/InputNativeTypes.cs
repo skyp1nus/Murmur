@@ -3,7 +3,7 @@ using System.Runtime.InteropServices;
 namespace Murmur.Capture.Windows.Input.Interop;
 
 // Blittable mirrors of the Win32 structs used by the global-hotkey window (Windows SDK 10.0.26100 winuser.h); sizes and
-// offsets are asserted by HotkeyInteropLayoutTests.
+// offsets are asserted by HotkeyMappingTests.NativeStructs_MatchWinuserLayout.
 
 /// <summary>winuser.h <c>WNDCLASSEXW</c> (80 bytes on x64). Pointers are <c>nint</c>.</summary>
 [StructLayout(LayoutKind.Sequential)]

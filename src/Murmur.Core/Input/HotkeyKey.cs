@@ -1,7 +1,7 @@
 namespace Murmur.Core.Input;
 
 /// <summary>
-/// The keys a global hotkey may use (always together with at least one of Ctrl/Alt/Meta, see
+/// The keys a global hotkey may use (together with at least one of Ctrl/Alt/Meta, except F13..F24, see
 /// <see cref="HotkeyGesture"/>). Platform-neutral: each <c>Murmur.Capture.*</c> implementation maps them to its own key
 /// codes. The text of a key in a gesture is the member name, except for the two punctuation keys that Avalonia prints by
 /// their OEM number (<see cref="OemTilde"/> = <c>Oem3</c>, <see cref="OemOpenBrackets"/> = <c>Oem4</c>).

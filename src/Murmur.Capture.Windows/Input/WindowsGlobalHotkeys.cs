@@ -10,7 +10,7 @@ namespace Murmur.Capture.Windows.Input;
 /// <list type="bullet">
 /// <item>One background thread (<c>Murmur.GlobalHotkeys</c>) owns a message-only window and runs the message loop;
 /// <c>RegisterHotKey</c> / <c>UnregisterHotKey</c> bind to that thread, so <see cref="Register"/> hands its request to
-/// the thread (a private window message + a completion event) and returns the result synchronously. The thread starts
+/// the thread (a private window message + a completion monitor) and returns the result synchronously. The thread starts
 /// on the first Register that has something to register; constructing the object touches nothing native.</item>
 /// <item>One id per action; <c>MOD_NOREPEAT</c> is always set, so holding the keys raises <see cref="Pressed"/> once.
 /// Windows does not refuse one combination under two ids, so the same gesture for two actions is refused here:
@@ -18,12 +18,16 @@ namespace Murmur.Capture.Windows.Input;
 /// <item>A failed Register leaves the action without a hotkey (the previous one is released first). Any
 /// <c>RegisterHotKey</c> failure is <see cref="HotkeyRegistration.Taken"/> (reserved by the shell or held by another
 /// program); the Win32 error stays in <see cref="LastError"/> and <see cref="LastFault"/>. If the window cannot be
-/// created the result is <see cref="HotkeyRegistration.Unsupported"/>.</item>
+/// created the result is <see cref="HotkeyRegistration.Unsupported"/>. If the hotkey thread does not answer within 5 s
+/// (a blocked <see cref="Pressed"/> handler) the result is <see cref="HotkeyRegistration.Taken"/> with
+/// <see cref="LastError"/> 1460 (<c>ERROR_TIMEOUT</c>); the request is then abandoned, but one that the thread had
+/// already started may still have changed the registration, so the old gesture may still be registered.</item>
 /// <item><see cref="Pressed"/> is raised on the hotkey thread; a handler exception is swallowed (reported through
 /// <see cref="Faulted"/>) and cannot stop the loop. A handler may call Register or Dispose: both detect that they run on
 /// the hotkey thread and act inline. A handler that blocks delays every other hotkey and Register call.</item>
 /// <item>Dispose unregisters everything, destroys the window, ends the loop and joins the thread (5 s timeout);
-/// idempotent. Register after Dispose throws <see cref="ObjectDisposedException"/>.</item>
+/// idempotent; every external Dispose call waits for the thread, also when a Pressed handler already disposed inline.
+/// Register after Dispose throws <see cref="ObjectDisposedException"/>.</item>
 /// </list>
 /// UNVERIFIED-ON-WINDOWS until the Windows-trait tests run in CI.
 /// </summary>
@@ -50,11 +54,11 @@ public sealed unsafe class WindowsGlobalHotkeys : IGlobalHotkeys
 
     // Hotkey-thread state: touched only by the hotkey thread (WndProc, or inline calls made from a Pressed handler).
     private readonly HotkeyBook _book = new();
-    private bool _windowDestroyed;
+    private CaptureFault? _deferredFault;
 
     // Shared state.
     private Thread? _thread;
-    private volatile int _threadId;
+    private int _threadId;
     private nint _window;
     private int _disposed;
     private Request? _request;
@@ -80,7 +84,6 @@ public sealed unsafe class WindowsGlobalHotkeys : IGlobalHotkeys
 
     /// <inheritdoc />
     /// <exception cref="ObjectDisposedException">The object was disposed.</exception>
-    /// <exception cref="TimeoutException">The hotkey thread did not answer within 5 s (a blocked Pressed handler).</exception>
     public HotkeyRegistration Register(HotkeyAction action, string? gesture)
     {
         if (!Enum.IsDefined(action))
@@ -105,7 +108,14 @@ public sealed unsafe class WindowsGlobalHotkeys : IGlobalHotkeys
         if (OnHotkeyThread)
         {
             ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposed) != 0, this);
-            return Apply(action, parsed, invalid);
+            try
+            {
+                return Apply(action, parsed, invalid);
+            }
+            finally
+            {
+                FlushDeferredFault();
+            }
         }
 
         lock (_gate)
@@ -134,37 +144,36 @@ public sealed unsafe class WindowsGlobalHotkeys : IGlobalHotkeys
         if (OnHotkeyThread)
         {
             // Disposed from a Pressed handler: do not take the gate (a Register from another thread may hold it while it
-            // waits for this very thread) and do not join (a thread cannot join itself); the loop ends when the handler returns.
+            // waits for this very thread) and do not join (a thread cannot join itself); the loop ends when the handler
+            // returns, and a later external Dispose joins it.
             if (Interlocked.Exchange(ref _disposed, 1) == 0)
             {
-                InputNativeMethods.PostMessageW(_window, InputConstants.WmShutdown, 0, 0);
+                InputNativeMethods.PostMessageW(Volatile.Read(ref _window), InputConstants.WmShutdown, 0, 0);
             }
 
             return;
         }
 
         Thread? thread;
-        nint window;
+        bool first;
         lock (_gate)
         {
-            if (Interlocked.Exchange(ref _disposed, 1) != 0)
-            {
-                return;
-            }
-
+            first = Interlocked.Exchange(ref _disposed, 1) == 0;
             thread = _thread;
-            window = _window;
+            if (first && thread is not null)
+            {
+                var window = Volatile.Read(ref _window);
+                if (window != 0)
+                {
+                    InputNativeMethods.PostMessageW(window, InputConstants.WmShutdown, 0, 0);
+                }
+            }
         }
 
-        if (thread is null)
+        // Every external call joins, also when an earlier inline Dispose (or an earlier call) already posted the shutdown.
+        if (thread is { IsAlive: true } && thread != Thread.CurrentThread && !thread.Join(JoinTimeout))
         {
-            return;
-        }
-
-        var posted = window != 0 && InputNativeMethods.PostMessageW(window, InputConstants.WmShutdown, 0, 0) != 0;
-        if (!thread.Join(JoinTimeout))
-        {
-            Report($"The hotkey thread did not stop within {JoinTimeout.TotalSeconds:0} s (shutdown posted: {posted}).");
+            Report($"The hotkey thread did not stop within {JoinTimeout.TotalSeconds:0} s.");
         }
     }
 
@@ -184,7 +193,7 @@ public sealed unsafe class WindowsGlobalHotkeys : IGlobalHotkeys
     {
         get
         {
-            var id = _threadId;
+            var id = Volatile.Read(ref _threadId);
             return id != 0 && id == Environment.CurrentManagedThreadId;
         }
     }
@@ -212,19 +221,17 @@ public sealed unsafe class WindowsGlobalHotkeys : IGlobalHotkeys
         if (startup.Window == 0)
         {
             thread.Join(JoinTimeout);
-            startup.Ready.Dispose();
             RecordError(startup.Error, "The hotkey message window could not be created");
             return false;
         }
 
-        startup.Ready.Dispose();
         _thread = thread;
         return true;
     }
 
     private HotkeyRegistration Dispatch(HotkeyAction action, HotkeyGesture? gesture, bool invalid)
     {
-        var window = _window;
+        var window = Volatile.Read(ref _window);
         if (window == 0)
         {
             RecordError(0, "The hotkey thread has stopped");
@@ -246,16 +253,19 @@ public sealed unsafe class WindowsGlobalHotkeys : IGlobalHotkeys
             if (Interlocked.CompareExchange(ref request.State, Abandoned, Pending) == Pending)
             {
                 Interlocked.CompareExchange(ref _request, null, request);
-                Report("The hotkey thread did not answer a Register call (is a Pressed handler blocking it?).");
-                throw new TimeoutException("The global hotkey thread did not answer within 5 s.");
+                RecordError(ErrorTimeout, "The hotkey thread did not answer a Register call (is a Pressed handler blocking it?)");
+                return HotkeyRegistration.Taken;
             }
 
-            request.Done.Wait(); // The thread already took it: it finishes in microseconds.
+            // The thread already took it; it only has to finish the one call.
+            if (!request.Done.Wait(RequestTimeout))
+            {
+                RecordError(ErrorTimeout, "The hotkey thread did not finish a Register call");
+                return HotkeyRegistration.Taken;
+            }
         }
 
-        var result = request.Result;
-        request.Done.Dispose();
-        return result;
+        return request.Result;
     }
 
     // ---- hotkey thread -----------------------------------------------------------------------------------------------
@@ -263,8 +273,8 @@ public sealed unsafe class WindowsGlobalHotkeys : IGlobalHotkeys
     private void ThreadMain(Startup startup)
     {
         nint window = 0;
+        var published = false;
         var self = default(GCHandle);
-        _windowDestroyed = false;
         try
         {
             window = CreateWindow(out var error);
@@ -276,14 +286,16 @@ public sealed unsafe class WindowsGlobalHotkeys : IGlobalHotkeys
 
             self = GCHandle.Alloc(this);
             InputNativeMethods.SetWindowLongPtrW(window, InputConstants.GwlpUserData, GCHandle.ToIntPtr(self));
-            _window = window;
-            _threadId = Environment.CurrentManagedThreadId;
             startup.Window = window;
             if (Interlocked.CompareExchange(ref startup.State, Claimed, Pending) != Pending)
             {
-                return; // The caller gave up waiting: tear down.
+                return; // The caller gave up waiting: tear down without touching the shared state.
             }
 
+            // Only a thread the caller accepted may publish itself (an abandoned one must not clobber a newer thread).
+            published = true;
+            Volatile.Write(ref _window, window);
+            Volatile.Write(ref _threadId, Environment.CurrentManagedThreadId);
             startup.Ready.Set();
 
             Msg message;
@@ -298,7 +310,7 @@ public sealed unsafe class WindowsGlobalHotkeys : IGlobalHotkeys
         }
         finally
         {
-            Cleanup(window);
+            Cleanup(window, published);
             if (self.IsAllocated)
             {
                 self.Free();
@@ -308,20 +320,26 @@ public sealed unsafe class WindowsGlobalHotkeys : IGlobalHotkeys
         }
     }
 
-    private void Cleanup(nint window)
+    private void Cleanup(nint window, bool published)
     {
         if (window != 0)
         {
-            UnregisterAll(window);
-            if (!_windowDestroyed)
+            if (published)
             {
-                InputNativeMethods.DestroyWindow(window);
-                _windowDestroyed = true;
+                UnregisterAll(window);
             }
+
+            // Fails harmlessly when the window is already gone (and cannot hit another thread's window).
+            InputNativeMethods.DestroyWindow(window);
         }
 
-        _threadId = 0;
-        _window = 0;
+        if (!published)
+        {
+            return;
+        }
+
+        Interlocked.CompareExchange(ref _window, 0, window);
+        Interlocked.CompareExchange(ref _threadId, 0, Environment.CurrentManagedThreadId);
 
         // A request that raced the shutdown must not wait for its timeout.
         var pending = Interlocked.Exchange(ref _request, null);
@@ -404,7 +422,6 @@ public sealed unsafe class WindowsGlobalHotkeys : IGlobalHotkeys
                         InputNativeMethods.DestroyWindow(window);
                         return 0;
                     case InputConstants.WmDestroy:
-                        owner._windowDestroyed = true;
                         InputNativeMethods.PostQuitMessage(0);
                         return 0;
                 }
@@ -432,18 +449,20 @@ public sealed unsafe class WindowsGlobalHotkeys : IGlobalHotkeys
         }
         catch (Exception ex)
         {
-            Report($"Register failed: {ex.GetType().Name}: {ex.Message}");
+            Defer(new CaptureFault(FaultSource, $"Register failed: {ex.GetType().Name}: {ex.Message}", IsFatal: false));
             request.Result = HotkeyRegistration.Taken;
         }
         finally
         {
             request.Done.Set();
         }
+
+        FlushDeferredFault(); // After the caller was released: a Faulted handler must not delay Register.
     }
 
     private HotkeyRegistration Apply(HotkeyAction action, HotkeyGesture? gesture, bool invalid)
     {
-        var window = _window;
+        var window = Volatile.Read(ref _window);
         var id = HotkeyBook.IdOf(action);
         if (_book.TryGet(action, out _))
         {
@@ -463,7 +482,7 @@ public sealed unsafe class WindowsGlobalHotkeys : IGlobalHotkeys
 
         if (_book.IsHeldByOther(action, wanted))
         {
-            RecordError(InputConstants.ErrorHotkeyAlreadyRegistered, $"{wanted} is already used by another action of this app");
+            RecordError(InputConstants.ErrorHotkeyAlreadyRegistered, $"{wanted} is already used by another action of this app", raise: false);
             return HotkeyRegistration.Taken;
         }
 
@@ -472,7 +491,7 @@ public sealed unsafe class WindowsGlobalHotkeys : IGlobalHotkeys
         if (ok == 0)
         {
             var error = Marshal.GetLastPInvokeError();
-            RecordError(error, $"RegisterHotKey({wanted}) failed", raise: error != InputConstants.ErrorHotkeyAlreadyRegistered);
+            RecordError(error, $"RegisterHotKey({wanted}) failed", raise: error != InputConstants.ErrorHotkeyAlreadyRegistered, deferred: true);
             return HotkeyRegistration.Taken;
         }
 
@@ -521,17 +540,43 @@ public sealed unsafe class WindowsGlobalHotkeys : IGlobalHotkeys
 
     // ---- faults ------------------------------------------------------------------------------------------------------
 
-    private void RecordError(int error, string what, bool raise = true)
+    /// <summary>
+    /// Keeps the error for <see cref="LastError"/> / <see cref="LastFault"/> and, when <paramref name="raise"/>, raises
+    /// <see cref="Faulted"/> - at once, or (<paramref name="deferred"/>, on the hotkey thread) after the waiting caller was released.
+    /// </summary>
+    private void RecordError(int error, string what, bool raise = true, bool deferred = false)
     {
         Volatile.Write(ref _lastError, error);
-        var message = $"{what} (Win32 error {error}).";
-        if (raise)
+        var fault = new CaptureFault(FaultSource, $"{what} (Win32 error {error}).", IsFatal: false);
+        Volatile.Write(ref _lastFault, fault);
+        if (!raise)
         {
-            Report(message);
+            return;
+        }
+
+        if (deferred)
+        {
+            _deferredFault = fault;
         }
         else
         {
-            Volatile.Write(ref _lastFault, new CaptureFault(FaultSource, message, IsFatal: false));
+            Raise(fault);
+        }
+    }
+
+    private void Defer(CaptureFault fault)
+    {
+        Volatile.Write(ref _lastFault, fault);
+        _deferredFault = fault;
+    }
+
+    private void FlushDeferredFault()
+    {
+        var fault = _deferredFault;
+        if (fault is not null)
+        {
+            _deferredFault = null;
+            Raise(fault);
         }
     }
 
@@ -539,6 +584,11 @@ public sealed unsafe class WindowsGlobalHotkeys : IGlobalHotkeys
     {
         var fault = new CaptureFault(FaultSource, message, IsFatal: false);
         Volatile.Write(ref _lastFault, fault);
+        Raise(fault);
+    }
+
+    private void Raise(CaptureFault fault)
+    {
         try
         {
             Faulted?.Invoke(fault);
@@ -551,7 +601,7 @@ public sealed unsafe class WindowsGlobalHotkeys : IGlobalHotkeys
 
     private sealed class Startup
     {
-        public readonly ManualResetEventSlim Ready = new(false);
+        public readonly Completion Ready = new();
         public int State;
         public nint Window;
         public int Error;
@@ -562,8 +612,48 @@ public sealed unsafe class WindowsGlobalHotkeys : IGlobalHotkeys
         public readonly HotkeyAction Action = action;
         public readonly HotkeyGesture? Gesture = gesture;
         public readonly bool Invalid = invalid;
-        public readonly ManualResetEventSlim Done = new(false);
+        public readonly Completion Done = new();
         public int State;
         public HotkeyRegistration Result;
+    }
+
+    /// <summary>
+    /// A one-shot signal on a monitor: no kernel handle and nothing to dispose, so the signalling thread can never race a
+    /// disposing waiter (the reason this is not a <c>ManualResetEventSlim</c>). Writes made before <see cref="Set"/> are
+    /// visible after a successful <see cref="Wait"/>.
+    /// </summary>
+    private sealed class Completion
+    {
+        private readonly object _sync = new();
+        private bool _set;
+
+        public void Set()
+        {
+            lock (_sync)
+            {
+                _set = true;
+                Monitor.PulseAll(_sync);
+            }
+        }
+
+        public bool Wait(TimeSpan timeout)
+        {
+            var deadline = Environment.TickCount64 + (long)timeout.TotalMilliseconds;
+            lock (_sync)
+            {
+                while (!_set)
+                {
+                    var left = deadline - Environment.TickCount64;
+                    if (left <= 0)
+                    {
+                        return false;
+                    }
+
+                    Monitor.Wait(_sync, (int)left);
+                }
+
+                return true;
+            }
+        }
     }
 }

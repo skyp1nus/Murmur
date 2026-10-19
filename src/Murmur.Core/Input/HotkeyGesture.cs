@@ -7,7 +7,7 @@ namespace Murmur.Core.Input;
 /// A global hotkey: modifiers plus one key. The text syntax is the one Avalonia's <c>KeyGesture</c> prints and parses
 /// (the Settings screen stores that string): <c>Ctrl+Shift+R</c>, <c>Ctrl+Alt+F9</c>, <c>Ctrl+D1</c> (digit key),
 /// <c>Ctrl+Alt+Oem3</c>. <see cref="ToString"/> uses Avalonia's canonical names and order (Ctrl, Shift, Alt, Cmd);
-/// <see cref="TryParse"/> additionally accepts, case-insensitively, <c>Control</c>, <c>Meta</c>/<c>Win</c> for
+/// <see cref="TryParse"/> additionally accepts, case-insensitively, <c>Control</c>, <c>Meta</c>/<c>Win</c>/<c>⌘</c> for
 /// <c>Cmd</c>, whitespace around <c>+</c>, and the Avalonia key aliases (<c>OemTilde</c>, <c>Oem1</c>, <c>Snapshot</c>,
 /// <c>Next</c>, ...). Bare digits (<c>Ctrl+1</c>) are refused: Avalonia does not read them as the digit key either.
 /// </summary>
@@ -18,7 +18,8 @@ public readonly record struct HotkeyGesture(HotkeyModifiers Modifiers, HotkeyKey
     /// <summary>
     /// Parses <paramref name="text"/>. Refused: empty text, no key or more than one key, a repeated modifier (also under
     /// two aliases), an unknown token, and a gesture without Ctrl, Alt or Meta (Shift alone or no modifier would steal
-    /// normal typing system-wide).
+    /// normal typing system-wide). The one exception is F13..F24, which may stand alone (macro pads, Stream Deck keys);
+    /// F1..F12, Pause and PrintScreen still need a modifier.
     /// </summary>
     public static bool TryParse(string? text, out HotkeyGesture gesture)
     {
@@ -62,7 +63,14 @@ public readonly record struct HotkeyGesture(HotkeyModifiers Modifiers, HotkeyKey
             }
         }
 
-        if (key is null || (modifiers & (HotkeyModifiers.Ctrl | HotkeyModifiers.Alt | HotkeyModifiers.Meta)) == 0)
+        if (key is null)
+        {
+            return false;
+        }
+
+        // Without Ctrl/Alt/Meta only F13..F24 are allowed: they are absent from normal keyboards (macro pads, Stream Deck).
+        var strong = (modifiers & (HotkeyModifiers.Ctrl | HotkeyModifiers.Alt | HotkeyModifiers.Meta)) != 0;
+        if (!strong && !IsExtendedFunctionKey(key.Value))
         {
             return false;
         }
@@ -110,6 +118,8 @@ public readonly record struct HotkeyGesture(HotkeyModifiers Modifiers, HotkeyKey
         _ => key.ToString(),
     };
 
+    private static bool IsExtendedFunctionKey(HotkeyKey key) => key is >= HotkeyKey.F13 and <= HotkeyKey.F24;
+
     private static bool TryParseModifier(ReadOnlySpan<char> token, out HotkeyModifiers modifier)
     {
         if (token.Equals("Ctrl", StringComparison.OrdinalIgnoreCase) || token.Equals("Control", StringComparison.OrdinalIgnoreCase))
@@ -126,7 +136,8 @@ public readonly record struct HotkeyGesture(HotkeyModifiers Modifiers, HotkeyKey
         }
         else if (token.Equals("Cmd", StringComparison.OrdinalIgnoreCase)
                  || token.Equals("Meta", StringComparison.OrdinalIgnoreCase)
-                 || token.Equals("Win", StringComparison.OrdinalIgnoreCase))
+                 || token.Equals("Win", StringComparison.OrdinalIgnoreCase)
+                 || token.Equals("\u2318", StringComparison.Ordinal))
         {
             modifier = HotkeyModifiers.Meta;
         }

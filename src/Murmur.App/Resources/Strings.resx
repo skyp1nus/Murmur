@@ -586,7 +586,7 @@
     <value>Esc скасовує, Backspace прибирає комбінацію.</value>
   </data>
   <data name="Hotkeys_NeedModifier" xml:space="preserve">
-    <value>Додайте Ctrl, Alt або Win.</value>
+    <value>Потрібен Ctrl, Alt або Win, або одна з клавіш F13–F24.</value>
   </data>
   <data name="Hotkeys_Invalid" xml:space="preserve">
     <value>Таку комбінацію не можна використати.</value>

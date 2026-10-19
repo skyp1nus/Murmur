@@ -233,36 +233,6 @@ public sealed class WindowsGlobalHotkeysTests
 
     [Fact]
     [Trait("Category", "Windows")]
-    public void CreateRegisterDispose_20Times_DoesNotGrowThreadsOrHandles()
-    {
-        Assert.SkipUnless(OperatingSystem.IsWindows(), WindowsOnly);
-        var gesture = Gesture.Next();
-        Cycle(gesture); // warm-up: window class, JIT, thread pool
-        using var process = Process.GetCurrentProcess();
-        process.Refresh();
-        var threads = process.Threads.Count;
-        var handles = process.HandleCount;
-
-        for (var i = 0; i < 20; i++)
-        {
-            Cycle(gesture); // the same gesture again: only possible when the previous dispose released it
-        }
-
-        process.Refresh();
-        Assert.InRange(process.Threads.Count, 0, threads + 2);
-        Assert.InRange(process.HandleCount, 0, handles + 12);
-
-        static void Cycle(string gesture)
-        {
-            var hotkeys = new WindowsGlobalHotkeys();
-            Assert.Equal(HotkeyRegistration.Registered, hotkeys.Register(HotkeyAction.ToggleRecording, gesture));
-            hotkeys.Dispose();
-            Assert.False(hotkeys.HasLiveThread);
-        }
-    }
-
-    [Fact]
-    [Trait("Category", "Windows")]
     public async Task ConcurrentRegisters_FromManyThreads_AllSucceed()
     {
         Assert.SkipUnless(OperatingSystem.IsWindows(), WindowsOnly);
@@ -459,20 +429,20 @@ public sealed class WindowsGlobalHotkeysTests
             Assert.Skip("The simulated key press did not reach the hotkey within 2 s: no interactive input desktop on this runner.");
         }
     }
+}
 
-    /// <summary>Unique F13..F24 combinations with Ctrl/Alt/Shift mixes (48 of them, no Win key), handed out once per process.</summary>
-    private static class Gesture
+/// <summary>Unique F13..F24 combinations with Ctrl/Alt/Shift mixes (48 of them, no Win key), handed out once per process.</summary>
+internal static class Gesture
+{
+    private static readonly string[] Mixes = ["Ctrl+Alt+Shift", "Ctrl+Alt", "Ctrl+Shift", "Alt+Shift"];
+    private static int s_next;
+
+    public static string Next()
     {
-        private static readonly string[] Mixes = ["Ctrl+Alt+Shift", "Ctrl+Alt", "Ctrl+Shift", "Alt+Shift"];
-        private static int s_next = Environment.ProcessId % 7; // spreads parallel test processes
-
-        public static string Next()
-        {
-            var n = Interlocked.Increment(ref s_next);
-            var key = HotkeyKey.F13 + n % 12;
-            var modifiers = Mixes[n / 12 % Mixes.Length];
-            return $"{modifiers}+{key}";
-        }
+        var n = Interlocked.Increment(ref s_next);
+        var key = HotkeyKey.F13 + n % 12;
+        var modifiers = Mixes[n / 12 % Mixes.Length];
+        return $"{modifiers}+{key}";
     }
 }
 
@@ -571,5 +541,56 @@ internal static unsafe partial class KeyboardSimulator
     {
         public uint Type;
         public InputUnion Union;
+    }
+}
+
+/// <summary>
+/// Create/dispose cycles leave no threads or handles behind. In the solo collection: the process-wide handle and thread
+/// counts must not be moved by tests running in parallel.
+/// </summary>
+[Trait("Category", "Windows")]
+[Collection(nameof(HandleCountCollection))]
+public sealed class GlobalHotkeysHandleLeakTests(ITestOutputHelper output)
+{
+    [Fact]
+    public void CreateRegisterDispose_20Times_DoesNotGrowThreadsOrHandles()
+    {
+        Assert.SkipUnless(OperatingSystem.IsWindows(), "Global hotkey tests run only on Windows.");
+        var gesture = Gesture.Next();
+        for (var i = 0; i < 5; i++)
+        {
+            Cycle(gesture); // warm-up: window class, JIT, thread pool; the same gesture again needs the previous dispose to release it
+        }
+
+        var (threads, handles) = Measure();
+        output.WriteLine($"baseline: {threads} threads, {handles} handles");
+
+        for (var i = 0; i < 20; i++)
+        {
+            Cycle(gesture);
+            var (t, h) = Measure();
+            output.WriteLine($"cycle {i + 1}: {t} threads, {h} handles");
+        }
+
+        var (finalThreads, finalHandles) = Measure();
+        Assert.InRange(finalThreads, 0, threads + 2);
+        Assert.InRange(finalHandles, 0, handles + 12);
+    }
+
+    private static void Cycle(string gesture)
+    {
+        var hotkeys = new WindowsGlobalHotkeys();
+        Assert.Equal(HotkeyRegistration.Registered, hotkeys.Register(HotkeyAction.ToggleRecording, gesture));
+        hotkeys.Dispose();
+        Assert.False(hotkeys.HasLiveThread);
+    }
+
+    private static (int Threads, int Handles) Measure()
+    {
+        GC.Collect();
+        GC.WaitForPendingFinalizers();
+        GC.Collect();
+        using var process = Process.GetCurrentProcess();
+        return (process.Threads.Count, process.HandleCount);
     }
 }

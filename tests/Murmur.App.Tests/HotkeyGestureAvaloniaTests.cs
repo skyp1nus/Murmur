@@ -77,6 +77,28 @@ public sealed class HotkeyGestureAvaloniaTests
         }
     }
 
+    [Fact]
+    public void BareExtendedFunctionKeys_RoundTripThroughAvalonia()
+    {
+        for (var key = HotkeyKey.F13; key <= HotkeyKey.F24; key++)
+        {
+            var text = new HotkeyGesture(HotkeyModifiers.None, key).ToString();
+
+            Assert.Equal(key.ToString(), text);
+            Assert.Equal(text, KeyGesture.Parse(text).ToString());
+            Assert.True(HotkeyGesture.TryParse(new KeyGesture(AvaloniaKey(key)).ToString(), out var parsed));
+            Assert.Equal(new HotkeyGesture(HotkeyModifiers.None, key), parsed);
+        }
+    }
+
+    [Fact]
+    public void CommandSymbol_IsMeta_ForCoreAndAvalonia()
+    {
+        Assert.True(HotkeyGesture.TryParse("\u2318+E", out var gesture));
+        Assert.Equal(HotkeyModifiers.Meta, gesture.Modifiers);
+        Assert.Equal(KeyModifiers.Meta, KeyGesture.Parse("\u2318+E").KeyModifiers);
+    }
+
     [Theory]
     [InlineData("Control+Shift+R", "Ctrl+Shift+R")]
     [InlineData("Win+E", "Cmd+E")]

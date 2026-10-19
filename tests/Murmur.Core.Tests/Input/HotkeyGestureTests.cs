@@ -28,6 +28,10 @@ public sealed class HotkeyGestureTests
         { "Ctrl+OemTilde", HotkeyModifiers.Ctrl, HotkeyKey.OemTilde },
         { "Ctrl+Oem1", HotkeyModifiers.Ctrl, HotkeyKey.OemSemicolon },
         { "Ctrl+Snapshot", HotkeyModifiers.Ctrl, HotkeyKey.PrintScreen },
+        { "F13", HotkeyModifiers.None, HotkeyKey.F13 }, // macro-pad keys may stand alone
+        { "F24", HotkeyModifiers.None, HotkeyKey.F24 },
+        { "Shift+F20", HotkeyModifiers.Shift, HotkeyKey.F20 },
+        { "\u2318+E", HotkeyModifiers.Meta, HotkeyKey.E },
         { "Ctrl+Next", HotkeyModifiers.Ctrl, HotkeyKey.PageDown },
     };
 
@@ -45,6 +49,13 @@ public sealed class HotkeyGestureTests
     [InlineData("   ")]
     [InlineData("R")] // no modifier would steal typing
     [InlineData("F9")]
+    [InlineData("F1")]
+    [InlineData("F12")]
+    [InlineData("Shift+F12")]
+    [InlineData("Pause")]
+    [InlineData("PrintScreen")]
+    [InlineData("Space")]
+    [InlineData("Shift+PrintScreen")]
     [InlineData("Shift+R")] // Shift alone would steal typing
     [InlineData("Ctrl")] // no key
     [InlineData("Ctrl+Shift")]
