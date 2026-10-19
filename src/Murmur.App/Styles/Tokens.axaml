@@ -4,6 +4,9 @@
 
   Naming
     Color.<Name>        Color              Brush.<Name>        SolidColorBrush (one pair per colour token)
+                        Both live in ResourceDictionary.ThemeDictionaries: "Light" is built from "color", "Dark" from
+                        "colorDark" (same keys in both). Look them up with DynamicResource so a runtime theme change
+                        re-resolves them; StaticResource would freeze the theme that was active at load time.
     Font.Display/Body   Inter (embedded via Avalonia.Fonts.Inter)    Font.Mono   Geist Mono (embedded asset)
     FontWeight.<Role>   Display = 300, Body = first body weight, BodyMedium = second body weight, Mono
     FontSize.<Scale>    double, one per typeScale entry (plus FontSize.Mono)
@@ -17,32 +20,69 @@
     Radius.<Name>       CornerRadius                   Hairline.*     border hairline width / thickness (brush: Brush.Hairline)
     Shadow.<Name>       BoxShadows (rgba converted to #AARRGGBB, px dropped; Avalonia parses unitless numbers)
 
+  Everything except Color.* / Brush.* is theme-independent and sits outside the theme dictionaries.
   Accent colours are only for the recording orb and icons; Orb*.axaml and Icons/ may reference them.
 -->
 <ResourceDictionary xmlns="https://github.com/avaloniaui"
                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
 
-  <!-- Colours -->
-  <Color x:Key="Color.Canvas">#fdfcfc</Color>
-  <Color x:Key="Color.Surface">#f5f3f1</Color>
-  <Color x:Key="Color.Stone">#ebe8e4</Color>
-  <Color x:Key="Color.Ink">#000000</Color>
-  <Color x:Key="Color.Graphite">#44403b</Color>
-  <Color x:Key="Color.Smoke">#777169</Color>
-  <Color x:Key="Color.Ash">#a59f97</Color>
-  <Color x:Key="Color.ButtonBorder">#e5e5e5</Color>
-  <Color x:Key="Color.AccentViolet">#0447ff</Color>
-  <Color x:Key="Color.AccentEmber">#ff4704</Color>
-  <SolidColorBrush x:Key="Brush.Canvas" Color="{StaticResource Color.Canvas}" />
-  <SolidColorBrush x:Key="Brush.Surface" Color="{StaticResource Color.Surface}" />
-  <SolidColorBrush x:Key="Brush.Stone" Color="{StaticResource Color.Stone}" />
-  <SolidColorBrush x:Key="Brush.Ink" Color="{StaticResource Color.Ink}" />
-  <SolidColorBrush x:Key="Brush.Graphite" Color="{StaticResource Color.Graphite}" />
-  <SolidColorBrush x:Key="Brush.Smoke" Color="{StaticResource Color.Smoke}" />
-  <SolidColorBrush x:Key="Brush.Ash" Color="{StaticResource Color.Ash}" />
-  <SolidColorBrush x:Key="Brush.ButtonBorder" Color="{StaticResource Color.ButtonBorder}" />
-  <SolidColorBrush x:Key="Brush.AccentViolet" Color="{StaticResource Color.AccentViolet}" />
-  <SolidColorBrush x:Key="Brush.AccentEmber" Color="{StaticResource Color.AccentEmber}" />
+  <!-- Colours and brushes, one dictionary per theme (keys are identical; the order follows 'color') -->
+  <ResourceDictionary.ThemeDictionaries>
+    <ResourceDictionary x:Key="Light">
+      <Color x:Key="Color.Canvas">#fdfcfc</Color>
+      <Color x:Key="Color.Surface">#f5f3f1</Color>
+      <Color x:Key="Color.Stone">#ebe8e4</Color>
+      <Color x:Key="Color.Ink">#000000</Color>
+      <Color x:Key="Color.Graphite">#44403b</Color>
+      <Color x:Key="Color.Smoke">#777169</Color>
+      <Color x:Key="Color.Ash">#a59f97</Color>
+      <Color x:Key="Color.ButtonBorder">#e5e5e5</Color>
+      <Color x:Key="Color.InkHover">#262422</Color>
+      <Color x:Key="Color.DashedBorder">#d6d1cb</Color>
+      <Color x:Key="Color.AccentViolet">#0447ff</Color>
+      <Color x:Key="Color.AccentEmber">#ff4704</Color>
+      <SolidColorBrush x:Key="Brush.Canvas" Color="{StaticResource Color.Canvas}" />
+      <SolidColorBrush x:Key="Brush.Surface" Color="{StaticResource Color.Surface}" />
+      <SolidColorBrush x:Key="Brush.Stone" Color="{StaticResource Color.Stone}" />
+      <SolidColorBrush x:Key="Brush.Ink" Color="{StaticResource Color.Ink}" />
+      <SolidColorBrush x:Key="Brush.Graphite" Color="{StaticResource Color.Graphite}" />
+      <SolidColorBrush x:Key="Brush.Smoke" Color="{StaticResource Color.Smoke}" />
+      <SolidColorBrush x:Key="Brush.Ash" Color="{StaticResource Color.Ash}" />
+      <SolidColorBrush x:Key="Brush.ButtonBorder" Color="{StaticResource Color.ButtonBorder}" />
+      <SolidColorBrush x:Key="Brush.InkHover" Color="{StaticResource Color.InkHover}" />
+      <SolidColorBrush x:Key="Brush.DashedBorder" Color="{StaticResource Color.DashedBorder}" />
+      <SolidColorBrush x:Key="Brush.AccentViolet" Color="{StaticResource Color.AccentViolet}" />
+      <SolidColorBrush x:Key="Brush.AccentEmber" Color="{StaticResource Color.AccentEmber}" />
+      <SolidColorBrush x:Key="Brush.Hairline" Color="{StaticResource Color.Stone}" />
+    </ResourceDictionary>
+    <ResourceDictionary x:Key="Dark">
+      <Color x:Key="Color.Canvas">#141312</Color>
+      <Color x:Key="Color.Surface">#1e1c1a</Color>
+      <Color x:Key="Color.Stone">#2b2825</Color>
+      <Color x:Key="Color.Ink">#f5f3f1</Color>
+      <Color x:Key="Color.Graphite">#d6d1cb</Color>
+      <Color x:Key="Color.Smoke">#a59f97</Color>
+      <Color x:Key="Color.Ash">#6f6a63</Color>
+      <Color x:Key="Color.ButtonBorder">#33302c</Color>
+      <Color x:Key="Color.InkHover">#e3dfda</Color>
+      <Color x:Key="Color.DashedBorder">#45413c</Color>
+      <Color x:Key="Color.AccentViolet">#0447ff</Color>
+      <Color x:Key="Color.AccentEmber">#ff4704</Color>
+      <SolidColorBrush x:Key="Brush.Canvas" Color="{StaticResource Color.Canvas}" />
+      <SolidColorBrush x:Key="Brush.Surface" Color="{StaticResource Color.Surface}" />
+      <SolidColorBrush x:Key="Brush.Stone" Color="{StaticResource Color.Stone}" />
+      <SolidColorBrush x:Key="Brush.Ink" Color="{StaticResource Color.Ink}" />
+      <SolidColorBrush x:Key="Brush.Graphite" Color="{StaticResource Color.Graphite}" />
+      <SolidColorBrush x:Key="Brush.Smoke" Color="{StaticResource Color.Smoke}" />
+      <SolidColorBrush x:Key="Brush.Ash" Color="{StaticResource Color.Ash}" />
+      <SolidColorBrush x:Key="Brush.ButtonBorder" Color="{StaticResource Color.ButtonBorder}" />
+      <SolidColorBrush x:Key="Brush.InkHover" Color="{StaticResource Color.InkHover}" />
+      <SolidColorBrush x:Key="Brush.DashedBorder" Color="{StaticResource Color.DashedBorder}" />
+      <SolidColorBrush x:Key="Brush.AccentViolet" Color="{StaticResource Color.AccentViolet}" />
+      <SolidColorBrush x:Key="Brush.AccentEmber" Color="{StaticResource Color.AccentEmber}" />
+      <SolidColorBrush x:Key="Brush.Hairline" Color="{StaticResource Color.Stone}" />
+    </ResourceDictionary>
+  </ResourceDictionary.ThemeDictionaries>
 
   <!-- Fonts -->
   <FontFamily x:Key="Font.Display">fonts:Inter#Inter</FontFamily>
@@ -116,10 +156,9 @@
   <CornerRadius x:Key="Radius.CardLarge">24</CornerRadius>
   <CornerRadius x:Key="Radius.Pill">9999</CornerRadius>
 
-  <!-- Hairline border -->
+  <!-- Hairline border (the brush, Brush.Hairline, is in the theme dictionaries) -->
   <x:Double x:Key="Hairline.Width">1</x:Double>
   <Thickness x:Key="Hairline.Thickness">1</Thickness>
-  <SolidColorBrush x:Key="Brush.Hairline" Color="{StaticResource Color.Stone}" />
 
   <!-- Shadows -->
   <BoxShadows x:Key="Shadow.Subtle">0 0 1 0 #66000000, 0 1 1 0 #0A000000, 0 2 4 0 #0A000000</BoxShadows>
