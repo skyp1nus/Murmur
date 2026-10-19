@@ -4,6 +4,7 @@ using Murmur.App.Resources;
 using Murmur.App.Services;
 using Murmur.Core.Intelligence;
 using Murmur.Core.Processing;
+using Murmur.Core.Recording;
 using Murmur.Core.Sessions;
 
 namespace Murmur.App.ViewModels;
@@ -24,10 +25,13 @@ public enum LibraryFilter
 /// through <see cref="IAssistant.SearchAsync"/> (which itself drops to BM25 when the embedding model is missing or AI
 /// is paused); when the assistant is missing or throws, <see cref="ISearchIndex.SearchKeywordAsync"/> answers.</para>
 /// </remarks>
-public sealed partial class LibraryViewModel : ObservableObject
+public sealed partial class LibraryViewModel : ObservableObject, IDisposable
 {
     /// <summary>Quiet time after the last keystroke before the transcript search runs.</summary>
     public static readonly TimeSpan SearchDebounce = TimeSpan.FromMilliseconds(300);
+
+    /// <summary>How often rows still shown as "recording" are re-read from the store while the library is open.</summary>
+    public static readonly TimeSpan StaleRefreshInterval = TimeSpan.FromSeconds(30);
 
     /// <summary>Transcript hits per query.</summary>
     public const int SearchLimit = 30;
@@ -38,23 +42,32 @@ public sealed partial class LibraryViewModel : ObservableObject
     private readonly ISearchIndex? _keywordSearch;
     private readonly IAssistant? _assistant;
     private readonly Action<Action> _post;
+    private readonly IRecorder? _recorder;
     private readonly Dictionary<SessionId, SessionItemViewModel> _rows = [];
     private IReadOnlyList<SessionRecord> _loaded = [];
     private int _version;
     private CancellationTokenSource? _search;
     private bool _searchCompleted;
+    private ITimer? _staleTimer;
+    private int _staleRunning;
+    private bool _disposed;
 
     /// <param name="processing">Pipeline status for the rows' badges; <c>null</c> = badges come from the stored state only.</param>
     /// <param name="post">Marshals a callback to the UI thread; pipeline events arrive on background threads.</param>
     /// <param name="keywordSearch">BM25 transcript search (the fallback of <paramref name="assistant"/>).</param>
     /// <param name="assistant">Hybrid transcript search.</param>
+    /// <param name="recorder">
+    /// Tells which session is being recorded right now; a stored session still in the "recording" state that is not that one
+    /// was left behind (a crash) and may be fixed by a recovery running in the background, so it is re-read now and then.
+    /// </param>
     public LibraryViewModel(
         ISessionStore store,
         TimeProvider time,
         ISessionProcessing? processing = null,
         Action<Action>? post = null,
         ISearchIndex? keywordSearch = null,
-        IAssistant? assistant = null)
+        IAssistant? assistant = null,
+        IRecorder? recorder = null)
     {
         ArgumentNullException.ThrowIfNull(store);
         ArgumentNullException.ThrowIfNull(time);
@@ -63,6 +76,7 @@ public sealed partial class LibraryViewModel : ObservableObject
         _processing = processing;
         _keywordSearch = keywordSearch;
         _assistant = assistant;
+        _recorder = recorder;
         _post = post ?? (action => Avalonia.Threading.Dispatcher.UIThread.Post(action));
         if (processing is not null)
         {
@@ -217,11 +231,27 @@ public sealed partial class LibraryViewModel : ObservableObject
 
         IsLoading = false;
         ApplySearch();
+        UpdateStaleTimer();
         if (ShowSearchResults)
         {
             // The date filter (or the data) changed under an active search: refresh it right away.
             StartTranscriptSearch(debounce: false);
         }
+    }
+
+    /// <summary>The last background re-read of stale rows (for tests).</summary>
+    internal Task StaleRefreshTask { get; private set; } = Task.CompletedTask;
+
+    /// <summary>The window was activated: sessions that were recovered in the background while the user was away show up now.</summary>
+    public void OnWindowActivated() => StartStaleRefresh();
+
+    public void Dispose()
+    {
+        _disposed = true;
+        StopStaleTimer();
+        _search?.Cancel();
+        _search?.Dispose();
+        _search = null;
     }
 
     /// <summary>A session by id: from the loaded rows, else from the store; <c>null</c> when it no longer exists.</summary>
@@ -385,6 +415,121 @@ public sealed partial class LibraryViewModel : ObservableObject
         }
 
         Sessions = rows;
+    }
+
+    // Rows left in the "recording" state ------------------------------------------------------------------------------
+
+    /// <summary>Stored as still recording while the recorder is not recording them: nobody is writing to them.</summary>
+    private bool IsStale(SessionRecord record) =>
+        record.State == SessionState.Recording && _recorder?.Current?.Id != record.Id;
+
+    private void UpdateStaleTimer()
+    {
+        if (_disposed)
+        {
+            return;
+        }
+
+        var any = false;
+        foreach (var record in _loaded)
+        {
+            if (IsStale(record))
+            {
+                any = true;
+                break;
+            }
+        }
+
+        if (!any)
+        {
+            StopStaleTimer();
+        }
+        else if (_staleTimer is null)
+        {
+            _staleTimer = _time.CreateTimer(
+                static state => ((LibraryViewModel)state!).OnStaleTimer(),
+                this,
+                StaleRefreshInterval,
+                StaleRefreshInterval);
+        }
+    }
+
+    private void StopStaleTimer()
+    {
+        _staleTimer?.Dispose();
+        _staleTimer = null;
+    }
+
+    private void OnStaleTimer() => _post(StartStaleRefresh);
+
+    private void StartStaleRefresh()
+    {
+        if (!_disposed && Volatile.Read(ref _staleRunning) == 0)
+        {
+            StaleRefreshTask = RefreshStaleAsync();
+        }
+    }
+
+    /// <summary>Re-reads the stale rows from the store and updates the ones that changed, in place.</summary>
+    private async Task RefreshStaleAsync()
+    {
+        if (Interlocked.Exchange(ref _staleRunning, 1) == 1)
+        {
+            return;
+        }
+
+        try
+        {
+            var version = _version;
+            var stale = new List<SessionId>();
+            foreach (var record in _loaded)
+            {
+                if (IsStale(record))
+                {
+                    stale.Add(record.Id);
+                }
+            }
+
+            foreach (var id in stale)
+            {
+                SessionRecord? fresh;
+                try
+                {
+                    fresh = await _store.GetSessionAsync(id, CancellationToken.None).ConfigureAwait(true);
+                }
+                catch (Exception ex) when (ex is not OperationCanceledException)
+                {
+                    continue;
+                }
+
+                if (_disposed || version != _version || fresh is null || fresh.State == SessionState.Recording)
+                {
+                    continue;
+                }
+
+                ApplyFresh(fresh);
+            }
+        }
+        finally
+        {
+            Volatile.Write(ref _staleRunning, 0);
+            UpdateStaleTimer();
+        }
+    }
+
+    private void ApplyFresh(SessionRecord fresh)
+    {
+        var updated = new SessionRecord[_loaded.Count];
+        for (var i = 0; i < updated.Length; i++)
+        {
+            updated[i] = _loaded[i].Id == fresh.Id ? fresh : _loaded[i];
+        }
+
+        _loaded = updated;
+        if (_rows.TryGetValue(fresh.Id, out var row))
+        {
+            row.Update(fresh, _time, _processing?.GetStatus(fresh.Id));
+        }
     }
 
     // Transcript search ---------------------------------------------------------------------------------------------

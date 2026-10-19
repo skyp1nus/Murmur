@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using CommunityToolkit.Mvvm.ComponentModel;
 using Murmur.App.Resources;
 using Murmur.Core.Models;
@@ -12,8 +13,10 @@ namespace Murmur.App.ViewModels;
 /// embedding model when they are missing, one after another; every row shows its own progress.</para>
 /// <para>Every install runs with its own token (a child of the lifetime of this view model, i.e. of the app) and its
 /// returned task is observed: a failure puts a short text on the row (the details stay in
-/// <see cref="ModelStatus.Error"/>). Manager events arrive on any thread and are marshalled with the injected
-/// <c>post</c>.</para>
+/// <see cref="ModelStatus.Error"/> and the trace log, never the raw exception text). Manager events arrive on any thread
+/// and are marshalled with the injected <c>post</c>.</para>
+/// <para>Only one AI bundle runs at a time: a second chat install is refused (its row says to wait) so two bundles never
+/// share the tokens of the runtime and embedding rows. Rows of a running bundle cannot be removed.</para>
 /// </remarks>
 public sealed partial class ModelsSettingsViewModel : ObservableObject, IDisposable
 {
@@ -81,6 +84,9 @@ public sealed partial class ModelsSettingsViewModel : ObservableObject, IDisposa
         RefreshFreeSpace();
     }
 
+    /// <summary>The saved chat model changed elsewhere: re-marks the default row.</summary>
+    internal void RefreshActive() => RefreshDefaults();
+
     public void Dispose()
     {
         if (_disposed)
@@ -106,8 +112,15 @@ public sealed partial class ModelsSettingsViewModel : ObservableObject, IDisposa
         {
             AddMissing(chain, ModelKind.LlmRuntime);
             AddMissing(chain, ModelKind.Embedding);
+            if (AnotherAiInstallRuns(chain))
+            {
+                // Two bundles would fight over the shared runtime/embedding rows (state, token, bundle map).
+                row.Error = Strings.Models_WaitForOther;
+                return;
+            }
         }
 
+        row.Error = null;
         chain.Add(row);
         var bundle = new Bundle(chain);
         foreach (var item in chain)
@@ -116,6 +129,7 @@ public sealed partial class ModelsSettingsViewModel : ObservableObject, IDisposa
             _bundleOf[item.Id] = bundle;
         }
 
+        UpdateRemoveLocks();
         LastOperation = RunAsync(bundle);
     }
 
@@ -141,7 +155,7 @@ public sealed partial class ModelsSettingsViewModel : ObservableObject, IDisposa
     internal void Remove(ModelRowViewModel row)
     {
         row.IsConfirmingRemove = false;
-        if (_disposed || !row.IsInstalled)
+        if (_disposed || !row.IsInstalled || IsRemoveLocked(row))
         {
             return;
         }
@@ -157,6 +171,42 @@ public sealed partial class ModelsSettingsViewModel : ObservableObject, IDisposa
         }
 
         LastOperation = MakeDefaultAsync(row);
+    }
+
+    /// <summary>A bundle with a chat model is running, or an item this chat install would need is already downloading.</summary>
+    private bool AnotherAiInstallRuns(List<ModelRowViewModel> missing)
+    {
+        foreach (var bundle in _bundleOf.Values)
+        {
+            if (bundle.Chain.Any(r => r.Kind == ModelKind.Chat))
+            {
+                return true;
+            }
+        }
+
+        return missing.Any(r => r.IsBusy);
+    }
+
+    /// <summary>
+    /// A row cannot be removed while it belongs to a running bundle, nor can the shared runtime and embedding model
+    /// (installed or not) while a bundle that needs them runs.
+    /// </summary>
+    private bool IsRemoveLocked(ModelRowViewModel row)
+    {
+        if (_bundleOf.ContainsKey(row.Id))
+        {
+            return true;
+        }
+
+        return row.Kind is ModelKind.LlmRuntime or ModelKind.Embedding && _bundleOf.Count > 0;
+    }
+
+    private void UpdateRemoveLocks()
+    {
+        foreach (var row in Rows)
+        {
+            row.IsRemoveLocked = IsRemoveLocked(row);
+        }
     }
 
     private void AddMissing(List<ModelRowViewModel> chain, ModelKind kind)
@@ -179,7 +229,7 @@ public sealed partial class ModelsSettingsViewModel : ObservableObject, IDisposa
             foreach (var item in bundle.Chain)
             {
                 current = item;
-                if (bundle.Cancelled)
+                if (bundle.Cancelled || _disposed)
                 {
                     break;
                 }
@@ -198,7 +248,10 @@ public sealed partial class ModelsSettingsViewModel : ObservableObject, IDisposa
                 if (item.Kind == ModelKind.Chat)
                 {
                     // Installing a chat model makes it the active one on disk; keep the settings in step.
-                    await _writer.UpdateAsync(s => s with { ChatModelId = item.Id }).ConfigureAwait(true);
+                    if (await _writer.UpdateAsync(s => s with { ChatModelId = item.Id }).ConfigureAwait(true) is { } saveError)
+                    {
+                        item.Error = saveError;
+                    }
                 }
             }
         }
@@ -206,7 +259,8 @@ public sealed partial class ModelsSettingsViewModel : ObservableObject, IDisposa
         {
             if (!bundle.Cancelled && ex is not OperationCanceledException)
             {
-                current?.MarkFailed();
+                Trace.TraceError("Installing model '{0}' failed: {1}", current?.Id, ex);
+                current?.MarkFailed(ex);
             }
         }
         finally
@@ -226,6 +280,7 @@ public sealed partial class ModelsSettingsViewModel : ObservableObject, IDisposa
                 }
             }
 
+            UpdateRemoveLocks();
             RefreshDefaults();
             RefreshFreeSpace();
         }
@@ -240,17 +295,23 @@ public sealed partial class ModelsSettingsViewModel : ObservableObject, IDisposa
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            row.Error = UiText.Format(Strings.Models_ActionFailed, ex.Message);
+            Trace.TraceError("Removing model '{0}' failed: {1}", row.Id, ex);
+            row.Error = Strings.Models_RemoveFailed;
         }
         catch (OperationCanceledException)
         {
             return;
         }
 
+        var failed = row.Error;
         row.Apply(_manager.GetStatus(row.Id));
+        row.Error ??= failed;
         if (row.Kind == ModelKind.Chat && _writer.Current.ChatModelId == row.Id && !row.IsInstalled)
         {
-            await _writer.UpdateAsync(s => s with { ChatModelId = null }).ConfigureAwait(true);
+            if (await _writer.UpdateAsync(s => s with { ChatModelId = null }).ConfigureAwait(true) is { } saveError)
+            {
+                row.Error = saveError;
+            }
         }
 
         RefreshDefaults();
@@ -264,18 +325,21 @@ public sealed partial class ModelsSettingsViewModel : ObservableObject, IDisposa
             // An installed item is only (re)activated: no download, no network.
             row.Error = null;
             await _manager.InstallAsync(row.Id, _lifetime.Token).ConfigureAwait(true);
-            await _writer.UpdateAsync(s => s with { ChatModelId = row.Id }).ConfigureAwait(true);
+            row.Error = await _writer.UpdateAsync(s => s with { ChatModelId = row.Id }).ConfigureAwait(true);
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            row.Error = UiText.Format(Strings.Models_ActionFailed, ex.Message);
+            Trace.TraceError("Activating model '{0}' failed: {1}", row.Id, ex);
+            row.Error = Strings.Models_ActionFailed;
         }
         catch (OperationCanceledException)
         {
             return;
         }
 
+        var failed = row.Error;
         row.Apply(_manager.GetStatus(row.Id));
+        row.Error ??= failed;
         RefreshDefaults();
     }
 

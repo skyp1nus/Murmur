@@ -79,6 +79,11 @@ public sealed partial class ModelRowViewModel : ObservableObject
     [NotifyPropertyChangedFor(nameof(ShowRemove), nameof(CanRemoveOrInstall))]
     public partial bool IsConfirmingRemove { get; set; }
 
+    /// <summary>The row belongs to a running AI bundle (or is a runtime/embedding model one needs): it cannot be removed now.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ShowRemove), nameof(CanRemoveOrInstall))]
+    public partial bool IsRemoveLocked { get; set; }
+
     public bool IsInstalled => State == ModelRowState.Installed;
 
     public bool IsQueued => State == ModelRowState.Queued;
@@ -94,9 +99,9 @@ public sealed partial class ModelRowViewModel : ObservableObject
 
     public bool ShowCancel => IsBusy;
 
-    public bool ShowRemove => IsInstalled && !IsConfirmingRemove;
+    public bool ShowRemove => IsInstalled && !IsConfirmingRemove && !IsRemoveLocked;
 
-    public bool CanRemoveOrInstall => IsInstalled || ShowInstall;
+    public bool CanRemoveOrInstall => (IsInstalled && !IsRemoveLocked) || ShowInstall;
 
     public bool ShowMakeDefault => IsInstalled && Kind == ModelKind.Chat && !IsDefault;
 
@@ -152,7 +157,7 @@ public sealed partial class ModelRowViewModel : ObservableObject
                 SizeText = UiFormat.Size(size > 0 ? size : Info.SizeBytes);
                 break;
             case ModelInstallState.Failed:
-                MarkFailed();
+                MarkFailed(null, status.Error);
                 break;
             default:
                 // A waiting row stays waiting until its own install starts; the manager knows nothing of the queue.
@@ -179,12 +184,43 @@ public sealed partial class ModelRowViewModel : ObservableObject
         }
     }
 
-    internal void MarkFailed()
+    /// <summary>
+    /// The install failed. The text is neutral (a checksum or disk failure is not a network problem); only a full disk, which
+    /// the manager and the file system report recognisably, gets its own text. The details stay in the log.
+    /// </summary>
+    internal void MarkFailed(Exception? exception = null, string? detail = null)
     {
         State = ModelRowState.Failed;
-        Error = Strings.Models_InstallFailed;
+        Error = IsOutOfSpace(exception, detail) ? Strings.Models_NoSpace : Strings.Models_InstallFailed;
         PercentText = string.Empty;
         TransferText = string.Empty;
+    }
+
+    private static bool IsOutOfSpace(Exception? exception, string? detail)
+    {
+        // Core words its free-space refusal "Not enough disk space ..." and the file systems say ERROR_DISK_FULL (0x70),
+        // ERROR_HANDLE_DISK_FULL (0x27) or ENOSPC (28).
+        for (var ex = exception; ex is not null; ex = ex.InnerException)
+        {
+            if (ex is IOException io && ((io.HResult & 0xFFFF) is 0x70 or 0x27 || io.HResult == 28))
+            {
+                return true;
+            }
+
+            if (Mentions(ex.Message))
+            {
+                return true;
+            }
+        }
+
+        return Mentions(detail);
+
+        static bool Mentions(string? text) =>
+            text is not null
+            && (text.Contains("not enough disk space", StringComparison.OrdinalIgnoreCase)
+                || text.Contains("no space left", StringComparison.OrdinalIgnoreCase)
+                || text.Contains("not enough space", StringComparison.OrdinalIgnoreCase)
+                || text.Contains("disk is full", StringComparison.OrdinalIgnoreCase));
     }
 
     private void ShowProgressOf(ModelStatus status)

@@ -162,7 +162,7 @@ public sealed partial class ShellViewModel : ObservableObject
             services.Time);
 
         return new ShellViewModel(
-            new LibraryViewModel(services.Sessions, services.Time, processing, keywordSearch: services.Search, assistant: ai?.Assistant),
+            new LibraryViewModel(services.Sessions, services.Time, processing, keywordSearch: services.Search, assistant: ai?.Assistant, recorder: services.Recorder),
             new RecordingViewModel(services.Recorder, services.Capture, services.Sessions, settings: store),
             services.Startup,
             sessionFactory,
@@ -446,6 +446,16 @@ public sealed partial class ShellViewModel : ObservableObject
         }
     }
 
-    /// <summary>The window closed: stop what the onboarding runs (meters, the trial recording).</summary>
-    public void OnWindowClosed() => _onboarding?.Suspend();
+    /// <summary>The window closed: stop what the onboarding runs (meters, the trial recording) and release the Settings and the library.</summary>
+    public void OnWindowClosed()
+    {
+        _onboarding?.Suspend();
+
+        // The app ends with its window: release what the screens subscribed to.
+        Settings?.Dispose();
+        Library.Dispose();
+    }
+
+    /// <summary>The window came to the front: the library re-reads sessions that may have been recovered meanwhile.</summary>
+    public void OnWindowActivated() => Library.OnWindowActivated();
 }

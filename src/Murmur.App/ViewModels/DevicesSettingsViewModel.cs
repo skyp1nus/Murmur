@@ -89,6 +89,24 @@ public sealed partial class DevicesSettingsViewModel : ObservableObject
         }
     }
 
+    /// <summary>Re-selects the saved choices in the current lists (the store changed elsewhere); no enumeration, the inline error stays.</summary>
+    internal void ReloadSaved()
+    {
+        var settings = _writer.Current;
+        _loading = true;
+        try
+        {
+            SelectedMicrophone = Find(Microphones, settings.MicrophoneDeviceId);
+            SelectedSystemDevice = Find(SystemDevices, settings.SystemAudioDeviceId);
+            SelectedDisplay = Find(Displays, settings.ScreenDisplayId);
+            ScreenByDefault = settings.ScreenByDefault;
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
     partial void OnSelectedMicrophoneChanged(ChoiceItem? value)
     {
         if (!_loading && value is not null)

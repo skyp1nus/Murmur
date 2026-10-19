@@ -71,6 +71,7 @@ internal sealed class FakeModelManager : IModelManager
 
     public ModelStatus GetStatus(string id)
     {
+        Interlocked.Increment(ref _statusReads);
         lock (_gate)
         {
             return _status[id];
@@ -101,11 +102,24 @@ internal sealed class FakeModelManager : IModelManager
         return tcs.Task;
     }
 
+    /// <summary>Makes <see cref="RemoveAsync"/> fail with this exception.</summary>
+    public Exception? RemoveFailure { get; set; }
+
+    /// <summary>How often <see cref="GetStatus"/> was read.</summary>
+    public int StatusReads => Volatile.Read(ref _statusReads);
+
+    private int _statusReads;
+
     public Task RemoveAsync(string id, CancellationToken cancellationToken)
     {
         lock (_gate)
         {
             RemoveCalls.Add(id);
+        }
+
+        if (RemoveFailure is { } failure)
+        {
+            return Task.FromException(failure);
         }
 
         Set(id, ModelInstallState.NotInstalled, 0, null, null);

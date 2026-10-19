@@ -63,9 +63,15 @@ public sealed partial class StorageSettingsViewModel : ObservableObject
     private void Open()
     {
         Error = null;
+        if (!TryNormalize(EffectivePath, out var path))
+        {
+            Error = Strings.Storage_NotAbsolute;
+            return;
+        }
+
         try
         {
-            Directory.CreateDirectory(EffectivePath);
+            Directory.CreateDirectory(path);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException)
         {
@@ -73,7 +79,7 @@ public sealed partial class StorageSettingsViewModel : ObservableObject
             return;
         }
 
-        if (_launcher.TryOpen(EffectivePath) is { } failure)
+        if (_launcher.TryOpen(path) is { } failure)
         {
             Error = UiText.Format(Strings.Storage_OpenFailed, failure);
         }
@@ -90,9 +96,38 @@ public sealed partial class StorageSettingsViewModel : ObservableObject
 
         Error = null;
         var chosen = await picker.PickFolderAsync(Strings.Storage_PickerTitle, EffectivePath).ConfigureAwait(true);
-        if (!string.IsNullOrWhiteSpace(chosen))
+        if (string.IsNullOrWhiteSpace(chosen))
         {
-            await SaveAsync(chosen).ConfigureAwait(true);
+            return;
+        }
+
+        // Recordings must never land relative to whatever the working directory happens to be.
+        if (!TryNormalize(chosen, out var path))
+        {
+            Error = Strings.Storage_NotAbsolute;
+            return;
+        }
+
+        await SaveAsync(path).ConfigureAwait(true);
+    }
+
+    /// <summary>The full form of an absolute path; <see langword="false"/> for a relative, drive-relative or malformed one.</summary>
+    private static bool TryNormalize(string path, out string full)
+    {
+        full = string.Empty;
+        try
+        {
+            if (!Path.IsPathFullyQualified(path))
+            {
+                return false;
+            }
+
+            full = Path.GetFullPath(path);
+            return true;
+        }
+        catch (Exception ex) when (ex is ArgumentException or NotSupportedException or PathTooLongException or IOException)
+        {
+            return false;
         }
     }
 

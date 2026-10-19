@@ -5,6 +5,7 @@
         x:Class="Murmur.App.Views.MainWindow"
         x:DataType="vm:ShellViewModel"
         Title="Murmur"
+        Icon="/Assets/murmur.ico"
         Width="1200"
         Height="780"
         MinWidth="900"
