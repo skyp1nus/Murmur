@@ -4,7 +4,7 @@ using Murmur.Core.Transcription;
 namespace Murmur.Models;
 
 /// <summary>
-/// The pinned catalog (data in code). Sizes are approximate display values; the real total comes from the server.
+/// The pinned catalog (data in code). Display sizes of the GGUF items are the size of their first source; the real total comes from the server.
 /// SHA-256 values and sizes are pinned where known; <c>tools/Murmur.ModelFetch --resolve-pins</c> (workflow <c>models.yml</c>)
 /// prints the current upstream values, the commit of every Hugging Face repository and whether a pin has drifted.
 /// </summary>
@@ -30,6 +30,12 @@ public static class ModelCatalog
     /// </summary>
     public static IReadOnlyDictionary<string, string> HuggingFaceRevisions { get; } = new Dictionary<string, string>(StringComparer.Ordinal)
     {
+        // Resolved by `ModelFetch --resolve-pins` (models.yml run 39309895708); every pinned hash below belongs to these commits.
+        ["bartowski/google_gemma-4-26B-A4B-it-GGUF"] = "10f3b41bcf8d3047f4e136e7197ffc2dd1654c9d",
+        ["bartowski/google_gemma-4-E4B-it-GGUF"] = "029e94146666900b08caf49a3b47b413dfa8ec66",
+        ["csukuangfj/sherpa-onnx-nemo-parakeet-tdt-0.6b-v3-int8"] = "2bda32ec70b097a55adaa07d9a7173915b43cc78",
+        ["ggml-org/embeddinggemma-300M-GGUF"] = "0f741b5a6585bd53aeb15cd1372c56f2a0f65e12",
+        ["unsloth/gemma-4-E4B-it-GGUF"] = "bfc15c382204943c3a8fff0c750b94ae2364d7a3",
     };
 
     /// <summary>Directory (below the models directory) holding the llama.cpp server and its libraries.</summary>
@@ -74,7 +80,9 @@ public static class ModelCatalog
             items.Add(runtime);
         }
 
-        // Candidate order: what the night run actually downloaded first. The local file name is always the first one.
+        // Candidate order: the first source is the preferred one; the rest are fallbacks. Every source carries its own pin
+        // (the same quantisation from different publishers is a different file). Mirrors that do not exist upstream were
+        // removed after the first --resolve-pins run. The display size is the first source's size.
         items.Add(Gguf(
             sources,
             EmbeddingId,
@@ -82,36 +90,30 @@ public static class ModelCatalog
             "EmbeddingGemma 300M (Q8_0)",
             333_590_944,
             "embeddinggemma-300M-Q8_0.gguf",
-            new GgufSource("ggml-org/embeddinggemma-300M-GGUF", "embeddinggemma-300M-Q8_0.gguf", pin ? "b5ce9d77a3fc4b3b39ccb5643c36777911cc4eb46a66962eadfa3f5f60490d63" : null, pin ? 333_590_944 : null),
-            new GgufSource("unsloth/embeddinggemma-300m-GGUF", "embeddinggemma-300m-Q8_0.gguf", null, null)));
+            new GgufSource("ggml-org/embeddinggemma-300M-GGUF", "embeddinggemma-300M-Q8_0.gguf", pin ? "b5ce9d77a3fc4b3b39ccb5643c36777911cc4eb46a66962eadfa3f5f60490d63" : null, pin ? 333_590_944 : null)));
         items.Add(Gguf(
             sources,
             ChatE4BId,
             ModelKind.Chat,
             "Gemma 4 E4B (Q4_K_M)",
-            5_000_000_000,
+            4_977_171_584,
             "gemma-4-E4B-it-Q4_K_M.gguf",
-            new GgufSource("unsloth/gemma-4-E4B-it-GGUF", "gemma-4-E4B-it-Q4_K_M.gguf", null, null),
-            new GgufSource("bartowski/google_gemma-4-E4B-it-GGUF", "google_gemma-4-E4B-it-Q4_K_M.gguf", null, null),
-            new GgufSource("ggml-org/gemma-4-E4B-it-GGUF", "gemma-4-E4B-it-Q4_K_M.gguf", null, null)));
-
-        // UNVERIFIED names: the 26B repositories/files are guesses, the models.yml head-only step checks them.
+            new GgufSource("unsloth/gemma-4-E4B-it-GGUF", "gemma-4-E4B-it-Q4_K_M.gguf", pin ? "85a896a047553e842f25297ee5b031d64ff30147d9c4af17b1e4b394cd1fab87" : null, pin ? 4_977_171_584 : null),
+            new GgufSource("bartowski/google_gemma-4-E4B-it-GGUF", "google_gemma-4-E4B-it-Q4_K_M.gguf", pin ? "d35a3aa7a6d47de237fd488bb6f7f3efd62908d828f85a63da0ee93acdbefe9f" : null, pin ? 5_405_170_144 : null)));
         items.Add(Gguf(
             sources,
             Chat26BId,
             ModelKind.Chat,
             "Gemma 4 26B A4B (Q4_K_M)",
-            17_000_000_000,
+            17_035_039_872,
             "gemma-4-26B-A4B-it-Q4_K_M.gguf",
-            new GgufSource("unsloth/gemma-4-26B-A4B-it-GGUF", "gemma-4-26B-A4B-it-Q4_K_M.gguf", null, null),
-            new GgufSource("bartowski/google_gemma-4-26B-A4B-it-GGUF", "google_gemma-4-26B-A4B-it-Q4_K_M.gguf", null, null),
-            new GgufSource("ggml-org/gemma-4-26B-A4B-it-GGUF", "gemma-4-26B-A4B-it-Q4_K_M.gguf", null, null)));
+            new GgufSource("bartowski/google_gemma-4-26B-A4B-it-GGUF", "google_gemma-4-26B-A4B-it-Q4_K_M.gguf", pin ? "a07f72221e8e3f77455ab0d7f7652d01a9f63c262b954aa6932a53275a0e895a" : null, pin ? 17_035_039_872 : null)));
         return items;
     }
 
     private static ModelFileSpec ParakeetFile(ModelCatalogSources sources, string name)
     {
-        // Pinned from the first real models.yml run (Hugging Face csukuangfj, main).
+        // Pinned from the models.yml run that resolved HuggingFaceRevisions (csukuangfj commit 2bda32ec).
         (string Sha256, long Size)? pin = !sources.PinHashes ? null : name switch
         {
             "encoder.int8.onnx" => ("acfc2b4456377e15d04f0243af540b7fe7c992f8d898d751cf134c3a55fd2247", 652_184_281),
@@ -149,8 +151,8 @@ public static class ModelCatalog
             [new ModelFileSpec(
                 $"{sources.GitHub}/ggml-org/llama.cpp/releases/download/{LlamaCppTag}/{archive}",
                 archive,
-                sources.PinHashes && platform == ModelPlatform.Linux ? "8c08b19bee40d118b803d58fd8f6633ba311ce3c7f1f0138262e636f02aa11f0" : null,
-                sources.PinHashes && platform == ModelPlatform.Linux ? 17_968_449 : null)],
+                sources.PinHashes ? (platform == ModelPlatform.Linux ? "8c08b19bee40d118b803d58fd8f6633ba311ce3c7f1f0138262e636f02aa11f0" : "79b143075ab87fb5aff6f8f8ca80500a984f4120b5199fa9f9b70b284f17428e") : null,
+                sources.PinHashes ? (platform == ModelPlatform.Linux ? 17_968_449 : 19_662_702) : null)],
             packaging,
             executable);
     }
