@@ -1,0 +1,134 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Murmur.App.ViewModels"
+             xmlns:res="using:Murmur.App.Resources"
+             xmlns:controls="using:Murmur.App.Controls"
+             x:Class="Murmur.App.Views.SidebarView"
+             x:DataType="vm:SidebarViewModel">
+
+  <!-- The left navigation of the mockups (Main / Settings): brand, new recording, pages, sections, offline note. -->
+  <Border BorderBrush="{DynamicResource Brush.Hairline}"
+          BorderThickness="{StaticResource Hairline.End}"
+          Width="{StaticResource Size.Sidebar}"
+          Padding="{StaticResource Inset.16}">
+    <Grid RowDefinitions="Auto,Auto,Auto,*,Auto"
+          RowSpacing="{StaticResource Space.24}">
+
+      <!-- Brand: the orb at rest and the wordmark -->
+      <StackPanel Grid.Row="0"
+                  Orientation="Horizontal"
+                  Spacing="{StaticResource Space.12}"
+                  Margin="{StaticResource Inset.8}">
+        <Grid Width="{StaticResource Size.OrbSlot}"
+              Height="{StaticResource Size.OrbSlot}"
+              VerticalAlignment="Center">
+          <controls:OrbControl Width="{StaticResource Size.SidebarOrb}"
+                               Height="{StaticResource Size.SidebarOrb}"
+                               HorizontalAlignment="Center"
+                               VerticalAlignment="Center" />
+        </Grid>
+        <TextBlock Classes="subheading"
+                   FontWeight="{StaticResource FontWeight.BodyMedium}"
+                   VerticalAlignment="Center"
+                   Text="Murmur" />
+      </StackPanel>
+
+      <Button Grid.Row="1"
+              Classes="primary"
+              HorizontalAlignment="Stretch"
+              Command="{Binding NewRecordingCommand}">
+        <StackPanel Orientation="Horizontal"
+                    Spacing="{StaticResource Space.12}">
+          <Ellipse Width="{StaticResource Space.8}"
+                   Height="{StaticResource Space.8}"
+                   VerticalAlignment="Center"
+                   Fill="{DynamicResource Brush.Canvas}" />
+          <TextBlock Foreground="{DynamicResource Brush.Canvas}"
+                     Text="{x:Static res:Strings.Library_NewRecording}" />
+        </StackPanel>
+      </Button>
+
+      <!-- Pages -->
+      <StackPanel Grid.Row="2"
+                  Spacing="{StaticResource Space.4}">
+        <Button Classes="nav"
+                Classes.on="{Binding IsLibrary}"
+                Command="{Binding ShowLibraryCommand}">
+          <StackPanel Orientation="Horizontal"
+                      Spacing="{StaticResource Space.12}">
+            <controls:IconControl Width="{StaticResource Size.NavIcon}"
+                                  Height="{StaticResource Size.NavIcon}"
+                                  Data="{StaticResource Icon.Library}" />
+            <TextBlock Foreground="{Binding $parent[ContentPresenter].Foreground}"
+                       Text="{x:Static res:Strings.Nav_Library}" />
+          </StackPanel>
+        </Button>
+        <Button Classes="nav"
+                Classes.on="{Binding IsChat}"
+                IsVisible="{Binding CanAskAi}"
+                Command="{Binding ShowChatCommand}">
+          <StackPanel Orientation="Horizontal"
+                      Spacing="{StaticResource Space.12}">
+            <controls:IconControl Width="{StaticResource Size.NavIcon}"
+                                  Height="{StaticResource Size.NavIcon}"
+                                  Data="{StaticResource Icon.Ai}" />
+            <TextBlock Foreground="{Binding $parent[ContentPresenter].Foreground}"
+                       Text="{x:Static res:Strings.Common_AskAi}" />
+          </StackPanel>
+        </Button>
+        <Button Classes="nav"
+                Classes.on="{Binding IsSettings}"
+                Command="{Binding ShowSettingsCommand}">
+          <StackPanel Orientation="Horizontal"
+                      Spacing="{StaticResource Space.12}">
+            <controls:IconControl Width="{StaticResource Size.NavIcon}"
+                                  Height="{StaticResource Size.NavIcon}"
+                                  Data="{StaticResource Icon.Settings}" />
+            <TextBlock Foreground="{Binding $parent[ContentPresenter].Foreground}"
+                       Text="{x:Static res:Strings.Nav_Settings}" />
+          </StackPanel>
+        </Button>
+      </StackPanel>
+
+      <!-- Sections of the Settings screen -->
+      <StackPanel Grid.Row="3"
+                  Spacing="{StaticResource Space.4}"
+                  IsVisible="{Binding IsSettings}">
+        <TextBlock Classes="note"
+                   Margin="{StaticResource Inset.12}"
+                   Text="{x:Static res:Strings.Nav_Sections}" />
+        <ItemsControl ItemsSource="{Binding Sections}">
+          <ItemsControl.ItemTemplate>
+            <DataTemplate x:DataType="vm:SettingsSection">
+              <Button Classes="nav sub"
+                      Command="{Binding $parent[ItemsControl].((vm:SidebarViewModel)DataContext).ShowSectionCommand}"
+                      CommandParameter="{Binding}">
+                <TextBlock Foreground="{Binding $parent[ContentPresenter].Foreground}"
+                           Text="{Binding Title}" />
+              </Button>
+            </DataTemplate>
+          </ItemsControl.ItemTemplate>
+        </ItemsControl>
+      </StackPanel>
+
+      <!-- Offline note -->
+      <Border Grid.Row="4"
+              Classes="well"
+              Padding="{StaticResource Inset.16}">
+        <StackPanel Spacing="{StaticResource Space.4}">
+          <StackPanel Orientation="Horizontal"
+                      Spacing="{StaticResource Space.8}">
+            <controls:IconControl Width="{StaticResource Size.NavIcon}"
+                                  Height="{StaticResource Size.NavIcon}"
+                                  Data="{StaticResource Icon.Shield}" />
+            <TextBlock Classes="label"
+                       VerticalAlignment="Center"
+                       Text="{x:Static res:Strings.Nav_OfflineTitle}" />
+          </StackPanel>
+          <TextBlock Classes="note"
+                     Text="{x:Static res:Strings.Nav_OfflineText}" />
+        </StackPanel>
+      </Border>
+    </Grid>
+  </Border>
+</UserControl>
