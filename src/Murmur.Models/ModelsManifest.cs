@@ -31,6 +31,7 @@ internal sealed class ManifestPair
     [JsonPropertyName("embed")]
     public string? Embed { get; set; }
 
+    [JsonIgnore]
     public bool IsEmpty => Chat is null && Embed is null;
 }
 
@@ -69,12 +70,21 @@ internal sealed class ModelsManifestStore
     public bool IsActive(ModelKind kind, string absolutePath) =>
         ActivePath(kind) is { Length: > 0 } active && string.Equals(active, absolutePath, PathComparison);
 
-    /// <summary>Makes the file the active model of its kind, keeping the other kind's entries.</summary>
-    public void SetActive(ModelKind kind, string absolutePath, string? repo, string fileName)
+    /// <summary>
+    /// Makes the file the active model of its kind, keeping the other kind's entries. With
+    /// <paramref name="keepRecordedSource"/> the repo and file already recorded for the same path are left as they are
+    /// (re-activating an installed model must not forget which mirror it came from).
+    /// </summary>
+    public void SetActive(ModelKind kind, string absolutePath, string? repo, string fileName, bool keepRecordedSource = false)
     {
         lock (_lock)
         {
             var doc = Read();
+            if (keepRecordedSource && string.Equals(kind == ModelKind.Chat ? doc.Chat : doc.Embed, absolutePath, PathComparison) && (kind == ModelKind.Chat ? doc.File?.Chat : doc.File?.Embed) is not null)
+            {
+                return;
+            }
+
             doc.Repo ??= new ManifestPair();
             doc.File ??= new ManifestPair();
             if (kind == ModelKind.Chat)

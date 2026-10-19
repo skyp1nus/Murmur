@@ -25,15 +25,38 @@ public enum ModelPlatform
     Other,
 }
 
-/// <summary>One file to download.</summary>
+/// <summary>An alternative place to download a file from (same content under the same canonical local name).</summary>
 /// <param name="Url">Absolute http(s) URL.</param>
+/// <param name="Repo">Hugging Face repository, recorded in <c>gguf/models.json</c> when this mirror is the one used.</param>
+/// <param name="FileName">Name of the file on that mirror (may differ from the local name), recorded in <c>models.json</c>.</param>
+/// <param name="Sha256">Expected SHA-256 for this mirror; <c>null</c> when it is not known to be the same file.</param>
+/// <param name="SizeBytes">Exact expected size for this mirror, or <c>null</c>.</param>
+public sealed record ModelMirror(string Url, string? Repo = null, string? FileName = null, string? Sha256 = null, long? SizeBytes = null);
+
+/// <summary>One file to download.</summary>
+/// <param name="Url">Absolute http(s) URL of the first (preferred) source.</param>
 /// <param name="RelativePath">
 /// Path below the item's target directory (<see cref="ModelCatalogItem.IsDirectory"/>), or the file name for a single-file
-/// item (or the archive file name for an archive).
+/// item (or the archive file name for an archive). This is the canonical local name whichever source serves the file.
 /// </param>
-/// <param name="Sha256">Expected SHA-256 as hex, or <c>null</c> while it is not pinned.</param>
-/// <param name="SizeBytes">Exact expected size, or <c>null</c> to trust the server's Content-Length.</param>
-public sealed record ModelFileSpec(string Url, string RelativePath, string? Sha256 = null, long? SizeBytes = null);
+/// <param name="Sha256">Expected SHA-256 as hex of the first source, or <c>null</c> while it is not pinned.</param>
+/// <param name="SizeBytes">Exact expected size of the first source, or <c>null</c> to trust the server's Content-Length.</param>
+/// <param name="Repo">Hugging Face repository of the first source.</param>
+/// <param name="RemoteName">Name of the file on the first source when it differs from <paramref name="RelativePath"/>.</param>
+/// <param name="Fallbacks">Further sources, tried in order when the earlier ones do not answer.</param>
+public sealed record ModelFileSpec(
+    string Url,
+    string RelativePath,
+    string? Sha256 = null,
+    long? SizeBytes = null,
+    string? Repo = null,
+    string? RemoteName = null,
+    IReadOnlyList<ModelMirror>? Fallbacks = null)
+{
+    /// <summary>All sources in the order they are tried (the first source, then the fallbacks).</summary>
+    public IReadOnlyList<ModelMirror> Sources =>
+        [new ModelMirror(Url, Repo, RemoteName, Sha256, SizeBytes), .. Fallbacks ?? []];
+}
 
 /// <summary>A catalog entry: what <see cref="IModelManager"/> shows plus how to download and install it.</summary>
 /// <param name="Info">What the UI sees. <see cref="ModelInfo.SizeBytes"/> is an approximate display value.</param>
@@ -58,7 +81,8 @@ public sealed record ModelCatalogItem(
 /// <summary>Base addresses of the hosts the catalog downloads from; tests point them at a local server.</summary>
 /// <param name="HuggingFace">Hugging Face, without trailing slash.</param>
 /// <param name="GitHub">GitHub (release downloads), without trailing slash.</param>
-public sealed record ModelCatalogSources(string HuggingFace, string GitHub)
+/// <param name="PinHashes">Attach the pinned SHA-256 values and exact sizes; tests that serve made-up content turn it off.</param>
+public sealed record ModelCatalogSources(string HuggingFace, string GitHub, bool PinHashes = true)
 {
     public static ModelCatalogSources Default { get; } = new("https://huggingface.co", "https://github.com");
 }

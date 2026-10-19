@@ -19,7 +19,6 @@ public sealed class CatalogTests
         Assert.Equal([ModelKind.Asr, ModelKind.Vad, ModelKind.LlmRuntime, ModelKind.Embedding, ModelKind.Chat, ModelKind.Chat], items.Select(i => i.Info.Kind));
         Assert.Equal([true, true, false, false, false, false], items.Select(i => i.Info.Required));
         Assert.All(items, i => Assert.True(i.Info.SizeBytes > 0));
-        Assert.All(items, i => Assert.Null(i.Files.FirstOrDefault(f => f.Sha256 is not null))); // not pinned yet
     }
 
     [Fact]
@@ -71,18 +70,99 @@ public sealed class CatalogTests
     }
 
     [Fact]
-    public void GgufItems_PointAtTheHuggingFaceFilesTheCiUsed()
+    public void GgufItems_ListTheirMirrorsInOrderWithTheCanonicalLocalName()
     {
         var items = ModelCatalog.Create(Hosts, ModelPlatform.Linux);
 
         var embed = items.Single(i => i.Id == ModelCatalog.EmbeddingId);
-        var chat = items.Single(i => i.Id == ModelCatalog.ChatE4BId);
-        var big = items.Single(i => i.Id == ModelCatalog.Chat26BId);
         Assert.Equal("gguf/embeddinggemma-300M-Q8_0.gguf", embed.TargetPath);
-        Assert.Equal("http://hf.test/ggml-org/embeddinggemma-300M-GGUF/resolve/main/embeddinggemma-300M-Q8_0.gguf", embed.Files.Single().Url);
+        Assert.Equal(
+            [
+                "http://hf.test/ggml-org/embeddinggemma-300M-GGUF/resolve/main/embeddinggemma-300M-Q8_0.gguf",
+                "http://hf.test/unsloth/embeddinggemma-300m-GGUF/resolve/main/embeddinggemma-300m-Q8_0.gguf",
+            ],
+            embed.Files.Single().Sources.Select(m => m.Url));
+
+        var chat = items.Single(i => i.Id == ModelCatalog.ChatE4BId);
         Assert.Equal("gguf/gemma-4-E4B-it-Q4_K_M.gguf", chat.TargetPath);
-        Assert.Equal("ggml-org/gemma-4-E4B-it-GGUF", chat.Repo);
-        Assert.Equal("http://hf.test/ggml-org/gemma-4-26B-A4B-it-GGUF/resolve/main/gemma-4-26B-A4B-it-Q4_K_M.gguf", big.Files.Single().Url);
+        Assert.Equal("gemma-4-E4B-it-Q4_K_M.gguf", chat.Files.Single().RelativePath);
+        Assert.Equal(
+            [
+                "http://hf.test/unsloth/gemma-4-E4B-it-GGUF/resolve/main/gemma-4-E4B-it-Q4_K_M.gguf",
+                "http://hf.test/bartowski/google_gemma-4-E4B-it-GGUF/resolve/main/google_gemma-4-E4B-it-Q4_K_M.gguf",
+                "http://hf.test/ggml-org/gemma-4-E4B-it-GGUF/resolve/main/gemma-4-E4B-it-Q4_K_M.gguf",
+            ],
+            chat.Files.Single().Sources.Select(m => m.Url));
+        Assert.Equal(["unsloth/gemma-4-E4B-it-GGUF", "bartowski/google_gemma-4-E4B-it-GGUF", "ggml-org/gemma-4-E4B-it-GGUF"], chat.Files.Single().Sources.Select(m => m.Repo));
+        Assert.Equal("google_gemma-4-E4B-it-Q4_K_M.gguf", chat.Files.Single().Sources[1].FileName);
+
+        var big = items.Single(i => i.Id == ModelCatalog.Chat26BId);
+        Assert.Equal(
+            [
+                "http://hf.test/unsloth/gemma-4-26B-A4B-it-GGUF/resolve/main/gemma-4-26B-A4B-it-Q4_K_M.gguf",
+                "http://hf.test/bartowski/google_gemma-4-26B-A4B-it-GGUF/resolve/main/google_gemma-4-26B-A4B-it-Q4_K_M.gguf",
+                "http://hf.test/ggml-org/gemma-4-26B-A4B-it-GGUF/resolve/main/gemma-4-26B-A4B-it-Q4_K_M.gguf",
+            ],
+            big.Files.Single().Sources.Select(m => m.Url));
+    }
+
+    [Fact]
+    public void SingleSourceItems_HaveExactlyOneSource()
+    {
+        var items = ModelCatalog.Create(Hosts, ModelPlatform.Linux);
+
+        foreach (var id in new[] { ModelCatalog.ParakeetId, ModelCatalog.SileroVadId, ModelCatalog.LlamaCppId })
+        {
+            Assert.All(items.Single(i => i.Id == id).Files, f => Assert.Single(f.Sources));
+        }
+    }
+
+    [Fact]
+    public void PinnedFiles_CarryTheHashesAndSizesOfTheFirstRealRun()
+    {
+        var items = ModelCatalog.Create(Hosts, ModelPlatform.Linux);
+
+        var parakeet = items.Single(i => i.Id == ModelCatalog.ParakeetId).Files.ToDictionary(f => f.RelativePath);
+        Assert.Equal(("acfc2b4456377e15d04f0243af540b7fe7c992f8d898d751cf134c3a55fd2247", 652_184_281L), (parakeet["encoder.int8.onnx"].Sha256, parakeet["encoder.int8.onnx"].SizeBytes));
+        Assert.Equal(("179e50c43d1a9de79c8a24149a2f9bac6eb5981823f2a2ed88d655b24248db4e", 11_845_275L), (parakeet["decoder.int8.onnx"].Sha256, parakeet["decoder.int8.onnx"].SizeBytes));
+        Assert.Equal(("3164c13fc2821009440d20fcb5fdc78bff28b4db2f8d0f0b329101719c0948b3", 6_355_277L), (parakeet["joiner.int8.onnx"].Sha256, parakeet["joiner.int8.onnx"].SizeBytes));
+        Assert.Equal(("d58544679ea4bc6ac563d1f545eb7d474bd6cfa467f0a6e2c1dc1c7d37e3c35d", 93_939L), (parakeet["tokens.txt"].Sha256, parakeet["tokens.txt"].SizeBytes));
+
+        var vad = items.Single(i => i.Id == ModelCatalog.SileroVadId).Files.Single();
+        Assert.Equal(("9e2449e1087496d8d4caba907f23e0bd3f78d91fa552479bb9c23ac09cbb1fd6", 643_854L), (vad.Sha256, vad.SizeBytes));
+
+        var llama = items.Single(i => i.Id == ModelCatalog.LlamaCppId).Files.Single();
+        Assert.Equal(("8c08b19bee40d118b803d58fd8f6633ba311ce3c7f1f0138262e636f02aa11f0", 17_968_449L), (llama.Sha256, llama.SizeBytes));
+
+        var embed = items.Single(i => i.Id == ModelCatalog.EmbeddingId).Files.Single();
+        Assert.Equal(("b5ce9d77a3fc4b3b39ccb5643c36777911cc4eb46a66962eadfa3f5f60490d63", 333_590_944L), (embed.Sha256, embed.SizeBytes));
+        Assert.Null(embed.Sources[1].Sha256); // the unsloth file is not known to be the same bytes
+        Assert.Null(embed.Sources[1].SizeBytes);
+    }
+
+    [Fact]
+    public void ChatModelsAndTheWindowsRuntime_AreNotPinned()
+    {
+        Assert.All(ModelCatalog.Create(Hosts, ModelPlatform.Linux).Where(i => i.Info.Kind == ModelKind.Chat).SelectMany(i => i.Files.SelectMany(f => f.Sources)), m =>
+        {
+            Assert.Null(m.Sha256);
+            Assert.Null(m.SizeBytes);
+        });
+        var windows = ModelCatalog.Create(Hosts, ModelPlatform.Windows).Single(i => i.Info.Kind == ModelKind.LlmRuntime).Files.Single();
+        Assert.Null(windows.Sha256);
+        Assert.Null(windows.SizeBytes);
+    }
+
+    [Fact]
+    public void WithoutPins_NothingIsPinned()
+    {
+        var items = ModelCatalog.Create(Hosts with { PinHashes = false }, ModelPlatform.Linux);
+
+        Assert.All(items.SelectMany(i => i.Files).SelectMany(f => f.Sources), m =>
+        {
+            Assert.Null(m.Sha256);
+            Assert.Null(m.SizeBytes);
+        });
     }
 
     [Fact]
