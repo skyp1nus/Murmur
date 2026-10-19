@@ -316,7 +316,8 @@ public sealed class ModelManager : IModelManager, IDisposable
                     return new MirrorChoice(mirror, total, tried);
                 }
 
-                withoutLength ??= new MirrorChoice(mirror, total, tried);
+                // A copy: `tried` keeps growing while the later sources are asked, the choice documents what was tried up to here.
+                withoutLength ??= new MirrorChoice(mirror, total, [.. tried]);
             }
             catch (ModelInstallException ex) when (sources.Count > 1)
             {
@@ -546,8 +547,8 @@ public sealed class ModelManager : IModelManager, IDisposable
             var part = final + ".part";
             if (NonEmptyFile(final))
             {
-                // Finished by an earlier run; which source it came from is not recorded, so assume the first.
-                chosen[i] = spec.Sources[0];
+                // Finished by an earlier run: the source it came from is in the side file, else it is guessed from the size.
+                chosen[i] = FinishedSource(spec, final);
                 complete[i] = true;
                 operation.Set(i, Length(final), Length(final));
                 continue;
@@ -593,13 +594,13 @@ public sealed class ModelManager : IModelManager, IDisposable
             var length = Length(path);
             if (length == 0)
             {
-                ModelDownloader.DiscardPart(path);
+                DiscardFile(path);
                 throw new ModelInstallException($"{mirror.Url} downloaded as an empty file");
             }
 
             if (mirror.SizeBytes is { } wanted && length != wanted)
             {
-                ModelDownloader.DiscardPart(path);
+                DiscardFile(path);
                 throw new ModelInstallException($"{mirror.Url}: expected {wanted} bytes, got {length}");
             }
 
@@ -609,13 +610,15 @@ public sealed class ModelManager : IModelManager, IDisposable
                 hash = await Sha256Async(path, cancellationToken).ConfigureAwait(false);
                 if (mirror.Sha256 is not null && !string.Equals(hash, mirror.Sha256, StringComparison.OrdinalIgnoreCase))
                 {
-                    ModelDownloader.DiscardPart(path);
+                    DiscardFile(path);
                     throw new ModelInstallException($"{mirror.Url}: SHA-256 mismatch (expected {mirror.Sha256.ToLowerInvariant()}, got {hash})");
                 }
             }
 
             if (!complete[i])
             {
+                // The record goes first: a crash between the two steps leaves a record without a file, which is ignored.
+                File.WriteAllText(SourceRecordPath(final), mirror.Url);
                 FileOps.MoveFile(part, final, overwrite: true);
                 File.Delete(part + ".validator");
             }
@@ -624,13 +627,15 @@ public sealed class ModelManager : IModelManager, IDisposable
             reports.Add(new ModelFileReport(mirror.Url, spec.RelativePath, length, hash));
         }
 
-        // A crash between the rename of a file and the deletion of its validator leaves the validator behind: it must
-        // not travel into the installed folder.
-        foreach (var stray in Directory.EnumerateFiles(dl, "*.validator", SearchOption.AllDirectories))
+        // A crash between the rename of a file and the deletion of its validator leaves the validator behind, and the
+        // side files naming the sources are only for resuming: none of them may travel into the installed folder.
+        foreach (var stray in Directory.EnumerateFiles(dl, "*.validator", SearchOption.AllDirectories).Concat(Directory.EnumerateFiles(dl, "*" + SourceRecordSuffix, SearchOption.AllDirectories)).ToList())
         {
             File.Delete(stray);
         }
 
+        // Written before the file is placed: a crash in between leaves a record next to nothing, which the next install overwrites.
+        WriteProvenance(item, chosen[0]);
         await PlaceAsync(item, root, dl, cancellationToken).ConfigureAwait(false);
         Activate(item, chosen[0]);
 
@@ -742,7 +747,7 @@ public sealed class ModelManager : IModelManager, IDisposable
             // hide the original error.
             try
             {
-                ModelDownloader.DiscardPart(archive);
+                DiscardFile(archive);
                 Directory.Delete(extract, recursive: true);
             }
             catch (Exception cleanup) when (cleanup is IOException or UnauthorizedAccessException)
@@ -791,17 +796,114 @@ public sealed class ModelManager : IModelManager, IDisposable
         }
     }
 
+    private const string SourceRecordSuffix = ".source";
+
+    private static string SourceRecordPath(string file) => file + SourceRecordSuffix;
+
+    /// <summary>Deletes a downloaded file (or part) with everything that was recorded about it.</summary>
+    private static void DiscardFile(string path)
+    {
+        ModelDownloader.DiscardPart(path);
+        File.Delete(SourceRecordPath(path));
+    }
+
+    /// <summary>
+    /// The source a finished file in the download folder came from: the one its side file names; without a record the
+    /// source whose pinned size equals the file's length, else the first unpinned source, else the first.
+    /// </summary>
+    private static ModelMirror FinishedSource(ModelFileSpec spec, string final)
+    {
+        var sources = spec.Sources;
+        var record = SourceRecordPath(final);
+        if (TryReadAllText(record) is { Length: > 0 } url)
+        {
+            foreach (var mirror in sources)
+            {
+                if (string.Equals(mirror.Url, url.Trim(), StringComparison.Ordinal))
+                {
+                    return mirror;
+                }
+            }
+        }
+
+        var length = Length(final);
+        foreach (var mirror in sources)
+        {
+            if (mirror.SizeBytes == length)
+            {
+                return mirror;
+            }
+        }
+
+        foreach (var mirror in sources)
+        {
+            if (mirror.SizeBytes is null && mirror.Sha256 is null)
+            {
+                return mirror;
+            }
+        }
+
+        return sources[0];
+    }
+
+    private static string? TryReadAllText(string path)
+    {
+        try
+        {
+            return File.Exists(path) ? File.ReadAllText(path) : null;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// <c>gguf/&lt;file&gt;.source</c>: the repository and file name of the source that served an installed chat or embedding
+    /// model, so that activating it again later (after another model was active) records the right provenance in
+    /// <c>models.json</c>. Two lines; the first is empty when the repository is unknown.
+    /// </summary>
+    private void WriteProvenance(ModelCatalogItem item, ModelMirror source)
+    {
+        if (item.Info.Kind is not (ModelKind.Chat or ModelKind.Embedding) || item.IsDirectory)
+        {
+            return;
+        }
+
+        var target = TargetFullPath(item);
+        Directory.CreateDirectory(Path.GetDirectoryName(target)!);
+        File.WriteAllText(
+            SourceRecordPath(target),
+            $"{source.Repo ?? item.Repo}\n{source.FileName ?? Path.GetFileName(item.TargetPath)}\n");
+    }
+
+    private (string? Repo, string FileName)? ReadProvenance(ModelCatalogItem item)
+    {
+        if (item.IsDirectory || TryReadAllText(SourceRecordPath(TargetFullPath(item))) is not { } text)
+        {
+            return null;
+        }
+
+        var lines = text.Split('\n', StringSplitOptions.TrimEntries);
+        return lines.Length >= 2 && lines[1].Length > 0 ? (lines[0].Length > 0 ? lines[0] : null, lines[1]) : null;
+    }
+
     /// <summary>Makes a chat or embedding model the active one; <paramref name="source"/> is the mirror it came from, if known.</summary>
     private void Activate(ModelCatalogItem item, ModelMirror? source)
     {
         if (item.Info.Kind is ModelKind.Chat or ModelKind.Embedding)
         {
-            _manifest.SetActive(
-                item.Info.Kind,
-                TargetFullPath(item),
-                source?.Repo ?? item.Repo,
-                source?.FileName ?? Path.GetFileName(item.TargetPath),
-                keepRecordedSource: source is null);
+            var repo = source?.Repo ?? item.Repo;
+            var fileName = source?.FileName ?? Path.GetFileName(item.TargetPath);
+            var keep = source is null;
+            if (source is null && ReadProvenance(item) is { } recorded)
+            {
+                // Already installed: the source that served that very file, not the first one of the catalog.
+                (repo, fileName) = recorded;
+                keep = false;
+            }
+
+            _manifest.SetActive(item.Info.Kind, TargetFullPath(item), repo, fileName, keepRecordedSource: keep);
         }
     }
 
@@ -850,7 +952,12 @@ public sealed class ModelManager : IModelManager, IDisposable
                 }
             }
 
-            // The item is gone from its place now: the manifest must not name it any longer.
+            // The item is gone from its place now: neither its provenance record nor the manifest may name it any longer.
+            if (!item.IsDirectory && File.Exists(SourceRecordPath(target)))
+            {
+                File.Delete(SourceRecordPath(target));
+            }
+
             if (item.Info.Kind is ModelKind.Chat or ModelKind.Embedding)
             {
                 _manifest.ClearIfActive(item.Info.Kind, target);
