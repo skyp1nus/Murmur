@@ -83,9 +83,9 @@ internal sealed class FakeModelManager : IModelManager
         TaskCompletionSource tcs;
         lock (_gate)
         {
-            InstallCalls.Add(id);
             if (_status[id].State == ModelInstallState.Installed)
             {
+                InstallCalls.Add(id);
                 return Task.CompletedTask;
             }
 
@@ -99,6 +99,14 @@ internal sealed class FakeModelManager : IModelManager
             tcs.TrySetCanceled(cancellationToken);
         });
         Set(id, ModelInstallState.Downloading, 0, null, null);
+
+        // Recorded last: a test that polls WasInstallCalled from another thread (a bundle continues on the thread pool)
+        // must find the row already Downloading, not in the gap between the two steps (seen on a slow Windows runner).
+        lock (_gate)
+        {
+            InstallCalls.Add(id);
+        }
+
         return tcs.Task;
     }
 
