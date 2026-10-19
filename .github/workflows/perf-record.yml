@@ -8,12 +8,8 @@ name: perf-record
 # Idle CPU < 1% is checked on both runs. Budgets come from docs/PLAN.md. Cloud runners are slower and noisier than a
 # real PC, so a budget miss here is a signal to look at, not a hard product verdict.
 
+# Manual only. Locally: `pwsh scripts/verify-local.ps1 -Perf [-PerfMinutes N] [-Tone]`.
 on:
-  # The night-run environment cannot dispatch workflows that are not on the default branch, so a push that touches
-  # .github/perf-request.txt also starts a run with the default inputs (60 min audio-only + 10 min audio + screen).
-  push:
-    branches: [night-run]
-    paths: ['.github/perf-request.txt']
   workflow_dispatch:
     inputs:
       minutes:
@@ -49,9 +45,7 @@ jobs:
         shell: pwsh
     env:
       MINUTES: ${{ inputs.minutes || 60 }}
-      # `inputs` is empty on push, and `null != false` is false in GitHub expressions (both coerce to 0), so the
-      # screen run is decided by the event: always on push, the `screen` checkbox on workflow_dispatch.
-      SCREEN: ${{ github.event_name != 'workflow_dispatch' || inputs.screen }}
+      SCREEN: ${{ inputs.screen }}
     steps:
       # Budget: publish ~15 min + A (<= 85 min) + B (10 min) + setup must fit into the 120 min timeout.
       - name: Validate inputs

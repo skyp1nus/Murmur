@@ -1,6 +1,35 @@
 # CI
 
-Workflow: `.github/workflows/ci.yml`. Запускається на push у `master` і `night-run`, на кожен pull request і вручну (`workflow_dispatch`). Нові запуски для тієї ж гілки скасовують попередні (`concurrency: ci-<ref>`). Права токена: лише `contents: read`. Окремий workflow `.github/workflows/ai-eval.yml` (AI-eval фази 3) описано в розділі «AI-eval» нижче.
+## Коли що запускається (рішення власника, 2026-10-19)
+
+Запусків GitHub Actions — мінімум; Windows-перевірки щодня робляться на ПК власника.
+
+| Що | Автоматично | Вручну |
+|---|---|---|
+| `ci.yml`, джоб `linux` | кожен pull request (крім події «додали мітку») | Actions → ci → Run workflow |
+| `ci.yml`, джоби `windows`, `startup`, `capture-e2e` | лише PR з міткою `ci:windows` (додавання мітки теж запускає) | Run workflow, `windows` = true |
+| `ci.yml`, джоб `bench` | ніколи | Run workflow, `bench` = true |
+| `asr.yml`, `ai-eval.yml`, `perf-record.yml`, `models.yml` | ніколи | Run workflow |
+| `tags.yml` | push у `master`, що змінює `.github/phase-tags.txt` | Run workflow |
+
+### Локально: `scripts/verify-local.ps1`
+
+Ті самі перевірки на Windows-ПК (справжній GPU, мікрофон і динаміки), PowerShell 7:
+
+```powershell
+pwsh scripts/verify-local.ps1                      # build + тести + AOT win-x64 + старт (≈ джоби windows і startup)
+pwsh scripts/verify-local.ps1 -Publish -Capture     # + запис 60 с зі звуком і екраном (≈ capture-e2e)
+pwsh scripts/verify-local.ps1 -Perf -PerfMinutes 20 # довгі записи з бюджетами PLAN.md (≈ perf-record)
+pwsh scripts/verify-local.ps1 -Asr                  # 1 год аудіо → текст, бюджет 180 с (≈ asr; потрібен fetch-models.ps1)
+pwsh scripts/verify-local.ps1 -AiEval               # AI-eval з Gemma 4 (≈ ai-eval; потрібен fetch-models.ps1 -Ai)
+pwsh scripts/verify-local.ps1 -All -Tone            # усе; -Tone грає тестовий тон 440 Гц у динаміки й перевіряє, що він записався без пропусків
+```
+
+Під час `-Capture`/`-Perf` без `-Tone` має щось звучати (відео з мовленням). Кроки після невдалого все одно виконуються, якщо можуть; кроки, яким потрібна зібрана програма, беруть `artifacts/publish/win-x64` з попереднього `-Publish`. Звіт: `artifacts/local-verify/<yyyyMMdd-HHmmss>/report.md` (таблиця кроків, машина, коміт, таблиці перевірок) — його вставляють у PR. Код виходу 1, якщо якийсь крок FAIL.
+
+## Workflow `ci`
+
+Workflow: `.github/workflows/ci.yml`. Тригери — див. таблицю вище. Нові запуски для тієї ж гілки скасовують попередні (`concurrency: ci-<ref>`). Права токена: лише `contents: read`. Окремий workflow `.github/workflows/ai-eval.yml` (AI-eval фази 3) описано в розділі «AI-eval» нижче.
 
 SDK береться з `global.json` (prerelease `11.0.100-rc.2.26504.105`, `rollForward: latestFeature`). Одного `global-json-file` недостатньо: `setup-dotnet` обрізає версію до `major.minor` і ставить те, що зараз віддає канал `11.0`. Тому в усіх кроках `setup-dotnet` додатково вказано `dotnet-version: 11.0.100-rc.2.26504.105`, а наступний крок `Verify SDK matches global.json` валить джоб, якщо `dotnet --version` не дорівнює `sdk.version` з `global.json` (UNVERIFIED-ON-ACTIONS: поведінку `setup-dotnet` не перевірено запуском). При зміні SDK в `global.json` треба оновити `dotnet-version` у `ci.yml`. NuGet-кеш: `actions/cache@v4`, ключ від `Directory.Packages.props` і `**/*.csproj`.
 
@@ -18,7 +47,7 @@ SDK береться з `global.json` (prerelease `11.0.100-rc.2.26504.105`, `ro
 
 ## Workflow `asr`
 
-Workflow: `.github/workflows/asr.yml` (окремо від `ci.yml`, щоб не уповільнювати pull request'и). Запускається на push у `master` і `night-run` та вручну (`workflow_dispatch`); `concurrency: asr-<ref>`, права `contents: read`. Той самий пін SDK і крок `Verify SDK matches global.json`, що в `ci.yml` (при зміні `global.json` оновити `dotnet-version` в обох файлах).
+Workflow: `.github/workflows/asr.yml` (окремо від `ci.yml`, щоб не уповільнювати pull request'и). Запускається лише вручну (`workflow_dispatch`; локально — `verify-local.ps1 -Asr`); `concurrency: asr-<ref>`, права `contents: read`. Той самий пін SDK і крок `Verify SDK matches global.json`, що в `ci.yml` (при зміні `global.json` оновити `dotnet-version` в обох файлах).
 
 Один джоб `asr`, матриця `ubuntu-latest` (linux-x64) і `windows-latest` (win-x64), 45 хв, `fail-fast: false`, shell `bash`. 1-годинний бенчмарк запускається лише тут, по одному разу на ОС.
 
@@ -55,7 +84,7 @@ UNVERIFIED-ON-ACTIONS: workflow не запускався на GitHub Actions (Y
 Через CLI:
 
 ```powershell
-gh run list --workflow ci --branch night-run --limit 5
+gh run list --workflow ci --branch master --limit 5
 gh run download <run-id> --name murmur-win-x64 --dir murmur-win-x64
 .\murmur-win-x64\Murmur.exe
 ```
@@ -149,7 +178,7 @@ Workflow сам збирає Native AOT `Murmur.Desktop` win-x64 (без `Murmur
 
 ## AI-eval: «відповідь AI веде на правильну хвилину» (`.github/workflows/ai-eval.yml`)
 
-Окремий workflow (не `ci.yml`), критерій фази 3. Запускається на push у `master` і `night-run` та вручну (`workflow_dispatch`); `concurrency: ai-eval-<ref>`.
+Окремий workflow (не `ci.yml`), критерій фази 3. Запускається лише вручну (`workflow_dispatch`; локально — `verify-local.ps1 -AiEval`); `concurrency: ai-eval-<ref>`.
 
 | Джоб | Раннер | Що робить |
 |---|---|---|
