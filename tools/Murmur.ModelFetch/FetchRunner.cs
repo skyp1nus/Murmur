@@ -134,6 +134,12 @@ internal static class FetchRunner
         {
             foreach (var probe in await manager.ProbeAsync(id, cancellationToken))
             {
+                foreach (var skipped in probe.Tried.Where(t => t.Error is not null))
+                {
+                    await output.WriteLineAsync($"[{id}] skipped {skipped.Url}: {skipped.Error}");
+                    summary.AppendLine($"| `{id}` | {skipped.Url} (skipped: {skipped.Error!.Replace("|", "\\|", StringComparison.Ordinal)}) | |");
+                }
+
                 var length = probe.ContentLength?.ToString() ?? "unknown";
                 await output.WriteLineAsync($"[{id}] {probe.Url}: Content-Length {length}");
                 summary.AppendLine($"| `{id}` | {probe.Url} | {length} |");

@@ -10,6 +10,8 @@ public sealed class StoragePaths
 
     public const string DatabaseFileName = "murmur.db";
 
+    public const string SettingsFileName = "settings.json";
+
     public StoragePaths(string root)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(root);
@@ -22,6 +24,9 @@ public sealed class StoragePaths
     public string RecordingsDirectory => Path.Combine(Root, RecordingsFolderName);
 
     public string DatabasePath => Path.Combine(Root, DatabaseFileName);
+
+    /// <summary>The user preferences file, see <see cref="JsonSettingsStore"/>.</summary>
+    public string SettingsPath => Path.Combine(Root, SettingsFileName);
 
     /// <summary>
     /// Resolves the data root from <c>MURMUR_DATA_DIR</c>, falling back to

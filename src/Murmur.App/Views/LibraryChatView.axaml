@@ -1,6 +1,7 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="using:Murmur.App.ViewModels"
+             xmlns:res="using:Murmur.App.Resources"
              xmlns:views="using:Murmur.App.Views"
              x:Class="Murmur.App.Views.LibraryChatView"
              x:DataType="vm:LibraryChatViewModel">
@@ -15,7 +16,7 @@
       <Button Grid.Column="0"
               Classes="outline"
               VerticalAlignment="Center"
-              Content="Назад"
+              Content="{x:Static res:Strings.Common_Back}"
               Command="{Binding BackCommand}" />
       <StackPanel Grid.Column="1"
                   VerticalAlignment="Center">
@@ -23,8 +24,8 @@
                    TextTrimming="CharacterEllipsis"
                    Text="{Binding Title}" />
         <TextBlock Classes="bodySm"
-                   Foreground="{StaticResource Brush.Smoke}"
-                   Text="Відповіді посилаються на записи й хвилини — натисни таймкод, щоб відкрити запис там." />
+                   Foreground="{DynamicResource Brush.Smoke}"
+                   Text="{x:Static res:Strings.LibraryChat_Subtitle}" />
       </StackPanel>
     </Grid>
 

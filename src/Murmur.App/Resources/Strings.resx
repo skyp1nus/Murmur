@@ -1,0 +1,380 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <!--
+    Ukrainian UI texts: the neutral language of Murmur.App (NeutralLanguage = uk).
+    Keep both files in step: same keys, same {n} placeholders (checked by LocalizationTests).
+  -->
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <data name="Common_Back" xml:space="preserve">
+    <value>Назад</value>
+  </data>
+  <data name="Common_Stop" xml:space="preserve">
+    <value>Зупинити</value>
+  </data>
+  <data name="Common_Microphone" xml:space="preserve">
+    <value>Мікрофон</value>
+  </data>
+  <data name="Common_Screen" xml:space="preserve">
+    <value>Екран</value>
+  </data>
+  <data name="Common_AskAi" xml:space="preserve">
+    <value>Запитати AI</value>
+  </data>
+  <data name="Common_Percent" xml:space="preserve">
+    <value>{0} %</value>
+    <comment>{0} = whole percent</comment>
+  </data>
+  <data name="Common_UntitledRecording" xml:space="preserve">
+    <value>Запис без назви</value>
+  </data>
+  <data name="Library_SearchPlaceholder" xml:space="preserve">
+    <value>Пошук по записах</value>
+  </data>
+  <data name="Library_NewRecording" xml:space="preserve">
+    <value>Новий запис</value>
+  </data>
+  <data name="Library_FilterToday" xml:space="preserve">
+    <value>Сьогодні</value>
+  </data>
+  <data name="Library_FilterWeek" xml:space="preserve">
+    <value>Тиждень</value>
+  </data>
+  <data name="Library_FilterAll" xml:space="preserve">
+    <value>Усі</value>
+  </data>
+  <data name="Library_AskAll" xml:space="preserve">
+    <value>Запитати AI по всіх записах</value>
+  </data>
+  <data name="Library_BadgeSystem" xml:space="preserve">
+    <value>Системний</value>
+  </data>
+  <data name="Library_NothingFound" xml:space="preserve">
+    <value>Нічого не знайдено</value>
+  </data>
+  <data name="Library_NoMatches" xml:space="preserve">
+    <value>Ні в назвах, ні в транскриптах немає збігів. Спробуй інші слова або інший період.</value>
+  </data>
+  <data name="Library_Searching" xml:space="preserve">
+    <value>Шукаю…</value>
+  </data>
+  <data name="Library_EmptyTitle" xml:space="preserve">
+    <value>Ще немає записів</value>
+  </data>
+  <data name="Library_EmptyHintFiltered" xml:space="preserve">
+    <value>Спробуй інший період або зміни пошуковий запит.</value>
+  </data>
+  <data name="Library_EmptyHint" xml:space="preserve">
+    <value>Натисни «Новий запис», щоб записати перший мітинг. Усе лишається на твоєму компʼютері.</value>
+  </data>
+  <data name="Library_LoadFailed" xml:space="preserve">
+    <value>Не вдалося завантажити записи: {0}</value>
+    <comment>{0} = error message</comment>
+  </data>
+  <data name="Library_SearchFailed" xml:space="preserve">
+    <value>Пошук не вдався: {0}</value>
+    <comment>{0} = error message</comment>
+  </data>
+  <data name="Shell_RecoveryFailed" xml:space="preserve">
+    <value>Не вдалося відновити перервані записи: {0}</value>
+    <comment>{0} = error message</comment>
+  </data>
+  <data name="Recording_SystemAudio" xml:space="preserve">
+    <value>Системний звук</value>
+  </data>
+  <data name="Recording_SystemOutput" xml:space="preserve">
+    <value>Вихід системного звуку</value>
+  </data>
+  <data name="Recording_Notice" xml:space="preserve">
+    <value>Попередь учасників мітингу, що йде запис.</value>
+  </data>
+  <data name="Recording_Start" xml:space="preserve">
+    <value>Почати запис</value>
+  </data>
+  <data name="Recording_NoSources" xml:space="preserve">
+    <value>Не знайдено жодного джерела звуку.</value>
+  </data>
+  <data name="Recording_EnableSource" xml:space="preserve">
+    <value>Увімкни мікрофон або системний звук.</value>
+  </data>
+  <data name="Recording_NoMicrophone" xml:space="preserve">
+    <value>Мікрофон не знайдено — запишемо лише системний звук.</value>
+  </data>
+  <data name="Recording_StopFailed" xml:space="preserve">
+    <value>Не вдалося зупинити запис: {0}</value>
+    <comment>{0} = error message</comment>
+  </data>
+  <data name="Recording_StartFailed" xml:space="preserve">
+    <value>Не вдалося почати запис: {0}</value>
+    <comment>{0} = error message</comment>
+  </data>
+  <data name="Recording_StoppedItself" xml:space="preserve">
+    <value>Запис зупинився сам.</value>
+  </data>
+  <data name="Recording_StoppedWithReason" xml:space="preserve">
+    <value>Запис зупинився: {0}</value>
+    <comment>{0} = reason</comment>
+  </data>
+  <data name="Recording_StoppedItselfWithError" xml:space="preserve">
+    <value>Запис зупинився сам: {0}</value>
+    <comment>{0} = error message</comment>
+  </data>
+  <data name="Recording_ScreenOnFailed" xml:space="preserve">
+    <value>Не вдалося увімкнути запис екрана: {0}</value>
+    <comment>{0} = error message</comment>
+  </data>
+  <data name="Recording_ScreenOffFailed" xml:space="preserve">
+    <value>Не вдалося вимкнути запис екрана: {0}</value>
+    <comment>{0} = error message</comment>
+  </data>
+  <data name="Session_TabTranscript" xml:space="preserve">
+    <value>Транскрипт</value>
+  </data>
+  <data name="Session_TabSummary" xml:space="preserve">
+    <value>Резюме</value>
+  </data>
+  <data name="Session_SummaryPlaceholder" xml:space="preserve">
+    <value>Зʼявиться у фазі 3: короткий підсумок мітингу, рішення й завдання, складені локально.</value>
+  </data>
+  <data name="Session_Play" xml:space="preserve">
+    <value>Відтворити</value>
+  </data>
+  <data name="Session_Pause" xml:space="preserve">
+    <value>Пауза</value>
+  </data>
+  <data name="Session_Loading" xml:space="preserve">
+    <value>Завантаження…</value>
+  </data>
+  <data name="Session_TryAgain" xml:space="preserve">
+    <value>Спробувати ще</value>
+  </data>
+  <data name="Session_Transcribe" xml:space="preserve">
+    <value>Транскрибувати</value>
+  </data>
+  <data name="Session_QueueFailed" xml:space="preserve">
+    <value>Не вдалося поставити запис у чергу: {0}</value>
+    <comment>{0} = error message</comment>
+  </data>
+  <data name="Session_AudioMissing" xml:space="preserve">
+    <value>Аудіофайли запису не знайдено.</value>
+  </data>
+  <data name="Session_AudioOpenFailed" xml:space="preserve">
+    <value>Не вдалося відкрити аудіо: {0}</value>
+    <comment>{0} = error message</comment>
+  </data>
+  <data name="Session_TranscriptReadFailed" xml:space="preserve">
+    <value>Не вдалося прочитати транскрипт: {0}</value>
+    <comment>{0} = error message</comment>
+  </data>
+  <data name="Session_NoSpeechTitle" xml:space="preserve">
+    <value>Мовлення не знайдено</value>
+  </data>
+  <data name="Session_NoSpeechText" xml:space="preserve">
+    <value>У записі немає розпізнаного мовлення.</value>
+  </data>
+  <data name="Session_StillRecordingTitle" xml:space="preserve">
+    <value>Запис ще триває</value>
+  </data>
+  <data name="Session_StillRecordingText" xml:space="preserve">
+    <value>Транскрипт зʼявиться, коли запис завершиться.</value>
+  </data>
+  <data name="Session_NoTranscriptTitle" xml:space="preserve">
+    <value>Транскрипту ще немає</value>
+  </data>
+  <data name="Session_NoTranscriptText" xml:space="preserve">
+    <value>Цей запис ще не розшифровано.</value>
+  </data>
+  <data name="Session_FailedTitle" xml:space="preserve">
+    <value>Не вдалося розшифрувати запис</value>
+  </data>
+  <data name="Session_UnknownError" xml:space="preserve">
+    <value>Невідома помилка.</value>
+  </data>
+  <data name="Session_AsrMissingTitle" xml:space="preserve">
+    <value>Модель Parakeet не встановлена</value>
+  </data>
+  <data name="Session_AsrMissingText" xml:space="preserve">
+    <value>Щоб розшифрувати цей запис, встанови модель розпізнавання мовлення: запусти scripts/fetch-models.ps1. Потім натисни «Спробувати ще».</value>
+  </data>
+  <data name="Session_AsrMissingTextWithFolder" xml:space="preserve">
+    <value>Щоб розшифрувати цей запис, встанови модель розпізнавання мовлення: запусти scripts/fetch-models.ps1. Файли потраплять у {0}. Потім натисни «Спробувати ще».</value>
+    <comment>{0} = models folder</comment>
+  </data>
+  <data name="Session_ProcessingText" xml:space="preserve">
+    <value>Результат зʼявиться тут автоматично.</value>
+  </data>
+  <data name="Segment_Me" xml:space="preserve">
+    <value>Я</value>
+  </data>
+  <data name="Segment_Others" xml:space="preserve">
+    <value>Інші</value>
+  </data>
+  <data name="Chat_Thinking" xml:space="preserve">
+    <value>Думаю…</value>
+  </data>
+  <data name="Chat_Ask" xml:space="preserve">
+    <value>Запитати</value>
+  </data>
+  <data name="Chat_CheckAgain" xml:space="preserve">
+    <value>Перевірити знову</value>
+  </data>
+  <data name="Chat_NotInstalledTitle" xml:space="preserve">
+    <value>AI не встановлено</value>
+  </data>
+  <data name="Chat_PausedTitle" xml:space="preserve">
+    <value>AI на паузі, поки йде запис</value>
+  </data>
+  <data name="Chat_Cancelled" xml:space="preserve">
+    <value>Зупинено.</value>
+  </data>
+  <data name="Chat_Interrupted" xml:space="preserve">
+    <value>Відповідь перервано: почався запис. Запитай ще раз, коли запис завершиться.</value>
+  </data>
+  <data name="Chat_Failed" xml:space="preserve">
+    <value>Не вдалося отримати відповідь: {0}</value>
+    <comment>{0} = error message</comment>
+  </data>
+  <data name="Chat_ModelsNotFound" xml:space="preserve">
+    <value>AI-моделі не знайдено.</value>
+  </data>
+  <data name="Chat_EmptyTitleSession" xml:space="preserve">
+    <value>Запитай про цей запис</value>
+  </data>
+  <data name="Chat_PlaceholderLibrary" xml:space="preserve">
+    <value>Запитай про будь-який запис</value>
+  </data>
+  <data name="Chat_PlaceholderSession" xml:space="preserve">
+    <value>Запитай про цей запис</value>
+  </data>
+  <data name="Chat_EmptyTitleLibrary" xml:space="preserve">
+    <value>Запитай про всі записи</value>
+  </data>
+  <data name="Chat_EmptyTextLibrary" xml:space="preserve">
+    <value>Наприклад: «Що ми вирішили щодо релізу?» Відповідь посилатиметься на потрібні записи й хвилини.</value>
+  </data>
+  <data name="Chat_EmptyTextSession" xml:space="preserve">
+    <value>Наприклад: «Які завдання ми розподілили?» Кожна відповідь має таймкоди — натисни, щоб послухати.</value>
+  </data>
+  <data name="Chat_NoticeNotInstalled" xml:space="preserve">
+    <value>Щоб ставити запитання до записів, завантаж локальні моделі: запусти scripts/fetch-models.ps1 -Ai. Потім натисни «Перевірити знову». Пошук за ключовими словами працює й без AI.</value>
+  </data>
+  <data name="Chat_NoticeNotInstalledWithFolder" xml:space="preserve">
+    <value>Щоб ставити запитання до записів, завантаж локальні моделі: запусти scripts/fetch-models.ps1 -Ai (файли потраплять у {0}). Потім натисни «Перевірити знову». Пошук за ключовими словами працює й без AI.</value>
+    <comment>{0} = models folder</comment>
+  </data>
+  <data name="Chat_NoticePaused" xml:space="preserve">
+    <value>Поки триває запис, моделі не завантажуються, щоб не забирати памʼять і процесор у запису. Запитай, коли запис завершиться.</value>
+  </data>
+  <data name="LibraryChat_Subtitle" xml:space="preserve">
+    <value>Відповіді посилаються на записи й хвилини — натисни таймкод, щоб відкрити запис там.</value>
+  </data>
+  <data name="Processing_Queued" xml:space="preserve">
+    <value>У черзі</value>
+  </data>
+  <data name="Processing_Transcribing" xml:space="preserve">
+    <value>Транскрибується</value>
+  </data>
+  <data name="Processing_TranscribingPercent" xml:space="preserve">
+    <value>Транскрибується {0}</value>
+    <comment>{0} = percent, e.g. 42 %</comment>
+  </data>
+  <data name="Processing_Indexing" xml:space="preserve">
+    <value>Індексується</value>
+  </data>
+  <data name="Processing_Done" xml:space="preserve">
+    <value>Готово</value>
+  </data>
+  <data name="Processing_Failed" xml:space="preserve">
+    <value>Помилка</value>
+  </data>
+  <data name="Processing_NoTranscript" xml:space="preserve">
+    <value>Без транскрипту</value>
+  </data>
+  <data name="Processing_Interrupted" xml:space="preserve">
+    <value>Перервано</value>
+  </data>
+  <data name="Processing_Recording" xml:space="preserve">
+    <value>Триває запис</value>
+  </data>
+  <data name="Stage_Queued" xml:space="preserve">
+    <value>У черзі на транскрибування</value>
+  </data>
+  <data name="Stage_BuildingPeaks" xml:space="preserve">
+    <value>Готуємо звукову доріжку</value>
+  </data>
+  <data name="Stage_Transcribing" xml:space="preserve">
+    <value>Транскрибуємо мовлення</value>
+  </data>
+  <data name="Stage_Saving" xml:space="preserve">
+    <value>Зберігаємо транскрипт</value>
+  </data>
+  <data name="Stage_Indexing" xml:space="preserve">
+    <value>Індексуємо для пошуку</value>
+  </data>
+  <data name="Stage_Default" xml:space="preserve">
+    <value>Обробка</value>
+  </data>
+  <data name="Date_Today" xml:space="preserve">
+    <value>Сьогодні, {0}</value>
+    <comment>{0} = time, 14:30</comment>
+  </data>
+  <data name="Date_Yesterday" xml:space="preserve">
+    <value>Вчора, {0}</value>
+    <comment>{0} = time, 14:30</comment>
+  </data>
+  <data name="Date_ThisYear" xml:space="preserve">
+    <value>{0} {1}, {2}</value>
+    <comment>{0} = day, {1} = month name, {2} = time</comment>
+  </data>
+  <data name="Date_OtherYear" xml:space="preserve">
+    <value>{0} {1} {3}, {2}</value>
+    <comment>{0} = day, {1} = month name, {2} = time, {3} = year</comment>
+  </data>
+  <data name="Month_01" xml:space="preserve">
+    <value>січня</value>
+    <comment>Month name as used inside a date (genitive in Ukrainian)</comment>
+  </data>
+  <data name="Month_02" xml:space="preserve">
+    <value>лютого</value>
+  </data>
+  <data name="Month_03" xml:space="preserve">
+    <value>березня</value>
+  </data>
+  <data name="Month_04" xml:space="preserve">
+    <value>квітня</value>
+  </data>
+  <data name="Month_05" xml:space="preserve">
+    <value>травня</value>
+  </data>
+  <data name="Month_06" xml:space="preserve">
+    <value>червня</value>
+  </data>
+  <data name="Month_07" xml:space="preserve">
+    <value>липня</value>
+  </data>
+  <data name="Month_08" xml:space="preserve">
+    <value>серпня</value>
+  </data>
+  <data name="Month_09" xml:space="preserve">
+    <value>вересня</value>
+  </data>
+  <data name="Month_10" xml:space="preserve">
+    <value>жовтня</value>
+  </data>
+  <data name="Month_11" xml:space="preserve">
+    <value>листопада</value>
+  </data>
+  <data name="Month_12" xml:space="preserve">
+    <value>грудня</value>
+  </data>
+</root>

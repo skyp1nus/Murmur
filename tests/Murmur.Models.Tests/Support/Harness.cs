@@ -23,7 +23,7 @@ internal sealed class Harness : IAsyncDisposable
 
     public HttpClient Http { get; } = new() { Timeout = Timeout.InfiniteTimeSpan };
 
-    public ModelCatalogSources Sources => new(Server.BaseAddress, Server.BaseAddress);
+    public ModelCatalogSources Sources => new(Server.BaseAddress, Server.BaseAddress, PinHashes: false); // the fake server serves made-up content
 
     public string Models => Path.Combine(Root, "models");
 

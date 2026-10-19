@@ -98,6 +98,9 @@ public sealed class OrbControl : Panel
         set => SetValue(LevelSourceProperty, value);
     }
 
+    /// <summary>The brush of the orb body, rebuilt whenever the theme variant changes (for tests).</summary>
+    internal IBrush? BodyFill => _body.Fill;
+
     /// <summary>Smoothed level in [0, 1] of the last update (for tests).</summary>
     internal double SmoothedLevel => _smoothed;
 

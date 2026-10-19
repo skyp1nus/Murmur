@@ -40,6 +40,12 @@ public sealed class ModelManagerOptions
 /// <param name="Sha256">Lower-case hex; <c>null</c> unless the catalog pins it or <see cref="ModelManagerOptions.ReportHashes"/> is set.</param>
 public sealed record ModelFileReport(string Url, string RelativePath, long Bytes, string? Sha256);
 
-/// <summary>Result of <see cref="ModelManager.ProbeAsync"/>.</summary>
+/// <summary>One source that was asked about a file.</summary>
+/// <param name="Error">Why it was skipped (e.g. "HTTP 404"), or <c>null</c> when it answered.</param>
+public sealed record ModelCandidateProbe(string Url, long? ContentLength, string? Error);
+
+/// <summary>Result of <see cref="ModelManager.ProbeAsync"/>: the source that answered first.</summary>
+/// <param name="Url">The source that answered.</param>
 /// <param name="ContentLength">The file size the server reports, or <c>null</c> when it does not say.</param>
-public sealed record ModelFileProbe(string Url, long? ContentLength);
+/// <param name="Tried">Every source asked up to and including the one that answered, in order.</param>
+public sealed record ModelFileProbe(string Url, long? ContentLength, IReadOnlyList<ModelCandidateProbe> Tried);

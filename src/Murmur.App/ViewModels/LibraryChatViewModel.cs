@@ -1,5 +1,6 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using Murmur.App.Resources;
 
 namespace Murmur.App.ViewModels;
 
@@ -20,7 +21,7 @@ public sealed partial class LibraryChatViewModel : ObservableObject, IDisposable
 
     public ChatViewModel Chat { get; }
 
-    public string Title => "Запитати AI по всіх записах";
+    public string Title => Strings.Library_AskAll;
 
     public void Dispose() => Chat.Dispose();
 

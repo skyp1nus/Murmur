@@ -12,6 +12,8 @@ internal sealed class TempDataRoot : IDisposable
 
     public SqliteStorage Open() => new(Path);
 
+    public string SettingsFile => System.IO.Path.Combine(Path, StoragePaths.SettingsFileName);
+
     public void Dispose()
     {
         try
