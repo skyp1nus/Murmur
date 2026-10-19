@@ -7,7 +7,7 @@
 | Що | Автоматично | Вручну |
 |---|---|---|
 | `ci.yml`, джоб `linux` | кожен pull request (крім події «додали мітку») | Actions → ci → Run workflow |
-| `ci.yml`, джоби `windows`, `startup`, `capture-e2e` | лише PR з міткою `ci:windows` (додавання мітки теж запускає) | Run workflow, `windows` = true |
+| `ci.yml`, джоби `windows`, `startup`, `installer`, `capture-e2e` | лише PR з міткою `ci:windows` (додавання мітки теж запускає) | Run workflow, `windows` = true |
 | `ci.yml`, джоб `bench` | ніколи | Run workflow, `bench` = true |
 | `asr.yml`, `ai-eval.yml`, `perf-record.yml` | ніколи | Run workflow |
 | `models.yml` | PR, якому додали мітку `ci:models` (по запуску на кожне додавання) | Run workflow |
@@ -19,6 +19,7 @@
 
 ```powershell
 pwsh scripts/verify-local.ps1                      # build + тести + AOT win-x64 + старт (≈ джоби windows і startup)
+pwsh scripts/verify-local.ps1 -Publish -Installer   # інсталятор: збірка, тихе встановлення в temp, старт, видалення (≈ джоб installer)
 pwsh scripts/verify-local.ps1 -Publish -Capture     # + запис 60 с зі звуком і екраном (≈ capture-e2e)
 pwsh scripts/verify-local.ps1 -Perf -PerfMinutes 20 # довгі записи з бюджетами PLAN.md (≈ perf-record)
 pwsh scripts/verify-local.ps1 -Asr                  # 1 год аудіо → текст, бюджет 180 с (≈ asr; потрібен fetch-models.ps1)
@@ -41,6 +42,7 @@ SDK береться з `global.json` (prerelease `11.0.100-rc.2.26504.105`, `ro
 | `linux` | ubuntu-latest, 30 хв | `dotnet build`, `dotnet test`, Native AOT publish `Murmur.Desktop` (`net11.0`) і `Murmur.Transcription` для linux-x64. Джоб іде в `bash` з `pipefail` (`defaults.run.shell: bash`), тож невдалий publish за `| tee` валить крок. Якщо в логу publish є рядок `: warning ` або `: error ` (зокрема IL2xxx/IL3xxx; через `TreatWarningsAsErrors` попередження стають помилками) - крок червоний. |
 | `windows` | windows-latest, 45 хв | `dotnet build`, `dotnet test`, Native AOT publish win-x64 (`Murmur.exe` і `Murmur.Transcription.exe` в одну теку), той самий gate на попередження й помилки, таблиця розмірів у Step Summary, артефакт `murmur-win-x64`. |
 | `startup` | windows-latest, після `windows` | Завантажує `murmur-win-x64`, запускає `scripts/measure-startup.ps1` (7 запусків, бюджет 400 мс за медіаною). Падає, якщо медіана більша за бюджет або хоч один запуск не вдався. |
+| `installer` | windows-latest, після `windows`, 20 хв | Завантажує `murmur-win-x64` (без другого publish), ставить Inno Setup (`choco install innosetup -y --no-progress`, якщо `ISCC.exe` немає), збирає інсталятор `scripts/build-installer.ps1 -SkipPublish`, потім `verify-local.ps1 -Installer -SetupExe ...`: тихе встановлення в temp-теку, перевірка файлів, старт встановленого `Murmur.exe` (бюджет 400 мс), тихе видалення, перевірка, що тека зникла, а дані користувача лишились. Артефакти `murmur-installer`, `installer-verify`. Деталі - у розділі «Інсталятор». |
 | `capture-e2e` | windows-latest, після `windows`, 30 хв | End-to-end запис на раннері без звукової карти: віртуальна карта VB-Audio Virtual Cable, зациклений тон 440 Гц, `Murmur.exe --autorecord 60 --screen`. Деталі - у розділі «Capture e2e» нижче. |
 | `bench` | windows-latest, 40 хв | BenchmarkDotNet (`--job short`), усі `*-report-github.md` додаються до Step Summary. |
 
@@ -72,6 +74,8 @@ UNVERIFIED-ON-ACTIONS: workflow не запускався на GitHub Actions (Y
 |---|---|
 | `test-results-linux`, `test-results-windows` | `.trx` звіти тестів |
 | `murmur-win-x64` | Publish-тека win-x64 (`Murmur.exe`, `Murmur.Transcription.exe`, нативні бібліотеки) |
+| `murmur-installer` | `Murmur-Setup-<версія>.exe` і `.sha256` (джоб `installer`) |
+| `installer-verify` | `report.md` і логи (`installer-install.log`, `installer-uninstall.log`, `installer-startup.*`) смоук-тесту інсталятора |
 | `perf-startup` | `startup.json` - усі запуски, статистика, інформація про машину |
 | `bench` | JSON і markdown звіти BenchmarkDotNet |
 | `capture-e2e` | `rec60.json`, `check.md`, тека сесії (`session/`: `mic.wav`, `system.wav`, `screen-NNN.mp4`), TRX тестів `Murmur.Capture.Windows.Tests`, логи програвача тону |
@@ -158,6 +162,25 @@ gh run download <run-id> --name murmur-win-x64 --dir murmur-win-x64
 Тривалість відео - це сума тривалостей семплів відеотреку з `moof/traf/trun` (з типовими значеннями з `tfhd`/`trex`), поділена на timescale з `mdhd`; для нефрагментованого MP4 - таблиця `stts`; без семплів береться `mehd`/`mvhd`, але тоді кількість кадрів невідома і сегмент отримує FAIL. Файл, обірваний збоєм, читається до останнього повного боксу (у звіті `file truncated`). `screen-NNN.mp4` читає `scripts/MurmurMp4Scan.cs` (його ж `Add-Type -Path` компілює скрипт); `--autorecord` не перемикає екран, отже сегмент покриває весь запис мінус проміжок між стартом аудіо й викликом старту екрана; сума тривалостей порівнюється з `durationS` грубо (+/- 2 с), а точна перевірка кожного сегмента - синхрон вище. Юніт-тести парсера і скрипту - `tests/Murmur.Scripts.Tests` (тести скрипту потребують `pwsh`, інакше скіпаються).
 
 WAV читається вбудованим C#-хелпером (`Add-Type`), тому години запису перевіряються за секунди. Заголовок із нульовим або завеликим розміром `data` (недофіналізований файл після збою) читається до кінця файлу, це лише INFO.
+
+## Інсталятор (`installer/`, `scripts/build-installer.ps1`)
+
+Рішення D-036: Inno Setup 6, встановлення на користувача без прав адміністратора в `%LOCALAPPDATA%\Programs\Murmur`, з деінсталятором. У інсталятор іде вся publish-тека `Murmur.Desktop` (Native AOT win-x64) разом із воркером `Murmur.Transcription.exe` та його нативними бібліотеками (onnxruntime, sherpa-onnx). Не йдуть: `*.pdb`, `*.dbg`, `*.exp`, `*.ilk`, `*.lib` (символи й залишки лінкера, у рантаймі не потрібні; список - `ExcludeMasks` на початку `installer/Murmur.iss`). Моделі й llama.cpp в інсталятор не входять: застосунок завантажує їх сам (D-031).
+
+Локально (Windows, PowerShell 7, потрібен Inno Setup 6: `winget install JRSoftware.InnoSetup`):
+
+```powershell
+pwsh scripts/build-installer.ps1                       # publish + інсталятор -> artifacts/installer/Murmur-Setup-<версія>.exe (+ .sha256, payload.md)
+pwsh scripts/build-installer.ps1 -SkipPublish          # з наявної artifacts/publish/win-x64 (або -PublishDir <тека>)
+pwsh scripts/build-installer.ps1 -Version 0.2.0        # інша версія; за замовчуванням <Version> із Directory.Build.props (одна версія для всіх збірок)
+pwsh scripts/verify-local.ps1 -Publish -Installer     # + смоук-тест: встановити, запустити, видалити
+```
+
+У CI інсталятор збирає джоб `installer` з артефакту `murmur-win-x64`; готовий `Murmur-Setup-<версія>.exe` лежить в артефакті `murmur-installer` (14 днів), таблиця вмісту - у Step Summary. Інсталятор не підписаний: SmartScreen може попередити.
+
+Поведінка: оновлення поверх старої версії - той самий `AppId` (у `Murmur.iss` його не змінювати) і тека; у застосунку немає mutex, тому запущені `Murmur.exe` і `Murmur.Transcription.exe` закриває Restart Manager (`CloseApplications=yes`), тобто оновлення зупиняє активний запис. Мова майстра - за мовою інтерфейсу ОС (українська або англійська). Видалення прибирає файли програми й ярлики; дані користувача (`%LOCALAPPDATA%\Murmur`: записи, база, налаштування, моделі) за замовчуванням лишаються, у звичайному видаленні є питання «Також видалити записи й завантажені моделі?» (за замовчуванням «Ні»), у тихому (`/VERYSILENT`) дані не видаляються ніколи. Теку записів, обрану поза `%LOCALAPPDATA%\Murmur`, видалення не чіпає.
+
+UNVERIFIED-ON-WINDOWS: інсталятор, смоук-тест і джоб `installer` ще не запускалися (Linux-перевірки: розбір PowerShell, `actionlint`, `build-installer.ps1 -DryRun` у тестах).
 
 ## Perf record (`.github/workflows/perf-record.yml`)
 

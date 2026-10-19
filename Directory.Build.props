@@ -6,6 +6,8 @@
     <MurmurWindowsTargetFramework>net11.0-windows10.0.22621.0</MurmurWindowsTargetFramework>
     <MurmurWindowsMinVersion>10.0.19041.0</MurmurWindowsMinVersion>
     <TargetFramework>$(MurmurTargetFramework)</TargetFramework>
+    <!-- One version for every assembly and for the installer (scripts/build-installer.ps1, installer/Murmur.iss). D-037. -->
+    <Version>0.4.0</Version>
 
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>

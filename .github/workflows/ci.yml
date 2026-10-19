@@ -1,7 +1,7 @@
 name: ci
 
 # Owner decision (2026-10-19): keep GitHub Actions runs few. Every pull request gets the Linux job; the Windows jobs
-# (build/test/AOT, startup, capture e2e) run only when the PR carries the label `ci:windows` or on a manual run, and
+# (build/test/AOT, startup, installer, capture e2e) run only when the PR carries the label `ci:windows` or on a manual run, and
 # the benchmarks only on a manual run. Everyday Windows checks run on the owner's PC: scripts/verify-local.ps1.
 on:
   pull_request:
@@ -9,7 +9,7 @@ on:
   workflow_dispatch:
     inputs:
       windows:
-        description: Run the Windows jobs (build, tests, AOT publish, startup, capture e2e)
+        description: Run the Windows jobs (build, tests, AOT publish, startup, installer, capture e2e)
         type: boolean
         default: true
       bench:
@@ -238,6 +238,90 @@ jobs:
         with:
           name: perf-startup
           path: artifacts/perf/startup.json
+          if-no-files-found: warn
+          retention-days: 14
+
+  # The per-user Inno Setup installer (installer/Murmur.iss, D-036) built from the publish folder of the `windows` job
+  # (no second publish): silent install into a temp folder, startup of the installed exe, silent uninstall, user data kept.
+  installer:
+    name: installer (Inno Setup, win-x64)
+    needs: windows
+    # Run on the published artifact even when a unit test failed, so perf/e2e evidence is never lost.
+    if: ${{ !cancelled() && needs.windows.result != 'skipped' }}
+    runs-on: windows-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/download-artifact@v5
+        with:
+          name: murmur-win-x64
+          path: artifacts/publish/win-x64
+
+      # ISCC may already be on the image; scripts/build-installer.ps1 looks in PATH and the usual Inno Setup 6 folders.
+      # installer/Murmur.iss needs Inno Setup 6.3 (x64compatible): an older image copy is upgraded.
+      - name: Inno Setup
+        run: |
+          # The install folders first: PATH can hold a Chocolatey shim whose file version is 0.0.0.0.
+          $known = @("${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe", "$env:ProgramFiles\Inno Setup 6\ISCC.exe")
+          $iscc = $known | Where-Object { Test-Path $_ } | Select-Object -First 1
+          if (-not $iscc) { $iscc = (Get-Command ISCC.exe -ErrorAction SilentlyContinue).Source }
+          if (-not $iscc) {
+            choco install innosetup -y --no-progress
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          } elseif ((Get-Item $iscc).VersionInfo.FileVersionRaw -lt [version]'6.3') {
+            Write-Host "Inno Setup at $iscc is older than 6.3, upgrading."
+            choco upgrade innosetup -y --no-progress
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          } else {
+            Write-Host "Inno Setup is already installed: $iscc ($((Get-Item $iscc).VersionInfo.FileVersionRaw))"
+          }
+
+      - name: Build installer
+        run: |
+          pwsh scripts/build-installer.ps1 -SkipPublish
+          $code = $LASTEXITCODE
+          if (Test-Path artifacts/installer/payload.md) {
+            Get-Content artifacts/installer/payload.md -Raw | Out-File $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
+          }
+          exit $code
+
+      # Silent install into a temp folder -> Murmur.exe + Murmur.Transcription.exe present -> startup budget on the
+      # installed exe -> silent uninstall -> folder gone, user data kept.
+      - name: Install, start, uninstall
+        run: |
+          $setup = (Get-ChildItem artifacts/installer -Filter 'Murmur-Setup-*.exe' | Select-Object -First 1).FullName
+          pwsh scripts/verify-local.ps1 -Installer -SetupExe $setup
+          $code = $LASTEXITCODE
+          $report = Get-ChildItem artifacts/local-verify -Filter report.md -Recurse | Select-Object -First 1
+          if ($report) { Get-Content $report.FullName -Raw | Out-File $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8 }
+          # A skipped step must not look green: the report has to say PASS for the installer.
+          if ($code -eq 0 -and -not ($report -and (Select-String -Path $report.FullName -SimpleMatch '| Installer | PASS |' -Quiet))) {
+            Write-Host '::error::The installer smoke test did not report PASS (skipped?)'
+            exit 1
+          }
+          exit $code
+
+      - name: Upload installer
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: murmur-installer
+          path: |
+            artifacts/installer/Murmur-Setup-*.exe
+            artifacts/installer/Murmur-Setup-*.sha256
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Upload installer logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: installer-verify
+          path: artifacts/local-verify
           if-no-files-found: warn
           retention-days: 14
 
