@@ -11,9 +11,12 @@ namespace Murmur.Capture.Windows.Tests;
 /// crashed process leaves behind (the sink writer is abandoned without Finalize; nothing more reaches the file), so
 /// each snapshot must hold complete fragments up to at most 3 s before the snapshot, readable by Media Foundation's
 /// source reader; and the finished file must have keyframes and fragments at most 3 s apart. GPU zero-copy (skipped
-/// without a hardware H.264 encoder on a real GPU) and forced CPU readback.
+/// without a hardware H.264 encoder on a real GPU) and forced CPU readback. The loss is real-time latency of the
+/// capture -> encoder -> sink pipeline, so the test runs alone: on a runner without a GPU, other tests encoding H.264 on
+/// the CPU at the same time starve it (a cut-off at 3.8 s once found only 0.6 s written).
 /// </summary>
 [Trait("Category", "Windows")]
+[Collection(SoloMeasurementCollection.Name)]
 public sealed class ScreenCrashRecoveryTests(ITestOutputHelper output)
 {
     private const double MaxLossS = 3.0;

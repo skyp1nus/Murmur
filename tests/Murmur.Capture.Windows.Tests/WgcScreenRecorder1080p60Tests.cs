@@ -278,8 +278,8 @@ internal static class WorkingSetSlope
 }
 
 /// <summary>
-/// Tests that measure the test host's working set and CPU: they run alone, after the parallel tests, so other tests'
-/// recorders and textures do not count against the recorder.
+/// Tests that measure the test host's working set and CPU, or the recorder's real-time latency: they run alone, after
+/// the parallel tests, so other tests' recorders, encoders and textures do not count against the recorder.
 /// </summary>
 [CollectionDefinition(Name, DisableParallelization = true)]
 public sealed class SoloMeasurementCollection
