@@ -30,6 +30,9 @@ internal sealed class FakeRecorder : IRecorder
     /// </summary>
     public string? StartWarning { get; set; }
 
+    /// <summary>Screen segments the finished session carries (<see cref="SessionRecord.ScreenSegments"/>).</summary>
+    public List<ScreenSegment> Segments { get; } = [];
+
     public List<RecordingOptions> Starts { get; } = [];
 
     public List<bool> ScreenCalls { get; } = [];
@@ -105,6 +108,7 @@ internal sealed class FakeRecorder : IRecorder
         {
             State = SessionState.Recorded,
             Duration = Elapsed,
+            ScreenSegments = [.. Segments],
             Error = StopError ?? current.Error,
         };
         Current = null;

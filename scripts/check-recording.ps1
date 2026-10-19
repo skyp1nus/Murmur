@@ -8,12 +8,16 @@
     Input is the JSON written by `Murmur.exe --autorecord <s> [--screen] --perf-out <json>`:
       { durationS, idleCpuPct, cpuAvgPct, cpuP95Pct, cpuAvgPctOneCore, wsAvgMb, wsMaxMb, privateMaxMb,
         recorderStats{ microphoneFrames, systemFrames, droppedFrames, screenFramesDropped },
-        session{ id, folder, micSeconds, systemSeconds, screenSegments } }
-    mic.wav / system.wav in session.folder are 16 kHz mono PCM16, screen segments are screen-NNN.mp4.
+        screenStartMs?, session{ id, folder, micSeconds, systemSeconds, screenSegments,
+                                 screenSegmentTimes[]{ index, offsetS, durationS } } }
+    durationS is the length of the session timeline (the recorder's Elapsed at stop; the audio starts at 0), and each
+    screenSegmentTimes entry places screen-<index>.mp4 on it: offsetS = session time of the file's media time 0,
+    durationS = the media duration the file must have. mic.wav / system.wav in session.folder are 16 kHz mono PCM16, screen segments are screen-NNN.mp4.
 
     Checks (always):
       - recorderStats.droppedFrames == 0 and systemFrames > 0
-      - system.wav is 16 kHz mono PCM16 and its duration is within +/- -DurationToleranceS of durationS
+      - system.wav is 16 kHz mono PCM16 and its duration is within +/- -DurationToleranceS of durationS (the signed
+        difference is reported as an INFO row, so a systematic offset shows up long before it fails)
       - mic.wav (when it contains data) has the same format and duration tolerance
     With -ExpectTone (a looping tone plays on the render device during the recording):
       - no run of digital silence longer than -MaxZeroRunMs in system.wav (the first -LeadGraceS and the
@@ -25,6 +29,11 @@
       - every segment parses as an MP4 with video samples; its frame count and duration are reported and its
         frame rate is at least -MinScreenFps (variable frame rate: the recorder repeats the last frame once a
         second on a static screen, so ~1 fps is the floor; fewer frames mean the encoder stopped early)
+      - every segment's MP4 media duration is within +/- -SegmentToleranceS of the durationS the session recorded
+        for that segment (session.screenSegmentTimes, matched by the NNN of screen-NNN.mp4); the signed difference
+        is reported as an INFO row. This is the audio/video sync check: a segment that starts late (the old bug:
+        media time 0 taken after the encoder start-up, ~0.45 s on a GPU PC) is that much shorter than the session
+        says. A perf JSON without screenSegmentTimes (older build) skips it; a file without an entry fails.
       - the summed segment duration is within +/- -ScreenToleranceS of durationS (a 12-frame, 0.4 s file for a
         10 minute recording fails). Duration = sum of the trun sample durations of the video track divided by the
         mdhd timescale (fragmented MP4, using tfhd/trex defaults), the stts table for a classic MP4, else the
@@ -55,6 +64,13 @@
 .PARAMETER ScreenToleranceS
     Allowed |summed screen video duration - durationS| with -ExpectScreen (default 2; the first segment starts a
     little after the audio and the last frame ends a frame before the stop).
+.PARAMETER SegmentToleranceS
+    Allowed |MP4 media duration - session.screenSegmentTimes[].durationS| per segment with -ExpectScreen (default
+    0.25). The contract is exact (the file starts at the recorder's StartSegmentAsync call and ends at its
+    StopSegmentAsync call, the session clock and the media clock are both QPC), so what remains is one frame of the
+    sink (the software encoder re-times its output to whole frames: 33 ms at 30 fps), the perf JSON's millisecond
+    rounding and timer slack of a loaded CI runner on the two clock reads (a few 10 ms). 0.25 s covers that and is
+    still far below the 0.43-0.48 s the start-up bug cost, so it catches a regression.
 .PARAMETER MinScreenFps
     Lowest plausible frames/duration of a screen segment with -ExpectScreen (default 0.5; 0 disables the check). The
     file has a variable frame rate: a static screen holds one repeated frame a second (~1 fps), moving content runs
@@ -92,6 +108,7 @@ param(
     [string] $MarkdownOut = '',
     [double] $DurationToleranceS = 1.0,
     [double] $ScreenToleranceS = 2.0,
+    [double] $SegmentToleranceS = 0.25,
     [double] $MinScreenFps = 0.5,
     [double] $MaxZeroRunMs = 100,
     [int] $SilenceAbs = 1,
@@ -420,6 +437,7 @@ function Test-Wav {
 
     if ($null -ne $DurationS) {
         $diff = [Math]::Abs($res.DurationS - [double]$DurationS)
+        Add-Row "$Label duration - durationS (signed)" ("{0} s" -f (Format-Num ($res.DurationS - [double]$DurationS) '+0.000;-0.000;0.000')) '-' 'INFO'
         Add-Row "$Label duration vs durationS" ("{0} s (durationS {1} s, diff {2} s)" -f (Format-Num $res.DurationS), (Format-Num $DurationS), (Format-Num $diff '0.000')) ("+/- $DurationToleranceS s") $(if ($diff -le $DurationToleranceS) { 'PASS' } else { 'FAIL' })
     }
     if (-not $res.HeaderSizeMatches) {
@@ -440,12 +458,38 @@ function Test-Wav {
     }
 }
 
+function Test-SegmentSync {
+    # Compares one segment's MP4 media duration with the duration the session recorded for it.
+    param([string] $Label, [double] $MediaS, $SegmentTimes)
+    $name = "$Label duration vs session segment"
+    $limit = "+/- {0} s" -f (Format-Num $SegmentToleranceS '0.###')
+    if ($null -eq $SegmentTimes) {
+        Add-Row $name 'perf JSON has no session.screenSegmentTimes' $limit 'SKIP'
+        return
+    }
+    $index = if ($Label -match '^screen-(\d+)\.mp4$') { [int]$Matches[1] } else { -1 }
+    $entry = $null
+    foreach ($candidate in @($SegmentTimes)) {
+        $candidateIndex = Get-Prop $candidate 'index'
+        if ($null -ne $candidateIndex -and [int]$candidateIndex -eq $index) { $entry = $candidate }
+    }
+    $expected = Get-Prop $entry 'durationS'
+    if ($null -eq $expected) {
+        Add-Row $name "no segment $index in session.screenSegmentTimes" $limit 'FAIL'
+        return
+    }
+    $signed = $MediaS - [double]$expected
+    Add-Row "$Label media - segment durationS (signed)" ("{0} s (offsetS {1})" -f (Format-Num $signed '+0.000;-0.000;0.000'), (Format-Num (Get-Prop $entry 'offsetS') '0.000')) '-' 'INFO'
+    $value = "{0} s (segment durationS {1} s, diff {2} s)" -f (Format-Num $MediaS '0.000'), (Format-Num $expected '0.000'), (Format-Num ([Math]::Abs($signed)) '0.000')
+    Add-Row $name $value $limit $(if ([Math]::Abs($signed) -le $SegmentToleranceS) { 'PASS' } else { 'FAIL' })
+}
+
 function Test-ScreenVideo {
-    # Parses every screen-NNN.mp4 (frames + duration) and compares the summed duration with durationS.
-    # --autorecord never toggles the screen, so the segments cover the whole run (the recorder opens the first one
-    # right after the audio starts); the sum may be short of durationS only by that start latency, which
-    # -ScreenToleranceS absorbs. The perf JSON carries no per-segment offsets, so gaps cannot be told apart from loss.
-    param($Segments, $DurationS)
+    # Parses every screen-NNN.mp4 (frames + duration), compares each with its entry of session.screenSegmentTimes
+    # (the sync check) and the summed duration with durationS. --autorecord never toggles the screen, so the segments
+    # cover the whole run (the recorder opens the first one right after the audio starts); the sum may be short of
+    # durationS only by that gap, which -ScreenToleranceS absorbs.
+    param($Segments, $DurationS, $SegmentTimes)
 
     [double] $totalS = 0
     [long] $totalFrames = 0
@@ -459,6 +503,7 @@ function Test-ScreenVideo {
             continue
         }
         $totalS += $res.DurationS
+        Test-SegmentSync $label $res.DurationS $SegmentTimes
         $kind = if ($res.Fragmented) { "fragmented, $($res.Fragments) fragment(s)" } else { 'not fragmented' }
         $notes = "$kind, from $($res.DurationSource)"
         if ($res.Truncated) { $notes += ', file truncated' }
@@ -512,6 +557,8 @@ if ($null -ne $perf) {
     Add-Row 'systemFrames' $(if ($null -eq $sysFrames) { 'n/a' } else { [string]$sysFrames }) '> 0' $(if ($null -ne $sysFrames -and [long]$sysFrames -gt 0) { 'PASS' } else { 'FAIL' })
     Add-Row 'microphoneFrames' ([string](Get-Prop $stats 'microphoneFrames')) '-' 'INFO'
     Add-Row 'screenFramesDropped' ([string](Get-Prop $stats 'screenFramesDropped')) '-' 'INFO'
+    $screenStart = Get-Prop $perf 'screenStartMs'
+    if ($null -ne $screenStart) { Add-Row 'screenStartMs' (Format-Num $screenStart '0') '-' 'INFO' }
 
     Test-Budget 'idleCpuPct' (Get-Prop $perf 'idleCpuPct') $IdleCpuBudgetPct '%'
     Test-Budget 'cpuAvgPct' (Get-Prop $perf 'cpuAvgPct') $CpuBudgetPct '%'
@@ -544,7 +591,7 @@ if ($null -ne $perf) {
             foreach ($segment in $segments) { $segmentBytes += $segment.Length }
             Add-Row 'screen segments' ("{0} file(s), {1} non-empty, {2:N1} MB" -f $segments.Count, $nonEmpty.Count, ($segmentBytes / 1MB)) '>= 1 non-empty' $(if ($nonEmpty.Count -ge 1) { 'PASS' } else { 'FAIL' })
             Add-Row 'session.screenSegments' $(if ($null -eq $declared) { 'n/a' } else { [string]$declared }) ("== file count ({0})" -f $segments.Count) $(if ($null -ne $declared -and [int]$declared -eq $segments.Count) { 'PASS' } else { 'FAIL' })
-            Test-ScreenVideo $segments $durationS
+            Test-ScreenVideo $segments $durationS (Get-Prop $session 'screenSegmentTimes')
         }
         else {
             Add-Row 'screen segments' ("{0} file(s)" -f $segments.Count) 'not expected' 'INFO'

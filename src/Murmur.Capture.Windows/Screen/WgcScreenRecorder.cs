@@ -54,6 +54,15 @@ namespace Murmur.Capture.Windows.Screen;
 /// repeat a second; ScreenCrashRecoveryTests), less with moving content.
 /// </para>
 /// <para>
+/// <b>Segment clock.</b> Media time 0 of a segment file is the moment <see cref="StartSegmentAsync"/> is called and the
+/// file ends at the moment <see cref="StopSegmentAsync"/> is called (the contract of <see cref="IScreenRecorder"/>: the
+/// caller places the file on its own timeline at the times of its calls). Both times are read first thing in the call,
+/// before waiting for the gate, scheduling the work or setting anything up, so the time start-up needs (D3D11 device,
+/// Media Foundation encoder, frame pool, capture session: ~0.45 s on a GPU path) is covered by the first frame and the
+/// time finalizing needs is not part of the file. Frames captured after the stop call are not written
+/// (<see cref="RepeatPolicy.IsAfterEnd"/>).
+/// </para>
+/// <para>
 /// <b>Static screens.</b> WGC only delivers frames when the screen changes; the encoder thread repeats the held frame
 /// once a second while nothing arrives, so the file keeps growing by whole fragments for crash safety (a repeat that
 /// finds no free sample is skipped and counted in <see cref="RepeatsSkipped"/>; the timeline stays right; a failed copy
@@ -242,6 +251,18 @@ internal sealed class WgcScreenRecorder : IScreenRecorder
     /// <summary>Tests only: the rate control to ask the encoder for (the default: peak-constrained VBR).</summary>
     internal RateControl RequestedRateControl { get; init; } = RateControl.PeakConstrainedVbr;
 
+    /// <summary>
+    /// Tests only: a pause inside <see cref="StartSegmentAsync"/> before the encoder is opened, standing in for a slow
+    /// encoder / capture start-up (the file must still start at the call).
+    /// </summary>
+    internal TimeSpan StartupDelay { get; init; }
+
+    /// <summary>
+    /// Tests only: a pause inside <see cref="StopSegmentAsync"/> before the segment is torn down, standing in for a
+    /// slow stop (the file must still end at the call).
+    /// </summary>
+    internal TimeSpan StopDelay { get; init; }
+
     /// <summary>Tests only: use the CPU readback path even when a hardware encoder is available.</summary>
     internal bool ForceCpuReadback { get; init; }
 
@@ -285,6 +306,9 @@ internal sealed class WgcScreenRecorder : IScreenRecorder
     /// <exception cref="COMException">D3D11, Media Foundation or WGC set-up failed.</exception>
     public async ValueTask StartSegmentAsync(string filePath, CancellationToken cancellationToken)
     {
+        // Media time 0 of the file: the very first thing, so waiting for the gate and every set-up step below is covered
+        // by the first frame instead of shifting the whole file late against the caller's timeline.
+        var startTicks = MediaTime.Now();
         ArgumentException.ThrowIfNullOrEmpty(filePath);
         cancellationToken.ThrowIfCancellationRequested();
         await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
@@ -299,7 +323,7 @@ internal sealed class WgcScreenRecorder : IScreenRecorder
             var path = Path.GetFullPath(filePath);
             LastSegmentEmpty = false;
             LastSegmentDiagnostic = null;
-            await Task.Run(() => StartCore(path), CancellationToken.None).ConfigureAwait(false);
+            await Task.Run(() => StartCore(path, startTicks), CancellationToken.None).ConfigureAwait(false);
             _recording = true;
         }
         finally
@@ -315,6 +339,9 @@ internal sealed class WgcScreenRecorder : IScreenRecorder
     /// <exception cref="COMException">Finalizing a segment with captured frames failed (encoder or disk failure), or the encoder hung.</exception>
     public async ValueTask StopSegmentAsync(CancellationToken cancellationToken)
     {
+        // The end of the file: the very first thing, before the gate, the thread-pool hop and the spin for the frame
+        // handler, none of which are part of the segment.
+        var stopTicks = MediaTime.Now();
         await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
@@ -325,7 +352,7 @@ internal sealed class WgcScreenRecorder : IScreenRecorder
 
             try
             {
-                await Task.Run(() => StopCore(segment), CancellationToken.None).ConfigureAwait(false);
+                await Task.Run(() => StopCore(segment, stopTicks), CancellationToken.None).ConfigureAwait(false);
             }
             finally
             {
@@ -340,6 +367,7 @@ internal sealed class WgcScreenRecorder : IScreenRecorder
 
     public async ValueTask DisposeAsync()
     {
+        var disposeTicks = MediaTime.Now();
         await _gate.WaitAsync().ConfigureAwait(false);
         try
         {
@@ -353,7 +381,7 @@ internal sealed class WgcScreenRecorder : IScreenRecorder
             {
                 try
                 {
-                    await Task.Run(() => StopCore(segment)).ConfigureAwait(false);
+                    await Task.Run(() => StopCore(segment, disposeTicks)).ConfigureAwait(false);
                 }
                 catch (COMException)
                 {
@@ -376,7 +404,7 @@ internal sealed class WgcScreenRecorder : IScreenRecorder
 
     // ---------------------------------------------------------------- segment set-up and teardown
 
-    private void StartCore(string path)
+    private void StartCore(string path, long startTicks)
     {
         if (!CaptureInterop.IsSupported())
         {
@@ -396,6 +424,11 @@ internal sealed class WgcScreenRecorder : IScreenRecorder
         var segment = new Segment(_options.FrameRate, path);
         try
         {
+            if (StartupDelay > TimeSpan.Zero)
+            {
+                Thread.Sleep(StartupDelay);
+            }
+
             segment.Item = CaptureInterop.CreateItemForMonitor(display.Monitor);
             var itemSize = segment.Item.Size;
             if (itemSize.Width <= 0 || itemSize.Height <= 0)
@@ -421,7 +454,7 @@ internal sealed class WgcScreenRecorder : IScreenRecorder
             segment.ItemClosed = (_, _) => RaiseFault(segment, "The captured display was disconnected.", isFatal: true);
             segment.Item.Closed += segment.ItemClosed;
 
-            segment.Timeline.Reset(MediaTime.Now());
+            segment.Timeline.Reset(startTicks); // media time 0 = the StartSegmentAsync call, not "now" after the set-up
             segment.EncoderThread = new Thread(() => EncoderLoop(segment))
             {
                 IsBackground = true,
@@ -441,10 +474,18 @@ internal sealed class WgcScreenRecorder : IScreenRecorder
         }
     }
 
-    private void StopCore(Segment segment)
+    private void StopCore(Segment segment, long stopTicks)
     {
+        // The end of the segment is fixed before anything else; the encoder thread reads it (Volatile) for the last
+        // frame's duration and ignores frames captured after it.
+        Volatile.Write(ref segment.StopTicks, stopTicks);
         segment.Accepting = false;
         Volatile.Write(ref _segment, null);
+        if (StopDelay > TimeSpan.Zero)
+        {
+            Thread.Sleep(StopDelay);
+        }
+
         try
         {
             segment.Session?.Dispose();
@@ -505,7 +546,8 @@ internal sealed class WgcScreenRecorder : IScreenRecorder
 
         if (segment.EncoderThread is { } thread)
         {
-            segment.StopTicks = MediaTime.Now();
+            // A segment that never reached StopCore (set-up failed) ends now.
+            Interlocked.CompareExchange(ref segment.StopTicks, MediaTime.Now(), RepeatPolicy.NoStop);
             Volatile.Write(ref segment.StopRequested, true);
             segment.Wake.Set();
             if (!thread.Join(EncoderJoinTimeout))
@@ -790,14 +832,15 @@ internal sealed class WgcScreenRecorder : IScreenRecorder
                 // Repeats are only written while the segment accepts frames: after a fatal fault the file must end
                 // at the fault instead of showing a frozen last frame (RepeatPolicy).
                 var now = MediaTime.Now();
-                if (RepeatPolicy.ShouldRepeat(
+                var repeatDue = RepeatPolicy.ShouldRepeat(
                     segment.LastSample != 0,
                     segment.WriterHealthy,
                     segment.Accepting,
                     now,
                     segment.LastWriteTicks,
                     Interlocked.Read(ref segment.FaultTicks),
-                    RepeatInterval))
+                    RepeatInterval);
+                if (repeatDue && !RepeatPolicy.IsAfterEnd(now, Volatile.Read(ref segment.StopTicks)))
                 {
                     Repeat(segment, now);
                 }
@@ -819,7 +862,7 @@ internal sealed class WgcScreenRecorder : IScreenRecorder
             // The held last frame lasts until the stop time (or the fault time): the file's duration is the segment's.
             var end = RepeatPolicy.EndTicks(
                 Volatile.Read(ref segment.StopRequested),
-                segment.StopTicks,
+                Volatile.Read(ref segment.StopTicks),
                 Interlocked.Read(ref segment.FaultTicks),
                 MediaTime.Now());
 
@@ -852,6 +895,14 @@ internal sealed class WgcScreenRecorder : IScreenRecorder
                 var sample = queued.Sample;
                 ComCall.Release(ref sample);
                 Interlocked.Increment(ref _framesDropped);
+                continue;
+            }
+
+            if (RepeatPolicy.IsAfterEnd(queued.Ticks, Volatile.Read(ref segment.StopTicks)))
+            {
+                // Captured after the stop call: it belongs to no segment (the held frame lasts until the stop).
+                var late = queued.Sample;
+                ComCall.Release(ref late);
                 continue;
             }
 
@@ -1140,7 +1191,7 @@ internal sealed class WgcScreenRecorder : IScreenRecorder
 
         // Stop hand-shake
         public bool StopRequested;
-        public long StopTicks;
+        public long StopTicks = RepeatPolicy.NoStop; // QPC time of the stop call (Volatile/Interlocked)
         public int FinalizeResult;
         public bool EncoderHung;
         public int FaultRaised;

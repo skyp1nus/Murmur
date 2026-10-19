@@ -138,6 +138,16 @@ internal static class RepeatPolicy
     /// <summary>Fault time of a segment that has not faulted.</summary>
     public const long NoFault = long.MaxValue;
 
+    /// <summary>Stop time of a segment whose stop has not been requested.</summary>
+    public const long NoStop = long.MaxValue;
+
+    /// <summary>
+    /// True when something at <paramref name="ticks"/> (QPC, 100 ns) lies after the segment's end
+    /// (<paramref name="stopTicks"/>, <see cref="NoStop"/> while the segment runs): a frame captured, or a repeat due,
+    /// after the stop call is not part of the file.
+    /// </summary>
+    public static bool IsAfterEnd(long ticks, long stopTicks) => ticks > stopTicks;
+
     /// <summary>True when the last frame should be repeated at <paramref name="now"/> because nothing new arrived for <paramref name="interval"/>.</summary>
     public static bool ShouldRepeat(bool hasLastFrame, bool writerHealthy, bool accepting, long now, long lastWriteTicks, long faultTicks, long interval) =>
         hasLastFrame && writerHealthy && accepting && now < faultTicks && now - lastWriteTicks >= interval;
