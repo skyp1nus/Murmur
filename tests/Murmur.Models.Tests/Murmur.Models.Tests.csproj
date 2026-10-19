@@ -20,6 +20,7 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\Murmur.Core\Murmur.Core.csproj" />
     <ProjectReference Include="..\..\src\Murmur.Models\Murmur.Models.csproj" />
+    <ProjectReference Include="..\..\tools\Murmur.ModelFetch\Murmur.ModelFetch.csproj" />
   </ItemGroup>
 
 </Project>

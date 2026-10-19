@@ -419,6 +419,11 @@ public sealed class ModelManager : IModelManager, IDisposable
         if (IsInstalled(item))
         {
             Activate(item);
+            lock (_gate)
+            {
+                _reports.Remove(item.Id); // nothing was downloaded this time
+            }
+
             return;
         }
 

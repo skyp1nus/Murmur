@@ -147,6 +147,22 @@ Workflow сам збирає Native AOT `Murmur.Desktop` win-x64 (без `Murmur
 
 Підтверджено запусками на `windows-latest` (2026-10-18): `LABSN/sound-ci-helpers@v1` ставить VB-Audio Virtual Cable, і він стає пристроєм за замовчуванням (loopback записує тон 440 Гц); `Server-Media-Foundation` відсутній в образі й ставиться кроком за ~1 хв; WGC віддає кадри без фізичного дисплея (WARP, тому CPU-readback, D-027: 1080p30, VBR 6 Мбіт/с; на ПК з апаратним H.264-енкодером - 1080p60, VBR 12 Мбіт/с, D-030); `SoundPlayer` у `pwsh` 7 грає тон увесь запуск. Мікрофон (`CABLE Output`) заборонений налаштуваннями конфіденційності раннера → `E_ACCESSDENIED`, запис іде без мікрофона (D-023).
 
+## Models (`.github/workflows/models.yml`)
+
+Реальні завантаження каталогу моделей (`src/Murmur.Models`, фаза 4 «моделі завантажуються при першому запуску») з Hugging Face і GitHub тим самим рушієм, що й застосунок. Юніт-тести `Murmur.Models.Tests` ходять лише до локального фейкового HTTP-сервера (вони в `ci.yml`), тож це єдине місце, де перевіряються справжні URL. Запускається на pull request, що чіпає `src/Murmur.Models/**`, `tools/Murmur.ModelFetch/**` або сам workflow, і вручну (`workflow_dispatch`); `concurrency: models-<ref>`, права `contents: read`, `ubuntu-latest`, 45 хв. Той самий пін SDK і крок `Verify SDK matches global.json`, що в `ci.yml`.
+
+Кроки:
+
+1. `dotnet build tools/Murmur.ModelFetch -c Release`.
+2. Встановлення `silero-vad,parakeet-tdt-0.6b-v3-int8,llama-cpp-b11716,embeddinggemma-300m-q8` у `$MURMUR_MODELS_DIR` (`<workspace>/models`, без кешу: мета - реальне завантаження). `Murmur.ModelFetch --dir <тека> --ids ... --summary $GITHUB_STEP_SUMMARY` друкує для кожного файла розмір, SHA-256 і час; таблиця йде в Step Summary. Саме ці SHA-256 архітектор пізніше вписує в каталог (`ModelFileSpec.Sha256`), зараз вони `null`.
+3. `--head-only gemma-4-e4b-q4,gemma-4-26b-a4b-q4`: лише перевірка, що URL відповідають (запит `Range: bytes=0-0`), і `Content-Length` (5 і 17 ГБ не качаємо). Крок виконується навіть після збою кроку 2. Ім'я файла 26B у каталозі - припущення, цей крок його перевіряє; червоний крок означає, що репозиторій або файл названо інакше.
+4. Перевірка розкладки, яку читає застосунок (`ModelLocator`, `AiModelPaths`): чотири файли Parakeet, `silero_vad.onnx`, `llama.cpp/llama-server` (виконуваний, `--version` запускається), `gguf/embeddinggemma-300M-Q8_0.gguf`, `gguf/models.json`; тека `.staging` після встановлення порожня й видалена.
+5. Повторний запуск встановлення нічого не качає (4 рядки `already installed, nothing downloaded`).
+
+Тест ASR-воркера на справжній моделі до workflow не додано: `RealModelTests` беруть тестові WAV із `<parakeet>/test_wavs/`, а каталог ставить лише чотири файли моделі (без `test_wavs`), тож це не однорядкова команда.
+
+Локально: `dotnet run -c Release --project tools/Murmur.ModelFetch -- --dir ./models --ids silero-vad,llama-cpp-b11716`. Код виходу 0 - усе гаразд, 1 - предмет не встановився або URL недоступний, 2 - помилка аргументів. UNVERIFIED-ON-ACTIONS: workflow не запускався на GitHub Actions (YAML розібрано `python yaml`); завантаження `silero-vad` і `llama-cpp-b11716` (tar.gz) із GitHub перевірено вручну на Linux-середовищі розробки, Hugging Face там недоступний. Windows-збірка llama.cpp (zip) перевірена лише на синтетичному архіві (UNVERIFIED-ON-WINDOWS).
+
 ## AI-eval: «відповідь AI веде на правильну хвилину» (`.github/workflows/ai-eval.yml`)
 
 Окремий workflow (не `ci.yml`), критерій фази 3. Запускається на push у `master` і `night-run` та вручну (`workflow_dispatch`); `concurrency: ai-eval-<ref>`.
