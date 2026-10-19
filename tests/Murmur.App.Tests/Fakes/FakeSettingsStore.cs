@@ -19,6 +19,12 @@ internal sealed class FakeSettingsStore(AppSettings? initial = null) : ISettings
         return ValueTask.CompletedTask;
     }
 
+    /// <summary>Raises <see cref="Changed"/> without touching <see cref="Current"/> (an event that arrives late or out of order).</summary>
+    public void Raise(AppSettings settings) => Changed?.Invoke(settings);
+
+    /// <summary>Replaces <see cref="Current"/> without raising <see cref="Changed"/>.</summary>
+    public void SetCurrentSilently(AppSettings settings) => Current = settings;
+
     /// <summary>Number of handlers currently subscribed to <see cref="Changed"/>.</summary>
     public int SubscriberCount => Changed?.GetInvocationList().Length ?? 0;
 }

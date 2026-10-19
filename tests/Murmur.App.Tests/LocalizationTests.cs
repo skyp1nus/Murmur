@@ -31,19 +31,11 @@ public sealed partial class LocalizationTests
 
     private static Dictionary<string, string> En => ReadResx("Strings.en.resx");
 
-    /// <summary>Runs <paramref name="action"/> with the UI culture of the current thread switched, then restores it.</summary>
+    /// <summary>Runs <paramref name="action"/> with the UI language of the current async flow switched, then restores it.</summary>
     private static T WithUiCulture<T>(CultureInfo culture, Func<T> action)
     {
-        var previous = CultureInfo.CurrentUICulture;
-        CultureInfo.CurrentUICulture = culture;
-        try
-        {
-            return action();
-        }
-        finally
-        {
-            CultureInfo.CurrentUICulture = previous;
-        }
+        using var _ = UiCulture.Override(culture.TwoLetterISOLanguageName);
+        return action();
     }
 
     // The resource files ----------------------------------------------------------------------------------------------
@@ -213,10 +205,52 @@ public sealed partial class LocalizationTests
     }
 
     [Fact]
-    public void ASpecificCultureOtherThanEnglish_GetsUkrainian()
+    public void TheOsCulture_NeverChangesTheLanguage()
     {
-        Assert.Equal(Uk["Common_Back"], WithUiCulture(CultureInfo.GetCultureInfo("de-DE"), () => Strings.Common_Back));
-        Assert.Equal(Uk["Common_Back"], WithUiCulture(CultureInfo.GetCultureInfo("uk-UA"), () => Strings.Common_Back));
+        // The UI language comes from the settings only: whatever the OS (or the thread) culture is, the default is Ukrainian.
+        var previous = CultureInfo.CurrentUICulture;
+        try
+        {
+            foreach (var name in new[] { "en-US", "en", "de-DE", "uk-UA" })
+            {
+                CultureInfo.CurrentUICulture = CultureInfo.GetCultureInfo(name);
+
+                Assert.Equal("uk", UiCulture.Language);
+                Assert.Equal(Uk["Common_Back"], Strings.Common_Back);
+                Assert.Equal("42 %", UiText.Format(Strings.Common_Percent, 42));
+            }
+        }
+        finally
+        {
+            CultureInfo.CurrentUICulture = previous;
+        }
+    }
+
+    [Fact]
+    public void TheOverride_IsUndoneOnDispose()
+    {
+        using (UiCulture.Override("en"))
+        {
+            Assert.Equal("en", UiCulture.Language);
+            Assert.Equal("Back", Strings.Common_Back);
+            Assert.Equal("42%", UiText.Format(Strings.Common_Percent, 42));
+        }
+
+        Assert.Equal("uk", UiCulture.Language);
+        Assert.Equal("Назад", Strings.Common_Back);
+    }
+
+    [Theory]
+    [InlineData("en", "en")]
+    [InlineData("EN", "en")]
+    [InlineData(" en ", "en")]
+    [InlineData("uk", "uk")]
+    [InlineData("de", "uk")]
+    [InlineData("", "uk")]
+    [InlineData(null, "uk")]
+    public void Normalize_KnowsOnlyEnglishAndUkrainian(string? language, string expected)
+    {
+        Assert.Equal(expected, UiCulture.Normalize(language));
     }
 
     [Fact]
@@ -253,14 +287,16 @@ public sealed partial class LocalizationTests
     }
 
     [Fact]
-    public void UiCulture_Apply_HandsTheResolvedCultureToTheSetter()
+    public void UiCulture_Apply_StoresTheNormalizedLanguageAndTheCulture()
     {
-        CultureInfo? received = null;
+        string? language = null;
+        CultureInfo? culture = null;
 
-        var result = UiCulture.Apply("en", culture => received = culture);
+        var result = UiCulture.Apply(" EN ", (l, c) => (language, culture) = (l, c));
 
-        Assert.Same(result, received);
-        Assert.Equal("en", received!.Name);
+        Assert.Equal("en", language);
+        Assert.Same(result, culture);
+        Assert.Equal("en", culture!.Name);
     }
 
     // View models in both languages ---------------------------------------------------------------------------------------
@@ -333,7 +369,7 @@ public sealed partial class LocalizationTests
         Assert.Equal("Запитай про будь-який запис", uk.PlaceholderText);
         Assert.Equal("AI is not installed", en.NoticeTitle);
         Assert.Contains("the files will go to /models", en.NoticeText, StringComparison.Ordinal);
-        Assert.Equal("Could not get an answer: boom", en.Item3);
+        Assert.Equal("Couldn’t get an answer: boom", en.Item3);
         Assert.Equal("Ask about any recording", en.PlaceholderText);
     }
 
@@ -347,7 +383,7 @@ public sealed partial class LocalizationTests
         var (title, hint, speaker) = WithUiCulture(English, () => (shell.Library.EmptyTitle, shell.Library.EmptyText, Strings.Segment_Me));
 
         Assert.Equal("No recordings yet", title);
-        Assert.Equal("Press “New recording” to record your first meeting. Everything stays on your computer.", hint);
+        Assert.Equal("Click “New recording” to record your first meeting. Everything stays on your computer.", hint);
         Assert.Equal("Me", speaker);
     }
 
@@ -417,7 +453,7 @@ public sealed partial class LocalizationTests
         Assert.Contains("Ask AI", sessionButtons);
         Assert.Contains("Me", sessionSpeakers);
         Assert.Contains("Others", sessionSpeakers);
-        Assert.Contains("Tell the meeting participants that you are recording.", recordingTexts);
+        Assert.Contains("Let participants know you’re recording.", recordingTexts);
         Assert.Contains("System audio output", recordingTexts);
     }
 }

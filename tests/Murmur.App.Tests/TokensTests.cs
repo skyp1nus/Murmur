@@ -137,32 +137,57 @@ public sealed partial class TokensTests
     [Fact]
     public void ViewsAndStyles_NeverUseStaticResourceForColoursOrBrushes()
     {
-        // StaticResource is resolved once, when the XAML loads, so it would freeze the theme of that moment.
+        // StaticResource is resolved once, when the XAML loads, so it would freeze the theme of that moment. The only
+        // static colour references allowed are the ones inside a ThemeDictionaries element (they resolve per theme).
         var offenders = AxamlFiles()
             .Where(f => !string.Equals(Path.GetFileName(f), "Tokens.axaml", StringComparison.Ordinal))
-            .Where(f => StaticColourLookup().IsMatch(WithoutComments(File.ReadAllText(f))))
+            .Where(f => HasStaticColourLookup(File.ReadAllText(f)))
             .Select(f => Path.GetRelativePath(RepoPaths.AppDirectory, f))
             .ToArray();
 
         Assert.Empty(offenders);
     }
 
+    private const string Root = "<Styles xmlns=\"https://github.com/avaloniaui\" xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\">@BODY@</Styles>";
+
     [Theory]
     [InlineData("<Setter Property=\"Foreground\" Value=\"{StaticResource Brush.Smoke}\" />", true)]
-    [InlineData("Fill=\"{StaticResource Color.Ink}\"", true)]
-    [InlineData("Fill=\"{StaticResource   Brush.Ink}\"", true)]
-    [InlineData("Foreground=\"{DynamicResource Brush.Smoke}\"", false)]
-    [InlineData("FontFamily=\"{StaticResource Font.Body}\"", false)]
-    [InlineData("<StaticResource x:Key=\"TextControlBorderBrush\" ResourceKey=\"Brush.Stone\" />", false)]
-    public void StaticColourLookupPattern_MatchesOnlyStaticLookupsOfColourTokens(string xaml, bool expected)
+    [InlineData("<Rectangle Fill=\"{StaticResource Color.Ink}\" />", true)]
+    [InlineData("<Rectangle Fill=\"{StaticResource   Brush.Ink}\" />", true)]
+    [InlineData("<StaticResource x:Key=\"TextControlBorderBrush\" ResourceKey=\"Brush.Stone\" />", true)]
+    [InlineData("<ResourceDictionary><StaticResource x:Key=\"K\" ResourceKey=\"Color.Stone\" /></ResourceDictionary>", true)]
+    [InlineData("<Rectangle Fill=\"{DynamicResource Brush.Smoke}\" />", false)]
+    [InlineData("<Rectangle FontFamily=\"{StaticResource Font.Body}\" />", false)]
+    [InlineData("<StaticResource x:Key=\"ProgressBarCornerRadius\" ResourceKey=\"Radius.Pill\" />", false)]
+    [InlineData("<!-- {StaticResource Brush.Smoke} and ResourceKey=\"Brush.Ink\" --><Rectangle />", false)]
+    [InlineData("<ResourceDictionary.ThemeDictionaries><ResourceDictionary x:Key=\"Dark\"><StaticResource x:Key=\"K\" ResourceKey=\"Brush.Stone\" /></ResourceDictionary></ResourceDictionary.ThemeDictionaries>", false)]
+    public void StaticColourLookupCheck_FlagsOnlyStaticLookupsOfColourTokensOutsideThemeDictionaries(string body, bool expected)
     {
-        Assert.Equal(expected, StaticColourLookup().IsMatch(xaml));
+        Assert.Equal(expected, HasStaticColourLookup(Root.Replace("@BODY@", body, StringComparison.Ordinal)));
     }
 
-    private static string WithoutComments(string xaml) => Regex.Replace(xaml, "<!--.*?-->", string.Empty, RegexOptions.Singleline);
+    private static bool HasStaticColourLookup(string xaml)
+    {
+        var document = XDocument.Parse(xaml);
+        foreach (var themed in document.Descendants().Where(e => e.Name.LocalName == "ResourceDictionary.ThemeDictionaries").ToList())
+        {
+            themed.Remove();
+        }
+
+        foreach (var comment in document.DescendantNodes().OfType<XComment>().ToList())
+        {
+            comment.Remove();
+        }
+
+        var text = document.ToString();
+        return StaticColourLookup().IsMatch(text) || ColourResourceKey().IsMatch(text);
+    }
 
     [GeneratedRegex(@"\{\s*StaticResource\s+(?:Brush|Color)\.")]
     private static partial Regex StaticColourLookup();
+
+    [GeneratedRegex("ResourceKey=\"(?:Brush|Color)\\.")]
+    private static partial Regex ColourResourceKey();
 
     [Fact]
     public void AccentColours_AreOnlyUsedByOrbAndIconFiles()

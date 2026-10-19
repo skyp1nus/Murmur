@@ -46,6 +46,8 @@
     </ItemGroup>
     <WriteLinesToFile File="$(IntermediateOutputPath)Strings.keys.g.cs" Overwrite="true" WriteOnlyWhenDifferent="true"
                       Lines="// &lt;auto-generated/&gt; from Resources/Strings.resx by Murmur.App.csproj - do not edit;namespace Murmur.App.Resources%3B;public static partial class Strings;{;@(MurmurStringLine);}" />
+    <!-- WriteOnlyWhenDifferent leaves the file alone when only a text (not a key) changed; touch it so the target stays up to date. -->
+    <Touch Files="$(IntermediateOutputPath)Strings.keys.g.cs" />
   </Target>
 
   <Target Name="MurmurIncludeStringsAccessor" BeforeTargets="CoreCompile" DependsOnTargets="MurmurGenerateStringsAccessor">

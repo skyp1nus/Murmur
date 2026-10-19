@@ -110,7 +110,7 @@ public sealed partial class ChatViewModel : ObservableObject, IDisposable
 
     public string PlaceholderText => Scope is null ? Strings.Chat_PlaceholderLibrary : Strings.Chat_PlaceholderSession;
 
-    public string EmptyTitle => Scope is null ? Strings.Chat_EmptyTitleLibrary : Strings.Chat_PlaceholderSession;
+    public string EmptyTitle => Scope is null ? Strings.Chat_EmptyTitleLibrary : Strings.Chat_EmptyTitleSession;
 
     public string EmptyText => Scope is null
         ? Strings.Chat_EmptyTextLibrary

@@ -75,10 +75,10 @@
     <value>Try another period or change the search.</value>
   </data>
   <data name="Library_EmptyHint" xml:space="preserve">
-    <value>Press “New recording” to record your first meeting. Everything stays on your computer.</value>
+    <value>Click “New recording” to record your first meeting. Everything stays on your computer.</value>
   </data>
   <data name="Library_LoadFailed" xml:space="preserve">
-    <value>Could not load the recordings: {0}</value>
+    <value>Couldn’t load the recordings: {0}</value>
     <comment>{0} = error message</comment>
   </data>
   <data name="Library_SearchFailed" xml:space="preserve">
@@ -86,7 +86,7 @@
     <comment>{0} = error message</comment>
   </data>
   <data name="Shell_RecoveryFailed" xml:space="preserve">
-    <value>Could not recover the interrupted recordings: {0}</value>
+    <value>Couldn’t recover the interrupted recordings: {0}</value>
     <comment>{0} = error message</comment>
   </data>
   <data name="Recording_SystemAudio" xml:space="preserve">
@@ -96,7 +96,7 @@
     <value>System audio output</value>
   </data>
   <data name="Recording_Notice" xml:space="preserve">
-    <value>Tell the meeting participants that you are recording.</value>
+    <value>Let participants know you’re recording.</value>
   </data>
   <data name="Recording_Start" xml:space="preserve">
     <value>Start recording</value>
@@ -111,30 +111,30 @@
     <value>No microphone found — only system audio will be recorded.</value>
   </data>
   <data name="Recording_StopFailed" xml:space="preserve">
-    <value>Could not stop the recording: {0}</value>
+    <value>Couldn’t stop the recording: {0}</value>
     <comment>{0} = error message</comment>
   </data>
   <data name="Recording_StartFailed" xml:space="preserve">
-    <value>Could not start the recording: {0}</value>
+    <value>Couldn’t start the recording: {0}</value>
     <comment>{0} = error message</comment>
   </data>
   <data name="Recording_StoppedItself" xml:space="preserve">
-    <value>The recording stopped by itself.</value>
+    <value>Recording stopped unexpectedly.</value>
   </data>
   <data name="Recording_StoppedWithReason" xml:space="preserve">
     <value>The recording stopped: {0}</value>
     <comment>{0} = reason</comment>
   </data>
   <data name="Recording_StoppedItselfWithError" xml:space="preserve">
-    <value>The recording stopped by itself: {0}</value>
+    <value>Recording stopped unexpectedly: {0}</value>
     <comment>{0} = error message</comment>
   </data>
   <data name="Recording_ScreenOnFailed" xml:space="preserve">
-    <value>Could not turn screen recording on: {0}</value>
+    <value>Couldn’t turn screen recording on: {0}</value>
     <comment>{0} = error message</comment>
   </data>
   <data name="Recording_ScreenOffFailed" xml:space="preserve">
-    <value>Could not turn screen recording off: {0}</value>
+    <value>Couldn’t turn screen recording off: {0}</value>
     <comment>{0} = error message</comment>
   </data>
   <data name="Session_TabTranscript" xml:space="preserve">
@@ -162,18 +162,18 @@
     <value>Transcribe</value>
   </data>
   <data name="Session_QueueFailed" xml:space="preserve">
-    <value>Could not queue the recording: {0}</value>
+    <value>Couldn’t queue the recording: {0}</value>
     <comment>{0} = error message</comment>
   </data>
   <data name="Session_AudioMissing" xml:space="preserve">
     <value>The audio files of the recording were not found.</value>
   </data>
   <data name="Session_AudioOpenFailed" xml:space="preserve">
-    <value>Could not open the audio: {0}</value>
+    <value>Couldn’t open the audio: {0}</value>
     <comment>{0} = error message</comment>
   </data>
   <data name="Session_TranscriptReadFailed" xml:space="preserve">
-    <value>Could not read the transcript: {0}</value>
+    <value>Couldn’t read the transcript: {0}</value>
     <comment>{0} = error message</comment>
   </data>
   <data name="Session_NoSpeechTitle" xml:space="preserve">
@@ -195,7 +195,7 @@
     <value>This recording has not been transcribed yet.</value>
   </data>
   <data name="Session_FailedTitle" xml:space="preserve">
-    <value>Could not transcribe the recording</value>
+    <value>Couldn’t transcribe the recording</value>
   </data>
   <data name="Session_UnknownError" xml:space="preserve">
     <value>Unknown error.</value>
@@ -204,10 +204,10 @@
     <value>The Parakeet model is not installed</value>
   </data>
   <data name="Session_AsrMissingText" xml:space="preserve">
-    <value>To transcribe this recording, install the speech recognition model: run scripts/fetch-models.ps1. Then press “Try again”.</value>
+    <value>To transcribe this recording, install the speech recognition model: run scripts/fetch-models.ps1. Then click “Try again”.</value>
   </data>
   <data name="Session_AsrMissingTextWithFolder" xml:space="preserve">
-    <value>To transcribe this recording, install the speech recognition model: run scripts/fetch-models.ps1. The files will go to {0}. Then press “Try again”.</value>
+    <value>To transcribe this recording, install the speech recognition model: run scripts/fetch-models.ps1. The files will go to {0}. Then click “Try again”.</value>
     <comment>{0} = models folder</comment>
   </data>
   <data name="Session_ProcessingText" xml:space="preserve">
@@ -241,11 +241,14 @@
     <value>The answer was interrupted: a recording started. Ask again when the recording ends.</value>
   </data>
   <data name="Chat_Failed" xml:space="preserve">
-    <value>Could not get an answer: {0}</value>
+    <value>Couldn’t get an answer: {0}</value>
     <comment>{0} = error message</comment>
   </data>
   <data name="Chat_ModelsNotFound" xml:space="preserve">
     <value>AI models not found.</value>
+  </data>
+  <data name="Chat_EmptyTitleSession" xml:space="preserve">
+    <value>Ask about this recording</value>
   </data>
   <data name="Chat_PlaceholderLibrary" xml:space="preserve">
     <value>Ask about any recording</value>
@@ -260,20 +263,20 @@
     <value>For example: “What did we decide about the release?” The answer will point to the right recordings and minutes.</value>
   </data>
   <data name="Chat_EmptyTextSession" xml:space="preserve">
-    <value>For example: “Which tasks did we assign?” Every answer has timestamps — press one to listen.</value>
+    <value>For example: “Which tasks did we assign?” Every answer has timestamps — click one to listen.</value>
   </data>
   <data name="Chat_NoticeNotInstalled" xml:space="preserve">
-    <value>To ask questions about your recordings, download the local models: run scripts/fetch-models.ps1 -Ai. Then press “Check again”. Keyword search works without AI.</value>
+    <value>To ask questions about your recordings, download the local models: run scripts/fetch-models.ps1 -Ai. Then click “Check again”. Keyword search works without AI.</value>
   </data>
   <data name="Chat_NoticeNotInstalledWithFolder" xml:space="preserve">
-    <value>To ask questions about your recordings, download the local models: run scripts/fetch-models.ps1 -Ai (the files will go to {0}). Then press “Check again”. Keyword search works without AI.</value>
+    <value>To ask questions about your recordings, download the local models: run scripts/fetch-models.ps1 -Ai (the files will go to {0}). Then click “Check again”. Keyword search works without AI.</value>
     <comment>{0} = models folder</comment>
   </data>
   <data name="Chat_NoticePaused" xml:space="preserve">
     <value>Models are not loaded while a recording is running, so they do not take memory and CPU from it. Ask when the recording ends.</value>
   </data>
   <data name="LibraryChat_Subtitle" xml:space="preserve">
-    <value>Answers refer to recordings and minutes — press a timestamp to open the recording there.</value>
+    <value>Answers refer to recordings and minutes — click a timestamp to open the recording there.</value>
   </data>
   <data name="Processing_Queued" xml:space="preserve">
     <value>Queued</value>

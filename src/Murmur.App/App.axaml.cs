@@ -62,6 +62,11 @@ public partial class App : Application
 
     public override void OnFrameworkInitializationCompleted()
     {
+        if (ApplicationLifetime is IControlledApplicationLifetime lifetime)
+        {
+            lifetime.Exit += (_, _) => _themeApplier?.Dispose();
+        }
+
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop && Services is { } services)
         {
             var shell = ShellViewModel.Create(services);

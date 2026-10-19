@@ -59,12 +59,13 @@ internal sealed class ThemeApplier : IDisposable
 
     private void OnChanged(AppSettings settings)
     {
-        var theme = settings.Theme;
+        // Two saves racing on different threads can raise their events out of order. The posted action therefore ignores
+        // the payload and applies whatever the store holds when it runs, which also collapses rapid changes.
         _post(() =>
         {
             if (!_disposed)
             {
-                Apply(theme);
+                Apply(_settings.Current.Theme);
             }
         });
     }

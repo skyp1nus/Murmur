@@ -459,10 +459,15 @@ public sealed class ThemeTests
             {
                 var app = Application.Current!;
                 var before = app.RequestedThemeVariant;
-                using var applier = new ThemeApplier(app, store, action => action());
-                var result = app.RequestedThemeVariant;
-                app.RequestedThemeVariant = before;
-                return result;
+                try
+                {
+                    using var applier = new ThemeApplier(app, store, action => action());
+                    return app.RequestedThemeVariant;
+                }
+                finally
+                {
+                    app.RequestedThemeVariant = before;
+                }
             },
             TestContext.Current.CancellationToken);
 
@@ -481,16 +486,22 @@ public sealed class ThemeTests
             {
                 var app = Application.Current!;
                 var before = app.RequestedThemeVariant;
-                using var applier = new ThemeApplier(app, store, action => action());
-                var list = new List<ThemeVariant?> { app.RequestedThemeVariant };
-                foreach (var theme in new[] { ThemePreference.Dark, ThemePreference.Light, ThemePreference.System })
+                try
                 {
-                    await store.SaveAsync(store.Current with { Theme = theme }, CancellationToken.None);
-                    list.Add(app.RequestedThemeVariant);
-                }
+                    using var applier = new ThemeApplier(app, store, action => action());
+                    var list = new List<ThemeVariant?> { app.RequestedThemeVariant };
+                    foreach (var theme in new[] { ThemePreference.Dark, ThemePreference.Light, ThemePreference.System })
+                    {
+                        await store.SaveAsync(store.Current with { Theme = theme }, CancellationToken.None);
+                        list.Add(app.RequestedThemeVariant);
+                    }
 
-                app.RequestedThemeVariant = before;
-                return list;
+                    return list;
+                }
+                finally
+                {
+                    app.RequestedThemeVariant = before;
+                }
             },
             TestContext.Current.CancellationToken);
 
@@ -507,24 +518,33 @@ public sealed class ThemeTests
         var (raisedOffThread, before, queued, after) = await Session.Dispatch(
             () =>
             {
-                var posted = new System.Collections.Concurrent.ConcurrentQueue<Action>();
-                using var applier = new ThemeApplier(Application.Current!, store, posted.Enqueue);
-                var uiThread = Environment.CurrentManagedThreadId;
-                var raisedOn = Task.Run(
-                    async () =>
-                    {
-                        await store.SaveAsync(new AppSettings { Theme = ThemePreference.Dark }, CancellationToken.None);
-                        return Environment.CurrentManagedThreadId;
-                    }).GetAwaiter().GetResult();
-
-                var untouched = Application.Current!.RequestedThemeVariant;
-                var count = posted.Count;
-                while (posted.TryDequeue(out var action))
+                var app = Application.Current!;
+                var original = app.RequestedThemeVariant;
+                try
                 {
-                    action();
-                }
+                    var posted = new System.Collections.Concurrent.ConcurrentQueue<Action>();
+                    using var applier = new ThemeApplier(app, store, posted.Enqueue);
+                    var uiThread = Environment.CurrentManagedThreadId;
+                    var raisedOn = Task.Run(
+                        async () =>
+                        {
+                            await store.SaveAsync(new AppSettings { Theme = ThemePreference.Dark }, CancellationToken.None);
+                            return Environment.CurrentManagedThreadId;
+                        }).GetAwaiter().GetResult();
 
-                return (raisedOn != uiThread, untouched, count, Application.Current.RequestedThemeVariant);
+                    var untouched = app.RequestedThemeVariant;
+                    var count = posted.Count;
+                    while (posted.TryDequeue(out var action))
+                    {
+                        action();
+                    }
+
+                    return (raisedOn != uiThread, untouched, count, app.RequestedThemeVariant);
+                }
+                finally
+                {
+                    app.RequestedThemeVariant = original;
+                }
             },
             TestContext.Current.CancellationToken);
 
@@ -532,6 +552,44 @@ public sealed class ThemeTests
         Assert.Equal(ThemeVariant.Default, before);
         Assert.Equal(1, queued);
         Assert.Equal(ThemeVariant.Dark, after);
+    }
+
+    [Fact]
+    public async Task ThemeApplier_AppliesTheStoredTheme_NotTheOneOfAStaleEvent()
+    {
+        // Two saves on different threads can deliver their events out of order: the later action must still end on the
+        // theme the store holds now (Dark), not on the payload of the event that arrived last (Light).
+        var store = new FakeSettingsStore();
+
+        var result = await Session.Dispatch(
+            () =>
+            {
+                var app = Application.Current!;
+                var original = app.RequestedThemeVariant;
+                try
+                {
+                    var posted = new Queue<Action>();
+                    using var applier = new ThemeApplier(app, store, posted.Enqueue);
+                    store.SetCurrentSilently(new AppSettings { Theme = ThemePreference.Dark });
+                    store.Raise(new AppSettings { Theme = ThemePreference.Dark });
+                    store.Raise(new AppSettings { Theme = ThemePreference.Light });
+                    var queued = posted.Count;
+                    while (posted.TryDequeue(out var action))
+                    {
+                        action();
+                    }
+
+                    return (queued, app.RequestedThemeVariant);
+                }
+                finally
+                {
+                    app.RequestedThemeVariant = original;
+                }
+            },
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal(2, result.queued);
+        Assert.Equal(ThemeVariant.Dark, result.Item2);
     }
 
     [Fact]
@@ -543,13 +601,19 @@ public sealed class ThemeTests
             async () =>
             {
                 var app = Application.Current!;
-                var applier = new ThemeApplier(app, store, action => action());
-                var subscribed = store.SubscriberCount;
-                applier.Dispose();
-                await store.SaveAsync(new AppSettings { Theme = ThemePreference.Dark }, CancellationToken.None);
-                var result = (subscribed, store.SubscriberCount, app.RequestedThemeVariant);
-                app.RequestedThemeVariant = ThemeVariant.Default;
-                return result;
+                var original = app.RequestedThemeVariant;
+                try
+                {
+                    var applier = new ThemeApplier(app, store, action => action());
+                    var subscribed = store.SubscriberCount;
+                    applier.Dispose();
+                    await store.SaveAsync(new AppSettings { Theme = ThemePreference.Dark }, CancellationToken.None);
+                    return (subscribed, store.SubscriberCount, app.RequestedThemeVariant);
+                }
+                finally
+                {
+                    app.RequestedThemeVariant = original;
+                }
             },
             TestContext.Current.CancellationToken);
 

@@ -247,6 +247,9 @@
   <data name="Chat_ModelsNotFound" xml:space="preserve">
     <value>AI-моделі не знайдено.</value>
   </data>
+  <data name="Chat_EmptyTitleSession" xml:space="preserve">
+    <value>Запитай про цей запис</value>
+  </data>
   <data name="Chat_PlaceholderLibrary" xml:space="preserve">
     <value>Запитай про будь-який запис</value>
   </data>
