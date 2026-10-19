@@ -40,9 +40,7 @@ public static class WavRepair
         }
         catch (IOException ex)
         {
-            // Windows reports a lock precisely. Elsewhere there is no mandatory locking, so an I/O error on open
-            // is the closest thing to "busy"; a persistent one just costs the caller its retries.
-            return OperatingSystem.IsWindows() && !IsLockViolation(ex) ? WavRepairResult.Invalid : WavRepairResult.Busy;
+            return IsBusy(ex) ? WavRepairResult.Busy : WavRepairResult.Invalid;
         }
         catch (UnauthorizedAccessException)
         {
@@ -90,7 +88,7 @@ public static class WavRepair
                 return WavRepairResult.Repaired;
             }
         }
-        catch (IOException ex) when (OperatingSystem.IsWindows() && IsLockViolation(ex))
+        catch (IOException ex) when (IsBusy(ex))
         {
             return WavRepairResult.Busy;
         }
@@ -104,11 +102,17 @@ public static class WavRepair
         }
     }
 
-    private static FileStream OpenForRepair(string path) =>
+    internal static FileStream OpenForRepair(string path) =>
         new(path, FileMode.Open, FileAccess.ReadWrite, FileShare.Read);
 
-    /// <summary>ERROR_SHARING_VIOLATION (32) or ERROR_LOCK_VIOLATION (33).</summary>
-    private static bool IsLockViolation(IOException ex) => (ex.HResult & 0xFFFF) is 32 or 33;
+    /// <summary>
+    /// Whether someone else holds the file right now. Windows: ERROR_SHARING_VIOLATION or ERROR_LOCK_VIOLATION.
+    /// Unix: .NET takes an advisory <c>flock</c> and reports a conflict as an <see cref="IOException"/> whose HResult is
+    /// the errno EWOULDBLOCK (EAGAIN); any other I/O error (EROFS, EIO, ...) will not go away by waiting.
+    /// </summary>
+    private static bool IsBusy(IOException ex) => OperatingSystem.IsWindows()
+        ? ex.HResult is unchecked((int)0x80070020) or unchecked((int)0x80070021)
+        : ex.HResult == (OperatingSystem.IsLinux() ? 11 : 35);
 }
 
 /// <summary>Outcome of <see cref="WavRepair.Repair(string, out TimeSpan)"/>.</summary>
