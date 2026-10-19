@@ -164,6 +164,21 @@ public sealed class CheckRecordingScriptTests : IDisposable
     }
 
     [Fact]
+    public void Only_the_segment_that_disagrees_with_its_entry_fails_in_a_three_segment_session()
+    {
+        var run = RunWithSegments(
+            ["screen-000.mp4", "screen-001.mp4", "screen-002.mp4"],
+            [Video(3, 30), Video(2.5, 30), Video(4, 30)],
+            Segments((0, 0.2, 3.0), (1, 3.7, 3.0), (2, 7.0, 4.0)));
+
+        Assert.Equal(1, run.ExitCode);
+        Assert.Equal("PASS", Status(run, SyncRow));
+        Assert.Equal("FAIL", Status(run, "screen-001.mp4 duration vs session segment"));
+        Assert.Equal("PASS", Status(run, "screen-002.mp4 duration vs session segment"));
+        Assert.Contains("| -0.500 s (offsetS 3.700) |", run.Output);
+    }
+
+    [Fact]
     public void A_file_without_an_entry_fails_and_a_json_without_entries_skips_the_check()
     {
         var missing = RunWithSegments(["screen-000.mp4"], [Video(10, 30)], Segments((7, 0.0, 10.0)));

@@ -64,6 +64,42 @@ public sealed class RecorderScreenSegmentClockTests : IDisposable
     }
 
     [Fact]
+    public async Task Segments_ToggledSeveralTimes_AreOrderedDisjointAndEachMatchesItsCalls()
+    {
+        var clock = new JumpingTimeProvider();
+        var capture = new SlowScreenCapture(new SyntheticCapture(new SyntheticCaptureOptions(SpeedFactor: 1, Screen: true)), clock, SlowStart, SlowStop);
+        var recorder = new Recorder(capture, _store, clock, RecorderSettings.Default);
+
+        await recorder.StartAsync(new RecordingOptions(Screen: true), Ct);
+        for (var i = 0; i < 3; i++)
+        {
+            await Task.Delay(60, Ct);
+            await recorder.SetScreenEnabledAsync(false, Ct);
+            await Task.Delay(60, Ct);
+            await recorder.SetScreenEnabledAsync(true, Ct);
+        }
+
+        await Task.Delay(60, Ct);
+        var finished = await recorder.StopAsync(Ct);
+
+        var calls = Assert.Single(capture.Recorders).Calls;
+        Assert.Equal(4, calls.Starts.Count);
+        Assert.Equal(4, calls.Stops.Count);
+        Assert.Equal(4, finished.ScreenSegments.Count);
+        Assert.Equal([0, 1, 2, 3], finished.ScreenSegments.Select(s => s.Index));
+        for (var i = 0; i < 4; i++)
+        {
+            AssertNear(clock.Between(calls.Starts[i], calls.Stops[i]), finished.ScreenSegments[i].Duration);
+            Assert.True(finished.ScreenSegments[i].Duration >= SlowStart, $"segment {i}: {finished.ScreenSegments[i]}");
+            if (i > 0)
+            {
+                var previous = finished.ScreenSegments[i - 1];
+                Assert.True(finished.ScreenSegments[i].Offset >= previous.Offset + previous.Duration, $"segments {i - 1} and {i} overlap");
+            }
+        }
+    }
+
+    [Fact]
     public async Task FinalStop_EndsTheLastSegmentAtTheStopCall_AndTheSlowFinalizeIsNotPartOfIt()
     {
         var clock = new JumpingTimeProvider();
