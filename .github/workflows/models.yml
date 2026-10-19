@@ -55,6 +55,20 @@ jobs:
       - name: Build Murmur.ModelFetch
         run: dotnet build tools/Murmur.ModelFetch -c Release
 
+      # What every source of the catalog is upstream today: Hugging Face commit, SHA-256 and size of each file, release
+      # asset digests, and whether a pinned hash/size drifted. Copy the revisions and pins from the job summary into
+      # ModelCatalog. Reads the APIs only (no model is downloaded); a failure here (e.g. a rate limit) must not stop the
+      # downloads below, so the step is allowed to fail.
+      - name: Resolve upstream pins (revision, SHA-256, size, drift)
+        id: pins
+        continue-on-error: true
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          dotnet run -c Release --no-build --project tools/Murmur.ModelFetch -- \
+            --resolve-pins \
+            --summary "$GITHUB_STEP_SUMMARY"
+
       # Required ASR files, the llama.cpp runtime (tar.gz, extracted) and the embedding model. No cache on purpose:
       # the point is to download from the real hosts. The chat models are 5 and 17 GB, so they are only probed.
       - name: Install silero-vad, parakeet, llama.cpp and the embedding model
