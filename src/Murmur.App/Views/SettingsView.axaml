@@ -361,6 +361,11 @@
                                  Foreground="{DynamicResource Brush.Graphite}"
                                  IsVisible="{Binding HasError}"
                                  Text="{Binding Error}" />
+                      <TextBlock Grid.Row="1"
+                                 Grid.ColumnSpan="2"
+                                 Classes="note"
+                                 IsVisible="{Binding ShowRegistrationNote}"
+                                 Text="{Binding RegistrationNote}" />
                     </Grid>
                   </Border>
                 </DataTemplate>

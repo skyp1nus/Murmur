@@ -1,3 +1,4 @@
+using Murmur.Core.Input;
 using Avalonia.Input;
 using Murmur.App.Localization;
 using Murmur.App.Resources;
@@ -579,7 +580,7 @@ public sealed class SettingsViewModelTests
         var rows = rig.Vm.Hotkeys.Rows;
 
         Assert.Equal(["Ctrl Shift R", "Ctrl Shift S", "Ctrl Shift M"], rows.Select(r => r.DisplayText));
-        Assert.Equal([HotkeyAction.Record, HotkeyAction.ToggleScreen, HotkeyAction.ShowApp], rows.Select(r => r.Action));
+        Assert.Equal([HotkeyAction.ToggleRecording, HotkeyAction.ToggleScreen, HotkeyAction.ShowApp], rows.Select(r => r.Action));
     }
 
     [Fact]

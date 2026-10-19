@@ -272,6 +272,49 @@ public sealed partial class RecordingViewModel : ObservableObject, ILevelSource
         }
     }
 
+    /// <summary>The recorder itself is idle (this view model's <see cref="State"/> may still be about to catch up with an event).</summary>
+    internal bool RecorderIsIdle => _recorder.State == RecorderState.Idle;
+
+    /// <summary>
+    /// The record hotkey: starts a recording with the saved defaults (the pills as <see cref="Prepare"/> set them) or stops
+    /// the running one, exactly like the start/stop button. Ignored while the recorder is starting or stopping, and when the
+    /// button itself would do nothing (no source to record). Completes when the start or stop has.
+    /// </summary>
+    internal Task ToggleRecordingFromHotkeyAsync()
+    {
+        var settled = _recorder.State switch
+        {
+            RecorderState.Idle => State == RecorderState.Idle,
+            RecorderState.Recording => State == RecorderState.Recording,
+            _ => false,
+        };
+        if (!settled || !StartStopCommand.CanExecute(null))
+        {
+            return Task.CompletedTask;
+        }
+
+        return StartStopCommand.ExecuteAsync(null);
+    }
+
+    /// <summary>
+    /// The screen hotkey: while recording, turns the screen to the opposite of what the recorder does now
+    /// (<see cref="IRecorder.IsScreenRecording"/>, which a screen fault may have changed behind the pill's back). The pill is
+    /// set to match first, then flipped, which sends the change to the recorder like a click does. Ignored when not
+    /// recording, without a screen capture, and while an earlier change is still in flight. Completes when the change has
+    /// been applied.
+    /// </summary>
+    internal Task ToggleScreenFromHotkeyAsync()
+    {
+        if (State != RecorderState.Recording || _recorder.State != RecorderState.Recording || !ScreenAvailable || !PendingScreenChange.IsCompleted)
+        {
+            return Task.CompletedTask;
+        }
+
+        SyncScreenWithRecorder();
+        Screen = !_recorder.IsScreenRecording;
+        return PendingScreenChange;
+    }
+
     [RelayCommand(CanExecute = nameof(CanGoBack))]
     private void Back() => BackRequested?.Invoke();
 

@@ -609,6 +609,12 @@
   <data name="Hotkeys_Duplicate" xml:space="preserve">
     <value>Already used by “{0}”.</value>
   </data>
+  <data name="Hotkeys_Taken" xml:space="preserve">
+    <value>Used by another app</value>
+  </data>
+  <data name="Hotkeys_Unsupported" xml:space="preserve">
+    <value>Global hotkeys are not supported here</value>
+  </data>
   <data name="Appearance_Theme" xml:space="preserve">
     <value>Theme</value>
   </data>

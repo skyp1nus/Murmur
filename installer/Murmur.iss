@@ -66,10 +66,12 @@ SetupIconFile=murmur.ico
 UninstallDisplayIcon={app}\Murmur.exe
 UninstallDisplayName=Murmur
 
-; Upgrade over an older version: same AppId, same folder (UsePreviousAppDir). Murmur has no single-instance mutex, so
-; AppMutex is not set; CloseApplications (the default, spelled out here) makes Setup find the running Murmur.exe and
-; Murmur.Transcription.exe through the Restart Manager and close them before the files are replaced. A recording that
-; is still running is therefore stopped by an upgrade: finish it first.
+; Upgrade over an older version: same AppId, same folder (UsePreviousAppDir). Murmur holds the named mutex
+; MurmurSingleInstance for its whole run (src/Murmur.Desktop/SingleInstance.cs), so with AppMutex Setup and the uninstaller
+; refuse to run while Murmur is open and ask the user to close it first: a recording that is still running is never cut off
+; by an upgrade. CloseApplications (the default, spelled out here) still closes a Murmur.Transcription.exe worker that
+; outlives it, through the Restart Manager.
+AppMutex=MurmurSingleInstance
 CloseApplications=yes
 RestartApplications=no
 

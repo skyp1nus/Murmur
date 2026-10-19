@@ -2,6 +2,7 @@ using Murmur.App;
 using Murmur.App.Services;
 using Murmur.Core.Capture;
 using Murmur.Core.Capture.Synthetic;
+using Murmur.Core.Input;
 using Murmur.Core.Jobs;
 using Murmur.Core.Models;
 using Murmur.Core.Processing;
@@ -34,11 +35,15 @@ internal sealed class CompositionRoot : IDisposable
     private AiAwareModelManager? _aiModels;
     private AiReindexScheduler? _reindex;
     private CancellationTokenSource? _recoveryRetry;
+    private IGlobalHotkeys? _hotkeys;
+    private readonly SingleInstance? _instance;
 
-    public CompositionRoot(string[] args)
+    /// <param name="instance">The single-instance guard whose "a second start wants the window" signal goes to the app; <c>null</c> = none.</param>
+    public CompositionRoot(string[] args, SingleInstance? instance = null)
     {
         ArgumentNullException.ThrowIfNull(args);
         Args = args;
+        _instance = instance;
     }
 
     /// <summary>Command-line arguments the process was started with.</summary>
@@ -160,12 +165,17 @@ internal sealed class CompositionRoot : IDisposable
             modelManager.ActiveModelId,
             storage.Paths.RecordingsDirectory,
             // WindowsCapture also plays the screen recordings (Media Engine); the synthetic capture does not.
-            capture as IVideoPlayback);
+            capture as IVideoPlayback,
+            _hotkeys ??= CreateHotkeys(capture),
+            _instance);
     }
 
     public void Dispose()
     {
         _recoveryRetry?.Cancel();
+
+        // The app (the hotkey coordinator) stopped using it when its window closed; this releases the hotkey thread.
+        _hotkeys?.Dispose();
         _heapTrimmer?.Dispose();
         _reindex?.Dispose();
         _processor?.Dispose();
@@ -224,6 +234,15 @@ internal sealed class CompositionRoot : IDisposable
         // Linux development and CI: deterministic synthetic audio. The synthetic screen recorder only creates empty
         // segment files, which lets the screen toggle and --screen be exercised end to end.
         return new SyntheticCapture(new SyntheticCaptureOptions(Screen: true));
+#endif
+    }
+
+    private static IGlobalHotkeys CreateHotkeys(ICapture capture)
+    {
+#if WINDOWS
+        return ((Murmur.Capture.Windows.WindowsCapture)capture).CreateGlobalHotkeys();
+#else
+        return new UnsupportedGlobalHotkeys();
 #endif
     }
 

@@ -1,6 +1,7 @@
 using Avalonia.Input;
 using CommunityToolkit.Mvvm.ComponentModel;
 using Murmur.App.Resources;
+using Murmur.Core.Input;
 using Murmur.Core.Settings;
 
 namespace Murmur.App.ViewModels;
@@ -8,7 +9,9 @@ namespace Murmur.App.ViewModels;
 /// <summary>
 /// The "Гарячі клавіші" section. A click on a row starts capturing: the next key combination becomes the hotkey, Esc
 /// cancels, Backspace clears it. Combinations are validated with a <c>KeyGesture.Parse</c> round trip and a combination that
-/// another action already uses is refused. Registering them with the OS is a later task; here they are only stored.
+/// another action already uses is refused. The app registers the stored gestures with the system
+/// (<c>HotkeyCoordinator</c>) and reports each result back through <see cref="SetRegistration"/>, which shows as a note
+/// under the row.
 /// </summary>
 public sealed partial class HotkeysSettingsViewModel : ObservableObject
 {
@@ -19,7 +22,7 @@ public sealed partial class HotkeysSettingsViewModel : ObservableObject
         _writer = writer;
         Rows =
         [
-            new HotkeyRowViewModel(HotkeyAction.Record, Strings.Hotkeys_Record, null, this),
+            new HotkeyRowViewModel(HotkeyAction.ToggleRecording, Strings.Hotkeys_Record, null, this),
             new HotkeyRowViewModel(HotkeyAction.ToggleScreen, Strings.Hotkeys_ToggleScreen, null, this),
             new HotkeyRowViewModel(HotkeyAction.ShowApp, Strings.Hotkeys_ShowApp, null, this),
         ];
@@ -29,7 +32,26 @@ public sealed partial class HotkeysSettingsViewModel : ObservableObject
     public IReadOnlyList<HotkeyRowViewModel> Rows { get; }
 
     /// <summary>The row waiting for a key combination, or <c>null</c>.</summary>
-    public HotkeyRowViewModel? Capturing { get; private set; }
+    public HotkeyRowViewModel? Capturing
+    {
+        get;
+        private set
+        {
+            var was = field is not null;
+            field = value;
+            if (was != (value is not null))
+            {
+                CapturingChanged?.Invoke(value is not null);
+            }
+        }
+    }
+
+    /// <summary>
+    /// A row started (<see langword="true"/>) or stopped (<see langword="false"/>) waiting for a key combination, on every way
+    /// in and out: a click, Esc, Backspace, a saved combination, focus lost, <see cref="Refresh"/>. Moving from one row to
+    /// another is not reported. The app releases its global hotkeys while this is true, so the combination reaches the field.
+    /// </summary>
+    public event Action<bool>? CapturingChanged;
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HasError))]
@@ -71,9 +93,26 @@ public sealed partial class HotkeysSettingsViewModel : ObservableObject
         }
     }
 
+    /// <summary>The system's answer for the gesture of an action, shown as a note under its row (nothing for Registered and Cleared).</summary>
+    internal void SetRegistration(HotkeyAction action, HotkeyRegistration registration)
+    {
+        foreach (var row in Rows)
+        {
+            if (row.Action == action)
+            {
+                row.Registration = registration;
+            }
+        }
+    }
+
     internal void BeginCapture(HotkeyRowViewModel row)
     {
-        EndCapture();
+        if (Capturing is { } previous && previous != row)
+        {
+            previous.IsCapturing = false;
+            previous.Error = null;
+        }
+
         row.Error = null;
         row.IsCapturing = true;
         Capturing = row;
@@ -144,6 +183,12 @@ public sealed partial class HotkeysSettingsViewModel : ObservableObject
 
     private void Save(HotkeyRowViewModel row, string? gesture)
     {
+        // The note was about the old gesture; the app registers the new one and reports again. The same text keeps its note.
+        if (!string.Equals(row.Gesture, gesture, StringComparison.Ordinal))
+        {
+            row.Registration = HotkeyRegistration.Registered;
+        }
+
         row.Gesture = gesture;
         LastSave = SaveAsync(row.Action, gesture);
     }
@@ -155,14 +200,14 @@ public sealed partial class HotkeysSettingsViewModel : ObservableObject
 
     private static string? GestureOf(AppSettings settings, HotkeyAction action) => action switch
     {
-        HotkeyAction.Record => settings.RecordHotkey,
+        HotkeyAction.ToggleRecording => settings.RecordHotkey,
         HotkeyAction.ToggleScreen => settings.ToggleScreenHotkey,
         _ => settings.ShowAppHotkey,
     };
 
     private static AppSettings With(AppSettings settings, HotkeyAction action, string? gesture) => action switch
     {
-        HotkeyAction.Record => settings with { RecordHotkey = gesture },
+        HotkeyAction.ToggleRecording => settings with { RecordHotkey = gesture },
         HotkeyAction.ToggleScreen => settings with { ToggleScreenHotkey = gesture },
         _ => settings with { ShowAppHotkey = gesture },
     };

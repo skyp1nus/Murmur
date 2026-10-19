@@ -5,8 +5,10 @@ using Avalonia.Threading;
 using Murmur.App.Appearance;
 using Murmur.App.Diagnostics;
 using Murmur.App.Localization;
+using Murmur.App.Services;
 using Murmur.App.ViewModels;
 using Murmur.App.Views;
+using Murmur.Core.Input;
 
 namespace Murmur.App;
 
@@ -78,12 +80,38 @@ public partial class App : Application
                 exiting.Exit += (_, _) => shell.CloseOpenSession();
             }
 
-            if (StartupProbe.TryGetPath(Args, out var probePath))
+            if (services.Activation is { } activation)
+            {
+                // A second start of the program asks this one to show its window (raised off the UI thread). It is answered only
+                // while the window lives and is not closing: otherwise the second start waits for this process to end.
+                void OnActivationRequested() => Dispatcher.UIThread.Post(() =>
+                {
+                    if (window.IsClosed || window.IsClosing)
+                    {
+                        return;
+                    }
+
+                    window.BringToFront();
+                    activation.Acknowledge();
+                });
+                activation.Requested += OnActivationRequested;
+                window.Closed += (_, _) => activation.Requested -= OnActivationRequested;
+            }
+
+            var probing = StartupProbe.TryGetPath(Args, out var probePath);
+            if (probing)
             {
                 StartupProbe.Attach(window, probePath, code => desktop.Shutdown(code));
             }
 
-            if (AutoRecordOptions.TryParse(Args, out var autoRecord, out _) && autoRecord is not null)
+            var autoRecording = AutoRecordOptions.TryParse(Args, out var autoRecord, out _) && autoRecord is not null;
+            if (services.Hotkeys is { } hotkeys && !probing && !autoRecording)
+            {
+                // Diagnostic runs (start-up probe, --autorecord) never register hotkeys: nothing may start a recording behind them.
+                AttachHotkeys(window, shell, services, hotkeys);
+            }
+
+            if (autoRecording && autoRecord is not null)
             {
                 window.Opened += (_, _) => _ = RunAutoRecordAsync(desktop, shell, services, autoRecord);
             }
@@ -96,6 +124,22 @@ public partial class App : Application
         }
 
         base.OnFrameworkInitializationCompleted();
+    }
+
+    /// <summary>
+    /// The global hotkeys and "another start asked for the window" both bring the main window to the front. The hotkeys are
+    /// registered after the window has rendered its first frame, not before, so they stay out of the start-up budget.
+    /// </summary>
+    private static void AttachHotkeys(MainWindow window, ShellViewModel shell, AppServices services, IGlobalHotkeys hotkeys)
+    {
+        if (services.Settings is not { } settings)
+        {
+            return;
+        }
+
+        var coordinator = new HotkeyCoordinator(hotkeys, settings, shell, window.BringToFront, isClosing: () => window.IsClosing);
+        window.Opened += (_, _) => window.RequestAnimationFrame(_ => coordinator.Start());
+        window.Closed += (_, _) => coordinator.Dispose();
     }
 
     private static async Task RunAutoRecordAsync(
