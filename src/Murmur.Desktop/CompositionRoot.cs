@@ -33,6 +33,7 @@ internal sealed class CompositionRoot : IDisposable
     private ModelManager? _modelManager;
     private AiAwareModelManager? _aiModels;
     private AiReindexScheduler? _reindex;
+    private CancellationTokenSource? _recoveryRetry;
 
     public CompositionRoot(string[] args)
     {
@@ -132,6 +133,10 @@ internal sealed class CompositionRoot : IDisposable
             async cancellationToken =>
             {
                 await recovery.RecoverAsync(cancellationToken).ConfigureAwait(false);
+
+                // Tracks still held by an antivirus/indexer right after a crash: retry just those sessions later.
+                _recoveryRetry = new CancellationTokenSource();
+                _ = recovery.RetryBusyInBackgroundAsync(_recoveryRetry.Token);
                 await processor.ResumePendingAsync(cancellationToken).ConfigureAwait(false);
 
                 // Sessions finished while the AI was not installed get their vectors now (a no-op without the models).
@@ -150,6 +155,7 @@ internal sealed class CompositionRoot : IDisposable
 
     public void Dispose()
     {
+        _recoveryRetry?.Cancel();
         _heapTrimmer?.Dispose();
         _reindex?.Dispose();
         _processor?.Dispose();

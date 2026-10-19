@@ -45,7 +45,10 @@ namespace Murmur.Core.Recording;
 /// file closed, the open screen segment finalized (and kept on the timeline even if finalizing fails) and the screen
 /// recorder released; the recorder always returns to <see cref="RecorderState.Idle"/>. A failure is reported in
 /// <see cref="SessionRecord.Error"/> (audio before screen); an audio failure also makes the session
-/// <see cref="SessionState.Failed"/>, a screen failure alone does not.
+/// <see cref="SessionState.Failed"/>, a screen failure alone does not. The final stop asks the screen recorder to stop
+/// the open segment and stops the audio side by side, so both end where the user stopped; that relies on
+/// <see cref="IScreenRecorder.StopSegmentAsync"/> taking the stop time and returning from its synchronous part
+/// promptly (the audio stop is queued right after it).
 /// </para>
 /// <para>
 /// <b>Threads.</b> <see cref="StartAsync"/>, <see cref="StopAsync"/> and <see cref="SetScreenEnabledAsync"/> are
@@ -186,7 +189,7 @@ public sealed class Recorder : IRecorder
             else if (active.OpenSegment is not null)
             {
                 // The caller's token is honoured by the gate wait above; a half-cancelled finalize has no clean meaning.
-                await StopScreenSegmentAsync(active, end: null, CancellationToken.None).ConfigureAwait(false);
+                await StopScreenSegmentAsync(active, CancellationToken.None).ConfigureAwait(false);
             }
         }
         finally
@@ -448,28 +451,39 @@ public sealed class Recorder : IRecorder
     {
         active.Screen ??= _capture.CreateScreenRecorder(new ScreenCaptureOptions(active.DisplayId));
         var index = active.NextSegmentIndex;
+        var path = active.Files.ScreenSegment(index);
+
+        // Media time 0 of the segment file is the moment StartSegmentAsync is called (IScreenRecorder), so the offset is
+        // read on the session clock as the last step before the call: nothing awaitable sits in between, and however
+        // long the screen recorder takes to start, its first frame covers that time.
         var offset = _time.GetElapsedTime(active.StartTimestamp);
-        await active.Screen.StartSegmentAsync(active.Files.ScreenSegment(index), cancellationToken).ConfigureAwait(false);
+        await active.Screen.StartSegmentAsync(path, cancellationToken).ConfigureAwait(false);
         active.NextSegmentIndex = index + 1;
         active.OpenSegment = (index, offset);
     }
 
-    /// <param name="end">Segment end on the session timeline; <c>null</c> = now.</param>
     /// <remarks>
+    /// The segment ends where the screen recorder is asked to stop: the session time is read as the last step before
+    /// <see cref="IScreenRecorder.StopSegmentAsync"/>, which ends the file at the moment it is called, so
+    /// <see cref="ScreenSegment.Duration"/> is the file's media duration however long finalizing takes.
     /// When finalizing throws after the screen recorder has left the segment, the segment is still recorded and closed:
     /// its file is already on disk (a fragmented MP4 stays playable without a clean finalize), so it belongs to the
     /// session, and the next "on" starts a new segment. When it throws while the recorder is still recording (the
     /// failure came before the sink stopped), the segment stays open: the file is still growing past any end we could
     /// write, so a later "off" or the final stop retries the finalize. The error reaches the caller either way.
     /// </remarks>
-    private async ValueTask StopScreenSegmentAsync(ActiveRecording active, TimeSpan? end, CancellationToken cancellationToken)
+    private async ValueTask StopScreenSegmentAsync(ActiveRecording active, CancellationToken cancellationToken)
     {
         if (active.OpenSegment is not { } open || active.Screen is null)
         {
             return;
         }
 
-        end ??= _time.GetElapsedTime(active.StartTimestamp);
+        // The end is read, and StopSegmentAsync called, on the calling thread as the last steps: the screen recorder
+        // takes the stop time and returns from its synchronous part promptly (IScreenRecorder.StopSegmentAsync), so the
+        // audio stop queued right after by StopCoreAsync runs next to the finalize instead of after it. Hopping to the
+        // thread pool here would not help: its work queue can run the audio stop first.
+        var end = _time.GetElapsedTime(active.StartTimestamp);
         try
         {
             await active.Screen.StopSegmentAsync(cancellationToken).ConfigureAwait(false);
@@ -478,7 +492,7 @@ public sealed class Recorder : IRecorder
         {
             if (!active.Screen.IsRecording)
             {
-                CloseScreenSegment(active, open, end.Value);
+                CloseScreenSegment(active, open, end);
             }
         }
     }
@@ -544,6 +558,14 @@ public sealed class Recorder : IRecorder
         var stopElapsed = _time.GetElapsedTime(active.StartTimestamp);
         try
         {
+            // The screen segment and the audio stop together: the segment's end is read as its stop is requested (see
+            // StopScreenSegmentAsync), so starting it after the audio had stopped would leave the video longer than the
+            // audio by the time the audio needs to stop. A failed finalize (an HRESULT from Media Foundation) is
+            // collected below and must not leak the capture session, device and encoder, which nothing references after
+            // this. If finalizing throws before the recorder left the segment, it stays open here and is closed once the
+            // recorder is released.
+            var screenStop = StopScreenSegmentAsync(active, CancellationToken.None).AsTask();
+
             string? audioError = null;
             try
             {
@@ -554,23 +576,19 @@ public sealed class Recorder : IRecorder
                 audioError = ex.Message;
             }
 
-            // The audio counters are final now. Take them with the screen counters while the screen recorder is still
-            // alive: once disposed, its Stats may throw or be reset.
-            FreezeStats(active);
-
-            // Finalizing and releasing the screen are independent steps: a failed finalize (an HRESULT from Media
-            // Foundation) must not leak the capture session, device and encoder, which nothing references after this.
             string? screenError = null;
             try
             {
-                // The last segment ends where the user stopped, like the audio. If finalizing throws before the
-                // recorder left the segment, it stays open here and is closed below once the recorder is released.
-                await StopScreenSegmentAsync(active, stopElapsed, CancellationToken.None).ConfigureAwait(false);
+                await screenStop.ConfigureAwait(false);
             }
             catch (Exception ex)
             {
                 screenError = ex.Message;
             }
+
+            // Both counters are final now. Take them while the screen recorder is still alive: once disposed, its Stats
+            // may throw or be reset.
+            FreezeStats(active);
 
             if (active.Screen is not null)
             {
