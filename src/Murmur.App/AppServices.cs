@@ -36,6 +36,10 @@ namespace Murmur.App;
 /// to <c>AppSettings.ChatModelId</c>.
 /// </param>
 /// <param name="DefaultRecordingsDirectory">The folder new recordings go to while <c>AppSettings.RecordingsDirectory</c> is unset; shown in the settings.</param>
+/// <param name="VideoPlayback">
+/// Creates the screen-recording player of the recording view (D-035). <c>null</c> or <see cref="IVideoPlayback.IsSupported"/>
+/// false = no video panel; the recording view plays audio only.
+/// </param>
 public sealed record AppServices(
     IRecorder Recorder,
     ICapture Capture,
@@ -50,4 +54,5 @@ public sealed record AppServices(
     ISettingsStore? Settings = null,
     IModelManager? Models = null,
     Func<ModelKind, string?>? ActiveModelId = null,
-    string? DefaultRecordingsDirectory = null);
+    string? DefaultRecordingsDirectory = null,
+    IVideoPlayback? VideoPlayback = null);

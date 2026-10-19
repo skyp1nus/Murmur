@@ -152,6 +152,16 @@
   <data name="Session_Pause" xml:space="preserve">
     <value>Пауза</value>
   </data>
+  <data name="Session_VideoOff" xml:space="preserve">
+    <value>Екран вимкнено</value>
+  </data>
+  <data name="Session_VideoUnplayable" xml:space="preserve">
+    <value>Не вдалося відтворити відео цього фрагмента</value>
+  </data>
+  <data name="Session_VideoInfo" xml:space="preserve">
+    <value>{0}×{1} · H.264</value>
+    <comment>{0} = width, {1} = height in pixels</comment>
+  </data>
   <data name="Session_Loading" xml:space="preserve">
     <value>Завантаження…</value>
   </data>
