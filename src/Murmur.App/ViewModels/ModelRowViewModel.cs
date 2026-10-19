@@ -196,13 +196,18 @@ public sealed partial class ModelRowViewModel : ObservableObject
         TransferText = string.Empty;
     }
 
-    private static bool IsOutOfSpace(Exception? exception, string? detail)
+    private bool IsOutOfSpace(Exception? exception, string? detail)
     {
-        // Core words its free-space refusal "Not enough disk space ..." and the file systems say ERROR_DISK_FULL (0x70),
-        // ERROR_HANDLE_DISK_FULL (0x27) or ENOSPC (28).
+        // The main signal does not depend on any wording: the drive has less room than the item still needs.
+        if (_owner.IsLowOnSpace(this))
+        {
+            return true;
+        }
+
+        // Fallbacks: the file system's own "disk full" (full HRESULTs on Windows, errno 28 on Unix), then Core's wording.
         for (var ex = exception; ex is not null; ex = ex.InnerException)
         {
-            if (ex is IOException io && ((io.HResult & 0xFFFF) is 0x70 or 0x27 || io.HResult == 28))
+            if (ex is IOException io && IsDiskFull(io.HResult))
             {
                 return true;
             }
@@ -214,6 +219,10 @@ public sealed partial class ModelRowViewModel : ObservableObject
         }
 
         return Mentions(detail);
+
+        static bool IsDiskFull(int hresult) => OperatingSystem.IsWindows()
+            ? hresult is unchecked((int)0x80070070) or unchecked((int)0x80070027)
+            : hresult == 28;
 
         static bool Mentions(string? text) =>
             text is not null

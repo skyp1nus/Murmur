@@ -28,6 +28,7 @@ public sealed partial class ModelsSettingsViewModel : ObservableObject, IDisposa
     private readonly Dictionary<string, ModelRowViewModel> _byId = new(StringComparer.Ordinal);
     private readonly Dictionary<string, CancellationTokenSource> _tokens = new(StringComparer.Ordinal);
     private readonly Dictionary<string, Bundle> _bundleOf = new(StringComparer.Ordinal);
+    private readonly Dictionary<ModelRowViewModel, string> _refused = [];
     private bool _disposed;
 
     internal ModelsSettingsViewModel(IModelManager manager, SettingsWriter writer, Func<ModelKind, string?>? activeModel, Action<Action> post)
@@ -116,11 +117,13 @@ public sealed partial class ModelsSettingsViewModel : ObservableObject, IDisposa
             {
                 // Two bundles would fight over the shared runtime/embedding rows (state, token, bundle map).
                 row.Error = Strings.Models_WaitForOther;
+                _refused[row] = row.Error;
                 return;
             }
         }
 
         row.Error = null;
+        _refused.Remove(row);
         chain.Add(row);
         var bundle = new Bundle(chain);
         foreach (var item in chain)
@@ -131,6 +134,29 @@ public sealed partial class ModelsSettingsViewModel : ObservableObject, IDisposa
 
         UpdateRemoveLocks();
         LastOperation = RunAsync(bundle);
+    }
+
+    /// <summary>
+    /// The drive of the models has less free room than the item still has to download (catalog size minus what is on disk).
+    /// Unknown free space (negative or unlimited) counts as enough.
+    /// </summary>
+    internal bool IsLowOnSpace(ModelRowViewModel row)
+    {
+        try
+        {
+            var free = _manager.AvailableFreeSpaceBytes;
+            if (free is < 0 or long.MaxValue)
+            {
+                return false;
+            }
+
+            var remaining = row.Info.SizeBytes - _manager.GetStatus(row.Id).BytesDone;
+            return remaining > 0 && free < remaining;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException)
+        {
+            return false;
+        }
     }
 
     internal void Cancel(ModelRowViewModel row)
@@ -176,20 +202,12 @@ public sealed partial class ModelsSettingsViewModel : ObservableObject, IDisposa
     /// <summary>A bundle with a chat model is running, or an item this chat install would need is already downloading.</summary>
     private bool AnotherAiInstallRuns(List<ModelRowViewModel> missing)
     {
-        foreach (var bundle in _bundleOf.Values)
-        {
-            if (bundle.Chain.Any(r => r.Kind == ModelKind.Chat))
-            {
-                return true;
-            }
-        }
-
-        return missing.Any(r => r.IsBusy);
+        return _bundleOf.Values.Any(b => b.HasChat) || missing.Any(r => r.IsBusy);
     }
 
     /// <summary>
     /// A row cannot be removed while it belongs to a running bundle, nor can the shared runtime and embedding model
-    /// (installed or not) while a bundle that needs them runs.
+    /// (installed or not) while a bundle with a chat model, which needs them, runs. An ASR/VAD-only bundle does not lock them.
     /// </summary>
     private bool IsRemoveLocked(ModelRowViewModel row)
     {
@@ -198,7 +216,7 @@ public sealed partial class ModelsSettingsViewModel : ObservableObject, IDisposa
             return true;
         }
 
-        return row.Kind is ModelKind.LlmRuntime or ModelKind.Embedding && _bundleOf.Count > 0;
+        return row.Kind is ModelKind.LlmRuntime or ModelKind.Embedding && _bundleOf.Values.Any(b => b.HasChat);
     }
 
     private void UpdateRemoveLocks()
@@ -281,9 +299,29 @@ public sealed partial class ModelsSettingsViewModel : ObservableObject, IDisposa
             }
 
             UpdateRemoveLocks();
+            ClearRefused();
             RefreshDefaults();
             RefreshFreeSpace();
         }
+    }
+
+    /// <summary>"Wait for the other download" is stale once no chat bundle runs any more.</summary>
+    private void ClearRefused()
+    {
+        if (_bundleOf.Values.Any(b => b.HasChat))
+        {
+            return;
+        }
+
+        foreach (var (row, text) in _refused)
+        {
+            if (row.Error == text)
+            {
+                row.Error = null;
+            }
+        }
+
+        _refused.Clear();
     }
 
     private async Task RemoveAsync(ModelRowViewModel row)
@@ -442,5 +480,7 @@ public sealed partial class ModelsSettingsViewModel : ObservableObject, IDisposa
         public IReadOnlyList<ModelRowViewModel> Chain { get; } = chain;
 
         public bool Cancelled { get; set; }
+
+        public bool HasChat { get; } = chain.Any(r => r.Kind == ModelKind.Chat);
     }
 }

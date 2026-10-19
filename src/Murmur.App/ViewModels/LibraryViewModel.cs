@@ -502,12 +502,20 @@ public sealed partial class LibraryViewModel : ObservableObject, IDisposable
                     continue;
                 }
 
-                if (_disposed || version != _version || fresh is null || fresh.State == SessionState.Recording)
+                if (_disposed || version != _version)
                 {
                     continue;
                 }
 
-                ApplyFresh(fresh);
+                if (fresh is null)
+                {
+                    // Deleted behind our back: drop the row instead of polling it forever.
+                    RemoveGone(id);
+                }
+                else if (fresh.State != SessionState.Recording)
+                {
+                    ApplyFresh(fresh);
+                }
             }
         }
         finally
@@ -515,6 +523,12 @@ public sealed partial class LibraryViewModel : ObservableObject, IDisposable
             Volatile.Write(ref _staleRunning, 0);
             UpdateStaleTimer();
         }
+    }
+
+    private void RemoveGone(SessionId id)
+    {
+        _loaded = [.. _loaded.Where(r => r.Id != id)];
+        ApplySearch();
     }
 
     private void ApplyFresh(SessionRecord fresh)

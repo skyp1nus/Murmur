@@ -240,10 +240,77 @@ public sealed class AppPolishTests
     {
         var rig = new Rig();
         var vad = rig.Row(FakeModelManager.VadId);
+        var full = OperatingSystem.IsWindows() ? unchecked((int)0x80070070) : 28;
 
-        vad.MarkFailed(new IOException("There is not enough space on the disk.", unchecked((int)0x80070070)));
+        vad.MarkFailed(new IOException("Locale specific text.", full));
 
         Assert.Equal(Strings.Models_NoSpace, vad.Error);
+    }
+
+    [Fact]
+    public void Models_OtherErrorCodes_AreNotMistakenForAFullDisk()
+    {
+        var rig = new Rig();
+        var vad = rig.Row(FakeModelManager.VadId);
+
+        // ENOTEMPTY (39) and the low word 0x70 of an unrelated HRESULT must not match.
+        vad.MarkFailed(new IOException("Directory not empty.", 39));
+        Assert.Equal(Strings.Models_InstallFailed, vad.Error);
+        vad.MarkFailed(new IOException("Other.", unchecked((int)0x80030070)));
+        Assert.Equal(Strings.Models_InstallFailed, vad.Error);
+    }
+
+    [Fact]
+    public async Task Models_AFailureWhileTheDriveIsTooSmall_ShowsTheNoSpaceText_WhateverTheMessageSays()
+    {
+        var rig = new Rig();
+        rig.Manager.AvailableFreeSpaceBytes = 1_000_000;
+        var asr = rig.Row(FakeModelManager.AsrId);
+
+        asr.InstallCommand.Execute(null);
+        var operation = rig.Vm.Models!.LastOperation;
+        rig.Manager.Fail(FakeModelManager.AsrId, "Zu wenig Speicherplatz");
+        await operation.WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
+
+        Assert.Equal(Strings.Models_NoSpace, asr.Error);
+    }
+
+    [Fact]
+    public async Task Models_TheWaitText_IsClearedWhenTheOtherBundleFinishes()
+    {
+        var rig = new Rig();
+        var small = rig.Row(FakeModelManager.ChatSmallId);
+        var large = rig.Row(FakeModelManager.ChatLargeId);
+        small.InstallCommand.Execute(null);
+        var first = rig.Vm.Models!.LastOperation;
+        large.InstallCommand.Execute(null);
+        Assert.Equal(Strings.Models_WaitForOther, large.Error);
+
+        foreach (var id in new[] { FakeModelManager.RuntimeId, FakeModelManager.EmbeddingId, FakeModelManager.ChatSmallId })
+        {
+            await WaitFor(() => rig.Manager.WasInstallCalled(id));
+            rig.Manager.Complete(id);
+        }
+
+        await first;
+
+        Assert.Null(large.Error);
+    }
+
+    [Fact]
+    public void Models_RuntimeAndEmbedding_AreNotLockedByAnAsrOnlyBundle()
+    {
+        var rig = new Rig();
+        rig.Manager.SetInstalled(FakeModelManager.RuntimeId);
+        rig.Manager.SetInstalled(FakeModelManager.EmbeddingId);
+        rig.Vm.Models!.Refresh();
+
+        rig.Row(FakeModelManager.AsrId).InstallCommand.Execute(null);
+
+        Assert.True(rig.Row(FakeModelManager.RuntimeId).ShowRemove);
+        Assert.True(rig.Row(FakeModelManager.EmbeddingId).ShowRemove);
+        Assert.True(rig.Row(FakeModelManager.AsrId).IsRemoveLocked);
+        rig.Vm.Models.Dispose();
     }
 
     // 2. Start-up budget ----------------------------------------------------------------------------------------------
@@ -399,6 +466,59 @@ public sealed class AppPolishTests
         Assert.Equal("mic-usb", rig.Store.Current.MicrophoneDeviceId);
     }
 
+    [Fact]
+    public async Task Settings_AnUnrelatedSave_KeepsErrorsStatusAndCaptureOfTheHotkeysAndAppearance()
+    {
+        var rig = new Rig();
+        var store = (FakeSettingsStore)rig.Store;
+        var hotkeys = rig.Vm.Hotkeys;
+        var appearance = rig.Vm.Appearance;
+        var record = hotkeys.Rows[0];
+        var toggle = hotkeys.Rows[1];
+        record.Error = "taken by another app";
+        hotkeys.Error = "section error";
+        appearance.Error = "could not save the theme";
+        toggle.CaptureCommand.Execute(null);
+        Assert.True(toggle.IsCapturing);
+
+        await store.SaveAsync(store.Current with { ScreenByDefault = true, ShowAppHotkey = "Ctrl+Alt+K" }, CancellationToken.None);
+
+        Assert.Equal("taken by another app", record.Error);
+        Assert.Equal("section error", hotkeys.Error);
+        Assert.Equal("could not save the theme", appearance.Error);
+        Assert.True(toggle.IsCapturing);
+        Assert.Same(toggle, hotkeys.Capturing);
+        Assert.Equal("Ctrl+Alt+K", hotkeys.Rows[2].Gesture);
+    }
+
+    [Fact]
+    public void Settings_AfterDispose_NoNewSectionIsCreated()
+    {
+        var rig = new Rig();
+        var devices = rig.Vm.Devices;
+        rig.Vm.Dispose();
+
+        Assert.Same(devices, rig.Vm.Devices);
+        Assert.Null(rig.Vm.Models);
+        Assert.Throws<ObjectDisposedException>(() => rig.Vm.Storage);
+        Assert.Throws<ObjectDisposedException>(() => rig.Vm.Hotkeys);
+        Assert.Throws<ObjectDisposedException>(() => rig.Vm.Appearance);
+        Assert.Equal(0, rig.Manager.StatusReads);
+    }
+
+    [Fact]
+    public void Shell_AfterTheWindowClosed_NeitherTheOnboardingNorTheSettingsOpen()
+    {
+        var rig = new OnboardingRig(new AppSettings { OnboardingCompleted = true });
+        rig.Shell.OnWindowClosed();
+
+        rig.Shell.ShowOnboarding();
+        rig.Shell.ShowSettings();
+
+        Assert.Null(rig.Shell.Onboarding);
+        Assert.NotSame(rig.Settings, rig.Shell.CurrentPage);
+    }
+
     // 5. Storage ------------------------------------------------------------------------------------------------------
 
     [Theory]
@@ -541,6 +661,26 @@ public sealed class AppPolishTests
         await library.StaleRefreshTask;
 
         Assert.Equal(Strings.Processing_Failed, library.Sessions.Single().StatusText);
+    }
+
+    [Fact]
+    public async Task Library_AStaleRowWhoseSessionIsGone_IsRemoved_AndNotPolledAgain()
+    {
+        var store = new FakeSessionStore();
+        var time = new TestTime(Now);
+        var stuck = Stuck();
+        store.Add(stuck);
+        store.Add(Sessions.Make("Kept", Now.AddHours(-1), TimeSpan.FromMinutes(3)));
+        using var library = new LibraryViewModel(store, time, null, action => action(), recorder: new FakeRecorder());
+        await library.LoadAsync();
+        Assert.Equal(2, library.Sessions.Count);
+
+        await store.DeleteSessionAsync(stuck.Id, CancellationToken.None);
+        time.Advance(LibraryViewModel.StaleRefreshInterval);
+        await library.StaleRefreshTask;
+
+        Assert.Equal(["Kept"], library.Sessions.Select(s => s.Title));
+        Assert.Equal(0, time.ActiveTimers);
     }
 
     [Fact]

@@ -94,25 +94,32 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable
 
     /// <summary>Created on first use; <c>null</c> when no model manager is wired.</summary>
     public ModelsSettingsViewModel? Models =>
-        _models ??= _modelManager is null ? null : new ModelsSettingsViewModel(_modelManager, _writer, _activeModel, _post);
+        _models ??= _modelManager is null || _disposed ? null : new ModelsSettingsViewModel(_modelManager, _writer, _activeModel, _post);
 
     public bool HasModels => _modelManager is not null;
 
     /// <summary>Created on first use.</summary>
-    public DevicesSettingsViewModel Devices => _devices ??= new DevicesSettingsViewModel(_capture, _writer);
+    public DevicesSettingsViewModel Devices => _devices ?? (CanCreate() ? _devices = new DevicesSettingsViewModel(_capture, _writer) : null!);
 
     /// <summary>Created on first use.</summary>
-    public StorageSettingsViewModel Storage => _storage ??= new StorageSettingsViewModel(_writer, _defaultRecordingsDirectory, _launcher);
+    public StorageSettingsViewModel Storage => _storage ?? (CanCreate() ? _storage = new StorageSettingsViewModel(_writer, _defaultRecordingsDirectory, _launcher) : null!);
 
     /// <summary>Created on first use.</summary>
-    public HotkeysSettingsViewModel Hotkeys => _hotkeys ??= new HotkeysSettingsViewModel(_writer);
+    public HotkeysSettingsViewModel Hotkeys => _hotkeys ?? (CanCreate() ? _hotkeys = new HotkeysSettingsViewModel(_writer) : null!);
 
     /// <summary>Created on first use.</summary>
-    public AppearanceSettingsViewModel Appearance => _appearance ??= new AppearanceSettingsViewModel(_writer);
+    public AppearanceSettingsViewModel Appearance => _appearance ?? (CanCreate() ? _appearance = new AppearanceSettingsViewModel(_writer) : null!);
 
     public AboutViewModel About { get; }
 
     public IReadOnlyList<SettingsSection> Sections { get; }
+
+    /// <summary>A section that does not exist yet is never created after <see cref="Dispose"/> (it would subscribe to things nobody releases).</summary>
+    private bool CanCreate()
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        return true;
+    }
 
     /// <summary>Which section view models exist yet (for tests of the lazy creation).</summary>
     internal bool AreSectionsCreated => _devices is not null || _models is not null || _storage is not null || _hotkeys is not null || _appearance is not null;
@@ -144,16 +151,13 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable
             return;
         }
 
-        // Only the saved values are re-read: no device enumeration, no half-typed hotkey or inline error is lost.
+        // Only the saved values are re-read (ReloadSaved): no device enumeration, and no inline error, hotkey registration
+        // status or capture in progress is lost. The full Refresh() is for showing the screen.
         _models?.RefreshActive();
         _devices?.ReloadSaved();
         _storage?.Refresh();
-        if (_hotkeys is { Capturing: null })
-        {
-            _hotkeys.Refresh();
-        }
-
-        _appearance?.Refresh();
+        _hotkeys?.ReloadSaved();
+        _appearance?.ReloadSaved();
     });
 
     [RelayCommand]

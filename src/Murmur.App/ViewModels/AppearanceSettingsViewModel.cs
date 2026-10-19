@@ -90,6 +90,23 @@ public sealed partial class AppearanceSettingsViewModel : ObservableObject
         }
     }
 
+    /// <summary>The store changed elsewhere: shows the saved values; the inline error stays.</summary>
+    internal void ReloadSaved()
+    {
+        var settings = _writer.Current;
+        _loading = true;
+        try
+        {
+            Theme = settings.Theme;
+            Language = UiCulture.Normalize(settings.Language);
+            OnboardingReset = !settings.OnboardingCompleted;
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
     [RelayCommand]
     private void RestartOnboarding()
     {
