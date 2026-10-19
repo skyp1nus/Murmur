@@ -1,3 +1,4 @@
+using Murmur.Core.Capture;
 using Murmur.Core.Recording;
 using Murmur.Core.Sessions;
 
@@ -61,7 +62,7 @@ internal sealed class FakeRecorder : IRecorder
     }
 
     /// <summary>Raises a non-fatal warning.</summary>
-    public void RaiseWarning(string message) => Warning?.Invoke(new RecorderWarning("screen", message, ScreenStopped: false));
+    public void RaiseWarning(string message, CaptureFaultKind kind = CaptureFaultKind.Other) => Warning?.Invoke(new RecorderWarning("screen", message, ScreenStopped: false, kind));
 
     public ValueTask<SessionRecord> StartAsync(RecordingOptions options, CancellationToken cancellationToken)
     {

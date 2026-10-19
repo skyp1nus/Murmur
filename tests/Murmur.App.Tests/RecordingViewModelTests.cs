@@ -1,5 +1,7 @@
 using Murmur.App.Tests.Fakes;
 using Murmur.App.ViewModels;
+using Murmur.App.Localization;
+using Murmur.Core.Capture;
 using Murmur.Core.Recording;
 using Murmur.Core.Sessions;
 
@@ -322,19 +324,39 @@ public sealed class RecordingViewModelTests
     }
 
     [Fact]
-    public async Task ANonFatalWarning_ShowsItsTextOnce_AndKeepsThePill()
+    public async Task ANonFatalWarning_ShowsTheLocalizedTextOfItsKind_Once_AndKeepsThePill()
     {
-        const string text = "Запис екрана пропустив кадри: компʼютер не встигав.";
         var vm = Create();
         vm.Screen = true;
         await vm.StartStopAsync();
 
-        _recorder.RaiseWarning(text);
-        _recorder.RaiseWarning(text);
-        _recorder.RaiseWarning("Під час запису екрана були збої.");
+        // The Core texts are Ukrainian session texts: the notice never shows them, it shows the UI-language text of the kind.
+        _recorder.RaiseWarning("core text A", CaptureFaultKind.FramesDropped);
+        _recorder.RaiseWarning("core text B", CaptureFaultKind.FramesDropped);
+        _recorder.RaiseWarning("core text C", CaptureFaultKind.CpuFallback);
+        _recorder.RaiseWarning("core text D");
 
         Assert.True(vm.Screen);
-        Assert.Equal(text + "\nПід час запису екрана були збої.", vm.Notice);
+        Assert.Equal(
+            string.Join('\n', Resources.Strings.Recording_ScreenFramesDropped, Resources.Strings.Recording_ScreenCpuFallback, Resources.Strings.Recording_ScreenProblems),
+            vm.Notice);
+        Assert.DoesNotContain("core text", vm.Notice);
+    }
+
+    [Fact]
+    public async Task TheNoticeTexts_FollowTheUiLanguage()
+    {
+        var vm = Create();
+        await vm.StartStopAsync();
+        using (UiCulture.Override(UiCulture.English))
+        {
+            _recorder.RaiseWarning("x", CaptureFaultKind.CpuFallback);
+            _recorder.FailScreen();
+        }
+
+        Assert.Equal(
+            "The screen is recorded without GPU acceleration, which uses more of the processor.\nScreen recording stopped because of an error; the audio keeps recording.",
+            vm.Notice);
     }
 
     [Fact]

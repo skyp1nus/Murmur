@@ -116,7 +116,7 @@ public sealed class MainWindowTests
     [Fact]
     public async Task ARecorderWarning_ShowsAsAnInlineNoticeOnTheRecordingScreen()
     {
-        const string text = "Запис екрана пропустив кадри: компʼютер не встигав.";
+        var text = Murmur.App.Resources.Strings.Recording_ScreenFramesDropped;
         var harness = new UiHarness();
         var shell = harness.CreateShell();
         shell.ShowRecording();
@@ -128,7 +128,7 @@ public sealed class MainWindowTests
                 var window = UiHarness.Show(shell);
                 bool Visible() => window.GetVisualDescendants().OfType<TextBlock>().Any(t => t.IsVisible && t.Text == text);
                 var visibleBefore = Visible();
-                harness.Recorder.RaiseWarning(text);
+                harness.Recorder.RaiseWarning("core text", Murmur.Core.Capture.CaptureFaultKind.FramesDropped);
                 UiHarness.Pump();
                 var visibleAfter = Visible();
                 window.Close();

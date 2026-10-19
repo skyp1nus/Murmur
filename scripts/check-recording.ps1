@@ -7,16 +7,16 @@
 .DESCRIPTION
     Input is the JSON written by `Murmur.exe --autorecord <s> [--screen] --perf-out <json>`:
       { durationS, idleCpuPct, cpuAvgPct, cpuP95Pct, cpuAvgPctOneCore, wsAvgMb, wsMaxMb, privateMaxMb,
-        recorderStats{ microphoneFrames, systemFrames, droppedFrames, screenFramesDropped },
-        screenStartMs?, screenFaults?, warnings?[], session{ id, folder, micSeconds, systemSeconds, screenSegments,
+        recorderStats{ microphoneFrames, systemFrames, droppedFrames, screenFramesDropped, screenFaults? },
+        screenStartMs?, warnings?[], session{ id, folder, micSeconds, systemSeconds, screenSegments,
                                  screenSegmentTimes[]{ index, offsetS, durationS } } }
     durationS is the length of the session timeline (the recorder's Elapsed at stop; the audio starts at 0), and each
     screenSegmentTimes entry places screen-<index>.mp4 on it: offsetS = session time of the file's media time 0,
     durationS = the media duration the file must have. mic.wav / system.wav in session.folder are 16 kHz mono PCM16, screen segments are screen-NNN.mp4.
 
-    Reported but never failing: screenFaults (faults the screen recorder raised: pool exhaustion, CPU readback fallback,
+    Reported but never failing: recorderStats.screenFaults (faults the screen recorder raised: pool exhaustion, CPU readback fallback,
     device lost, encoder errors) and each of warnings[] (what the user was told, in order). A perf JSON without them
-    (older build) is fine.
+    (older build) is fine; with -FailOnScreenFaults it is then reported as INFO (no data), not PASS.
 
     Checks (always):
       - recorderStats.droppedFrames == 0 and systemFrames > 0
@@ -564,9 +564,12 @@ if ($null -ne $perf) {
     Add-Row 'systemFrames' $(if ($null -eq $sysFrames) { 'n/a' } else { [string]$sysFrames }) '> 0' $(if ($null -ne $sysFrames -and [long]$sysFrames -gt 0) { 'PASS' } else { 'FAIL' })
     Add-Row 'microphoneFrames' ([string](Get-Prop $stats 'microphoneFrames')) '-' 'INFO'
     Add-Row 'screenFramesDropped' ([string](Get-Prop $stats 'screenFramesDropped')) '-' 'INFO'
-    $screenFaults = Get-Prop $perf 'screenFaults'
-    if ($FailOnScreenFaults) {
-        Add-Row 'screenFaults' $(if ($null -eq $screenFaults) { 'n/a' } else { [string]$screenFaults }) '== 0' $(if ($null -eq $screenFaults -or [long]$screenFaults -eq 0) { 'PASS' } else { 'FAIL' })
+    $screenFaults = Get-Prop $stats 'screenFaults'
+    if ($FailOnScreenFaults -and $null -ne $screenFaults) {
+        Add-Row 'screenFaults' ([string]$screenFaults) '== 0' $(if ([long]$screenFaults -eq 0) { 'PASS' } else { 'FAIL' })
+    }
+    elseif ($FailOnScreenFaults) {
+        Add-Row 'screenFaults' 'n/a (older perf JSON)' '== 0' 'INFO'
     }
     elseif ($null -ne $screenFaults) {
         Add-Row 'screenFaults' ([string]$screenFaults) '-' 'INFO'

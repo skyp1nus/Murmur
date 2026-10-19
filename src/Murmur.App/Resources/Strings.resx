@@ -140,6 +140,15 @@
   <data name="Recording_ScreenStopped" xml:space="preserve">
     <value>Запис екрана зупинився через помилку; звук записується далі.</value>
   </data>
+  <data name="Recording_ScreenFramesDropped" xml:space="preserve">
+    <value>Запис екрана пропустив кадри: компʼютер не встигав.</value>
+  </data>
+  <data name="Recording_ScreenCpuFallback" xml:space="preserve">
+    <value>Екран записується без прискорення відеокарти — це більше навантажує процесор.</value>
+  </data>
+  <data name="Recording_ScreenProblems" xml:space="preserve">
+    <value>Під час запису екрана були збої.</value>
+  </data>
   <data name="Session_TabTranscript" xml:space="preserve">
     <value>Транскрипт</value>
   </data>

@@ -140,6 +140,15 @@
   <data name="Recording_ScreenStopped" xml:space="preserve">
     <value>Screen recording stopped because of an error; the audio keeps recording.</value>
   </data>
+  <data name="Recording_ScreenFramesDropped" xml:space="preserve">
+    <value>Screen recording skipped frames: the computer couldn’t keep up.</value>
+  </data>
+  <data name="Recording_ScreenCpuFallback" xml:space="preserve">
+    <value>The screen is recorded without GPU acceleration, which uses more of the processor.</value>
+  </data>
+  <data name="Recording_ScreenProblems" xml:space="preserve">
+    <value>There were problems while recording the screen.</value>
+  </data>
   <data name="Session_TabTranscript" xml:space="preserve">
     <value>Transcript</value>
   </data>

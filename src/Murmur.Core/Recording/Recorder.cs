@@ -42,8 +42,8 @@ namespace Murmur.Core.Recording;
 /// </para>
 /// <para>
 /// <b>Screen faults.</b> The recorder listens to <see cref="IScreenRecorder.Faulted"/> for the lifetime of each segment.
-/// Every fault is counted in <see cref="RecorderStats.ScreenFaults"/>. A non-fatal one raises <see cref="Warning"/> once
-/// per distinct user text and adds that text to the session's warnings (<see cref="SessionRecord.Error"/>). A fatal one
+/// Every fault is counted in <see cref="RecorderStats.ScreenFaults"/>. A non-fatal one is told apart by its
+/// <see cref="CaptureFault.Kind"/> (never by its message), raises <see cref="Warning"/> once per distinct user text and adds that text to the session's warnings (<see cref="SessionRecord.Error"/>). A fatal one
 /// marks the segment failed (<see cref="IsScreenRecording"/> turns false at once), raises <see cref="Warning"/> with
 /// <see cref="RecorderWarning.ScreenStopped"/> and ends the segment like "screen off" does (its file and real end stay
 /// on the timeline); the audio is never touched and the screen may be switched on again. Faults arrive on capture
@@ -192,8 +192,21 @@ public sealed class Recorder : IRecorder
                 if (active.Open is { Failed: true })
                 {
                     // The screen recorder reported a fatal fault and the cleanup queued behind this gate has not run yet:
-                    // finish the failed segment first, so "on" really starts a new one.
-                    await StopScreenSegmentAsync(active, CancellationToken.None).ConfigureAwait(false);
+                    // finish the failed segment first, so "on" really starts a new one. A failed segment that cannot be
+                    // finalized (the fault was the reason) must not make "on" fail.
+                    try
+                    {
+                        await StopScreenSegmentAsync(active, CancellationToken.None).ConfigureAwait(false);
+                    }
+                    catch (Exception ex)
+                    {
+                        LogError("finalizing the failed screen segment failed", ex);
+                    }
+
+                    if (active.Open is not null)
+                    {
+                        throw new InvalidOperationException("The failed screen segment could not be finished; the screen cannot be switched on again.");
+                    }
                 }
 
                 if (active.Open is null)
@@ -533,6 +546,14 @@ public sealed class Recorder : IRecorder
 
     private static void CloseScreenSegment(ActiveRecording active, ScreenRun open, TimeSpan end)
     {
+        // A failed segment ends where it failed: the screen recorder stops writing frames at its fatal fault, so the file
+        // is no longer than that, however late the cleanup runs.
+        var faultTicks = Volatile.Read(ref open.FaultElapsedTicks);
+        if (faultTicks >= 0)
+        {
+            end = TimeSpan.FromTicks(Math.Max(Math.Min(end.Ticks, faultTicks), open.Offset.Ticks));
+        }
+
         active.Segments.Add(new ScreenSegment(open.Index, open.Offset, end - open.Offset));
         active.Open = null;
         Unsubscribe(active.Screen, open);
@@ -581,20 +602,22 @@ public sealed class Recorder : IRecorder
         string text;
         if (fault.IsFatal)
         {
+            // The first fatal fault fixes where the segment ends on the session timeline.
+            Interlocked.CompareExchange(ref run.FaultElapsedTicks, _time.GetElapsedTime(active.StartTimestamp).Ticks, -1);
             run.Failed = true;
             text = ScreenFaultTexts.Stopped;
         }
         else
         {
-            text = ScreenFaultTexts.Describe(fault);
+            text = ScreenFaultTexts.Describe(fault.Kind);
         }
 
-        // The session keeps each user text once. Fatal faults always reach the UI (the toggle must flip); a non-fatal
-        // fault is raised once per distinct message.
-        active.AddWarning(text);
-        if (fault.IsFatal || active.FirstOccurrence(fault.Message))
+        // The session keeps each user text once, and so does the UI: a fault whose text is already known adds nothing.
+        // A fatal fault always reaches the UI (the pill must turn off).
+        var isNew = active.AddWarning(text);
+        if (fault.IsFatal || isNew)
         {
-            RaiseWarning(new RecorderWarning(fault.Source, text, ScreenStopped: fault.IsFatal));
+            RaiseWarning(new RecorderWarning(fault.Source, text, ScreenStopped: fault.IsFatal, fault.Kind));
         }
 
         if (fault.IsFatal && Interlocked.Exchange(ref run.StopScheduled, 1) == 0)
@@ -615,7 +638,10 @@ public sealed class Recorder : IRecorder
         }
     }
 
-    /// <summary>Ends the failed segment like "screen off" would, once the gate is free; the audio is not touched.</summary>
+    /// <summary>
+    /// Ends the failed segment like "screen off" would, once the gate is free, and stores the session's warnings (a crash
+    /// later must not lose why the screen stopped). The audio is not touched.
+    /// </summary>
     private void ScheduleScreenStop(ActiveRecording active, ScreenRun run)
     {
         _ = Task.Run(async () =>
@@ -623,21 +649,47 @@ public sealed class Recorder : IRecorder
             await _gate.WaitAsync().ConfigureAwait(false);
             try
             {
-                if (ReferenceEquals(_active, active) && _state == RecorderState.Recording && ReferenceEquals(active.Open, run))
+                if (ReferenceEquals(_active, active) && _state == RecorderState.Recording)
                 {
-                    await StopScreenSegmentAsync(active, CancellationToken.None).ConfigureAwait(false);
+                    if (ReferenceEquals(active.Open, run))
+                    {
+                        try
+                        {
+                            await StopScreenSegmentAsync(active, CancellationToken.None).ConfigureAwait(false);
+                        }
+                        catch (Exception ex)
+                        {
+                            // The segment stays open when the finalize failed before the recorder left it: the next "off"
+                            // or the final stop retries; the fault itself was reported already.
+                            LogError("finalizing the failed screen segment failed", ex);
+                        }
+                    }
+
+                    active.Record = active.Record with { Error = active.WarningText };
+                    await _store.UpdateSessionAsync(active.Record, CancellationToken.None).ConfigureAwait(false);
                 }
             }
-            catch (Exception)
+            catch (Exception ex)
             {
-                // The segment stays open when the finalize failed before the recorder left it: the next "off" or the
-                // final stop retries; the fault itself was reported already.
+                LogError("storing the screen warning failed", ex);
             }
             finally
             {
                 _gate.Release();
             }
         });
+    }
+
+    private static void LogError(string what, Exception ex)
+    {
+        try
+        {
+            Console.Error.WriteLine($"Murmur: {what}: {ex.Message}");
+        }
+        catch (Exception)
+        {
+            // A broken console must not break the recorder.
+        }
     }
 
     private void OnSourceFaulted(ActiveRecording active, Track track, CaptureFault fault)
@@ -1235,7 +1287,6 @@ public sealed class Recorder : IRecorder
 
         private readonly Lock _warningLock = new();
         private readonly HashSet<string> _raisedWarnings = [];
-        private readonly HashSet<string> _seenMessages = [];
 
         public volatile string? WriterError;
 
@@ -1251,15 +1302,6 @@ public sealed class Recorder : IRecorder
                 {
                     return Warning;
                 }
-            }
-        }
-
-        /// <summary><c>true</c> the first time a fault message is seen in this recording.</summary>
-        public bool FirstOccurrence(string message)
-        {
-            lock (_warningLock)
-            {
-                return _seenMessages.Add(message);
             }
         }
 
@@ -1297,6 +1339,9 @@ public sealed class Recorder : IRecorder
         public volatile bool Closed;
 
         public int StopScheduled;
+
+        /// <summary>Session time (ticks) of the first fatal fault, or -1 (Interlocked).</summary>
+        public long FaultElapsedTicks = -1;
     }
 
     private sealed class Track(AudioDeviceKind kind, IAudioSource source, CaptureTrack capture, StreamingResampler resampler, WavPcm16Writer writer, int readFrames)

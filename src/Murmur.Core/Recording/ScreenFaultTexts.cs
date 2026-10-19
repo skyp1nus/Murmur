@@ -13,17 +13,11 @@ internal static class ScreenFaultTexts
 
     internal const string Stopped = "Запис екрана зупинився через помилку; звук записується далі.";
 
-    /// <summary>The user text of a non-fatal fault; the exhaustion of the encoder's sample pool is told apart from the CPU fallback by its message.</summary>
-    internal static string Describe(CaptureFault fault)
+    /// <summary>The session text of a non-fatal fault of the given kind.</summary>
+    internal static string Describe(CaptureFaultKind kind) => kind switch
     {
-        var message = fault.Message;
-        if (message.Contains("stayed in use", StringComparison.OrdinalIgnoreCase)
-            || message.Contains("pool", StringComparison.OrdinalIgnoreCase)
-            || message.Contains("ran dry", StringComparison.OrdinalIgnoreCase))
-        {
-            return PoolExhausted;
-        }
-
-        return message.Contains("CPU readback", StringComparison.OrdinalIgnoreCase) ? CpuReadback : OtherNonFatal;
-    }
+        CaptureFaultKind.FramesDropped => PoolExhausted,
+        CaptureFaultKind.CpuFallback => CpuReadback,
+        _ => OtherNonFatal,
+    };
 }

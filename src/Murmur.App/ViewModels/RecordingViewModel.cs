@@ -436,13 +436,20 @@ public sealed partial class RecordingViewModel : ObservableObject, ILevelSource
             return;
         }
 
-        // The Core text is Ukrainian; the one that changes what the user sees is shown in the UI language.
-        AddNotice(warning.ScreenStopped ? Strings.Recording_ScreenStopped : warning.Message);
+        // The text follows the UI language and the kind of the problem; the recorder's own (Ukrainian) text is for the session.
+        AddNotice(NoticeText(warning));
         if (warning.ScreenStopped)
         {
             SyncScreenWithRecorder();
         }
     }
+
+    private static string NoticeText(RecorderWarning warning) => warning.ScreenStopped ? Strings.Recording_ScreenStopped : warning.Kind switch
+    {
+        CaptureFaultKind.FramesDropped => Strings.Recording_ScreenFramesDropped,
+        CaptureFaultKind.CpuFallback => Strings.Recording_ScreenCpuFallback,
+        _ => Strings.Recording_ScreenProblems,
+    };
 
     private void AddNotice(string text)
     {

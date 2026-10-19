@@ -182,15 +182,20 @@ public sealed class AutoRecordRunner
             });
 
             var session = stopped ?? throw new InvalidOperationException("The recording did not stop cleanly.");
-            if (session.State != SessionState.Failed)
-            {
-                AddSessionWarning(warnings, session.Error, faultWarnings);
-            }
 
-            // The screen problems follow the start-up warnings, in the order they were raised.
+            // The start-up warning, then the screen problems in the order they were raised; whatever else the stop
+            // reported (e.g. a screen segment that could not be finalized) comes last.
             lock (faultWarnings)
             {
-                warnings.AddRange(faultWarnings);
+                foreach (var problem in faultWarnings)
+                {
+                    AddWarning(warnings, problem);
+                }
+            }
+
+            if (session.State != SessionState.Failed)
+            {
+                AddStopError(warnings, session.Error);
             }
 
             report = report with
@@ -212,7 +217,6 @@ public sealed class AutoRecordRunner
                 SamplerAllocatedMb = Round(samplerAllocated / BytesPerMb),
                 Memory = memory,
                 RecorderStats = ToReport(_recorder.Stats),
-                ScreenFaults = _recorder.Stats.ScreenFaults,
                 Session = DescribeSession(session),
                 Warnings = warnings.Count == 0 ? null : warnings,
             };
@@ -300,49 +304,37 @@ public sealed class AutoRecordRunner
         return bytes;
     }
 
-    /// <summary>
-    /// Adds a session warning once. The stop repeats the start's warning, possibly with a screen error in front: the
-    /// fuller text then replaces the one it contains.
-    /// </summary>
+    /// <summary>Adds a warning unless the list already says it (a text that contains it, e.g. a joined start warning).</summary>
     private static void AddWarning(List<string> warnings, string? warning)
     {
-        if (string.IsNullOrWhiteSpace(warning))
+        if (string.IsNullOrWhiteSpace(warning) || warnings.Exists(existing => existing.Contains(warning, StringComparison.Ordinal)))
         {
             return;
         }
 
-        foreach (var existing in warnings)
-        {
-            if (existing.Contains(warning, StringComparison.Ordinal))
-            {
-                return;
-            }
-        }
-
-        warnings.RemoveAll(existing => warning.Contains(existing, StringComparison.Ordinal));
         warnings.Add(warning);
     }
 
     /// <summary>
-    /// Adds the session's warning text like <see cref="AddWarning"/>, but without the screen problems it contains: they
-    /// are reported on their own, in the order they were raised.
+    /// The session's error text is the recorder's own composition: a stop failure (if any) in front of the warnings it
+    /// kept. What the run already knows is not repeated; anything in front of it is the stop failure.
     /// </summary>
-    private static void AddSessionWarning(List<string> warnings, string? text, List<string> screenProblems)
+    private static void AddStopError(List<string> warnings, string? error)
     {
-        if (string.IsNullOrWhiteSpace(text))
+        if (string.IsNullOrWhiteSpace(error))
         {
             return;
         }
 
-        lock (screenProblems)
+        var known = string.Join(' ', warnings);
+        if (known.Length > 0 && error.EndsWith(known, StringComparison.Ordinal))
         {
-            foreach (var problem in screenProblems)
-            {
-                text = text.Replace(problem, " ", StringComparison.Ordinal);
-            }
+            AddWarning(warnings, error[..^known.Length].Trim());
         }
-
-        AddWarning(warnings, string.Join(' ', text.Split(' ', StringSplitOptions.RemoveEmptyEntries)));
+        else if (!error.Equals(known, StringComparison.Ordinal))
+        {
+            AddWarning(warnings, error);
+        }
     }
 
     private PerfSession DescribeSession(SessionRecord session)
@@ -388,6 +380,7 @@ public sealed class AutoRecordRunner
         SystemFrames = stats.SystemFrames,
         DroppedFrames = stats.DroppedFrames,
         ScreenFramesDropped = stats.ScreenFramesDropped,
+        ScreenFaults = stats.ScreenFaults,
     };
 
     private void Write(PerfReport report)
