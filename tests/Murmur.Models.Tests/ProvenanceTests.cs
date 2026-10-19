@@ -123,6 +123,31 @@ public sealed class ProvenanceTests
     }
 
     [Fact]
+    public async Task AFailedPlacement_KeepsTheRecordsSoThatTheRetryKnowsTheSource_AndASuccessfulOneRemovesThem()
+    {
+        await using var h = new Harness();
+        var content = Harness.Bytes(2500, 7);
+        h.Server.Add("/one/chat.gguf", Harness.Bytes(10)).NotFound = true;
+        h.Server.Add("/two/google_chat.gguf", content);
+        var blocker = Gguf(h, "chat.gguf");
+        Directory.CreateDirectory(blocker); // a directory where the file belongs: moving the download there fails
+        await File.WriteAllTextAsync(Path.Combine(blocker, "keep"), "x", TestContext.Current.CancellationToken);
+        using var manager = h.Manager([Chat(h, One(h), Two(h))]);
+
+        await Assert.ThrowsAnyAsync<Exception>(() => manager.InstallAsync("chat", TestContext.Current.CancellationToken));
+
+        var dl = Dl(h, "chat");
+        Assert.Equal(Two(h).Url, await File.ReadAllTextAsync(Path.Combine(dl, "chat.gguf.source"), TestContext.Current.CancellationToken));
+
+        Directory.Delete(blocker, recursive: true);
+        await manager.InstallAsync("chat", TestContext.Current.CancellationToken);
+
+        Assert.Equal(content, await File.ReadAllBytesAsync(blocker, TestContext.Current.CancellationToken));
+        Assert.Equal("org/two", (await ManifestAsync(h)).GetProperty("repo").GetProperty("chat").GetString());
+        Assert.False(Directory.Exists(Path.Combine(h.Models, ".staging")));
+    }
+
+    [Fact]
     public async Task SwitchingBackToAnInstalledModel_RecordsTheSourceThatServedIt()
     {
         await using var h = new Harness();

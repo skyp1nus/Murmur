@@ -44,9 +44,12 @@ internal sealed class HfLfsInfo
     public long? Size { get; set; }
 }
 
-/// <summary><c>GET /repos/{owner}/{repo}/releases/tags/{tag}</c>.</summary>
+/// <summary><c>GET /repos/{owner}/{repo}/releases/tags/{tag}</c> (<c>assets</c> may be a truncated list: see the assets endpoint).</summary>
 internal sealed class GitHubRelease
 {
+    [JsonPropertyName("id")]
+    public long? Id { get; set; }
+
     [JsonPropertyName("assets")]
     public List<GitHubAsset>? Assets { get; set; }
 }
@@ -77,7 +80,7 @@ internal sealed class PinRow
     [JsonPropertyName("host")]
     public string Host { get; set; } = "";
 
-    /// <summary>Commit SHA of the repository head (Hugging Face) or the release tag (GitHub).</summary>
+    /// <summary>Commit SHA the values were read at (Hugging Face: the catalog revision, or the head of main when the catalog uses main) or the release tag (GitHub).</summary>
     [JsonPropertyName("revision")]
     public string? Revision { get; set; }
 
@@ -107,5 +110,6 @@ internal sealed class PinRow
 [JsonSerializable(typeof(HfPathsRequest))]
 [JsonSerializable(typeof(List<HfPathInfo>))]
 [JsonSerializable(typeof(GitHubRelease))]
+[JsonSerializable(typeof(List<GitHubAsset>))]
 [JsonSerializable(typeof(List<PinRow>))]
 internal sealed partial class PinJsonContext : JsonSerializerContext;

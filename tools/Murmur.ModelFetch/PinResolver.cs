@@ -27,7 +27,14 @@ internal sealed class PinResolver(HttpClient http, ModelCatalogSources sources, 
 
     private sealed record Parsed(bool HuggingFace, string Repo, string CatalogRevision, string File);
 
-    private sealed record Entry(PinRow Row, ModelMirror Mirror, Parsed? Parsed);
+    private sealed record Entry(PinRow Row, ModelMirror Mirror, Parsed? Parsed)
+    {
+        /// <summary>Head of <c>main</c> of the Hugging Face repository (for the "update available" note).</summary>
+        public string? Head { get; set; }
+    }
+
+    /// <summary>Upper bound of the pages read from the release assets endpoint (100 assets each).</summary>
+    private const int MaxAssetPages = 30;
 
     public async Task<IReadOnlyList<PinRow>> ResolveAsync(IReadOnlyList<ModelCatalogItem> items, CancellationToken cancellationToken)
     {
@@ -106,25 +113,50 @@ internal sealed class PinResolver(HttpClient http, ModelCatalogSources sources, 
 
     private async Task ResolveHuggingFaceAsync(string repo, List<Entry> entries, CancellationToken cancellationToken)
     {
+        string head;
         try
         {
-            var head = (await GetJsonAsync($"{endpoints.HuggingFaceApi}/api/models/{repo}/revision/main", PinJsonContext.Default.HfRevisionResponse, huggingFaceToken, cancellationToken).ConfigureAwait(false))?.Sha;
-            if (string.IsNullOrEmpty(head))
+            var answer = (await GetJsonAsync($"{endpoints.HuggingFaceApi}/api/models/{repo}/revision/main", PinJsonContext.Default.HfRevisionResponse, huggingFaceToken, cancellationToken).ConfigureAwait(false))?.Sha;
+            if (string.IsNullOrEmpty(answer))
             {
                 FailAll(entries, "the revision answer has no sha");
                 return;
             }
 
+            head = answer;
+        }
+        catch (Exception ex) when (IsNetworkFailure(ex, cancellationToken))
+        {
+            FailAll(entries, ex.Message);
+            return;
+        }
+
+        foreach (var entry in entries)
+        {
+            entry.Head = head;
+        }
+
+        // A pinned catalog revision is judged at that revision; "main" is judged at the head just read.
+        foreach (var group in entries.GroupBy(e => e.Parsed!.CatalogRevision == "main" ? head : e.Parsed.CatalogRevision, StringComparer.Ordinal))
+        {
+            await ResolveHuggingFaceRevisionAsync(repo, group.Key, [.. group], cancellationToken).ConfigureAwait(false);
+        }
+    }
+
+    private async Task ResolveHuggingFaceRevisionAsync(string repo, string revision, List<Entry> entries, CancellationToken cancellationToken)
+    {
+        try
+        {
             var request = new HfPathsRequest { Paths = [.. entries.Select(e => e.Parsed!.File).Distinct(StringComparer.Ordinal)] };
-            var infos = await PostJsonAsync($"{endpoints.HuggingFaceApi}/api/models/{repo}/paths-info/{head}", request, PinJsonContext.Default.HfPathsRequest, PinJsonContext.Default.ListHfPathInfo, huggingFaceToken, cancellationToken).ConfigureAwait(false);
+            var infos = await PostJsonAsync($"{endpoints.HuggingFaceApi}/api/models/{repo}/paths-info/{revision}", request, PinJsonContext.Default.HfPathsRequest, PinJsonContext.Default.ListHfPathInfo, huggingFaceToken, cancellationToken).ConfigureAwait(false);
             foreach (var entry in entries)
             {
                 var row = entry.Row;
-                row.Revision = head;
+                row.Revision = revision;
                 var info = infos?.FirstOrDefault(i => string.Equals(i.Path, entry.Parsed!.File, StringComparison.Ordinal) && i.Type is null or "file");
                 if (info is null)
                 {
-                    Fail(row, $"{entry.Parsed!.File} does not exist at {head}");
+                    Fail(row, $"{entry.Parsed!.File} does not exist at {revision}");
                     continue;
                 }
 
@@ -138,8 +170,16 @@ internal sealed class PinResolver(HttpClient http, ModelCatalogSources sources, 
                     row.Size = info.Size;
                     if (info.Size is { } size and <= MaxHashedDownload)
                     {
-                        row.Sha256 = await HashDownloadAsync($"{sources.HuggingFace}/{repo}/resolve/{head}/{EscapePath(entry.Parsed!.File)}", huggingFaceToken, cancellationToken).ConfigureAwait(false);
-                        row.Note = "not in LFS: hashed from a download";
+                        try
+                        {
+                            row.Sha256 = await HashDownloadAsync($"{sources.HuggingFace}/{repo}/resolve/{revision}/{EscapePath(entry.Parsed!.File)}", cancellationToken).ConfigureAwait(false);
+                            row.Note = "not in LFS: hashed from a download";
+                        }
+                        catch (Exception ex) when (IsNetworkFailure(ex, cancellationToken))
+                        {
+                            // Only this row fails: the other files of the repository were resolved from paths-info.
+                            Fail(row, ex.Message);
+                        }
                     }
                     else
                     {
@@ -148,25 +188,49 @@ internal sealed class PinResolver(HttpClient http, ModelCatalogSources sources, 
                 }
             }
         }
-        catch (Exception ex) when (ex is HttpRequestException or JsonException or TaskCanceledException && !cancellationToken.IsCancellationRequested)
+        catch (Exception ex) when (IsNetworkFailure(ex, cancellationToken))
         {
             FailAll(entries, ex.Message);
         }
     }
+
+    private static bool IsNetworkFailure(Exception ex, CancellationToken cancellationToken) =>
+        ex is HttpRequestException or JsonException or IOException or TaskCanceledException && !cancellationToken.IsCancellationRequested;
 
     private async Task ResolveReleaseAsync(string repo, string tag, List<Entry> entries, CancellationToken cancellationToken)
     {
         try
         {
             var release = await GetJsonAsync($"{endpoints.GitHubApi}/repos/{repo}/releases/tags/{Uri.EscapeDataString(tag)}", PinJsonContext.Default.GitHubRelease, gitHubToken, cancellationToken).ConfigureAwait(false);
+            List<GitHubAsset>? paged = null;
+            string? pagingError = null;
             foreach (var entry in entries)
             {
                 var row = entry.Row;
                 row.Revision = tag;
-                var asset = release?.Assets?.FirstOrDefault(a => string.Equals(a.Name, entry.Parsed!.File, StringComparison.Ordinal));
+                var file = entry.Parsed!.File;
+                var asset = FindAsset(release?.Assets, file);
+                if (asset is null && release?.Id is { } id)
+                {
+                    // The release answer embeds only the first assets of a big release: read the whole list once.
+                    if (paged is null && pagingError is null)
+                    {
+                        try
+                        {
+                            paged = await ReadAllAssetsAsync(repo, id, cancellationToken).ConfigureAwait(false);
+                        }
+                        catch (Exception ex) when (IsNetworkFailure(ex, cancellationToken))
+                        {
+                            pagingError = ex.Message;
+                        }
+                    }
+
+                    asset = FindAsset(paged, file);
+                }
+
                 if (asset is null)
                 {
-                    Fail(row, $"release {tag} has no asset {entry.Parsed!.File}");
+                    Fail(row, pagingError is null ? $"release {tag} has no asset {file}" : $"release {tag} has no asset {file} in its embedded list and the asset pages failed: {pagingError}");
                     continue;
                 }
 
@@ -181,10 +245,51 @@ internal sealed class PinResolver(HttpClient http, ModelCatalogSources sources, 
                 }
             }
         }
-        catch (Exception ex) when (ex is HttpRequestException or JsonException or TaskCanceledException && !cancellationToken.IsCancellationRequested)
+        catch (Exception ex) when (IsNetworkFailure(ex, cancellationToken))
         {
             FailAll(entries, ex.Message);
         }
+    }
+
+    private static GitHubAsset? FindAsset(List<GitHubAsset>? assets, string name)
+    {
+        if (assets is null)
+        {
+            return null;
+        }
+
+        foreach (var asset in assets)
+        {
+            if (string.Equals(asset.Name, name, StringComparison.Ordinal))
+            {
+                return asset;
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary><c>GET /repos/{o}/{r}/releases/{id}/assets?per_page=100&amp;page=N</c> until a short page.</summary>
+    private async Task<List<GitHubAsset>> ReadAllAssetsAsync(string repo, long releaseId, CancellationToken cancellationToken)
+    {
+        const int perPage = 100;
+        var all = new List<GitHubAsset>();
+        for (var page = 1; page <= MaxAssetPages; page++)
+        {
+            var batch = await GetJsonAsync($"{endpoints.GitHubApi}/repos/{repo}/releases/{releaseId}/assets?per_page={perPage}&page={page}", PinJsonContext.Default.ListGitHubAsset, gitHubToken, cancellationToken).ConfigureAwait(false);
+            if (batch is null or { Count: 0 })
+            {
+                break;
+            }
+
+            all.AddRange(batch);
+            if (batch.Count < perPage)
+            {
+                break;
+            }
+        }
+
+        return all;
     }
 
     /// <summary>Compares what the catalog pins for the source with what upstream says now.</summary>
@@ -203,9 +308,10 @@ internal sealed class PinResolver(HttpClient http, ModelCatalogSources sources, 
             {
                 notes.Add("the catalog downloads from main: add the revision");
             }
-            else if (!string.Equals(parsed.CatalogRevision, row.Revision, StringComparison.Ordinal))
+            else if (entry.Head is { } head && !string.Equals(parsed.CatalogRevision, head, StringComparison.Ordinal))
             {
-                notes.Add($"the catalog revision {parsed.CatalogRevision} is behind head");
+                // Informational: the match/DRIFT verdict below is about the catalog revision, not about this head.
+                notes.Add($"update available: main is at {head}");
             }
         }
 
@@ -295,10 +401,12 @@ internal sealed class PinResolver(HttpClient http, ModelCatalogSources sources, 
         return await JsonSerializer.DeserializeAsync(stream, typeInfo, cancellationToken).ConfigureAwait(false);
     }
 
-    private async Task<string> HashDownloadAsync(string url, string? token, CancellationToken cancellationToken)
+    private async Task<string> HashDownloadAsync(string url, CancellationToken cancellationToken)
     {
         using var request = new HttpRequestMessage(HttpMethod.Get, url);
-        Prepare(request, token, json: false);
+
+        // The Hugging Face token goes only to the API host: the download URL comes from the catalog sources.
+        Prepare(request, IsSameHost(url, endpoints.HuggingFaceApi) ? huggingFaceToken : null, json: false);
         using var response = await http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
         if (!response.IsSuccessStatusCode)
         {
@@ -308,6 +416,12 @@ internal sealed class PinResolver(HttpClient http, ModelCatalogSources sources, 
         await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false);
         return Convert.ToHexStringLower(await SHA256.HashDataAsync(stream, cancellationToken).ConfigureAwait(false));
     }
+
+    private static bool IsSameHost(string url, string apiBase) =>
+        Uri.TryCreate(url, UriKind.Absolute, out var left)
+        && Uri.TryCreate(apiBase, UriKind.Absolute, out var right)
+        && string.Equals(left.Host, right.Host, StringComparison.OrdinalIgnoreCase)
+        && left.Port == right.Port;
 
     private static void Prepare(HttpRequestMessage request, string? token, bool json)
     {
