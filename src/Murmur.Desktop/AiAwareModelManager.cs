@@ -5,8 +5,9 @@ namespace Murmur.Desktop;
 
 /// <summary>
 /// <see cref="IModelManager"/> that releases the local AI before the files it holds are deleted: removing the
-/// llama.cpp runtime or a GGUF model while a <c>llama-server</c> process still has it open fails on Windows. Everything
-/// else is delegated unchanged.
+/// llama.cpp runtime or the active chat/embedding model while a <c>llama-server</c> process still has it open fails on
+/// Windows. Removing an inactive model touches nothing that is loaded, so a running answer is not interrupted.
+/// Everything else is delegated unchanged.
 /// </summary>
 /// <remarks>
 /// ASR and VAD items need no release: the ASR worker process only runs while sessions are being processed, and the
@@ -16,13 +17,17 @@ internal sealed class AiAwareModelManager : IModelManager
 {
     private readonly IModelManager _inner;
     private readonly ILlm _llm;
+    private readonly Func<ModelKind, string?> _activeModelId;
 
-    public AiAwareModelManager(IModelManager inner, ILlm llm)
+    /// <param name="activeModelId">The id of the active chat/embedding model (<c>ModelManager.ActiveModelId</c>), or <c>null</c>.</param>
+    public AiAwareModelManager(IModelManager inner, ILlm llm, Func<ModelKind, string?> activeModelId)
     {
         ArgumentNullException.ThrowIfNull(inner);
         ArgumentNullException.ThrowIfNull(llm);
+        ArgumentNullException.ThrowIfNull(activeModelId);
         _inner = inner;
         _llm = llm;
+        _activeModelId = activeModelId;
     }
 
     public string ModelsDirectory => _inner.ModelsDirectory;
@@ -59,7 +64,12 @@ internal sealed class AiAwareModelManager : IModelManager
         {
             if (string.Equals(model.Id, id, StringComparison.Ordinal))
             {
-                return model.Kind is ModelKind.LlmRuntime or ModelKind.Chat or ModelKind.Embedding;
+                return model.Kind switch
+                {
+                    ModelKind.LlmRuntime => true,
+                    ModelKind.Chat or ModelKind.Embedding => string.Equals(_activeModelId(model.Kind), id, StringComparison.Ordinal),
+                    _ => false,
+                };
             }
         }
 

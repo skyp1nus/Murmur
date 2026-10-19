@@ -654,6 +654,187 @@ public sealed class LocalLlmTests : IAsyncLifetime
         Assert.True(first.Stopped);
     }
 
+    [Fact]
+    public async Task Live_RecordingStartsWhileTheOldServerStops_TheNewModelIsNotLoaded()
+    {
+        await File.WriteAllTextAsync(SecondChatModel, "", Ct);
+        _live = Options;
+        await using var llm = CreateLive();
+        var client = await llm.GetChatClientAsync(Ct);
+        var first = Assert.Single(_started).Handle;
+        first.StopGate = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        _live = Options with { ChatModelPath = SecondChatModel };
+        var pending = client.GetResponseAsync([new ChatMessage(ChatRole.User, "x")], cancellationToken: Ct);
+        await WaitUntilAsync(() => first.Stopped);
+
+        _recording = true;
+        llm.NotifyRecordingStarted();
+
+        await Assert.ThrowsAsync<AiPausedException>(() => pending);
+        Assert.Single(_started);
+        Assert.True(first.Killed);
+        await WaitUntilAsync(() => first.Disposed);
+        Assert.Equal(1, first.DisposeCount);
+    }
+
+    [Fact]
+    public async Task Live_RecordingGuardTripsAfterTheNewServerStarts_KillsTheRetiredServerToo()
+    {
+        await File.WriteAllTextAsync(SecondChatModel, "", Ct);
+        _live = Options;
+        await using var llm = CreateLive();
+        var client = await llm.GetChatClientAsync(Ct);
+        var old = Assert.Single(_started).Handle;
+        RequestGate = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var inFlight = client.GetResponseAsync([new ChatMessage(ChatRole.User, "x")], cancellationToken: Ct);
+        await WaitUntilAsync(() => !_http.Requests.IsEmpty);
+
+        _live = Options with { ChatModelPath = SecondChatModel };
+        _loadGate = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var pending = llm.GetChatClientAsync(Ct).AsTask();
+        await WaitUntilAsync(() => _started.Count == 2);
+
+        _recording = true; // recorder forgot NotifyRecordingStarted
+        _loadGate.SetResult();
+
+        await Assert.ThrowsAsync<AiPausedException>(() => pending);
+        var fresh = _started.Last().Handle;
+        Assert.True(fresh.Killed);
+        Assert.True(old.Killed);
+        await WaitUntilAsync(() => old.Disposed && fresh.Disposed);
+        Assert.Equal(1, old.DisposeCount);
+        Assert.Equal(1, fresh.DisposeCount);
+        Assert.False(old.Stopped);
+
+        RequestGate.SetResult();
+        try
+        {
+            await inFlight;
+        }
+        catch (Exception)
+        {
+            // The retired server was killed under it; only the process cleanup matters here.
+        }
+    }
+
+    [Fact]
+    public async Task Stopping_UnloadAsyncWaitsForAServerThatIsStillStopping()
+    {
+        _live = Options;
+        await using var llm = CreateLive();
+        await llm.GetChatClientAsync(Ct);
+        var first = Assert.Single(_started).Handle;
+        first.StopGate = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        _time.Advance(Idle);
+        await WaitUntilAsync(() => first.Stopped);
+
+        var unload = llm.UnloadAsync(Ct).AsTask();
+        await Task.Delay(50, Ct);
+        Assert.False(unload.IsCompleted);
+
+        first.StopGate.SetResult();
+        await unload;
+
+        Assert.True(first.Disposed);
+    }
+
+    [Fact]
+    public async Task Stopping_NotifyRecordingStartedKillsAServerThatIsStillStopping()
+    {
+        _live = Options;
+        await using var llm = CreateLive();
+        await llm.GetChatClientAsync(Ct);
+        var first = Assert.Single(_started).Handle;
+        first.StopGate = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        _time.Advance(Idle);
+        await WaitUntilAsync(() => first.Stopped);
+
+        _recording = true;
+        llm.NotifyRecordingStarted();
+
+        Assert.True(first.Killed);
+        await WaitUntilAsync(() => first.Disposed);
+        Assert.Equal(1, first.DisposeCount);
+    }
+
+    [Fact]
+    public async Task Stopping_DisposeAsyncKillsAndWaitsForAServerThatIsStillStopping()
+    {
+        _live = Options;
+        var llm = CreateLive();
+        await llm.GetChatClientAsync(Ct);
+        var first = Assert.Single(_started).Handle;
+        first.StopGate = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        _time.Advance(Idle);
+        await WaitUntilAsync(() => first.Stopped);
+
+        await llm.DisposeAsync();
+
+        Assert.True(first.Killed);
+        Assert.Equal(1, first.DisposeCount);
+    }
+
+    [Theory]
+    [InlineData("notify")]
+    [InlineData("unload")]
+    [InlineData("dispose")]
+    public async Task EveryStartedServer_IsStoppedOrKilledAndDisposedExactlyOnce(string how)
+    {
+        await File.WriteAllTextAsync(SecondChatModel, "", Ct);
+        _live = Options;
+        var llm = CreateLive();
+        var client = await llm.GetChatClientAsync(Ct);
+        await llm.GetEmbeddingGeneratorAsync(Ct);
+
+        // A retired chat server with a request in flight, a fresh chat server, and the embedding server.
+        RequestGate = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var inFlight = client.GetResponseAsync([new ChatMessage(ChatRole.User, "x")], cancellationToken: Ct);
+        await WaitUntilAsync(() => !_http.Requests.IsEmpty);
+        _live = Options with { ChatModelPath = SecondChatModel };
+        await llm.GetChatClientAsync(Ct);
+        Assert.Equal(3, _started.Count);
+
+        switch (how)
+        {
+            case "notify":
+                _recording = true;
+                llm.NotifyRecordingStarted();
+                break;
+            case "unload":
+                await llm.UnloadAsync(Ct);
+                break;
+            default:
+                await llm.DisposeAsync();
+                break;
+        }
+
+        await WaitUntilAsync(() => _started.All(s => s.Handle.Disposed));
+        Assert.All(_started, s =>
+        {
+            Assert.Equal(1, s.Handle.DisposeCount);
+            Assert.True(s.Handle.Stopped || s.Handle.Killed);
+        });
+
+        // Late completion of the request that was in flight must not stop or dispose anything again.
+        RequestGate.SetResult();
+        try
+        {
+            await inFlight;
+        }
+        catch (Exception)
+        {
+            // The server went away under it.
+        }
+
+        await Task.Delay(50, Ct);
+        Assert.All(_started, s => Assert.Equal(1, s.Handle.DisposeCount));
+        if (how != "dispose")
+        {
+            await llm.DisposeAsync();
+        }
+    }
+
     private static async Task WaitUntilAsync(Func<bool> condition)
     {
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(Ct);
@@ -674,24 +855,36 @@ public sealed class LocalLlmTests : IAsyncLifetime
 
         public bool Killed { get; private set; }
 
-        public bool Disposed { get; private set; }
+        public bool Disposed => DisposeCount > 0;
 
-        public ValueTask StopAsync(CancellationToken cancellationToken)
+        public int DisposeCount => Volatile.Read(ref _disposeCount);
+
+        /// <summary>When set, a graceful stop waits for it (like a slow process exit); <see cref="Kill"/> releases it.</summary>
+        public TaskCompletionSource? StopGate { get; set; }
+
+        private int _disposeCount;
+
+        public async ValueTask StopAsync(CancellationToken cancellationToken)
         {
             Stopped = true;
+            if (StopGate is { } gate)
+            {
+                await gate.Task.WaitAsync(cancellationToken);
+            }
+
             HasExited = true;
-            return ValueTask.CompletedTask;
         }
 
         public void Kill()
         {
             Killed = true;
             HasExited = true;
+            StopGate?.TrySetResult();
         }
 
         public ValueTask DisposeAsync()
         {
-            Disposed = true;
+            Interlocked.Increment(ref _disposeCount);
             return ValueTask.CompletedTask;
         }
     }

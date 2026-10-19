@@ -55,6 +55,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Murmur.Models", "src\Murmur
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Murmur.ModelFetch", "tools\Murmur.ModelFetch\Murmur.ModelFetch.csproj", "{33E3741E-8490-4F8B-8BD0-7FB11532182C}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Murmur.Desktop.Tests", "tests\Murmur.Desktop.Tests\Murmur.Desktop.Tests.csproj", "{246E4D1A-6395-4944-956D-45F2EAE224BA}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -341,6 +343,18 @@ Global
 		{33E3741E-8490-4F8B-8BD0-7FB11532182C}.Release|x64.Build.0 = Release|Any CPU
 		{33E3741E-8490-4F8B-8BD0-7FB11532182C}.Release|x86.ActiveCfg = Release|Any CPU
 		{33E3741E-8490-4F8B-8BD0-7FB11532182C}.Release|x86.Build.0 = Release|Any CPU
+		{246E4D1A-6395-4944-956D-45F2EAE224BA}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{246E4D1A-6395-4944-956D-45F2EAE224BA}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{246E4D1A-6395-4944-956D-45F2EAE224BA}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{246E4D1A-6395-4944-956D-45F2EAE224BA}.Debug|x64.Build.0 = Debug|Any CPU
+		{246E4D1A-6395-4944-956D-45F2EAE224BA}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{246E4D1A-6395-4944-956D-45F2EAE224BA}.Debug|x86.Build.0 = Debug|Any CPU
+		{246E4D1A-6395-4944-956D-45F2EAE224BA}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{246E4D1A-6395-4944-956D-45F2EAE224BA}.Release|Any CPU.Build.0 = Release|Any CPU
+		{246E4D1A-6395-4944-956D-45F2EAE224BA}.Release|x64.ActiveCfg = Release|Any CPU
+		{246E4D1A-6395-4944-956D-45F2EAE224BA}.Release|x64.Build.0 = Release|Any CPU
+		{246E4D1A-6395-4944-956D-45F2EAE224BA}.Release|x86.ActiveCfg = Release|Any CPU
+		{246E4D1A-6395-4944-956D-45F2EAE224BA}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -369,5 +383,6 @@ Global
 		{F952057D-7FE6-4787-8FA1-A9A94229956E} = {0AB3BF05-4346-4AA6-1389-037BE0695223}
 		{710F9213-6B6D-4D4B-BB13-CEC08C6B3195} = {827E0CD3-B72D-47B6-A68D-7590B98EB39B}
 		{33E3741E-8490-4F8B-8BD0-7FB11532182C} = {07C2787E-EAC7-C090-1BA3-A61EC2A24D84}
+		{246E4D1A-6395-4944-956D-45F2EAE224BA} = {0AB3BF05-4346-4AA6-1389-037BE0695223}
 	EndGlobalSection
 EndGlobal

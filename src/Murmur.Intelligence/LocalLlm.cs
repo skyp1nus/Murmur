@@ -42,6 +42,9 @@ public sealed class LocalLlm : ILlm
     private readonly LocalChatClient _chatClient;
     private readonly LocalEmbeddingGenerator _embeddingGenerator;
     private OptionsSnapshot? _snapshot;
+
+    // Servers being stopped gracefully (idle, model switch): recording start kills them, unload and dispose wait for them.
+    private readonly Dictionary<ILlamaServer, Task> _stopping = [];
     private bool _disposed;
 
     // The shared idle timer is armed for the earliest due slot; guarded by _lock.
@@ -148,6 +151,12 @@ public sealed class LocalLlm : ILlm
             server.Kill();
             _ = DisposeQuietlyAsync(server);
         }
+
+        // Servers already on their way down must not linger into the recording either.
+        foreach (var server in SnapshotStopping().Keys)
+        {
+            server.Kill();
+        }
     }
 
     public async ValueTask UnloadAsync(CancellationToken cancellationToken)
@@ -156,6 +165,9 @@ public sealed class LocalLlm : ILlm
         {
             await StopQuietlyAsync(server, cancellationToken).ConfigureAwait(false);
         }
+
+        // Return only when no process still holds the model or the executable.
+        await Task.WhenAll(SnapshotStopping().Values).WaitAsync(cancellationToken).ConfigureAwait(false);
     }
 
     public async ValueTask DisposeAsync()
@@ -177,6 +189,13 @@ public sealed class LocalLlm : ILlm
             await DisposeQuietlyAsync(server).ConfigureAwait(false);
         }
 
+        var stopping = SnapshotStopping();
+        foreach (var server in stopping.Keys)
+        {
+            server.Kill();
+        }
+
+        await Task.WhenAll(stopping.Values).ConfigureAwait(false);
         _http.Dispose();
     }
 
@@ -313,7 +332,7 @@ public sealed class LocalLlm : ILlm
 
         if (retiredDone is not null)
         {
-            _ = StopQuietlyAsync(retiredDone, CancellationToken.None);
+            _ = BeginStop(retiredDone);
         }
     }
 
@@ -358,12 +377,17 @@ public sealed class LocalLlm : ILlm
             options = GetOptions(force: true);
             ILlamaServer? dead = null;
             ILlamaServer? retiredIdle = null;
+            CancellationToken lifetime;
             lock (_lock)
             {
                 if (slot.Server is { HasExited: false } running && Matches(slot, options))
                 {
                     return running;
                 }
+
+                // Taken together with the removal of the old server: a recording that starts while the old one stops
+                // cancels exactly this token (see Detach), so the new model never loads under it.
+                lifetime = slot.Lifetime.Token;
 
                 if (slot.Server is { } old)
                 {
@@ -388,7 +412,7 @@ public sealed class LocalLlm : ILlm
 
             if (retiredIdle is not null)
             {
-                await StopQuietlyAsync(retiredIdle, CancellationToken.None).ConfigureAwait(false);
+                await BeginStop(retiredIdle).ConfigureAwait(false);
             }
 
             if (dead is not null)
@@ -396,12 +420,16 @@ public sealed class LocalLlm : ILlm
                 await DisposeQuietlyAsync(dead).ConfigureAwait(false);
             }
 
+            ThrowIfUnavailable();
+            if (lifetime.IsCancellationRequested)
+            {
+                throw new OperationCanceledException("The model was unloaded while the previous one was stopping.", lifetime);
+            }
+
             var serverOptions = CreateServerOptions(slot, options);
-            CancellationToken lifetime;
             lock (_lock)
             {
                 slot.Loading = true;
-                lifetime = slot.Lifetime.Token;
             }
 
             ILlamaServer server;
@@ -442,11 +470,19 @@ public sealed class LocalLlm : ILlm
             {
                 if (accepted)
                 {
-                    Detach(slot);
+                    // Detach returns the new server and any retired one still serving a request: all of them go.
+                    foreach (var detached in Detach(slot))
+                    {
+                        detached.Kill();
+                        await DisposeQuietlyAsync(detached).ConfigureAwait(false);
+                    }
+                }
+                else
+                {
+                    server.Kill();
+                    await DisposeQuietlyAsync(server).ConfigureAwait(false);
                 }
 
-                server.Kill();
-                await DisposeQuietlyAsync(server).ConfigureAwait(false);
                 ThrowIfUnavailable();
                 throw new OperationCanceledException("The model was unloaded while it was loading.");
             }
@@ -532,7 +568,50 @@ public sealed class LocalLlm : ILlm
 
         foreach (var server in toStop)
         {
-            _ = StopQuietlyAsync(server, CancellationToken.None);
+            _ = BeginStop(server);
+        }
+    }
+
+    private Dictionary<ILlamaServer, Task> SnapshotStopping()
+    {
+        lock (_lock)
+        {
+            return new Dictionary<ILlamaServer, Task>(_stopping);
+        }
+    }
+
+    /// <summary>Stops <paramref name="server"/> gracefully in the background; it stays visible to kill/unload/dispose until it is gone.</summary>
+    private Task BeginStop(ILlamaServer server)
+    {
+        var done = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        lock (_lock)
+        {
+            if (_stopping.TryGetValue(server, out var existing))
+            {
+                return existing;
+            }
+
+            _stopping[server] = done.Task;
+        }
+
+        _ = RunStopAsync(server, done);
+        return done.Task;
+    }
+
+    private async Task RunStopAsync(ILlamaServer server, TaskCompletionSource done)
+    {
+        try
+        {
+            await StopQuietlyAsync(server, CancellationToken.None).ConfigureAwait(false);
+        }
+        finally
+        {
+            lock (_lock)
+            {
+                _stopping.Remove(server);
+            }
+
+            done.TrySetResult();
         }
     }
 

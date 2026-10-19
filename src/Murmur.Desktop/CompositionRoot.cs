@@ -89,7 +89,7 @@ internal sealed class CompositionRoot : IDisposable
         var modelManager = _modelManager ??= new ModelManager(models.ModelsDirectory);
 
         // The UI removes models through this wrapper: it stops the llama-server first, so the files are not held open.
-        var aiModels = _aiModels ??= new AiAwareModelManager(modelManager, llm);
+        var aiModels = _aiModels ??= new AiAwareModelManager(modelManager, llm, modelManager.ActiveModelId);
         var processor = _processor ??= new SessionProcessor(
             recorder,
             storage,
@@ -113,6 +113,13 @@ internal sealed class CompositionRoot : IDisposable
             activity.RecordingStopped += reindex.NotifyRecordingStopped;
             modelManager.StatusChanged += status =>
             {
+                // Synchronously, and before the UI's handlers (subscribed later): they poll Status in reaction to this event.
+                if (status.State is ModelInstallState.Installed or ModelInstallState.NotInstalled
+                    && status.Model.Kind is ModelKind.LlmRuntime or ModelKind.Chat or ModelKind.Embedding)
+                {
+                    llm.Refresh();
+                }
+
                 if (status.State == ModelInstallState.Installed
                     && status.Model.Kind is ModelKind.LlmRuntime or ModelKind.Embedding
                     && IsInstalled(modelManager, ModelKind.LlmRuntime)

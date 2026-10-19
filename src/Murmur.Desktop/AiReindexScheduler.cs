@@ -7,12 +7,16 @@ namespace Murmur.Desktop;
 /// </summary>
 internal sealed class AiReindexScheduler : IDisposable
 {
+    private static readonly TimeSpan DisposeWait = TimeSpan.FromSeconds(5);
+
     private readonly Func<bool> _isRecording;
     private readonly Func<CancellationToken, Task> _reindex;
     private readonly Action<Exception>? _onError;
     private readonly CancellationTokenSource _cts = new();
     private int _requested;
     private int _running;
+    private Task? _runTask;
+    private int _disposed;
 
     /// <param name="isRecording">Whether a recording is in progress.</param>
     /// <param name="reindex">The work (refreshes the AI state, then queues the indexing jobs).</param>
@@ -36,7 +40,26 @@ internal sealed class AiReindexScheduler : IDisposable
     /// <summary>Call when a recording has ended: runs a request that had to wait for it.</summary>
     public void NotifyRecordingStopped() => Kick();
 
-    public void Dispose() => _cts.Cancel();
+    /// <summary>Cancels a running pass and waits for it (bounded), so nothing touches the processor after it is disposed.</summary>
+    public void Dispose()
+    {
+        if (Interlocked.Exchange(ref _disposed, 1) != 0)
+        {
+            return;
+        }
+
+        _cts.Cancel();
+        try
+        {
+            Volatile.Read(ref _runTask)?.Wait(DisposeWait);
+        }
+        catch (AggregateException)
+        {
+            // Failures are reported through onError.
+        }
+
+        _cts.Dispose();
+    }
 
     private void Kick()
     {
@@ -45,7 +68,7 @@ internal sealed class AiReindexScheduler : IDisposable
             return;
         }
 
-        _ = Task.Run(RunAsync);
+        Volatile.Write(ref _runTask, Task.Run(RunAsync));
     }
 
     private async Task RunAsync()

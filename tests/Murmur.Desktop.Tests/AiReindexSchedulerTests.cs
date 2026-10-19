@@ -1,6 +1,6 @@
 using Murmur.Desktop;
 
-namespace Murmur.Intelligence.Tests.Desktop;
+namespace Murmur.Desktop.Tests;
 
 public sealed class AiReindexSchedulerTests
 {
