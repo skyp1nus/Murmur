@@ -524,8 +524,10 @@ public sealed partial class SessionViewModel : ObservableObject, IDisposable
         {
             ShowProcessing(live.Stage, live.Progress);
         }
-        else if (live is { Stage: SessionProcessingStage.ModelMissing } || !_processing.IsAsrInstalled)
+        else if (!_processing.IsAsrInstalled)
         {
+            // Asked afresh on every open: a "model missing" status left over from before the model was installed in the
+            // Settings must not keep the install hint on screen (the status itself is never cleared by the pipeline).
             ShowAsrMissing();
         }
         else if (_record.State is SessionState.Transcribing or SessionState.Transcribed or SessionState.Indexing)

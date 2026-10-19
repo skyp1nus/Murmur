@@ -25,6 +25,8 @@ public enum SessionState
 }
 
 /// <summary>One continuous piece of screen video, positioned on the session timeline.</summary>
+/// <param name="Offset">Session time of media time 0 of the segment file (the audio tracks start at session time 0).</param>
+/// <param name="Duration">Session time the segment covers; equals the media duration of the file.</param>
 public sealed record ScreenSegment(int Index, TimeSpan Offset, TimeSpan Duration);
 
 public sealed record SessionRecord

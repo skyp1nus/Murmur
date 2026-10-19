@@ -8,6 +8,9 @@ internal static class UiText
     public static string Format(string format, object? arg0) =>
         string.Format(UiCulture.Culture, format, arg0);
 
+    public static string Format(string format, object? arg0, object? arg1) =>
+        string.Format(UiCulture.Culture, format, arg0, arg1);
+
     public static string Format(string format, object? arg0, object? arg1, object? arg2) =>
         string.Format(UiCulture.Culture, format, arg0, arg1, arg2);
 

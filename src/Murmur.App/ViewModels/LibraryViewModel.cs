@@ -364,11 +364,21 @@ public sealed partial class LibraryViewModel : ObservableObject
         var needle = SearchText.Trim();
         var rows = new List<SessionItemViewModel>(_loaded.Count);
         _rows.Clear();
+
+        // The pipeline keeps "model missing" as the last status of a session until it is processed again, even after the
+        // model was installed in the Settings; the install state is asked afresh here so the badge does not outlive it.
+        var asrInstalled = _processing?.IsAsrInstalled ?? true;
         foreach (var record in _loaded)
         {
             if (needle.Length == 0 || record.Title.Contains(needle, StringComparison.OrdinalIgnoreCase))
             {
-                var row = new SessionItemViewModel(record, _time, _processing?.GetStatus(record.Id));
+                var live = _processing?.GetStatus(record.Id);
+                if (asrInstalled && live is { Stage: SessionProcessingStage.ModelMissing })
+                {
+                    live = null;
+                }
+
+                var row = new SessionItemViewModel(record, _time, live);
                 rows.Add(row);
                 _rows[record.Id] = row;
             }

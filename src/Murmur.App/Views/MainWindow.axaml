@@ -24,10 +24,23 @@
     <DataTemplate DataType="vm:LibraryChatViewModel">
       <views:LibraryChatView />
     </DataTemplate>
+    <DataTemplate DataType="vm:SettingsViewModel">
+      <views:SettingsView />
+    </DataTemplate>
+    <DataTemplate DataType="vm:SidebarViewModel">
+      <views:SidebarView />
+    </DataTemplate>
   </Window.DataTemplates>
 
-  <ContentControl Margin="{StaticResource Inset.48}"
-                  HorizontalContentAlignment="Stretch"
-                  VerticalContentAlignment="Stretch"
-                  Content="{Binding CurrentPage}" />
+  <Grid ColumnDefinitions="Auto,*">
+    <!-- The left navigation; null (nothing shown) on the recording and session screens. -->
+    <ContentControl Grid.Column="0"
+                    VerticalContentAlignment="Stretch"
+                    Content="{Binding Sidebar}" />
+    <ContentControl Grid.Column="1"
+                    Margin="{StaticResource Inset.48}"
+                    HorizontalContentAlignment="Stretch"
+                    VerticalContentAlignment="Stretch"
+                    Content="{Binding CurrentPage}" />
+  </Grid>
 </Window>

@@ -59,6 +59,22 @@ internal static class UiFormat
             : UiText.Format(Strings.Date_OtherYear, day, month, clock, local.Year.ToString(CultureInfo.InvariantCulture));
     }
 
+    /// <summary>A byte count for the UI: GB with two decimals from 100 MB (decimal units, like the mockup's "0,67 ГБ"), else MB or KB.</summary>
+    public static string Size(long bytes)
+    {
+        if (bytes < 0)
+        {
+            bytes = 0;
+        }
+
+        return bytes switch
+        {
+            >= 100_000_000 => UiText.Format(Strings.Size_Gb, bytes / 1_000_000_000d),
+            >= 1_000_000 => UiText.Format(Strings.Size_Mb, bytes / 1_000_000d),
+            _ => UiText.Format(Strings.Size_Kb, bytes / 1_000d),
+        };
+    }
+
     private static string MonthName(int month) => month switch
     {
         1 => Strings.Month_01,

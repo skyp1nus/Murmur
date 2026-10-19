@@ -15,16 +15,19 @@ public sealed partial class ShellViewModel : ObservableObject
     private readonly Func<CancellationToken, Task>? _startup;
     private readonly Func<SessionRecord, SessionViewModel>? _sessionFactory;
     private readonly Func<SessionId?, ChatViewModel>? _chatFactory;
+    private readonly SidebarViewModel? _sidebar;
     private bool _sessionReturnsToChat;
 
     /// <param name="sessionFactory">Builds the recording view for a session; <c>null</c> = sessions cannot be opened.</param>
     /// <param name="chatFactory">Builds a chat for a scope (<c>null</c> = the whole library); <c>null</c> = no library-wide chat.</param>
+    /// <param name="settings">The Settings screen; <c>null</c> = no Settings page and no sidebar (the pages fill the window).</param>
     public ShellViewModel(
         LibraryViewModel library,
         RecordingViewModel recording,
         Func<CancellationToken, Task>? startup = null,
         Func<SessionRecord, SessionViewModel>? sessionFactory = null,
-        Func<SessionId?, ChatViewModel>? chatFactory = null)
+        Func<SessionId?, ChatViewModel>? chatFactory = null,
+        SettingsViewModel? settings = null)
     {
         ArgumentNullException.ThrowIfNull(library);
         ArgumentNullException.ThrowIfNull(recording);
@@ -33,6 +36,8 @@ public sealed partial class ShellViewModel : ObservableObject
         _startup = startup;
         _sessionFactory = sessionFactory;
         _chatFactory = chatFactory;
+        Settings = settings;
+        _sidebar = settings is null ? null : new SidebarViewModel(this);
         CurrentPage = library;
 
         library.CanAskAll = chatFactory is not null;
@@ -48,13 +53,26 @@ public sealed partial class ShellViewModel : ObservableObject
 
     public RecordingViewModel Recording { get; }
 
+    /// <summary>The Settings screen, or <c>null</c> when none is configured.</summary>
+    public SettingsViewModel? Settings { get; }
+
+    /// <summary>
+    /// The left navigation while a top-level page (Library, the library-wide chat, Settings) is shown, otherwise <c>null</c>:
+    /// the recording and session screens keep their own Back button and use the whole window.
+    /// </summary>
+    [ObservableProperty]
+    public partial SidebarViewModel? Sidebar { get; set; }
+
+    /// <summary>The library-wide chat can be opened (a chat factory is configured).</summary>
+    internal bool CanShowLibraryChat => _chatFactory is not null;
+
     /// <summary>The open recording view, or <c>null</c> while another page is shown.</summary>
     public SessionViewModel? Session { get; private set; }
 
     /// <summary>The library-wide chat, created on first use and kept (with its history) for the whole run.</summary>
     public LibraryChatViewModel? LibraryChat { get; private set; }
 
-    /// <summary>The <see cref="Library"/>, the <see cref="Recording"/> screen, the open <see cref="Session"/> or the <see cref="LibraryChat"/>.</summary>
+    /// <summary>The <see cref="Library"/>, the <see cref="Recording"/> screen, the open <see cref="Session"/>, the <see cref="LibraryChat"/> or the <see cref="Settings"/>.</summary>
     [ObservableProperty]
     public partial ObservableObject CurrentPage { get; set; }
 
@@ -86,12 +104,22 @@ public sealed partial class ShellViewModel : ObservableObject
                 chat: CreateChat(record.Id));
         }
 
+        // Without a store from the composition root (designer, tests) the settings live in memory for the run.
+        var store = services.Settings ?? new InMemorySettingsStore();
+        var settings = new SettingsViewModel(
+            store,
+            services.Capture,
+            services.Models,
+            services.ActiveModelId,
+            services.DefaultRecordingsDirectory);
+
         return new ShellViewModel(
             new LibraryViewModel(services.Sessions, services.Time, processing, keywordSearch: services.Search, assistant: ai?.Assistant),
-            new RecordingViewModel(services.Recorder, services.Capture, services.Sessions),
+            new RecordingViewModel(services.Recorder, services.Capture, services.Sessions, settings: store),
             services.Startup,
             sessionFactory,
-            CreateChat);
+            CreateChat,
+            settings);
     }
 
     /// <summary>
@@ -132,6 +160,19 @@ public sealed partial class ShellViewModel : ObservableObject
         CloseSession();
         CurrentPage = Library;
         _ = Library.LoadAsync();
+    }
+
+    /// <summary>Opens the Settings screen. Ignored without one.</summary>
+    public void ShowSettings()
+    {
+        if (Settings is not { } settings)
+        {
+            return;
+        }
+
+        CloseSession();
+        settings.Refresh();
+        CurrentPage = settings;
     }
 
     /// <summary>Opens the library-wide chat ("Запитати AI по всіх записах"). Ignored without a chat factory.</summary>
@@ -216,6 +257,17 @@ public sealed partial class ShellViewModel : ObservableObject
         {
             OpenSession(record, at, play);
         }
+    }
+
+    partial void OnCurrentPageChanged(ObservableObject value)
+    {
+        if (_sidebar is null)
+        {
+            return;
+        }
+
+        Sidebar = value is LibraryViewModel or LibraryChatViewModel or SettingsViewModel ? _sidebar : null;
+        _sidebar.Update();
     }
 
     private void OnSessionOpened(SessionRecord record) => OpenSession(record);

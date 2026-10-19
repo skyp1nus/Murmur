@@ -1,5 +1,6 @@
 using Murmur.App.Services;
 using Murmur.Core.Capture;
+using Murmur.Core.Models;
 using Murmur.Core.Recording;
 using Murmur.Core.Sessions;
 using Murmur.Core.Settings;
@@ -28,6 +29,13 @@ namespace Murmur.App;
 /// start-up (a language change applies on the next start, decision D-032); the later settings and onboarding screens
 /// save through it. <c>null</c> in designer and tests = light/system theme, Ukrainian.
 /// </param>
+/// <param name="Models">Downloads, installs and removes the models; the settings screen lists its catalog. <c>null</c> = no model section.</param>
+/// <param name="ActiveModelId">
+/// The id of the chat or embedding model that is active on disk (<c>models.json</c>), or <c>null</c>. Not part of
+/// <see cref="IModelManager"/>; the composition root wires it to the model manager. <c>null</c> = the settings screen falls back
+/// to <c>AppSettings.ChatModelId</c>.
+/// </param>
+/// <param name="DefaultRecordingsDirectory">The folder new recordings go to while <c>AppSettings.RecordingsDirectory</c> is unset; shown in the settings.</param>
 public sealed record AppServices(
     IRecorder Recorder,
     ICapture Capture,
@@ -39,4 +47,7 @@ public sealed record AppServices(
     ISessionProcessing? Processing = null,
     ISearchIndex? Search = null,
     AiServices? Ai = null,
-    ISettingsStore? Settings = null);
+    ISettingsStore? Settings = null,
+    IModelManager? Models = null,
+    Func<ModelKind, string?>? ActiveModelId = null,
+    string? DefaultRecordingsDirectory = null);
