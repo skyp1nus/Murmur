@@ -344,6 +344,22 @@ public sealed class AutoRecordTests : IDisposable
     }
 
     [Fact]
+    public async Task Run_WhenTheRecorderReportsNoElapsedTime_FallsBackToTheSessionDuration()
+    {
+        // Elapsed is 0 once the recorder has ended the session by itself; the fake finishes with Duration = Elapsed,
+        // so give it the duration the finished session carries through the stop error path instead.
+        var path = Path.Combine(_dir, "perf.json");
+        _recorder.Elapsed = TimeSpan.Zero;
+        _recorder.FinishedDuration = TimeSpan.FromSeconds(7.5);
+        var runner = CreateRunner(new AutoRecordOptions(1, Screen: false, path, IdleSeconds: 0));
+
+        Assert.Equal(0, await runner.RunAsync(TestContext.Current.CancellationToken));
+
+        using var doc = JsonDocument.Parse(File.ReadAllText(path));
+        Assert.Equal(7.5, doc.RootElement.GetProperty("durationS").GetDouble());
+    }
+
+    [Fact]
     public async Task Run_WithScreen_ReportsTheSegmentsAndHowLongTheScreenStartTook()
     {
         // The start call returned at session time 2.0 s; the recorder asked the screen to start at 0.45 s.

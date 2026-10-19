@@ -591,7 +591,11 @@ if ($null -ne $perf) {
             foreach ($segment in $segments) { $segmentBytes += $segment.Length }
             Add-Row 'screen segments' ("{0} file(s), {1} non-empty, {2:N1} MB" -f $segments.Count, $nonEmpty.Count, ($segmentBytes / 1MB)) '>= 1 non-empty' $(if ($nonEmpty.Count -ge 1) { 'PASS' } else { 'FAIL' })
             Add-Row 'session.screenSegments' $(if ($null -eq $declared) { 'n/a' } else { [string]$declared }) ("== file count ({0})" -f $segments.Count) $(if ($null -ne $declared -and [int]$declared -eq $segments.Count) { 'PASS' } else { 'FAIL' })
-            Test-ScreenVideo $segments $durationS (Get-Prop $session 'screenSegmentTimes')
+            # Get-Prop would unroll an empty array into $null (= "older JSON, skip"); an empty list must stay a list,
+            # so that every file then fails for having no entry.
+            $timesProperty = if ($null -eq $session) { $null } else { $session.PSObject.Properties['screenSegmentTimes'] }
+            $segmentTimes = if ($null -eq $timesProperty -or $null -eq $timesProperty.Value) { $null } else { , @($timesProperty.Value) } # the comma keeps an empty array from being unrolled to $null
+            Test-ScreenVideo $segments $durationS $segmentTimes
         }
         else {
             Add-Row 'screen segments' ("{0} file(s)" -f $segments.Count) 'not expected' 'INFO'

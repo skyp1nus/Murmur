@@ -157,7 +157,9 @@ public sealed class AutoRecordRunner
 
             // The length of the session timeline the files are on (the audio starts at session time 0), read as the stop
             // is requested. Not the length of the sampling window above: that starts after StartAsync returns, which
-            // with the screen on includes the screen's start-up while the audio is already recording.
+            // with the screen on includes the screen's start-up while the audio is already recording. A recorder that
+            // already ended the session by itself (every audio source failed) reports no elapsed time any more: the
+            // session's own duration stands in then.
             var duration = TimeSpan.Zero;
             await _runOnUi(async () =>
             {
@@ -174,7 +176,7 @@ public sealed class AutoRecordRunner
             report = report with
             {
                 Orb = _options.ShowOrb,
-                DurationS = Math.Round(duration.TotalSeconds, 3),
+                DurationS = Math.Round((duration > TimeSpan.Zero ? duration : session.Duration).TotalSeconds, 3),
                 ScreenStartMs = ScreenStartMs(session, started.Elapsed),
                 CpuAvgPct = Round(Average(machine)),
                 CpuP95Pct = Round(ProcessSampler.Percentile(machine, 95)),

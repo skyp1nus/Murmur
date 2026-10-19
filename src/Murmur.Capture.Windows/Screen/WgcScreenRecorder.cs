@@ -87,7 +87,10 @@ namespace Murmur.Capture.Windows.Screen;
 /// <b>Stats.</b> <see cref="ScreenRecorderStats.FramesCaptured"/> counts frames admitted by the rate limiter (frames
 /// above the target rate are not counted), <see cref="ScreenRecorderStats.FramesEncoded"/> the captured frames handed
 /// to the encoder, <see cref="ScreenRecorderStats.FramesDropped"/> captured frames lost to back-pressure or errors;
-/// repeated frames are counted in none of them. Counters accumulate over the recorder's lifetime.
+/// repeated frames are counted in none of them. Captured frames that reach the encoder thread after the stop call
+/// belong to no segment: they are neither encoded nor dropped but counted in <see cref="FramesAfterStop"/>, so
+/// <c>FramesCaptured == FramesEncoded + FramesDropped + FramesAfterStop</c> up to the frames still in flight.
+/// Counters accumulate over the recorder's lifetime.
 /// </para>
 /// <para>
 /// <b>Lifetime.</b> The D3D11 device and Media Foundation are created on the first segment and kept until
@@ -154,6 +157,7 @@ internal sealed class WgcScreenRecorder : IScreenRecorder
     private long _frameArrivedEvents;
     private long _framesPoolExhausted;
     private long _repeatsSkipped;
+    private long _framesAfterStop;
     private readonly int _cpuSampleLimit = MaximumCpuSamples;
     private volatile string? _gpuPathDisabled;
 
@@ -178,6 +182,12 @@ internal sealed class WgcScreenRecorder : IScreenRecorder
 
     /// <summary>Frames WGC delivered above the target frame rate (diagnostics; not part of <see cref="Stats"/>).</summary>
     internal long FramesRateLimited => Interlocked.Read(ref _framesRateLimited);
+
+    /// <summary>
+    /// Captured frames that arrived after the stop call and were not written (diagnostics; also counted in
+    /// <see cref="ScreenRecorderStats.FramesCaptured"/> but in neither encoded nor dropped).
+    /// </summary>
+    internal long FramesAfterStop => Interlocked.Read(ref _framesAfterStop);
 
     /// <summary>Repeated frames written for static screens (diagnostics).</summary>
     internal long FramesRepeated => Interlocked.Read(ref _framesRepeated);
@@ -342,6 +352,7 @@ internal sealed class WgcScreenRecorder : IScreenRecorder
         // The end of the file: the very first thing, before the gate, the thread-pool hop and the spin for the frame
         // handler, none of which are part of the segment.
         var stopTicks = MediaTime.Now();
+        PublishStop(stopTicks); // the encoder thread stops taking frames and repeats past this moment at once
         await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
@@ -368,6 +379,7 @@ internal sealed class WgcScreenRecorder : IScreenRecorder
     public async ValueTask DisposeAsync()
     {
         var disposeTicks = MediaTime.Now();
+        PublishStop(disposeTicks);
         await _gate.WaitAsync().ConfigureAwait(false);
         try
         {
@@ -474,11 +486,22 @@ internal sealed class WgcScreenRecorder : IScreenRecorder
         }
     }
 
+    /// <summary>
+    /// Publishes the end of the running segment (if any) at the moment the stop call came in, ahead of the gate and the
+    /// thread-pool hop, so the encoder thread already ignores frames and repeats after it. The first request wins.
+    /// </summary>
+    private void PublishStop(long stopTicks)
+    {
+        if (Volatile.Read(ref _segment) is { } running)
+        {
+            Interlocked.CompareExchange(ref running.StopTicks, stopTicks, RepeatPolicy.NoStop);
+        }
+    }
+
     private void StopCore(Segment segment, long stopTicks)
     {
-        // The end of the segment is fixed before anything else; the encoder thread reads it (Volatile) for the last
-        // frame's duration and ignores frames captured after it.
-        Volatile.Write(ref segment.StopTicks, stopTicks);
+        // The earliest stop request wins (normally the one published when the call came in, before the gate).
+        Interlocked.CompareExchange(ref segment.StopTicks, stopTicks, RepeatPolicy.NoStop);
         segment.Accepting = false;
         Volatile.Write(ref _segment, null);
         if (StopDelay > TimeSpan.Zero)
@@ -903,6 +926,7 @@ internal sealed class WgcScreenRecorder : IScreenRecorder
                 // Captured after the stop call: it belongs to no segment (the held frame lasts until the stop).
                 var late = queued.Sample;
                 ComCall.Release(ref late);
+                Interlocked.Increment(ref _framesAfterStop);
                 continue;
             }
 

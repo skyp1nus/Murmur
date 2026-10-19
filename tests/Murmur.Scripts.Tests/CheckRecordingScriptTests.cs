@@ -170,6 +170,11 @@ public sealed class CheckRecordingScriptTests : IDisposable
         Assert.Equal(1, missing.ExitCode);
         Assert.Equal("FAIL", Status(missing, SyncRow));
 
+        // An empty list is not "no list": the file has no entry, which fails.
+        var empty = RunWithSegments(["screen-000.mp4"], [Video(10, 30)], "[]");
+        Assert.Equal(1, empty.ExitCode);
+        Assert.Equal("FAIL", Status(empty, SyncRow));
+
         var older = Run(["screen-000.mp4"], [Video(10, 30)]);
         Assert.Equal(0, older.ExitCode);
         Assert.Equal("SKIP", Status(older, SyncRow));

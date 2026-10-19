@@ -476,10 +476,18 @@ public sealed class Recorder : IRecorder
             return;
         }
 
+        // The stop runs on the thread pool, so a screen recorder that does its work synchronously before its first
+        // await cannot delay the audio stop that runs next to it; the end is read on that thread, as the last step
+        // before the call. The value read here is only the fallback should the call never start.
         var end = _time.GetElapsedTime(active.StartTimestamp);
+        var screen = active.Screen;
         try
         {
-            await active.Screen.StopSegmentAsync(cancellationToken).ConfigureAwait(false);
+            await Task.Run(async () =>
+            {
+                end = _time.GetElapsedTime(active.StartTimestamp);
+                await screen.StopSegmentAsync(cancellationToken).ConfigureAwait(false);
+            }, CancellationToken.None).ConfigureAwait(false);
         }
         finally
         {

@@ -3,7 +3,9 @@ using Murmur.Capture.Windows.Screen;
 namespace Murmur.Capture.Windows.Tests;
 
 /// <summary>
-/// The segment clock of <see cref="WgcScreenRecorder"/> in pure timeline math: media time 0 is the moment
+/// The segment clock of <see cref="WgcScreenRecorder"/> in pure timeline math (<see cref="SegmentTimeline"/> and
+/// <see cref="HeldFrameTiming"/>; dropping what arrives after the stop call is <see cref="RepeatPolicy.IsAfterEnd"/>,
+/// tested below, and the encoder thread's use of it by the Windows-trait tests): media time 0 is the moment
 /// StartSegmentAsync is called and the file ends when StopSegmentAsync is called, however long start-up and stopping
 /// take (the contract of IScreenRecorder). Runs everywhere; the real recorder is covered by the Windows-trait tests.
 /// </summary>
@@ -13,7 +15,10 @@ public sealed class SegmentClockTests
     private const long Ms = Second / 1000;
     private const int FrameRate = 60;
 
-    /// <summary>Replays the encoder thread's timeline calls and returns the sum of the written durations (100 ns).</summary>
+    /// <summary>
+    /// Replays the encoder thread's timeline calls for frames captured before the stop call and returns the sum of the
+    /// written durations (100 ns).
+    /// </summary>
     private static long WrittenDuration(long startTicks, long stopTicks, params long[] frameTicks)
     {
         var timeline = new SegmentTimeline();
@@ -22,11 +27,7 @@ public sealed class SegmentClockTests
         long total = 0;
         foreach (var ticks in frameTicks)
         {
-            if (RepeatPolicy.IsAfterEnd(ticks, stopTicks))
-            {
-                continue; // the encoder thread drops frames captured after the stop call
-            }
-
+            Assert.False(RepeatPolicy.IsAfterEnd(ticks, stopTicks), "the encoder thread drops frames captured after the stop call");
             if (timing.Advance(timeline.ToSampleTime(ticks), out _, out var duration))
             {
                 total += duration;
@@ -82,13 +83,14 @@ public sealed class SegmentClockTests
     }
 
     [Fact]
-    public void SlowStop_IsNotPartOfTheFile()
+    public void TheFileEndsAtTheStopCall_NotWhenTheEncoderThreadFinishes()
     {
-        // The stop call comes at 110 s, finalizing takes 700 ms; the encoder thread would wake up at 110.7 s but the
-        // segment ends at the call.
+        // The stop call comes at 110 s and the encoder thread closes the timeline at 110.7 s: the last frame lasts
+        // until the stop call time (RepeatPolicy.EndTicks), not until the thread got round to it.
         const long start = 100 * Second;
         const long stop = 110 * Second;
-        var duration = WrittenDuration(start, stop, start + (20 * Ms), stop + (300 * Ms), stop + (690 * Ms));
+        var end = RepeatPolicy.EndTicks(true, stop, RepeatPolicy.NoFault, stop + (700 * Ms));
+        var duration = WrittenDuration(start, end, start + (20 * Ms), stop - (100 * Ms));
 
         AssertWithinOneUnit(10 * Second, duration);
     }
