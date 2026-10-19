@@ -51,7 +51,14 @@ internal sealed class CompositionRoot : IDisposable
         // start-up and follows the theme live. Storage asks it for the recordings folder at every new recording.
         var paths = StoragePaths.FromEnvironment();
         var settings = _settings ??= new JsonSettingsStore(paths);
-        var storage = _storage ??= new SqliteStorage(paths, () => settings.Current.RecordingsDirectory);
+        if (_storage is null)
+        {
+            _storage = new SqliteStorage(paths, () => settings.Current.RecordingsDirectory);
+            _storage.RecordingsFolderFallback += static info => Console.Error.WriteLine(
+                $"Recordings folder '{info.RequestedFolder}' is unusable ({info.Reason}); session {info.Session} went to the default folder.");
+        }
+
+        var storage = _storage;
         var capture = CreateCapture();
         var recorder = new Recorder(capture, storage, TimeProvider.System, RecorderSettings.Default);
 

@@ -173,7 +173,8 @@ public sealed partial class SqliteStorage
 
         if (relative is not null)
         {
-            var folder = ResolveFolder(relative);
+            // No trailing separator: on Linux "link/" is the link's target, not the link, and Delete would throw.
+            var folder = Path.TrimEndingDirectorySeparator(ResolveFolder(relative));
             EnsureDeletable(relative, folder);
             if (Directory.Exists(folder))
             {
@@ -257,36 +258,60 @@ public sealed partial class SqliteStorage
     {
         var stamp = startedAt.ToLocalTime().ToString("yyyy-MM-dd_HH-mm-ss", CultureInfo.InvariantCulture);
         var name = stamp + "_" + id.ToString()[..8];
-        var requested = _recordingsFolder?.Invoke();
+
+        // The provider is user-supplied code (the settings store) and must never stop a recording from starting.
+        string? requested;
+        string? failure = null;
+        try
+        {
+            requested = _recordingsFolder?.Invoke();
+        }
+        catch (Exception ex)
+        {
+            requested = null;
+            failure = ex.Message;
+        }
+
+        // Preparing the configured parent can block (an unreachable network share), so it happens outside the lock;
+        // only the uniqueness loop and the creation of the session folder itself are serialized.
+        string? parent = null;
+        string? trimmed = null;
+        if (failure is null && !string.IsNullOrWhiteSpace(requested))
+        {
+            trimmed = requested.Trim();
+            failure = TryPrepareParent(trimmed, out parent);
+        }
 
         string full;
         RecordingsFolderFallbackInfo? fallback = null;
         lock (_folderLock)
         {
-            var useDefault = true;
             full = string.Empty;
-            if (!string.IsNullOrWhiteSpace(requested))
+            if (parent is not null)
             {
-                var trimmed = requested.Trim();
-                var reason = TryReserve(trimmed, name, out full);
-                if (reason is null)
+                try
                 {
-                    useDefault = false;
+                    full = CreateUnique(parent, name);
                 }
-                else
+                catch (Exception ex) when (IsFolderProblem(ex))
                 {
-                    fallback = new RecordingsFolderFallbackInfo(id, trimmed, reason);
+                    failure = ex.Message;
                 }
             }
 
-            if (useDefault)
+            if (full.Length == 0)
             {
                 // The default folder is ours; a failure here is a real error and propagates.
                 full = CreateUnique(_paths.RecordingsDirectory, name);
+                if (failure is not null)
+                {
+                    fallback = new RecordingsFolderFallbackInfo(id, trimmed ?? string.Empty, failure);
+                }
             }
+
+            _lastFallback = fallback;
         }
 
-        _lastFallback = fallback;
         if (fallback is not null)
         {
             RaiseFallback(fallback);
@@ -295,10 +320,13 @@ public sealed partial class SqliteStorage
         return ToStoredFolder(full);
     }
 
-    /// <summary>Returns <c>null</c> on success (the new folder in <paramref name="created"/>), otherwise why the folder is unusable.</summary>
-    private static string? TryReserve(string folder, string name, out string created)
+    private static bool IsFolderProblem(Exception ex) =>
+        ex is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException;
+
+    /// <summary>Returns <c>null</c> on success (the existing parent in <paramref name="parent"/>), otherwise why the folder is unusable.</summary>
+    private static string? TryPrepareParent(string folder, out string? parent)
     {
-        created = string.Empty;
+        parent = null;
         if (!Path.IsPathFullyQualified(folder))
         {
             return "The recordings folder is not an absolute path.";
@@ -306,16 +334,18 @@ public sealed partial class SqliteStorage
 
         try
         {
-            created = CreateUnique(Path.GetFullPath(folder), name);
+            var full = Path.GetFullPath(folder);
+            Directory.CreateDirectory(full);
+            parent = full;
             return null;
         }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException)
+        catch (Exception ex) when (IsFolderProblem(ex))
         {
             return ex.Message;
         }
     }
 
-    /// <summary>Creates <paramref name="name"/> (or <c>name_N</c>) inside <paramref name="parent"/>, creating the parent if needed.</summary>
+    /// <summary>Creates <paramref name="name"/> (or <c>name_N</c>) inside the existing <paramref name="parent"/>.</summary>
     private static string CreateUnique(string parent, string name)
     {
         var candidate = name;
@@ -344,15 +374,19 @@ public sealed partial class SqliteStorage
     private static StringComparison PathComparison =>
         OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
 
-    private string ToStoredFolder(string full)
-    {
-        var root = Path.TrimEndingDirectorySeparator(_paths.Root) + Path.DirectorySeparatorChar;
-        if (full.StartsWith(root, PathComparison))
-        {
-            return full[root.Length..].Replace(Path.DirectorySeparatorChar, '/');
-        }
+    private string ToStoredFolder(string full) => StoredFolderFor(_paths.Root, full);
 
-        return full;
+    /// <summary>The root with exactly one trailing separator; a root that is itself a drive or filesystem root already has one.</summary>
+    internal static string RootPrefix(string root) =>
+        Path.EndsInDirectorySeparator(root) ? root : root + Path.DirectorySeparatorChar;
+
+    /// <summary>Value for <c>sessions.folder</c>: relative to <paramref name="root"/> (with <c>/</c>) when under it, else the absolute path.</summary>
+    internal static string StoredFolderFor(string root, string full)
+    {
+        var prefix = RootPrefix(root);
+        return full.StartsWith(prefix, PathComparison)
+            ? full[prefix.Length..].Replace(Path.DirectorySeparatorChar, '/')
+            : full;
     }
 
     /// <summary>
@@ -372,8 +406,7 @@ public sealed partial class SqliteStorage
         }
 
         var full = Path.GetFullPath(Path.Combine(_paths.Root, stored.Replace('/', Path.DirectorySeparatorChar)));
-        var root = Path.TrimEndingDirectorySeparator(_paths.Root) + Path.DirectorySeparatorChar;
-        if (!full.StartsWith(root, StringComparison.Ordinal))
+        if (!full.StartsWith(RootPrefix(_paths.Root), StringComparison.Ordinal))
         {
             throw new InvalidDataException($"Session folder '{stored}' points outside the data root.");
         }
@@ -382,23 +415,22 @@ public sealed partial class SqliteStorage
     }
 
     /// <summary>
-    /// Delete guard for a folder stored as an absolute path. A row is plain data in a user-writable database, so a
-    /// tampered value (the user's home, a drive root) must never turn "delete session" into "delete that folder tree".
+    /// Delete guard, applied to every row. A row is plain data in a user-writable database, so a tampered value (the
+    /// user's home, a drive root, <c>Recordings</c> itself) must never turn "delete session" into "delete that folder tree".
     /// Only a path whose last segment has the shape <see cref="ReserveFolder"/> produces
-    /// (<c>yyyy-MM-dd_HH-mm-ss_&lt;8 hex&gt;</c> with an optional <c>_N</c> suffix) and that is not a drive/filesystem root
-    /// is deleted; anything else is refused with <see cref="InvalidDataException"/> and nothing is touched.
-    /// Relative values are already confined to the data root by <see cref="ResolveFolder"/>.
+    /// (<c>yyyy-MM-dd_HH-mm-ss_&lt;8 hex&gt;</c> with an optional <c>_N</c> suffix) is deleted; that also excludes the data
+    /// root, the default recordings folder and any drive/filesystem root. Anything else is refused with
+    /// <see cref="InvalidDataException"/> and nothing is touched. Relative values are additionally confined to the data
+    /// root by <see cref="ResolveFolder"/>.
     /// </summary>
-    private static void EnsureDeletable(string stored, string resolved)
+    private void EnsureDeletable(string stored, string resolved)
     {
-        if (!Path.IsPathFullyQualified(stored))
-        {
-            return;
-        }
-
         var trimmed = Path.TrimEndingDirectorySeparator(resolved);
         var root = Path.GetPathRoot(resolved);
-        if (root is null || Path.TrimEndingDirectorySeparator(root).Length >= trimmed.Length
+        if (root is null
+            || Path.TrimEndingDirectorySeparator(root).Length >= trimmed.Length
+            || string.Equals(trimmed, Path.TrimEndingDirectorySeparator(_paths.Root), PathComparison)
+            || string.Equals(trimmed, Path.TrimEndingDirectorySeparator(_paths.RecordingsDirectory), PathComparison)
             || !IsSessionFolderName(Path.GetFileName(trimmed)))
         {
             throw new InvalidDataException($"Refusing to delete '{stored}': it is not a session folder created by Murmur.");

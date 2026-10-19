@@ -365,4 +365,115 @@ public sealed class RecordingsFolderTests : IDisposable
     [InlineData("", false)]
     public void IsSessionFolderName_MatchesWhatReserveFolderProduces(string name, bool expected) =>
         Assert.Equal(expected, SqliteStorage.IsSessionFolderName(name));
+
+    [Fact]
+    public async Task TamperedRelativeRows_AreRefused_AndNothingIsDeleted()
+    {
+        Directory.CreateDirectory(Path.Combine(_root.Path, "Elsewhere"));
+        Directory.CreateDirectory(Path.Combine(_root.Path, "Recordings", "x"));
+        foreach (var value in new[] { "Recordings", "Recordings/", "Elsewhere", "Recordings/x", ".", "" })
+        {
+            var seed = Open(withProvider: false);
+            var session = await seed.CreateSessionAsync("x", T0, Ct);
+            seed.Dispose();
+            Tamper(session.Id, value);
+
+            var storage = Open(withProvider: false);
+            var deleteCalls = new List<string>();
+            storage.DeleteFolder = deleteCalls.Add;
+
+            await Assert.ThrowsAsync<InvalidDataException>(async () => await storage.DeleteSessionAsync(session.Id, Ct));
+
+            Assert.Empty(deleteCalls);
+            Assert.NotNull(await storage.GetSessionAsync(session.Id, Ct));
+        }
+
+        Assert.True(Directory.Exists(Path.Combine(_root.Path, "Elsewhere")));
+        Assert.True(Directory.Exists(Path.Combine(_root.Path, "Recordings", "x")));
+    }
+
+    [Fact]
+    public async Task ThrowingProvider_StillStartsTheRecording_InTheDefaultFolder_AndReports()
+    {
+        var storage = new SqliteStorage(new StoragePaths(_root.Path), () => throw new InvalidOperationException("settings broke"));
+        _opened.Add(storage);
+
+        var session = await storage.CreateSessionAsync("x", T0, Ct);
+
+        Assert.Equal(Path.Combine(_root.Path, "Recordings"), Path.GetDirectoryName(storage.GetFiles(session.Id).Directory));
+        var info = storage.LastFallback;
+        Assert.NotNull(info);
+        Assert.Equal(session.Id, info.Session);
+        Assert.Equal(string.Empty, info.RequestedFolder);
+        Assert.Equal("settings broke", info.Reason);
+    }
+
+    [Fact]
+    public async Task SameSecondTwice_InConfiguredFolder_GetsSuffixedFolder()
+    {
+        var target = Path.Combine(_outside.Path, "meetings");
+        _configured = target;
+        var storage = Open();
+
+        var first = await storage.CreateSessionAsync("a", T0, Ct);
+        var second = await storage.CreateSessionAsync("b", T0, Ct);
+
+        var firstDir = storage.GetFiles(first.Id).Directory;
+        var secondDir = storage.GetFiles(second.Id).Directory;
+        Assert.NotEqual(firstDir, secondDir);
+        Assert.Equal(target, Path.GetDirectoryName(secondDir));
+        Assert.EndsWith("_2", Path.GetFileName(secondDir), StringComparison.Ordinal);
+        Assert.Equal(secondDir, StoredFolder(second.Id));
+    }
+
+    [Fact]
+    public async Task ConcurrentCreates_WithProvider_GetDistinctFolders_AndOneRowEach()
+    {
+        _configured = Path.Combine(_outside.Path, "meetings");
+        var storage = Open();
+
+        var sessions = await Task.WhenAll(Enumerable.Range(0, 48)
+            .Select(i => Task.Run(async () => await storage.CreateSessionAsync("s" + i, T0, Ct), Ct)));
+
+        var folders = sessions.Select(s => storage.GetFiles(s.Id).Directory).ToArray();
+        Assert.Equal(48, folders.Distinct().Count());
+        Assert.All(folders, f => Assert.True(Directory.Exists(f)));
+        Assert.Equal(48, (await storage.ListSessionsAsync(new SessionQuery { Limit = 100 }, Ct)).Count);
+    }
+
+    [Fact]
+    public async Task Delete_WhenSessionFolderIsASymlink_RemovesOnlyTheLink()
+    {
+        Assert.SkipWhen(OperatingSystem.IsWindows(), "Symlink creation needs privileges on Windows.");
+        var target = Path.Combine(_outside.Path, "real-data");
+        Directory.CreateDirectory(target);
+        var precious = Path.Combine(target, "precious.txt");
+        await File.WriteAllTextAsync(precious, "x", Ct);
+        var seed = Open(withProvider: false);
+        var session = await seed.CreateSessionAsync("x", T0, Ct);
+        var folder = seed.GetFiles(session.Id).Directory;
+        seed.Dispose();
+        Directory.Delete(folder, recursive: true);
+        Directory.CreateSymbolicLink(folder, target);
+        var storage = Open(withProvider: false);
+
+        await storage.DeleteSessionAsync(session.Id, Ct);
+
+        Assert.False(Directory.Exists(folder));
+        Assert.True(File.Exists(precious));
+        Assert.Null(await storage.GetSessionAsync(session.Id, Ct));
+    }
+
+    [Fact]
+    public void RootThatIsAFilesystemRoot_BuildsAValidPrefix()
+    {
+        var fsRoot = Path.GetPathRoot(Path.GetFullPath(_root.Path))!;
+        var sep = Path.DirectorySeparatorChar;
+
+        Assert.Equal(fsRoot, SqliteStorage.RootPrefix(fsRoot));
+        Assert.Equal(fsRoot + "Recordings" + sep, SqliteStorage.RootPrefix(fsRoot + "Recordings"));
+        Assert.Equal("Recordings/2026", SqliteStorage.StoredFolderFor(fsRoot, fsRoot + "Recordings" + sep + "2026"));
+        Assert.Equal("a/b", SqliteStorage.StoredFolderFor(_root.Path, Path.Combine(_root.Path, "a", "b")));
+        Assert.Equal(Path.Combine(_outside.Path, "a"), SqliteStorage.StoredFolderFor(_root.Path, Path.Combine(_outside.Path, "a")));
+    }
 }
