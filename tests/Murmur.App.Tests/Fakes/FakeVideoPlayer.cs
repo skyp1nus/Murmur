@@ -47,7 +47,14 @@ internal sealed class FakeVideoPlayer : IVideoPlayer
     /// <summary>Completes the open when set by the test; null = the open completes at once.</summary>
     public TaskCompletionSource? OpenGate { get; set; }
 
+    /// <summary>The open ignores cancellation, as a player may that is already past its last cancellation point.</summary>
+    public bool IgnoreCancel { get; set; }
+
     public Exception? OpenFailure { get; set; }
+
+    public bool ThrowOnClose { get; set; }
+
+    public bool ThrowOnCopy { get; set; }
 
     /// <summary>Colour of the pictures, 0xAARRGGBB.</summary>
     public uint Color { get; set; } = 0xFF2040C0;
@@ -76,7 +83,9 @@ internal sealed class FakeVideoPlayer : IVideoPlayer
         Calls.Add("open");
         if (OpenGate is { } gate)
         {
-            await gate.Task.WaitAsync(cancellationToken).ConfigureAwait(true);
+            // The gate holds up this open only; the next one is not gated.
+            OpenGate = null;
+            await (IgnoreCancel ? gate.Task : gate.Task.WaitAsync(cancellationToken)).ConfigureAwait(true);
         }
 
         if (OpenFailure is { } failure)
@@ -96,6 +105,11 @@ internal sealed class FakeVideoPlayer : IVideoPlayer
     {
         Closes++;
         Calls.Add("close");
+        if (ThrowOnClose)
+        {
+            throw new InvalidOperationException("close failed");
+        }
+
         IsOpen = false;
         IsPlaying = false;
         Duration = TimeSpan.Zero;
@@ -136,6 +150,11 @@ internal sealed class FakeVideoPlayer : IVideoPlayer
     public bool TryCopyFrame(Span<byte> destination, int width, int height, int stride)
     {
         CopyCalls++;
+        if (ThrowOnCopy)
+        {
+            throw new InvalidOperationException("decoder lost");
+        }
+
         if (!IsOpen || !(_fresh || Continuous))
         {
             return false;

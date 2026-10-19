@@ -32,6 +32,12 @@ public sealed partial class SessionViewModel
     private int _openingSegment = VideoPlayerState.NoSegment;
     private CancellationTokenSource? _openCts;
 
+    // Which open a Failed event belongs to: the event is raised on a Media Foundation thread and handled later on the UI
+    // thread, by when the user may have moved on to another segment. The segment is written before the generation is
+    // bumped, so a reader that sees the new generation also sees the new segment.
+    private volatile int _videoGeneration;
+    private volatile int _failureSegment = VideoPlayerState.NoSegment;
+
     /// <summary>The video panel is part of the view: there is a player and the session has screen segments.</summary>
     [ObservableProperty]
     public partial bool HasVideo { get; private set; }
@@ -103,7 +109,15 @@ public sealed partial class SessionViewModel
                 CancelOpen();
                 _openSegment = VideoPlayerState.NoSegment;
                 _openingSegment = VideoPlayerState.NoSegment;
-                video.Close();
+                ForgetFailureTarget();
+                try
+                {
+                    video.Close();
+                }
+                catch (Exception)
+                {
+                    // Closing the old picture failing says nothing about the segment the audio is in now (none).
+                }
             }
             else if (command.Has(VideoSyncActions.Open))
             {
@@ -148,6 +162,7 @@ public sealed partial class SessionViewModel
         CancelOpen();
         _openSegment = VideoPlayerState.NoSegment;
         _openingSegment = index;
+        SetFailureTarget(index);
         var path = _files.ScreenSegment(index);
         if (!File.Exists(path))
         {
@@ -209,6 +224,7 @@ public sealed partial class SessionViewModel
         if (_openingSegment == index || _openSegment == index)
         {
             CancelOpen();
+            ForgetFailureTarget();
             _openingSegment = VideoPlayerState.NoSegment;
             _openSegment = VideoPlayerState.NoSegment;
             try
@@ -237,21 +253,33 @@ public sealed partial class SessionViewModel
         cts.Dispose();
     }
 
-    /// <summary>May be raised on any thread (a Media Foundation callback): marshalled to the UI thread.</summary>
-    private void OnVideoFailed(string message) => _post(OnVideoFailedOnUiThread);
-
-    private void OnVideoFailedOnUiThread()
+    private void SetFailureTarget(int segment)
     {
-        if (_disposed)
+        _failureSegment = segment;
+        _videoGeneration++;
+    }
+
+    private void ForgetFailureTarget() => SetFailureTarget(VideoPlayerState.NoSegment);
+
+    /// <summary>
+    /// May be raised on any thread (a Media Foundation callback): remembers which open it belongs to and marshals to the
+    /// UI thread, where it is dropped when another segment was opened or closed in the meantime.
+    /// </summary>
+    private void OnVideoFailed(string message)
+    {
+        var generation = _videoGeneration;
+        var segment = _failureSegment;
+        _post(() => OnVideoFailedOnUiThread(generation, segment));
+    }
+
+    private void OnVideoFailedOnUiThread(int generation, int segment)
+    {
+        if (_disposed || generation != _videoGeneration || segment == VideoPlayerState.NoSegment)
         {
             return;
         }
 
-        var index = _openSegment != VideoPlayerState.NoSegment ? _openSegment : _openingSegment;
-        if (index != VideoPlayerState.NoSegment)
-        {
-            FailSegment(index);
-        }
+        FailSegment(segment);
     }
 
     /// <summary>What the panel shows now: the picture, "Loading…", the note, or "Screen off".</summary>
@@ -276,6 +304,7 @@ public sealed partial class SessionViewModel
     private void DisposeVideo()
     {
         CancelOpen();
+        ForgetFailureTarget();
         _openSegment = VideoPlayerState.NoSegment;
         _openingSegment = VideoPlayerState.NoSegment;
         IsVideoOpen = false;

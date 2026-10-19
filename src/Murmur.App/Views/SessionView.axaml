@@ -86,12 +86,13 @@
                          Foreground="{DynamicResource Brush.Smoke}"
                          Text="{Binding VideoPlaceholderText}" />
             </StackPanel>
-            <Border x:Name="VideoChip"
-                    Classes="videoChip"
-                    IsVisible="{Binding IsVideoOpen}">
-              <TextBlock Classes="mono"
+            <Panel x:Name="VideoChip"
+                   Classes="videoChip"
+                   IsVisible="{Binding IsVideoOpen}">
+              <Border Classes="videoChipBackground" />
+              <TextBlock Classes="mono videoChipText"
                          Text="{Binding VideoInfoText}" />
-            </Border>
+            </Panel>
           </Panel>
         </Border>
 

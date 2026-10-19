@@ -627,14 +627,19 @@
     <Setter Property="CornerRadius" Value="{StaticResource Radius.Card}" />
     <Setter Property="ClipToBounds" Value="True" />
   </Style>
-  <Style Selector="Border.videoChip">
-    <Setter Property="Background" Value="{DynamicResource Brush.Canvas}" />
-    <Setter Property="Opacity" Value="0.9" />
-    <Setter Property="CornerRadius" Value="{StaticResource Radius.Pill}" />
-    <Setter Property="Padding" Value="{StaticResource Inset.Badge}" />
+  <!-- The chip fades its background only (Opacity of a Border would fade the text too), so it is a Panel of two layers. -->
+  <Style Selector="Panel.videoChip">
     <Setter Property="Margin" Value="{StaticResource Inset.16}" />
     <Setter Property="HorizontalAlignment" Value="Left" />
     <Setter Property="VerticalAlignment" Value="Bottom" />
+  </Style>
+  <Style Selector="Panel.videoChip > Border.videoChipBackground">
+    <Setter Property="Background" Value="{DynamicResource Brush.Canvas}" />
+    <Setter Property="Opacity" Value="0.9" />
+    <Setter Property="CornerRadius" Value="{StaticResource Radius.Pill}" />
+  </Style>
+  <Style Selector="Panel.videoChip > TextBlock.videoChipText">
+    <Setter Property="Margin" Value="{StaticResource Inset.Badge}" />
   </Style>
   <Style Selector="controls|IconControl">
     <Setter Property="VerticalAlignment" Value="Center" />

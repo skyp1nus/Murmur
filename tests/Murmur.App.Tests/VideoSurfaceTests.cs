@@ -166,6 +166,85 @@ public sealed class VideoSurfaceTests
     }
 
     [Fact]
+    public async Task APlayerThatThrows_StopsTheLoop_InsteadOfEscapingTheTimerTick()
+    {
+        var player = await OpenedAsync();
+
+        var (exception, looping, again) = await Session.Dispatch(
+            () =>
+            {
+                var (window, surface) = Show(player);
+                player.ThrowOnCopy = true;
+                var thrown = Record.Exception(surface.Step);
+                var stillLooping = surface.IsLooping;
+                player.ThrowOnCopy = false;
+                player.NewPicture();
+                surface.Revision++; // the next seek wakes it and it works again
+                var restarted = surface.IsLooping;
+                window.Close();
+                return (thrown, stillLooping, restarted);
+            },
+            TestContext.Current.CancellationToken);
+
+        Assert.Null(exception);
+        Assert.False(looping);
+        Assert.True(again);
+    }
+
+    [Fact]
+    public async Task NoPicturesArePulled_WhileTheWindowIsMinimized()
+    {
+        var player = await OpenedAsync();
+
+        var (calls, looping, resumed) = await Session.Dispatch(
+            () =>
+            {
+                var (window, surface) = Show(player);
+                window.WindowState = WindowState.Minimized;
+                UiHarness.Pump(2);
+                var before = player.CopyCalls;
+                surface.Step();
+                surface.Step();
+                var result = (player.CopyCalls - before, surface.IsLooping, false);
+                window.WindowState = WindowState.Normal;
+                UiHarness.Pump(2);
+                result.Item3 = surface.IsLooping;
+                window.Close();
+                return result;
+            },
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal(0, calls);
+        Assert.False(looping);
+        Assert.True(resumed);
+    }
+
+    [Fact]
+    public async Task TheStagingBuffer_OnlyGrows()
+    {
+        var player = await OpenedAsync();
+
+        var (large, small) = await Session.Dispatch(
+            () =>
+            {
+                var (window, surface) = Show(player);
+                surface.CopyFrame();
+                var big = surface.StagingLength;
+                window.Width = 240;
+                UiHarness.Pump(2);
+                player.NewPicture();
+                surface.CopyFrame();
+                var result = (big, surface.StagingLength);
+                window.Close();
+                return result;
+            },
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal(480 * 270 * 4, large);
+        Assert.Equal(large, small);
+    }
+
+    [Fact]
     public async Task ResizingTheControl_RecreatesTheBitmap_OnlyWhenTheSizeChanges()
     {
         var player = await OpenedAsync();

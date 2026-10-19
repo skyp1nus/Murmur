@@ -1,3 +1,4 @@
+using System.Runtime.InteropServices;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Media;
@@ -61,6 +62,7 @@ public sealed class VideoSurface : Control
     private readonly DispatcherTimer _timer;
     private byte[] _staging = [];
     private TopLevel? _topLevel;
+    private Window? _window;
     private WriteableBitmap? _bitmap;
     private PixelSize _bitmapSize;
     private double _bitmapScaling;
@@ -107,6 +109,9 @@ public sealed class VideoSurface : Control
     /// <summary>Size of the current bitmap in pixels (zero before the first picture); for tests.</summary>
     internal PixelSize BitmapSize => _bitmapSize;
 
+    /// <summary>Length of the staging buffer (for tests: it only grows).</summary>
+    internal int StagingLength => _staging.Length;
+
     /// <summary>How many bitmaps were created (for tests: must not grow with the frames).</summary>
     internal int BitmapBuilds { get; private set; }
 
@@ -134,12 +139,24 @@ public sealed class VideoSurface : Control
     {
         base.OnAttachedToVisualTree(e);
         _topLevel = TopLevel.GetTopLevel(this);
+        _window = _topLevel as Window;
+        if (_window is not null)
+        {
+            _window.PropertyChanged += OnWindowPropertyChanged;
+        }
+
         Wake();
     }
 
     protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
     {
         base.OnDetachedFromVisualTree(e);
+        if (_window is not null)
+        {
+            _window.PropertyChanged -= OnWindowPropertyChanged;
+            _window = null;
+        }
+
         _topLevel = null;
         _timer.Stop();
         DropPicture();
@@ -164,9 +181,9 @@ public sealed class VideoSurface : Control
     /// One animation-frame step; public to the tests.
     /// </summary>
     /// <returns>True when a new picture was copied.</returns>
-    internal unsafe bool CopyFrame()
+    internal bool CopyFrame()
     {
-        if (!Active || Player is not { } player || _topLevel is null)
+        if (!CanShow || Player is not { } player)
         {
             return false;
         }
@@ -184,31 +201,31 @@ public sealed class VideoSurface : Control
             var width = bitmap.PixelSize.Width;
             var height = bitmap.PixelSize.Height;
             var stride = width * BytesPerPixel;
-            if (_staging.Length != stride * height)
+            var length = stride * height;
+            if (_staging.Length < length)
             {
-                _staging = new byte[stride * height];
+                // Only ever grows: a window dragged smaller reuses the buffer.
+                _staging = new byte[length];
             }
 
-            var copied = player.TryCopyFrame(_staging, width, height, stride);
+            var copied = player.TryCopyFrame(_staging.AsSpan(0, length), width, height, stride);
             if (copied)
             {
-                using var framebuffer = bitmap.Lock();
-                var target = new Span<byte>((void*)framebuffer.Address, framebuffer.RowBytes * framebuffer.Size.Height);
-                if (framebuffer.RowBytes == stride)
+                using (var framebuffer = bitmap.Lock())
                 {
-                    _staging.AsSpan().CopyTo(target);
-                }
-                else
-                {
-                    for (var y = 0; y < height; y++)
+                    if (framebuffer.RowBytes == stride)
                     {
-                        _staging.AsSpan(y * stride, stride).CopyTo(target.Slice(y * framebuffer.RowBytes, stride));
+                        Marshal.Copy(_staging, 0, framebuffer.Address, length);
+                    }
+                    else
+                    {
+                        for (var y = 0; y < height; y++)
+                        {
+                            Marshal.Copy(_staging, y * stride, framebuffer.Address + (y * framebuffer.RowBytes), stride);
+                        }
                     }
                 }
-            }
 
-            if (copied)
-            {
                 FramesCopied++;
                 _hasPicture = true;
                 InvalidateVisual();
@@ -292,7 +309,6 @@ public sealed class VideoSurface : Control
         _bitmapSize = default;
         _native = default;
         _bounds = default;
-        _staging = [];
     }
 
     /// <summary>Starts (or prolongs) the frame loop.</summary>
@@ -304,7 +320,7 @@ public sealed class VideoSurface : Control
 
     private void Schedule()
     {
-        if (_timer.IsEnabled || !Active || Player is null || _topLevel is null)
+        if (_timer.IsEnabled || Player is null || !CanShow)
         {
             return;
         }
@@ -317,18 +333,45 @@ public sealed class VideoSurface : Control
     /// <summary>One poll of the loop: pulls a picture, and stops the timer when nothing more is expected.</summary>
     internal void Step()
     {
-        if (CopyFrame())
+        try
         {
-            _idle = 0;
+            if (CopyFrame())
+            {
+                _idle = 0;
+            }
+            else
+            {
+                _idle++;
+            }
         }
-        else
+        catch (Exception)
         {
-            _idle++;
+            // A decoder or the platform failed: an exception escaping a timer tick would end the app (and the audio with
+            // it). Stop polling and show no picture; the player's own Failed event tells the view model.
+            _timer.Stop();
+            _hasPicture = false;
+            InvalidateVisual();
+            return;
         }
 
-        if (!Active || Player is not { } player || (_idle >= IdleFrames && !SafeIsPlaying(player)))
+        if (!CanShow || Player is not { } player || (_idle >= IdleFrames && !SafeIsPlaying(player)))
         {
             _timer.Stop();
+        }
+    }
+
+    /// <summary>
+    /// Pictures are only pulled for a segment that is open, in a control that is on screen: not while the window is
+    /// minimized or the session view is hidden. (A hidden ancestor has no size: showing it again resizes the control,
+    /// which wakes the loop.)
+    /// </summary>
+    private bool CanShow => Active && _topLevel is not null && IsEffectivelyVisible && _window?.WindowState != WindowState.Minimized;
+
+    private void OnWindowPropertyChanged(object? sender, AvaloniaPropertyChangedEventArgs e)
+    {
+        if (e.Property == Window.WindowStateProperty)
+        {
+            Wake();
         }
     }
 

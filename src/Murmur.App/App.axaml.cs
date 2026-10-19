@@ -72,6 +72,12 @@ public partial class App : Application
             var shell = ShellViewModel.Create(services);
             var window = new MainWindow { DataContext = shell };
 
+            // The players of an open session are released with the app, not left to the finalizers.
+            if (ApplicationLifetime is IControlledApplicationLifetime exiting)
+            {
+                exiting.Exit += (_, _) => shell.CloseOpenSession();
+            }
+
             if (StartupProbe.TryGetPath(Args, out var probePath))
             {
                 StartupProbe.Attach(window, probePath, code => desktop.Shutdown(code));

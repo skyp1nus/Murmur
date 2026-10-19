@@ -291,6 +291,9 @@ public sealed partial class ShellViewModel : ObservableObject
         }
     }
 
+    /// <summary>Releases the open session view (its audio and video players); called when the app exits.</summary>
+    public void CloseOpenSession() => CloseSession();
+
     private void CloseSession()
     {
         if (Session is not { } session)

@@ -22,7 +22,8 @@ public sealed class SessionVideoTests : IDisposable
         ScreenSegment[]? segments = null,
         TimeSpan? fileDuration = null,
         bool files = true,
-        bool supported = true)
+        bool supported = true,
+        Action<Action>? post = null)
     {
         segments ??= TwoSegments;
         var record = _fixture.Record with { ScreenSegments = segments };
@@ -36,7 +37,7 @@ public sealed class SessionVideoTests : IDisposable
 
         var video = new FakeVideoPlayer(fileDuration ?? S(10));
         var playback = new FakeVideoPlayback(video, supported);
-        var vm = new SessionViewModel(record, _fixture.Files, _fixture.Transcripts, _fixture.Player, _fixture.Processing, _fixture.Time, action => action(), videoPlayback: playback);
+        var vm = new SessionViewModel(record, _fixture.Files, _fixture.Transcripts, _fixture.Player, _fixture.Processing, _fixture.Time, post ?? (action => action()), videoPlayback: playback);
         return (vm, video, playback);
     }
 
@@ -74,7 +75,8 @@ public sealed class SessionVideoTests : IDisposable
     public async Task WhileTheOpenIsInFlight_ThePlaceholderSaysLoading_AndNoSecondOpenIsAsked()
     {
         var (vm, video, _) = Create();
-        video.OpenGate = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var gate = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        video.OpenGate = gate;
 
         await vm.LoadAsync();
         vm.Tick();
@@ -84,7 +86,7 @@ public sealed class SessionVideoTests : IDisposable
         Assert.False(vm.IsVideoOpen);
         Assert.Equal(Strings.Session_Loading, vm.VideoPlaceholderText);
 
-        video.OpenGate.SetResult();
+        gate.SetResult();
         await Until(() => vm.IsVideoOpen);
 
         Assert.Single(video.Opens);
@@ -242,9 +244,10 @@ public sealed class SessionVideoTests : IDisposable
         Assert.False(vm.HasVideo);
 
         var (pending, slow, _) = CreatePending();
+        var gate = slow.OpenGate!;
         await pending.LoadAsync();
         pending.Dispose();
-        slow.OpenGate!.SetResult();
+        gate.SetResult();
         await Task.Delay(20, TestContext.Current.CancellationToken);
 
         Assert.True(slow.Disposed);
@@ -357,6 +360,82 @@ public sealed class SessionVideoTests : IDisposable
         vm.EndScrub(0.5);
 
         Assert.Equal([TimeSpan.FromMinutes(30)], video.Seeks);
+    }
+
+    [Fact]
+    public async Task AnOpenThatWasSupersededByASeek_NeverShowsItsSegment()
+    {
+        var (vm, video, _) = Create();
+        video.OpenGate = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        video.IgnoreCancel = true; // the open of segment 0 still completes after it was replaced
+        var firstGate = video.OpenGate;
+
+        await vm.LoadAsync();
+        Assert.False(vm.IsVideoOpen);
+
+        vm.SeekTo(S(25)); // into segment 1 while segment 0 is still opening
+        Assert.True(vm.IsVideoOpen);
+        Assert.Equal([S(5)], video.Seeks);
+
+        firstGate.SetResult();
+        await Task.Delay(50, TestContext.Current.CancellationToken);
+        vm.Tick();
+
+        Assert.True(vm.IsVideoOpen);
+        Assert.Equal([_fixture.Files.ScreenSegment(0), _fixture.Files.ScreenSegment(1)], video.Opens);
+        Assert.Equal(1, video.Opens.Count(o => o.EndsWith("screen-001.mp4", StringComparison.Ordinal)));
+    }
+
+    [Fact]
+    public async Task AFailureOfAnEarlierSegment_ReachingTheUiThreadLate_DoesNotCondemnTheCurrentOne()
+    {
+        var queue = new Queue<Action>();
+        var (vm, video, _) = Create(post: queue.Enqueue);
+        await vm.LoadAsync();
+        Assert.True(vm.IsVideoOpen);
+
+        // Segment 0 fails on a Media Foundation thread; the handler is queued, not run yet.
+        await Task.Run(() => video.RaiseFailed("device lost"), TestContext.Current.CancellationToken);
+        Assert.Single(queue);
+
+        vm.SeekTo(S(25)); // meanwhile the user moved into segment 1
+        Assert.True(vm.IsVideoOpen);
+        while (queue.Count > 0)
+        {
+            queue.Dequeue()();
+        }
+
+        Assert.True(vm.IsVideoOpen);
+        Assert.Equal(Strings.Session_VideoOff, vm.VideoPlaceholderText);
+        Assert.Equal(0, video.Closes);
+
+        // A failure of the segment that is current still counts.
+        await Task.Run(() => video.RaiseFailed("device lost"), TestContext.Current.CancellationToken);
+        while (queue.Count > 0)
+        {
+            queue.Dequeue()();
+        }
+
+        Assert.False(vm.IsVideoOpen);
+        Assert.Equal(Strings.Session_VideoUnplayable, vm.VideoPlaceholderText);
+    }
+
+    [Fact]
+    public async Task ACloseThatThrows_DoesNotMakeTheOldSegmentUnplayable()
+    {
+        var (vm, video, _) = Create();
+        await vm.LoadAsync();
+        video.ThrowOnClose = true;
+
+        vm.SeekTo(S(15)); // the gap: the player is closed, and throws
+        Assert.False(vm.IsVideoOpen);
+        Assert.Equal(Strings.Session_VideoOff, vm.VideoPlaceholderText);
+
+        video.ThrowOnClose = false;
+        vm.SeekTo(S(5)); // back in segment 0: it is opened again
+
+        Assert.True(vm.IsVideoOpen);
+        Assert.Equal(2, video.Opens.Count(o => o.EndsWith("screen-000.mp4", StringComparison.Ordinal)));
     }
 
     private static async Task Until(Func<bool> condition)

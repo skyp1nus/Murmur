@@ -82,7 +82,7 @@ public sealed class SessionVideoViewTests
                 var view = window.GetVisualDescendants().OfType<SessionView>().Single();
                 var panel = Find<Border>(view, "VideoPanel");
                 var surface = Find<VideoSurface>(view, "Video");
-                var chip = Find<Border>(view, "VideoChip");
+                var chip = Find<Panel>(view, "VideoChip");
                 var placeholder = Find<StackPanel>(view, "VideoPlaceholder");
 
                 // At the start: segment 0 is open and shows the first picture.
@@ -95,7 +95,7 @@ public sealed class SessionVideoViewTests
                     panel.IsEffectivelyVisible,
                     chip.IsEffectivelyVisible,
                     placeholder.IsEffectivelyVisible,
-                    ((TextBlock)chip.Child!).Text,
+                    chip.GetVisualDescendants().OfType<TextBlock>().Single().Text,
                     panel.Bounds.Size,
                     Pixel(window, (int)centre.X, (int)centre.Y),
                     video.Position);
