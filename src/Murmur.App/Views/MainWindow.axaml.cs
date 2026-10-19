@@ -1,3 +1,4 @@
+using Avalonia;
 using Avalonia.Controls;
 using Murmur.App.ViewModels;
 using Murmur.Core.Recording;
@@ -8,6 +9,7 @@ public partial class MainWindow : Window
 {
     private bool _closeConfirmed;
     private Task? _stopping;
+    private WindowState _restoreState = WindowState.Normal;
 
     public MainWindow()
     {
@@ -22,6 +24,35 @@ public partial class MainWindow : Window
     /// every close request is cancelled; the first one starts "settle, stop, flush, close". The window closes itself
     /// only after the recorder is back to idle, so the process cannot exit while files and the session row are written.
     /// </summary>
+    /// <summary>
+    /// Brings the window back: shows it when hidden, restores it when minimized (to Normal or Maximized, as it was before) and
+    /// activates it. Windows may refuse to move another program's window to the foreground while the user works elsewhere
+    /// (the foreground lock); then the taskbar button flashes, which is as far as <see cref="Window.Activate"/> goes.
+    /// </summary>
+    public void BringToFront()
+    {
+        if (!IsVisible)
+        {
+            Show();
+        }
+
+        if (WindowState == WindowState.Minimized)
+        {
+            WindowState = _restoreState;
+        }
+
+        Activate();
+    }
+
+    protected override void OnPropertyChanged(AvaloniaPropertyChangedEventArgs change)
+    {
+        base.OnPropertyChanged(change);
+        if (change.Property == WindowStateProperty && change.GetNewValue<WindowState>() != WindowState.Minimized)
+        {
+            _restoreState = change.GetNewValue<WindowState>();
+        }
+    }
+
     protected override void OnClosing(WindowClosingEventArgs e)
     {
         base.OnClosing(e);

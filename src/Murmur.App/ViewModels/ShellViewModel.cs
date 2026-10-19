@@ -266,6 +266,30 @@ public sealed partial class ShellViewModel : ObservableObject
         }
     });
 
+    /// <summary>
+    /// The record hotkey: while idle it opens the recording screen and starts with the saved defaults, while recording it stops
+    /// (the stop leads back to the library, as the button does). Ignored while the onboarding is shown (its trial recording
+    /// has its own button) and while the recorder is starting or stopping.
+    /// </summary>
+    internal Task ToggleRecordingFromHotkeyAsync()
+    {
+        if (CurrentPage is OnboardingViewModel)
+        {
+            return Task.CompletedTask;
+        }
+
+        if (Recording.RecorderIsIdle)
+        {
+            ShowRecording();
+        }
+
+        return Recording.ToggleRecordingFromHotkeyAsync();
+    }
+
+    /// <summary>The screen hotkey: only while recording, and not during the onboarding's trial recording.</summary>
+    internal Task ToggleScreenFromHotkeyAsync() =>
+        CurrentPage is OnboardingViewModel ? Task.CompletedTask : Recording.ToggleScreenFromHotkeyAsync();
+
     public void ShowRecording()
     {
         CloseSession();

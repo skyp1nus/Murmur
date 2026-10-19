@@ -1,5 +1,6 @@
 using Murmur.App.Services;
 using Murmur.Core.Capture;
+using Murmur.Core.Input;
 using Murmur.Core.Models;
 using Murmur.Core.Recording;
 using Murmur.Core.Sessions;
@@ -40,6 +41,13 @@ namespace Murmur.App;
 /// Creates the screen-recording player of the recording view (D-035). <c>null</c> or <see cref="IVideoPlayback.IsSupported"/>
 /// false = no video panel; the recording view plays audio only.
 /// </param>
+/// <param name="Hotkeys">
+/// System-wide hotkeys (record, screen, show the window). The app registers the gestures of the settings after the first
+/// frame and follows their changes; the composition root owns and disposes it. <c>null</c> = no global hotkeys.
+/// </param>
+/// <param name="Activation">
+/// Another start of the program asked this one to show its window (single instance). Raised on any thread; <c>null</c> = never.
+/// </param>
 public sealed record AppServices(
     IRecorder Recorder,
     ICapture Capture,
@@ -55,4 +63,6 @@ public sealed record AppServices(
     IModelManager? Models = null,
     Func<ModelKind, string?>? ActiveModelId = null,
     string? DefaultRecordingsDirectory = null,
-    IVideoPlayback? VideoPlayback = null);
+    IVideoPlayback? VideoPlayback = null,
+    IGlobalHotkeys? Hotkeys = null,
+    IActivationRequests? Activation = null);

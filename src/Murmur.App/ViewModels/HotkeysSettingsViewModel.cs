@@ -1,14 +1,18 @@
 using Avalonia.Input;
 using CommunityToolkit.Mvvm.ComponentModel;
 using Murmur.App.Resources;
+using Murmur.Core.Input;
 using Murmur.Core.Settings;
+using CoreHotkeyAction = Murmur.Core.Input.HotkeyAction;
 
 namespace Murmur.App.ViewModels;
 
 /// <summary>
 /// The "Гарячі клавіші" section. A click on a row starts capturing: the next key combination becomes the hotkey, Esc
 /// cancels, Backspace clears it. Combinations are validated with a <c>KeyGesture.Parse</c> round trip and a combination that
-/// another action already uses is refused. Registering them with the OS is a later task; here they are only stored.
+/// another action already uses is refused. The app registers the stored gestures with the system
+/// (<c>HotkeyCoordinator</c>) and reports each result back through <see cref="SetRegistration"/>, which shows as a note
+/// under the row.
 /// </summary>
 public sealed partial class HotkeysSettingsViewModel : ObservableObject
 {
@@ -52,6 +56,35 @@ public sealed partial class HotkeysSettingsViewModel : ObservableObject
 
         Capturing = null;
         Error = null;
+    }
+
+    /// <summary>The system's answer for the gesture of an action, shown as a note under its row (nothing for Registered and Cleared).</summary>
+    internal void SetRegistration(CoreHotkeyAction action, HotkeyRegistration registration)
+    {
+        var row = RowOf(action);
+        if (row is not null)
+        {
+            row.Registration = registration;
+        }
+    }
+
+    private HotkeyRowViewModel? RowOf(CoreHotkeyAction action)
+    {
+        var own = action switch
+        {
+            CoreHotkeyAction.ToggleRecording => HotkeyAction.Record,
+            CoreHotkeyAction.ToggleScreen => HotkeyAction.ToggleScreen,
+            _ => HotkeyAction.ShowApp,
+        };
+        foreach (var row in Rows)
+        {
+            if (row.Action == own)
+            {
+                return row;
+            }
+        }
+
+        return null;
     }
 
     internal void BeginCapture(HotkeyRowViewModel row)
@@ -128,6 +161,9 @@ public sealed partial class HotkeysSettingsViewModel : ObservableObject
     private void Save(HotkeyRowViewModel row, string? gesture)
     {
         row.Gesture = gesture;
+
+        // The note was about the old gesture; the app registers the new one and reports again.
+        row.Registration = HotkeyRegistration.Registered;
         LastSave = SaveAsync(row.Action, gesture);
     }
 

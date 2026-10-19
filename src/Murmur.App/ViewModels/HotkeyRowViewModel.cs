@@ -1,6 +1,7 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Murmur.App.Resources;
+using Murmur.Core.Input;
 
 namespace Murmur.App.ViewModels;
 
@@ -35,17 +36,42 @@ public sealed partial class HotkeyRowViewModel : ObservableObject
 
     /// <summary>Waiting for the next key combination.</summary>
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(DisplayText), nameof(ShowHint))]
+    [NotifyPropertyChangedFor(nameof(DisplayText), nameof(ShowHint), nameof(ShowRegistrationNote))]
     public partial bool IsCapturing { get; set; }
 
     /// <summary>Why the last combination was refused, or <c>null</c>.</summary>
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(HasError))]
+    [NotifyPropertyChangedFor(nameof(HasError), nameof(ShowRegistrationNote))]
     public partial string? Error { get; set; }
+
+    /// <summary>
+    /// What the system said about the stored gesture the last time it was registered as a global hotkey
+    /// (<see cref="HotkeyRegistration.Registered"/> until the app has tried).
+    /// </summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(RegistrationNote), nameof(HasRegistrationNote), nameof(ShowRegistrationNote))]
+    public partial HotkeyRegistration Registration { get; set; }
 
     public bool HasError => Error is not null;
 
     public bool ShowHint => IsCapturing;
+
+    /// <summary>
+    /// A short note under the row when the gesture does not work as a global hotkey: taken by another app, not usable, or not
+    /// supported on this system. <c>null</c> when it works or there is none.
+    /// </summary>
+    public string? RegistrationNote => Registration switch
+    {
+        HotkeyRegistration.Taken => Strings.Hotkeys_Taken,
+        HotkeyRegistration.Invalid => Strings.Hotkeys_Invalid,
+        HotkeyRegistration.Unsupported => Strings.Hotkeys_Unsupported,
+        _ => null,
+    };
+
+    public bool HasRegistrationNote => RegistrationNote is not null;
+
+    /// <summary>The note is shown unless the row is capturing or shows a refusal of its own (they take the same line).</summary>
+    public bool ShowRegistrationNote => HasRegistrationNote && !IsCapturing && !HasError;
 
     public string Hint => Strings.Hotkeys_Hint;
 
