@@ -109,4 +109,18 @@ public sealed class ModelFetchTests
         Assert.Equal(2, code);
         Assert.Contains("Usage:", error);
     }
+
+    [Theory]
+    [InlineData("--help")]
+    [InlineData("-h")]
+    public async Task Run_PrintsUsageForHelpAndExitsWithZero(string flag)
+    {
+        await using var h = new Harness();
+
+        var (code, output, error) = await RunAsync(h, flag);
+
+        Assert.Equal(0, code);
+        Assert.Contains("Usage:", output);
+        Assert.Equal("", error);
+    }
 }

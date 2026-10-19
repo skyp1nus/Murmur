@@ -145,7 +145,7 @@ public sealed class ResumeAndLifecycleTests
         var ex = await Assert.ThrowsAsync<ModelInstallException>(() => tooSmall.InstallAsync("m", TestContext.Current.CancellationToken));
         Assert.Contains("disk space", ex.Message);
 
-        using var roomy = h.Manager([Item(h, displaySize: 1_000_000)], freeSpace: _ => 10_000_000);
+        using var roomy = h.Manager([Item(h, displaySize: 1_000_000)], freeSpace: _ => 1_500_000); // the 1 MB item needs 1 MB, not 5x as an archive would
         await roomy.InstallAsync("m", TestContext.Current.CancellationToken);
         Assert.Equal(ModelInstallState.Installed, roomy.GetStatus("m").State);
     }
@@ -259,6 +259,24 @@ public sealed class ResumeAndLifecycleTests
         await removal;
         await manager.InstallAsync("m", TestContext.Current.CancellationToken); // fine once the removal finished
         Assert.Equal(ModelInstallState.Installed, manager.GetStatus("m").State);
+    }
+
+    [Fact]
+    public async Task AStrayValidatorFromACrash_DoesNotTravelIntoTheInstalledFolder()
+    {
+        await using var h = new Harness();
+        var a = Harness.Bytes(100, 1);
+        h.Server.Add("/a", a);
+        h.Server.Add("/b", Harness.Bytes(100, 2));
+        var dl = Path.Combine(h.Models, ".staging", "multi", "dl");
+        Directory.CreateDirectory(dl);
+        await File.WriteAllBytesAsync(Path.Combine(dl, "a"), a, TestContext.Current.CancellationToken); // renamed before the crash...
+        await File.WriteAllTextAsync(Path.Combine(dl, "a.part.validator"), "none\ntotal:100\n", TestContext.Current.CancellationToken); // ...validator not yet deleted
+        using var manager = h.Manager([Harness.DirectoryItem("multi", h.Server, "multi-dir", "/a", "/b")]);
+
+        await manager.InstallAsync("multi", TestContext.Current.CancellationToken);
+
+        Assert.Equal(["a", "b"], Directory.EnumerateFiles(Path.Combine(h.Models, "multi-dir")).Select(Path.GetFileName).Order());
     }
 
     [Fact]

@@ -11,6 +11,12 @@ internal static class FetchRunner
     /// <returns>0 when everything worked, 1 when an item failed, 2 for a usage error.</returns>
     public static async Task<int> RunAsync(string[] args, TextWriter output, TextWriter error, ModelCatalogSources sources, CancellationToken cancellationToken)
     {
+        if (args.Length > 0 && args[0] is "--help" or "-h" or "-?")
+        {
+            await output.WriteLineAsync(FetchOptions.Usage);
+            return 0;
+        }
+
         var options = FetchOptions.Parse(args, out var problem);
         if (options is null)
         {

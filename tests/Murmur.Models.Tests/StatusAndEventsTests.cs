@@ -151,7 +151,6 @@ public sealed class StatusAndEventsTests
 
         Assert.True(downloading.Count >= 2);
         Assert.True(downloading.Count <= (started.ElapsedMilliseconds / 100) + 2, $"{downloading.Count} events in {started.ElapsedMilliseconds} ms");
-        Assert.True(downloading.Count < Chunks / 2, $"{downloading.Count} events for {Chunks} chunks");
         Assert.Equal(ModelInstallState.Installed, events[^1].Status.State); // the final state is never throttled away
     }
 

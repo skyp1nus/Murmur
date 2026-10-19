@@ -576,6 +576,13 @@ public sealed class ModelManager : IModelManager, IDisposable
             reports.Add(new ModelFileReport(spec.Url, spec.RelativePath, length, hash));
         }
 
+        // A crash between the rename of a file and the deletion of its validator leaves the validator behind: it must
+        // not travel into the installed folder.
+        foreach (var stray in Directory.EnumerateFiles(dl, "*.validator", SearchOption.AllDirectories))
+        {
+            File.Delete(stray);
+        }
+
         await PlaceAsync(item, root, dl, cancellationToken).ConfigureAwait(false);
         Activate(item);
 
@@ -618,7 +625,7 @@ public sealed class ModelManager : IModelManager, IDisposable
         if (!allKnown)
         {
             remaining = Math.Max(0, item.Info.SizeBytes - operation.BytesDone); // only the approximate size is known
-            archiveBytes = item.Info.SizeBytes;
+            archiveBytes = item.Packaging != ModelPackaging.Files ? item.Info.SizeBytes : 0; // only archives are extracted
         }
         else if (item.Packaging != ModelPackaging.Files)
         {
@@ -799,7 +806,15 @@ public sealed class ModelManager : IModelManager, IDisposable
             {
                 Directory.Delete(root, recursive: true);
             }
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            throw new ModelInstallException($"Removing '{item.Id}' failed: {ex.Message}", ex);
+        }
 
+        // Housekeeping after a successful removal: a concurrent install may be creating its own folder in there.
+        try
+        {
             var staging = Path.GetDirectoryName(root)!;
             if (Directory.Exists(staging) && !Directory.EnumerateFileSystemEntries(staging).Any())
             {
@@ -808,7 +823,6 @@ public sealed class ModelManager : IModelManager, IDisposable
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
-            throw new ModelInstallException($"Removing '{item.Id}' failed: {ex.Message}", ex);
         }
 
         lock (_gate)
