@@ -16,18 +16,37 @@ public sealed partial class SqliteStorage : IStorage, IDisposable
         "id, title, started_at, duration_ms, state, has_mic, has_system, screen_segments, error";
 
     private readonly StoragePaths _paths;
+    private readonly Func<string?>? _recordingsFolder;
     private readonly string _connectionString;
     private readonly object _initLock = new();
     private readonly object _folderLock = new();
     private readonly ConcurrentDictionary<SessionId, string> _folders = new();
     private volatile bool _initialized;
+    private volatile RecordingsFolderFallbackInfo? _lastFallback;
     private bool _disposed;
 
-    /// <summary>Opens (and lazily creates) the storage under <paramref name="paths"/>.</summary>
+    /// <summary>Opens (and lazily creates) the storage under <paramref name="paths"/>; new sessions go to the default <c>Recordings</c> folder.</summary>
     public SqliteStorage(StoragePaths paths)
+        : this(paths, null)
+    {
+    }
+
+    /// <summary>
+    /// Opens (and lazily creates) the storage under <paramref name="paths"/>.
+    /// </summary>
+    /// <param name="paths">The data root: database, settings and the default recordings folder.</param>
+    /// <param name="recordingsFolder">
+    /// Asked at every <see cref="CreateSessionAsync"/> for the folder that receives the new session folder (the
+    /// <c>AppSettings.RecordingsDirectory</c> setting). <c>null</c> provider or a <c>null</c>/blank result = the default
+    /// <c>&lt;data root&gt;/Recordings</c>. Existing sessions never move when the setting changes. An unusable value
+    /// (not an absolute path, cannot be created or written) falls back to the default and is reported through
+    /// <see cref="RecordingsFolderFallback"/>.
+    /// </param>
+    public SqliteStorage(StoragePaths paths, Func<string?>? recordingsFolder)
     {
         ArgumentNullException.ThrowIfNull(paths);
         _paths = paths;
+        _recordingsFolder = recordingsFolder;
         _connectionString = new SqliteConnectionStringBuilder
         {
             DataSource = paths.DatabasePath,
@@ -49,6 +68,18 @@ public sealed partial class SqliteStorage : IStorage, IDisposable
     public static SqliteStorage CreateDefault() => new(StoragePaths.FromEnvironment());
 
     public string RootDirectory => _paths.Root;
+
+    /// <summary>
+    /// Raised (on the thread that creates the session, outside any lock) when the configured recordings folder was
+    /// unusable and the new session was put into the default folder. The recording still starts.
+    /// </summary>
+    public event Action<RecordingsFolderFallbackInfo>? RecordingsFolderFallback;
+
+    /// <summary>
+    /// The fallback of the most recent <see cref="CreateSessionAsync"/>, or <c>null</c> when that session went to the
+    /// configured (or default) folder as asked.
+    /// </summary>
+    public RecordingsFolderFallbackInfo? LastFallback => _lastFallback;
 
     public StoragePaths Paths => _paths;
 
