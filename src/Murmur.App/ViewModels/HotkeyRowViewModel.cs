@@ -5,13 +5,6 @@ using Murmur.Core.Input;
 
 namespace Murmur.App.ViewModels;
 
-public enum HotkeyAction
-{
-    Record,
-    ToggleScreen,
-    ShowApp,
-}
-
 /// <summary>One row of the "Гарячі клавіші" card: the action, its key caps and the capture state.</summary>
 public sealed partial class HotkeyRowViewModel : ObservableObject
 {

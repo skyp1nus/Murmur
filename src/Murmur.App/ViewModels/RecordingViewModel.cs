@@ -297,9 +297,11 @@ public sealed partial class RecordingViewModel : ObservableObject, ILevelSource
     }
 
     /// <summary>
-    /// The screen hotkey: flips the screen pill while recording, which sends the change to the recorder like a click does.
-    /// Ignored when not recording, without a screen capture, and while an earlier change is still in flight. Completes when the
-    /// change has been applied.
+    /// The screen hotkey: while recording, turns the screen to the opposite of what the recorder does now
+    /// (<see cref="IRecorder.IsScreenRecording"/>, which a screen fault may have changed behind the pill's back). The pill is
+    /// set to match first, then flipped, which sends the change to the recorder like a click does. Ignored when not
+    /// recording, without a screen capture, and while an earlier change is still in flight. Completes when the change has
+    /// been applied.
     /// </summary>
     internal Task ToggleScreenFromHotkeyAsync()
     {
@@ -308,7 +310,8 @@ public sealed partial class RecordingViewModel : ObservableObject, ILevelSource
             return Task.CompletedTask;
         }
 
-        Screen = !Screen;
+        SyncScreenWithRecorder();
+        Screen = !_recorder.IsScreenRecording;
         return PendingScreenChange;
     }
 

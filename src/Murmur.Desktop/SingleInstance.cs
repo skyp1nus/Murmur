@@ -12,8 +12,14 @@ internal interface IInstanceChannel : IDisposable
     /// <summary>This process created the mutex: no other Murmur is running.</summary>
     bool IsFirst { get; }
 
-    /// <summary>Wakes the first instance (a later start calls this before it exits).</summary>
+    /// <summary>Asks the first instance to show its window (a later start calls this). Clears an old, unclaimed answer first.</summary>
     void SignalFirst();
+
+    /// <summary>The first instance's answer: its window was brought to the front. Any thread.</summary>
+    void Acknowledge();
+
+    /// <summary>Waits up to <paramref name="timeout"/> for the first instance's answer to <see cref="SignalFirst"/>.</summary>
+    bool WaitAcknowledged(TimeSpan timeout);
 
     /// <summary>Blocks until the event is set (<see langword="true"/>) or <paramref name="cancellationToken"/> is cancelled (<see langword="false"/>).</summary>
     bool Wait(CancellationToken cancellationToken);
@@ -22,8 +28,12 @@ internal interface IInstanceChannel : IDisposable
 /// <summary>
 /// One Murmur per user session. The first start holds the mutex <see cref="MutexName"/> for the whole run (the installer's
 /// <c>AppMutex</c> names the same mutex) and waits for <see cref="EventName"/> on a background thread; a second start sets
-/// that event and ends with exit code 0 before any UI exists. The first instance then raises <see cref="Requested"/>, which
-/// the app answers by bringing its window to the front.
+/// that event and ends with exit code 0 before any UI exists. The first instance raises <see cref="Requested"/>, the app
+/// brings its window to the front and calls <see cref="Acknowledge"/>, which is what lets the second start exit. A first
+/// instance that does not answer within <see cref="SingleInstanceTiming.AckTimeout"/> is on its way out (its window is gone or
+/// closing): the second start then tries to become the first one every <see cref="SingleInstanceTiming.RetryInterval"/> for up
+/// to <see cref="SingleInstanceTiming.RetryWindow"/> and starts normally once it can. The names have no <c>Global\</c> prefix:
+/// one Murmur per user session (a per-user install).
 /// </summary>
 /// <remarks>
 /// Diagnostic runs (<c>--startup-probe</c>, <c>--autorecord</c>) skip the check altogether: they neither exit silently because
@@ -35,6 +45,7 @@ internal sealed class SingleInstance : IActivationRequests, IDisposable
 {
     public const string MutexName = "MurmurSingleInstance";
     public const string EventName = "MurmurShowApp";
+    public const string AckEventName = "MurmurShowAppAck";
 
     private readonly IInstanceChannel? _channel;
     private readonly CancellationTokenSource _stop = new();
@@ -72,52 +83,96 @@ internal sealed class SingleInstance : IActivationRequests, IDisposable
     public static IInstanceChannel? OpenSystemChannel() => OperatingSystem.IsWindows() ? WindowsInstanceChannel.Open() : null;
 
     /// <summary>
-    /// Decides whether this process is the first Murmur. <paramref name="open"/> creates the channel (called once, never for a
-    /// diagnostic run); <see langword="null"/> or an exception means there is no check.
+    /// Decides whether this process is the first Murmur. <paramref name="open"/> creates the channel (never for a diagnostic
+    /// run, and again for every retry of a second start); <see langword="null"/> or an exception means there is no check. A
+    /// second start blocks here until the first instance has answered, or until it could take over, or gave up
+    /// (<see cref="IsPrimary"/> <see langword="false"/> either way when the first is still there).
     /// </summary>
-    public static SingleInstance Enter(IReadOnlyList<string> args, Func<IInstanceChannel?> open)
+    public static SingleInstance Enter(IReadOnlyList<string> args, Func<IInstanceChannel?> open, SingleInstanceTiming? timing = null)
     {
         ArgumentNullException.ThrowIfNull(args);
         ArgumentNullException.ThrowIfNull(open);
+        var wait = timing ?? SingleInstanceTiming.Default;
         if (IsDiagnostic(args))
         {
             return new SingleInstance(null, isPrimary: true);
         }
 
-        IInstanceChannel? channel;
-        try
+        var clock = System.Diagnostics.Stopwatch.StartNew();
+        var asked = false;
+        var nextAsk = TimeSpan.Zero;
+        while (true)
         {
-            channel = open();
-        }
-        catch (Exception ex)
-        {
-            Console.Error.WriteLine($"Single-instance check unavailable: {ex.Message}");
-            return new SingleInstance(null, isPrimary: true);
-        }
+            var channel = TryOpen(open);
+            if (channel is null)
+            {
+                return new SingleInstance(null, isPrimary: true);
+            }
 
-        if (channel is null)
-        {
-            return new SingleInstance(null, isPrimary: true);
-        }
+            if (channel.IsFirst)
+            {
+                var instance = new SingleInstance(channel, isPrimary: true);
+                instance.StartListening();
+                return instance;
+            }
 
-        if (!channel.IsFirst)
-        {
+            bool answered;
             try
             {
-                channel.SignalFirst();
+                // The first round asks and waits the full answer time. Later rounds look for a late answer and repeat the
+                // request once per answer time (the first instance may have been too busy to listen yet).
+                var first = !asked;
+                if (first || clock.Elapsed >= nextAsk)
+                {
+                    channel.SignalFirst();
+                    nextAsk = clock.Elapsed + wait.AckTimeout;
+                }
+
+                asked = true;
+                answered = channel.WaitAcknowledged(first ? wait.AckTimeout : TimeSpan.Zero);
             }
             catch (Exception ex)
             {
                 Console.Error.WriteLine($"Could not wake the running Murmur: {ex.Message}");
+                answered = true;
+            }
+            finally
+            {
+                channel.Dispose();
             }
 
-            channel.Dispose();
-            return new SingleInstance(null, isPrimary: false);
-        }
+            if (answered || clock.Elapsed >= wait.RetryWindow)
+            {
+                return new SingleInstance(null, isPrimary: false);
+            }
 
-        var instance = new SingleInstance(channel, isPrimary: true);
-        instance.StartListening();
-        return instance;
+            Thread.Sleep(wait.RetryInterval);
+        }
+    }
+
+    private static IInstanceChannel? TryOpen(Func<IInstanceChannel?> open)
+    {
+        try
+        {
+            return open();
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine($"Single-instance check unavailable: {ex.Message}");
+            return null;
+        }
+    }
+
+    /// <inheritdoc />
+    public void Acknowledge()
+    {
+        try
+        {
+            _channel?.Acknowledge();
+        }
+        catch (ObjectDisposedException)
+        {
+        }
     }
 
     public void Dispose()
@@ -176,11 +231,13 @@ internal sealed class WindowsInstanceChannel : IInstanceChannel
 {
     private readonly Mutex _mutex;
     private readonly EventWaitHandle _event;
+    private readonly EventWaitHandle _ack;
 
-    private WindowsInstanceChannel(Mutex mutex, EventWaitHandle signal, bool isFirst)
+    private WindowsInstanceChannel(Mutex mutex, EventWaitHandle signal, EventWaitHandle ack, bool isFirst)
     {
         _mutex = mutex;
         _event = signal;
+        _ack = ack;
         IsFirst = isFirst;
     }
 
@@ -190,26 +247,48 @@ internal sealed class WindowsInstanceChannel : IInstanceChannel
     public static WindowsInstanceChannel Open()
     {
         var mutex = new Mutex(initiallyOwned: false, SingleInstance.MutexName, out var created);
+        EventWaitHandle? signal = null;
         try
         {
-            var signal = new EventWaitHandle(initialState: false, EventResetMode.AutoReset, SingleInstance.EventName);
-            return new WindowsInstanceChannel(mutex, signal, created);
+            signal = new EventWaitHandle(initialState: false, EventResetMode.AutoReset, SingleInstance.EventName);
+            var ack = new EventWaitHandle(initialState: false, EventResetMode.AutoReset, SingleInstance.AckEventName);
+            return new WindowsInstanceChannel(mutex, signal, ack, created);
         }
         catch
         {
+            signal?.Dispose();
             mutex.Dispose();
             throw;
         }
     }
 
-    public void SignalFirst() => _event.Set();
+    public void SignalFirst()
+    {
+        // An answer nobody claimed (an earlier asker gave up) must not be taken for the answer to this request.
+        _ack.Reset();
+        _event.Set();
+    }
+
+    public void Acknowledge() => _ack.Set();
+
+    public bool WaitAcknowledged(TimeSpan timeout) => _ack.WaitOne(timeout);
 
     public bool Wait(CancellationToken cancellationToken) =>
         WaitHandle.WaitAny([_event, cancellationToken.WaitHandle]) == 0;
 
     public void Dispose()
     {
+        _ack.Dispose();
         _event.Dispose();
         _mutex.Dispose();
     }
+}
+
+/// <summary>How long a second start waits for the first one, and how it retries (the defaults are the product's; tests shorten them).</summary>
+/// <param name="AckTimeout">How long the first answer is awaited, and the period at which the request is repeated afterwards.</param>
+/// <param name="RetryInterval">How often a second start looks again whether it can become the first one.</param>
+/// <param name="RetryWindow">When a second start whose first instance never goes away gives up (and exits).</param>
+internal sealed record SingleInstanceTiming(TimeSpan AckTimeout, TimeSpan RetryInterval, TimeSpan RetryWindow)
+{
+    public static SingleInstanceTiming Default { get; } = new(TimeSpan.FromSeconds(2), TimeSpan.FromMilliseconds(250), TimeSpan.FromSeconds(15));
 }

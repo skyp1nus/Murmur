@@ -1,7 +1,6 @@
 using Murmur.App.ViewModels;
 using Murmur.Core.Input;
 using Murmur.Core.Settings;
-using HotkeyAction = Murmur.Core.Input.HotkeyAction;
 
 namespace Murmur.App.Services;
 
@@ -11,14 +10,19 @@ namespace Murmur.App.Services;
 /// </summary>
 /// <remarks>
 /// <para><b>Threads.</b> <see cref="IGlobalHotkeys.Register"/> is synchronous and marshals to the hotkey thread, so it never runs
-/// on the UI thread: registrations are made on <c>runBackground</c> (the thread pool), one at a time under a private lock.
+/// on the UI thread: registrations are made on <c>runBackground</c> (the thread pool), one pass at a time under <c>_gate</c>.
 /// <see cref="IGlobalHotkeys.Pressed"/> arrives on the hotkey thread; its handler only posts to the UI thread and returns, and
-/// never takes that lock, so a <c>Register</c> that waits for the hotkey thread cannot deadlock with a press.</para>
-/// <para><b>Re-registration.</b> Only the actions whose gesture text changed are registered again. Changed gestures are
-/// released first and registered afterwards, so two actions may swap gestures. Quick successive changes are coalesced to the
-/// latest settings. The latest <see cref="HotkeyRegistration"/> of every action is pushed to the Settings rows (a note under a
-/// row when the gesture is taken or unusable).</para>
-/// <para><b>Presses are ignored</b> while the Settings wait for a key combination (the user is typing a gesture, not recording).</para>
+/// never takes the lock, so a <c>Register</c> that waits for the hotkey thread cannot deadlock with a press. The UI thread
+/// never takes <c>_gate</c> either (only the short <c>_input</c> lock), so a slow <c>Register</c> cannot freeze the UI.</para>
+/// <para><b>Re-registration.</b> Only the actions whose gesture text changed (and those that are <c>Taken</c>, which are tried
+/// again on every settings change) are registered. Everything that changed is released first and registered afterwards, so
+/// two actions may swap gestures, or one may take a gesture another gives up in the same change. Quick successive changes
+/// are coalesced to the latest settings. After every pass the latest <see cref="HotkeyRegistration"/> of all three actions is
+/// pushed to the Settings rows (a note under a row when the gesture is taken or unusable).</para>
+/// <para><b>Capturing.</b> While a Settings (or onboarding) row waits for a key combination every registration is released, so
+/// the combination reaches the field instead of triggering its action; when the capture ends they are registered again. Notes
+/// stay as they were during the capture.</para>
+/// <para><b>Presses are ignored</b> while a row captures and once the window is closing.</para>
 /// </remarks>
 internal sealed class HotkeyCoordinator : IDisposable
 {
@@ -28,16 +32,24 @@ internal sealed class HotkeyCoordinator : IDisposable
     private readonly ISettingsStore _settings;
     private readonly ShellViewModel _shell;
     private readonly Action _showApp;
+    private readonly Func<bool> _isClosing;
     private readonly Action<Action> _post;
     private readonly Action<Action> _runBackground;
 
+    // What the UI thread hands to the background pass (short lock, never held across a Register).
+    private readonly Lock _input = new();
+    private AppSettings? _current;
+    private bool _dirty;
+    private bool _suspendedRequested;
+
+    // The background pass's own state, under _gate.
     private readonly Lock _gate = new();
     private readonly string?[] _applied = new string?[3];
     private readonly bool[] _known = new bool[3];
     private readonly HotkeyRegistration[] _registrations = [HotkeyRegistration.Cleared, HotkeyRegistration.Cleared, HotkeyRegistration.Cleared];
-    private AppSettings? _pending;
+    private bool _suspended;
     private bool _started;
-    private bool _disposed;
+    private int _disposed;
 
     /// <param name="hotkeys">The system-wide hotkeys; not disposed here (the composition root owns it).</param>
     /// <param name="settings">Where the gestures are read and watched.</param>
@@ -45,13 +57,15 @@ internal sealed class HotkeyCoordinator : IDisposable
     /// <param name="showApp">Brings the main window to the front; runs on the UI thread.</param>
     /// <param name="post">Marshals to the UI thread; the UI dispatcher by default.</param>
     /// <param name="runBackground">Runs registrations off the UI thread; the thread pool by default (tests run them inline).</param>
+    /// <param name="isClosing">The window has started closing: no action runs any more. <c>null</c> = never.</param>
     public HotkeyCoordinator(
         IGlobalHotkeys hotkeys,
         ISettingsStore settings,
         ShellViewModel shell,
         Action showApp,
         Action<Action>? post = null,
-        Action<Action>? runBackground = null)
+        Action<Action>? runBackground = null,
+        Func<bool>? isClosing = null)
     {
         ArgumentNullException.ThrowIfNull(hotkeys);
         ArgumentNullException.ThrowIfNull(settings);
@@ -61,9 +75,12 @@ internal sealed class HotkeyCoordinator : IDisposable
         _settings = settings;
         _shell = shell;
         _showApp = showApp;
+        _isClosing = isClosing ?? (() => false);
         _post = post ?? (action => Avalonia.Threading.Dispatcher.UIThread.Post(action));
         _runBackground = runBackground ?? (action => Task.Run(action));
     }
+
+    private bool IsDisposed => Volatile.Read(ref _disposed) != 0;
 
     /// <summary>The result of the latest registration of <paramref name="action"/> (<see cref="HotkeyRegistration.Cleared"/> until one ran).</summary>
     public HotkeyRegistration RegistrationOf(HotkeyAction action)
@@ -80,7 +97,7 @@ internal sealed class HotkeyCoordinator : IDisposable
     /// </summary>
     public void Start()
     {
-        if (_started || _disposed)
+        if (_started || IsDisposed)
         {
             return;
         }
@@ -88,34 +105,55 @@ internal sealed class HotkeyCoordinator : IDisposable
         _started = true;
         _hotkeys.Pressed += OnPressed;
         _settings.Changed += OnSettingsChanged;
+        if (_shell.Settings?.Hotkeys is { } rows)
+        {
+            rows.CapturingChanged += OnCapturingChanged;
+            _suspendedRequested = rows.Capturing is not null;
+        }
+
         Queue(_settings.Current);
     }
 
     public void Dispose()
     {
-        if (_disposed)
+        if (Interlocked.Exchange(ref _disposed, 1) != 0)
         {
             return;
         }
 
-        _disposed = true;
         _hotkeys.Pressed -= OnPressed;
         _settings.Changed -= OnSettingsChanged;
+        if (_shell.Settings?.Hotkeys is { } rows)
+        {
+            rows.CapturingChanged -= OnCapturingChanged;
+        }
 
-        // Waits for a registration that is running right now, so the hotkeys are never used after the owner disposes them.
+        // Waits for a pass that is running right now (it stops before its next Register), so the hotkeys are never used
+        // after the owner disposes them.
         lock (_gate)
         {
-            _pending = null;
         }
     }
 
     private void OnSettingsChanged(AppSettings settings) => Queue(settings);
 
+    private void OnCapturingChanged(bool capturing)
+    {
+        lock (_input)
+        {
+            _suspendedRequested = capturing;
+            _dirty = true;
+        }
+
+        _runBackground(Drain);
+    }
+
     private void Queue(AppSettings settings)
     {
-        lock (_gate)
+        lock (_input)
         {
-            _pending = settings;
+            _current = settings;
+            _dirty = true;
         }
 
         _runBackground(Drain);
@@ -123,59 +161,96 @@ internal sealed class HotkeyCoordinator : IDisposable
 
     private void Drain()
     {
-        (HotkeyAction Action, HotkeyRegistration Result)[] changes;
         lock (_gate)
         {
-            if (_disposed || _pending is not { } settings)
+            AppSettings settings;
+            bool suspend;
+            lock (_input)
+            {
+                if (!_dirty || _current is null)
+                {
+                    return;
+                }
+
+                _dirty = false;
+                settings = _current;
+                suspend = _suspendedRequested;
+            }
+
+            if (IsDisposed)
             {
                 return;
             }
 
-            _pending = null;
-            changes = Apply(settings);
-        }
+            _suspended = suspend;
+            Apply(settings);
 
-        if (changes.Length > 0)
-        {
-            _post(() => Publish(changes));
+            // The UI shows what is true now; during a capture the notes stay as they were.
+            if (!_suspended && !IsDisposed)
+            {
+                var snapshot = (HotkeyRegistration[])_registrations.Clone();
+                _post(() => Publish(snapshot));
+            }
         }
     }
 
-    private (HotkeyAction Action, HotkeyRegistration Result)[] Apply(AppSettings settings)
+    private void Apply(AppSettings settings)
     {
-        string?[] wanted = [settings.RecordHotkey, settings.ToggleScreenHotkey, settings.ShowAppHotkey];
+        string?[] wanted = _suspended ? [null, null, null] : [settings.RecordHotkey, settings.ToggleScreenHotkey, settings.ShowAppHotkey];
         var changed = new List<int>(3);
         for (var i = 0; i < Actions.Length; i++)
         {
-            if (!_known[i] || !string.Equals(_applied[i], wanted[i], StringComparison.Ordinal))
+            // A taken gesture is tried again on every change: the other program may have let it go.
+            var retry = !_suspended && wanted[i] is not null && _registrations[i] == HotkeyRegistration.Taken;
+            if (!_known[i] || retry || !string.Equals(_applied[i], wanted[i], StringComparison.Ordinal))
             {
                 changed.Add(i);
             }
         }
 
-        // Release first: a gesture that moves from one action to another is free by the time the other one asks for it.
+        // Release first, whatever comes next: a gesture that moves from one action to another (or is given up by one
+        // action in the very change that gives it to the other) is free by the time the other asks for it.
         foreach (var i in changed)
         {
-            if (_known[i] && _applied[i] is not null && wanted[i] is not null)
+            if (_known[i] && _applied[i] is not null)
             {
+                if (IsDisposed)
+                {
+                    return;
+                }
+
                 TryRegister(Actions[i], null);
+                _applied[i] = null;
             }
         }
 
-        var result = new (HotkeyAction, HotkeyRegistration)[changed.Count];
-        for (var n = 0; n < changed.Count; n++)
+        foreach (var i in changed)
         {
-            var i = changed[n];
-            var registration = wanted[i] is null && (!_known[i] || _applied[i] is null)
-                ? HotkeyRegistration.Cleared
-                : TryRegister(Actions[i], wanted[i]);
+            if (_suspended)
+            {
+                _known[i] = true;
+                continue;
+            }
+
+            HotkeyRegistration registration;
+            if (wanted[i] is null)
+            {
+                registration = HotkeyRegistration.Cleared;
+            }
+            else
+            {
+                if (IsDisposed)
+                {
+                    return;
+                }
+
+                registration = TryRegister(Actions[i], wanted[i]);
+            }
+
             _known[i] = true;
             _applied[i] = wanted[i];
             _registrations[i] = registration;
-            result[n] = (Actions[i], registration);
         }
-
-        return result;
     }
 
     private HotkeyRegistration TryRegister(HotkeyAction action, string? gesture)
@@ -192,16 +267,16 @@ internal sealed class HotkeyCoordinator : IDisposable
         }
     }
 
-    private void Publish((HotkeyAction Action, HotkeyRegistration Result)[] changes)
+    private void Publish(HotkeyRegistration[] snapshot)
     {
-        if (_disposed || _shell.Settings is not { } settings)
+        if (IsDisposed || _shell.Settings is not { } settings)
         {
             return;
         }
 
-        foreach (var (action, result) in changes)
+        for (var i = 0; i < Actions.Length; i++)
         {
-            settings.Hotkeys.SetRegistration(action, result);
+            settings.Hotkeys.SetRegistration(Actions[i], snapshot[i]);
         }
     }
 
@@ -210,7 +285,7 @@ internal sealed class HotkeyCoordinator : IDisposable
 
     private void Run(HotkeyAction action)
     {
-        if (_disposed || _shell.Settings?.Hotkeys.Capturing is not null)
+        if (IsDisposed || _isClosing() || _shell.Settings?.Hotkeys.Capturing is not null)
         {
             return;
         }

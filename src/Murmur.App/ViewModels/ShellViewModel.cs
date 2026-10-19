@@ -278,7 +278,8 @@ public sealed partial class ShellViewModel : ObservableObject
             return Task.CompletedTask;
         }
 
-        if (Recording.RecorderIsIdle)
+        // On the open recording screen the user's unsaved choices (devices, pills) stay as they are.
+        if (Recording.RecorderIsIdle && !ReferenceEquals(CurrentPage, Recording))
         {
             ShowRecording();
         }
@@ -407,6 +408,12 @@ public sealed partial class ShellViewModel : ObservableObject
         if (oldValue is OnboardingViewModel onboarding && newValue != oldValue)
         {
             onboarding.Suspend();
+        }
+
+        // Leaving the Settings stops a hotkey capture that is still waiting (the global hotkeys come back).
+        if (oldValue is SettingsViewModel settings && newValue != oldValue)
+        {
+            settings.Hotkeys.CancelCapture();
         }
     }
 

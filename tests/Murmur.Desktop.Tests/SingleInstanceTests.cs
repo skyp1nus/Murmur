@@ -2,11 +2,12 @@ namespace Murmur.Desktop.Tests;
 
 public sealed class SingleInstanceTests
 {
-    /// <summary>The named mutex and event of one machine: the first channel opened is "first", later ones are not.</summary>
+    /// <summary>The named mutex and events of one machine: the first channel opened is "first" until it is disposed.</summary>
     private sealed class FakeSystem
     {
         private readonly AutoResetEvent _signal = new(false);
-        private bool _created;
+        private readonly AutoResetEvent _ack = new(false);
+        private int _firstHeld;
 
         public int Opened { get; private set; }
 
@@ -14,34 +15,67 @@ public sealed class SingleInstanceTests
 
         public IInstanceChannel Open()
         {
-            Opened++;
-            var channel = new FakeChannel(_signal, isFirst: !_created);
-            _created = true;
-            Channels.Add(channel);
-            return channel;
+            lock (Channels)
+            {
+                Opened++;
+                var channel = new FakeChannel(this, _signal, _ack, isFirst: Interlocked.CompareExchange(ref _firstHeld, 1, 0) == 0);
+                Channels.Add(channel);
+                return channel;
+            }
         }
+
+        public void ReleaseFirst() => Interlocked.Exchange(ref _firstHeld, 0);
     }
 
-    private sealed class FakeChannel(AutoResetEvent signal, bool isFirst) : IInstanceChannel
+    private sealed class FakeChannel(FakeSystem system, AutoResetEvent signal, AutoResetEvent ack, bool isFirst) : IInstanceChannel
     {
+        private int _signals;
+
         public bool IsFirst { get; } = isFirst;
 
-        public int Signals { get; private set; }
+        public int Signals => Volatile.Read(ref _signals);
 
         public bool Disposed { get; private set; }
 
         public void SignalFirst()
         {
-            Signals++;
+            Interlocked.Increment(ref _signals);
+            ack.Reset();
             signal.Set();
         }
 
+        public void Acknowledge() => ack.Set();
+
+        public bool WaitAcknowledged(TimeSpan timeout) => ack.WaitOne(timeout);
+
         public bool Wait(CancellationToken cancellationToken) => WaitHandle.WaitAny([signal, cancellationToken.WaitHandle]) == 0;
 
-        public void Dispose() => Disposed = true;
+        public void Dispose()
+        {
+            Disposed = true;
+            if (IsFirst)
+            {
+                system.ReleaseFirst();
+            }
+        }
     }
 
     private static readonly TimeSpan Patience = TimeSpan.FromSeconds(10);
+
+    /// <summary>Short waits for the cases in which nobody answers.</summary>
+    private static readonly SingleInstanceTiming Fast = new(TimeSpan.FromMilliseconds(100), TimeSpan.FromMilliseconds(20), TimeSpan.FromMilliseconds(500));
+
+    /// <summary>A first instance whose app answers every request, as the real window does.</summary>
+    private static SingleInstance EnterAnswering(FakeSystem system, Action? onRequest = null)
+    {
+        var first = SingleInstance.Enter([], system.Open);
+        first.Requested += () =>
+        {
+            onRequest?.Invoke();
+            first.Acknowledge();
+        };
+        return first;
+    }
 
     [Fact]
     public void TheFirstStart_RunsTheApp()
@@ -55,29 +89,76 @@ public sealed class SingleInstanceTests
     }
 
     [Fact]
-    public void ASecondStart_WakesTheFirst_AndIsToldToExit()
+    public void ASecondStart_ExitsOnlyOnceTheFirstHasShownItsWindow()
     {
         var system = new FakeSystem();
-        using var first = SingleInstance.Enter([], system.Open);
         using var woken = new ManualResetEventSlim();
-        first.Requested += woken.Set;
+        using var first = EnterAnswering(system, woken.Set);
 
         using var second = SingleInstance.Enter([], system.Open);
 
         Assert.False(second.IsPrimary);
         Assert.Equal(1, system.Channels[1].Signals);
         Assert.True(system.Channels[1].Disposed);
-        Assert.True(woken.Wait(Patience, TestContext.Current.CancellationToken), "The first instance did not get the request.");
+        Assert.True(woken.Wait(Patience, TestContext.Current.CancellationToken));
+    }
+
+    [Fact]
+    public void ASecondStart_WhoseFirstNeverAnswers_RepeatsTheRequest_ThenGivesUpAfterTheRetryWindow()
+    {
+        var system = new FakeSystem();
+        using var first = SingleInstance.Enter([], system.Open);
+        var requests = 0;
+        first.Requested += () => Interlocked.Increment(ref requests);
+        var clock = System.Diagnostics.Stopwatch.StartNew();
+
+        using var second = SingleInstance.Enter([], system.Open, Fast);
+
+        Assert.False(second.IsPrimary);
+        Assert.True(clock.Elapsed >= Fast.RetryWindow);
+        Assert.True(clock.Elapsed < TimeSpan.FromSeconds(5));
+        SpinWait.SpinUntil(() => Volatile.Read(ref requests) >= 2, Patience);
+        Assert.True(Volatile.Read(ref requests) >= 2, "The request is repeated while waiting.");
+    }
+
+    [Fact]
+    public async Task ASecondStart_TakesOver_WhenTheFirstInstanceEndsWhileItWaits()
+    {
+        var system = new FakeSystem();
+        var first = SingleInstance.Enter([], system.Open);
+        var slow = new SingleInstanceTiming(TimeSpan.FromMilliseconds(100), TimeSpan.FromMilliseconds(20), TimeSpan.FromSeconds(30));
+
+        var secondStart = Task.Run(() => SingleInstance.Enter([], system.Open, slow), TestContext.Current.CancellationToken);
+        await Task.Delay(300, TestContext.Current.CancellationToken);
+        Assert.False(secondStart.IsCompleted, "It keeps waiting while the first one is alive and silent.");
+        first.Dispose();
+
+        using var second = await secondStart.WaitAsync(Patience, TestContext.Current.CancellationToken);
+        Assert.True(second.IsPrimary);
+    }
+
+    [Fact]
+    public async Task ASecondStart_AcceptsALateAnswer()
+    {
+        var system = new FakeSystem();
+        using var first = SingleInstance.Enter([], system.Open);
+        var slow = new SingleInstanceTiming(TimeSpan.FromMilliseconds(100), TimeSpan.FromMilliseconds(20), TimeSpan.FromSeconds(30));
+
+        var secondStart = Task.Run(() => SingleInstance.Enter([], system.Open, slow), TestContext.Current.CancellationToken);
+        await Task.Delay(300, TestContext.Current.CancellationToken);
+        first.Acknowledge();
+
+        using var second = await secondStart.WaitAsync(Patience, TestContext.Current.CancellationToken);
+        Assert.False(second.IsPrimary);
     }
 
     [Fact]
     public void EachLaterStart_RaisesOneRequest()
     {
         var system = new FakeSystem();
-        using var first = SingleInstance.Enter([], system.Open);
         using var enough = new CountdownEvent(3);
         var threads = new List<bool>();
-        first.Requested += () =>
+        using var first = EnterAnswering(system, () =>
         {
             lock (threads)
             {
@@ -85,15 +166,12 @@ public sealed class SingleInstanceTests
             }
 
             enough.Signal();
-        };
+        });
 
         for (var i = 0; i < 3; i++)
         {
             using var later = SingleInstance.Enter([], system.Open);
             Assert.False(later.IsPrimary);
-
-            // The auto-reset event holds one signal at a time: wait for this one to be taken before the next.
-            SpinWait.SpinUntil(() => enough.CurrentCount == 3 - (i + 1), Patience);
         }
 
         Assert.True(enough.Wait(Patience, TestContext.Current.CancellationToken));
@@ -106,9 +184,8 @@ public sealed class SingleInstanceTests
     public void ADiagnosticRun_SkipsTheCheck_EvenWhenAnotherInstanceRuns(string flag, string value)
     {
         var system = new FakeSystem();
-        using var running = SingleInstance.Enter([], system.Open);
         var woken = 0;
-        running.Requested += () => Interlocked.Increment(ref woken);
+        using var running = EnterAnswering(system, () => Interlocked.Increment(ref woken));
 
         using var diagnostic = SingleInstance.Enter([flag, value], system.Open);
 
@@ -155,7 +232,7 @@ public sealed class SingleInstanceTests
     {
         var system = new FakeSystem();
         using var first = SingleInstance.Enter([], system.Open);
-        using var second = new ManualResetEventSlim();
+        using var answered = new ManualResetEventSlim();
         var calls = 0;
         first.Requested += () =>
         {
@@ -164,19 +241,16 @@ public sealed class SingleInstanceTests
                 throw new InvalidOperationException("boom");
             }
 
-            second.Set();
+            answered.Set();
+            first.Acknowledge();
         };
 
-        using (SingleInstance.Enter([], system.Open))
+        using (SingleInstance.Enter([], system.Open, Fast))
         {
         }
 
-        SpinWait.SpinUntil(() => Volatile.Read(ref calls) == 1, Patience);
-        using (SingleInstance.Enter([], system.Open))
-        {
-        }
-
-        Assert.True(second.Wait(Patience, TestContext.Current.CancellationToken));
+        SpinWait.SpinUntil(() => Volatile.Read(ref calls) >= 2, Patience);
+        Assert.True(answered.Wait(Patience, TestContext.Current.CancellationToken));
     }
 
     [Fact]
@@ -184,6 +258,7 @@ public sealed class SingleInstanceTests
     {
         Assert.Equal("MurmurSingleInstance", SingleInstance.MutexName);
         Assert.Equal("MurmurShowApp", SingleInstance.EventName);
+        Assert.DoesNotContain("Global", SingleInstance.MutexName + SingleInstance.EventName + SingleInstance.AckEventName);
         var iss = File.ReadAllText(FindRepoFile("installer", "Murmur.iss"));
         Assert.Contains("AppMutex=" + SingleInstance.MutexName, iss);
     }

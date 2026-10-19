@@ -7,7 +7,6 @@ using Murmur.Core.Input;
 using Murmur.Core.Recording;
 using Murmur.Core.Settings;
 using Avalonia.Controls;
-using HotkeyAction = Murmur.Core.Input.HotkeyAction;
 
 namespace Murmur.App.Tests;
 
@@ -26,7 +25,7 @@ public sealed class HotkeyCoordinatorTests
             _inner = new OnboardingRig(settings ?? Completed);
             Hotkeys = new FakeGlobalHotkeys();
             var post = inlineUi ? (Action<Action>)(a => a()) : a => { lock (_ui) { _ui.Enqueue(a); } };
-            Coordinator = new HotkeyCoordinator(Hotkeys, Store, Shell, () => ShowAppCalls++, post, a => Background.Add(a));
+            Coordinator = new HotkeyCoordinator(Hotkeys, Store, Shell, () => ShowAppCalls++, post, a => Background.Add(a), () => Closing);
             RunBackground();
         }
 
@@ -43,6 +42,8 @@ public sealed class HotkeyCoordinatorTests
         public OnboardingRig Onboarding => _inner;
 
         public int ShowAppCalls { get; private set; }
+
+        public bool Closing { get; set; }
 
         public List<Action> Background { get; } = [];
 
@@ -480,6 +481,225 @@ public sealed class HotkeyCoordinatorTests
     }
 
     [Fact]
+    public async Task AGestureGivenUpByOneAction_IsFreeForAnotherInTheSameChange()
+    {
+        using var rig = new Rig(Completed with { RecordHotkey = "Ctrl+Alt+Y", ToggleScreenHotkey = "Ctrl+Alt+X" });
+        rig.Hotkeys.Exclusive = true;
+        rig.Start();
+
+        // One coalesced change: the screen action is cleared and its gesture goes to the record action.
+        await rig.SaveAsync(s => s with { ToggleScreenHotkey = null, RecordHotkey = "Ctrl+Alt+X" });
+
+        Assert.Equal(HotkeyRegistration.Registered, rig.Coordinator.RegistrationOf(HotkeyAction.ToggleRecording));
+        Assert.Equal(HotkeyRegistration.Cleared, rig.Coordinator.RegistrationOf(HotkeyAction.ToggleScreen));
+        Assert.False(rig.Rows.Rows[0].HasRegistrationNote);
+
+        // The cleared action was released once, not twice.
+        Assert.Single(rig.Hotkeys.Calls, c => c.Action == HotkeyAction.ToggleScreen && c.Gesture is null);
+    }
+
+    [Fact]
+    public async Task ATakenGesture_IsTriedAgainOnTheNextChange()
+    {
+        using var rig = new Rig();
+        rig.Hotkeys.Results["Ctrl+Shift+R"] = HotkeyRegistration.Taken;
+        rig.Start();
+        Assert.True(rig.Rows.Rows[0].HasRegistrationNote);
+
+        rig.Hotkeys.Results.Remove("Ctrl+Shift+R");
+        await rig.SaveAsync(s => s with { Theme = ThemePreference.Dark });
+
+        Assert.Equal(HotkeyRegistration.Registered, rig.Coordinator.RegistrationOf(HotkeyAction.ToggleRecording));
+        Assert.False(rig.Rows.Rows[0].HasRegistrationNote);
+    }
+
+    [Fact]
+    public async Task EveryPass_PublishesAllThreeRegistrations()
+    {
+        using var rig = new Rig();
+        rig.Start();
+        rig.Rows.Rows[1].Registration = HotkeyRegistration.Taken;
+
+        await rig.SaveAsync(s => s with { Theme = ThemePreference.Dark });
+
+        Assert.False(rig.Rows.Rows[1].HasRegistrationNote);
+    }
+
+    [Fact]
+    public void SavingTheSameText_KeepsATakenNote()
+    {
+        using var rig = new Rig();
+        rig.Hotkeys.Results["Ctrl+Shift+R"] = HotkeyRegistration.Taken;
+        rig.Start();
+        var row = rig.Rows.Rows[0];
+
+        row.CaptureCommand.Execute(null);
+        rig.Rows.HandleKey(Avalonia.Input.Key.R, Avalonia.Input.KeyModifiers.Control | Avalonia.Input.KeyModifiers.Shift);
+
+        Assert.Equal("Ctrl+Shift+R", row.Gesture);
+        Assert.True(row.HasRegistrationNote);
+    }
+
+    [Fact]
+    public async Task QuickSuccessiveChanges_AreCoalescedToTheLatest()
+    {
+        using var rig = new Rig();
+        rig.Start();
+        var before = rig.Hotkeys.Calls.Count;
+
+        await rig.Store.SaveAsync(rig.Store.Current with { RecordHotkey = "Ctrl+Alt+F1" }, CancellationToken.None);
+        await rig.Store.SaveAsync(rig.Store.Current with { RecordHotkey = "Ctrl+Alt+F2" }, CancellationToken.None);
+        await rig.Store.SaveAsync(rig.Store.Current with { RecordHotkey = "Ctrl+Alt+F3" }, CancellationToken.None);
+        Assert.Equal(3, rig.Background.Count);
+        rig.RunBackground();
+
+        var gestures = rig.Hotkeys.Calls.Skip(before).Select(c => c.Gesture).Where(g => g is not null).ToArray();
+        Assert.Equal(["Ctrl+Alt+F3"], gestures);
+    }
+
+    [Fact]
+    public async Task Dispose_DuringABlockedRegister_WaitsForIt_AndNothingIsRegisteredAfterwards()
+    {
+        var hotkeys = new FakeGlobalHotkeys();
+        using var rig = new Rig();
+        using var entered = new ManualResetEventSlim();
+        using var release = new ManualResetEventSlim();
+        hotkeys.Hook = (_, _) =>
+        {
+            if (!entered.IsSet)
+            {
+                entered.Set();
+                release.Wait(Patience);
+            }
+        };
+        var coordinator = new HotkeyCoordinator(hotkeys, rig.Store, rig.Shell, () => { }, a => a());
+        coordinator.Start();
+        Assert.True(entered.Wait(Patience, TestContext.Current.CancellationToken));
+
+        var dispose = Task.Run(coordinator.Dispose, TestContext.Current.CancellationToken);
+        await Task.Delay(100, TestContext.Current.CancellationToken);
+        Assert.False(dispose.IsCompleted, "Dispose waits for the Register that is running.");
+        release.Set();
+        await dispose.WaitAsync(Patience, TestContext.Current.CancellationToken);
+
+        Assert.Single(hotkeys.Calls);
+    }
+
+    private static readonly TimeSpan Patience = TimeSpan.FromSeconds(10);
+
+    [Fact]
+    public void WhileARowCaptures_EveryRegistrationIsReleased_AndComesBackWhenItEnds()
+    {
+        using var rig = new Rig();
+        rig.Hotkeys.Results["Ctrl+Shift+R"] = HotkeyRegistration.Taken;
+        rig.Start();
+        var before = rig.Hotkeys.Calls.Count;
+
+        rig.Rows.Rows[1].CaptureCommand.Execute(null);
+        rig.RunBackground();
+
+        var released = rig.Hotkeys.Calls.Skip(before).ToArray();
+        Assert.Equal(3, released.Length);
+        Assert.All(released, c => Assert.Null(c.Gesture));
+        Assert.Equal([HotkeyAction.ToggleRecording, HotkeyAction.ToggleScreen, HotkeyAction.ShowApp], released.Select(c => c.Action).Order().ToArray());
+
+        // The notes stay as they were, and no pass publishes anything meanwhile.
+        Assert.Equal(HotkeyRegistration.Taken, rig.Coordinator.RegistrationOf(HotkeyAction.ToggleRecording));
+        Assert.Equal(Strings.Hotkeys_Taken, rig.Rows.Rows[0].RegistrationNote);
+
+        rig.Hotkeys.Results.Remove("Ctrl+Shift+R");
+        before = rig.Hotkeys.Calls.Count;
+        rig.Rows.CancelCapture();
+        rig.RunBackground();
+
+        var back = rig.Hotkeys.Calls.Skip(before).ToArray();
+        Assert.Equal(
+            [("Ctrl+Shift+R", HotkeyAction.ToggleRecording), ("Ctrl+Shift+S", HotkeyAction.ToggleScreen), ("Ctrl+Shift+M", HotkeyAction.ShowApp)],
+            back.Select(c => (c.Gesture!, c.Action)).OrderBy(c => c.Item2).ToArray());
+        Assert.Null(rig.Rows.Rows[0].RegistrationNote);
+    }
+
+    [Fact]
+    public void CapturingChanged_IsRaisedOnEveryWayInAndOut_ButNotWhenMovingBetweenRows()
+    {
+        using var rig = new Rig();
+        var events = new List<bool>();
+        rig.Rows.CapturingChanged += events.Add;
+        var rows = rig.Rows.Rows;
+
+        rows[0].CaptureCommand.Execute(null);
+        rows[1].CaptureCommand.Execute(null);
+        rig.Rows.HandleKey(Avalonia.Input.Key.Escape, Avalonia.Input.KeyModifiers.None);
+        rows[0].CaptureCommand.Execute(null);
+        rig.Rows.HandleKey(Avalonia.Input.Key.Back, Avalonia.Input.KeyModifiers.None);
+        rows[0].CaptureCommand.Execute(null);
+        rig.Rows.HandleKey(Avalonia.Input.Key.F9, Avalonia.Input.KeyModifiers.Control | Avalonia.Input.KeyModifiers.Alt);
+        rows[2].CaptureCommand.Execute(null);
+        rig.Rows.CancelCapture();
+        rows[2].CaptureCommand.Execute(null);
+        rig.Rows.Refresh();
+
+        Assert.Equal([true, false, true, false, true, false, true, false, true, false], events);
+        Assert.Null(rig.Rows.Capturing);
+    }
+
+    [Fact]
+    public void LeavingTheSettingsPage_EndsACapture()
+    {
+        using var rig = new Rig();
+        rig.Shell.ShowSettings();
+        rig.Rows.Rows[0].CaptureCommand.Execute(null);
+
+        rig.Shell.ShowLibrary();
+
+        Assert.Null(rig.Rows.Capturing);
+    }
+
+    [Fact]
+    public void ToggleRecording_OnTheOpenRecordingScreen_KeepsTheUsersUnsavedChoices()
+    {
+        using var rig = new Rig();
+        rig.Start();
+        rig.Shell.ShowRecording();
+        rig.Shell.Recording.SelectedMicrophone = rig.Shell.Recording.MicrophoneDevices.Single(d => d.Id == "mic-usb");
+
+        rig.Hotkeys.PressFromAnotherThread(HotkeyAction.ToggleRecording);
+
+        Assert.Equal("mic-usb", Assert.Single(rig.Recorder.Starts).MicrophoneDeviceId);
+    }
+
+    [Fact]
+    public void Presses_AreIgnoredOnceTheWindowIsClosing()
+    {
+        using var rig = new Rig();
+        rig.Start();
+        rig.Closing = true;
+
+        rig.Hotkeys.PressFromAnotherThread(HotkeyAction.ToggleRecording);
+        rig.Hotkeys.PressFromAnotherThread(HotkeyAction.ShowApp);
+
+        Assert.Empty(rig.Recorder.Starts);
+        Assert.Equal(0, rig.ShowAppCalls);
+    }
+
+    [Fact]
+    public void ToggleScreen_FollowsTheRecorder_WhenAScreenFaultTurnedTheScreenOffBehindThePill()
+    {
+        using var rig = new Rig(Completed with { ScreenByDefault = true });
+        rig.Start();
+        rig.Hotkeys.PressFromAnotherThread(HotkeyAction.ToggleRecording);
+        Assert.True(rig.Shell.Recording.Screen);
+        Assert.True(rig.Recorder.IsScreenRecording);
+
+        rig.Recorder.IsScreenRecording = false;
+        rig.Hotkeys.PressFromAnotherThread(HotkeyAction.ToggleScreen);
+
+        // The press turns the screen on again (the pill had still shown "on").
+        Assert.Equal([true], rig.Recorder.ScreenCalls);
+        Assert.True(rig.Shell.Recording.Screen);
+    }
+
+    [Fact]
     public async Task MainWindow_BringToFront_ShowsAHiddenWindow_AndRestoresAMinimizedOne()
     {
         var harness = new UiHarness();
@@ -503,7 +723,9 @@ public sealed class HotkeyCoordinatorTests
                 window.BringToFront();
                 var maximized = window.WindowState == WindowState.Maximized;
                 window.Close();
-                return (shown, restored, maximized);
+                window.BringToFront();
+                var staysClosed = window.IsClosed && !window.IsVisible;
+                return (shown, restored, maximized && staysClosed);
             },
             TestContext.Current.CancellationToken);
 

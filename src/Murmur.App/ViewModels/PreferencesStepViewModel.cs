@@ -2,6 +2,7 @@ using System.ComponentModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using Murmur.App.Resources;
 using Murmur.App.Services;
+using Murmur.Core.Input;
 
 namespace Murmur.App.ViewModels;
 
@@ -22,7 +23,7 @@ public sealed partial class PreferencesStepViewModel : OnboardingStepViewModel
         Storage = settings.Storage;
         Hotkeys = settings.Hotkeys;
         Devices = settings.Devices;
-        HotkeyRow = settings.Hotkeys.Rows.FirstOrDefault(r => r.Action == HotkeyAction.Record);
+        HotkeyRow = settings.Hotkeys.Rows.FirstOrDefault(r => r.Action == HotkeyAction.ToggleRecording);
         _freeSpace = freeSpace ?? DiskSpace.TryGetFree;
         Storage.PropertyChanged += OnStorageChanged;
         if (HotkeyRow is not null)

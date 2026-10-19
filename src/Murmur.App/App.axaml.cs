@@ -82,8 +82,18 @@ public partial class App : Application
 
             if (services.Activation is { } activation)
             {
-                // A second start of the program asks this one to show its window (raised off the UI thread).
-                void OnActivationRequested() => Dispatcher.UIThread.Post(window.BringToFront);
+                // A second start of the program asks this one to show its window (raised off the UI thread). It is answered only
+                // while the window lives and is not closing: otherwise the second start waits for this process to end.
+                void OnActivationRequested() => Dispatcher.UIThread.Post(() =>
+                {
+                    if (window.IsClosed || window.IsClosing)
+                    {
+                        return;
+                    }
+
+                    window.BringToFront();
+                    activation.Acknowledge();
+                });
                 activation.Requested += OnActivationRequested;
                 window.Closed += (_, _) => activation.Requested -= OnActivationRequested;
             }
@@ -127,7 +137,7 @@ public partial class App : Application
             return;
         }
 
-        var coordinator = new HotkeyCoordinator(hotkeys, settings, shell, window.BringToFront);
+        var coordinator = new HotkeyCoordinator(hotkeys, settings, shell, window.BringToFront, isClosing: () => window.IsClosing);
         window.Opened += (_, _) => window.RequestAnimationFrame(_ => coordinator.Start());
         window.Closed += (_, _) => coordinator.Dispose();
     }

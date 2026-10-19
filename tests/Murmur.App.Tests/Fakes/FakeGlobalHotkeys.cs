@@ -23,6 +23,9 @@ internal sealed class FakeGlobalHotkeys : IGlobalHotkeys
 
     public Exception? Failure { get; set; }
 
+    /// <summary>Runs inside <see cref="Register"/> after the call is recorded and outside its lock (a test blocks here).</summary>
+    public Action<HotkeyAction, string?>? Hook { get; set; }
+
     public event Action<HotkeyAction>? Pressed;
 
     public List<(HotkeyAction Action, string? Gesture, int ThreadId)> Calls
@@ -41,6 +44,11 @@ internal sealed class FakeGlobalHotkeys : IGlobalHotkeys
         lock (_gate)
         {
             _calls.Add((action, gesture, Environment.CurrentManagedThreadId));
+        }
+
+        Hook?.Invoke(action, gesture);
+        lock (_gate)
+        {
             if (Failure is { } failure)
             {
                 throw failure;
