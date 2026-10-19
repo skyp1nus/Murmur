@@ -17,6 +17,12 @@
     <Using Include="Xunit" />
   </ItemGroup>
 
+  <!-- Desktop has no test project: its small, Core-only wiring helpers are compiled into this one. -->
+  <ItemGroup>
+    <Compile Include="..\..\src\Murmur.Desktop\AiAwareModelManager.cs" Link="Desktop\AiAwareModelManager.cs" />
+    <Compile Include="..\..\src\Murmur.Desktop\AiReindexScheduler.cs" Link="Desktop\AiReindexScheduler.cs" />
+  </ItemGroup>
+
   <ItemGroup>
     <ProjectReference Include="..\..\src\Murmur.Intelligence\Murmur.Intelligence.csproj" />
   </ItemGroup>

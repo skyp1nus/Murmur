@@ -472,6 +472,188 @@ public sealed class LocalLlmTests : IAsyncLifetime
         Assert.Contains(Path.Combine("llama.cpp", ""), options.LlamaServerPath, StringComparison.Ordinal);
     }
 
+    private LocalLlmOptions _live = new();
+
+    private LocalLlm CreateLive() =>
+        new(() => _live, () => _recording, StartAsync, _time, httpClient: null);
+
+    private string SecondChatModel => Path.Combine(_directory, "chat-26b.gguf");
+
+    [Fact]
+    public async Task Live_InstallAfterStart_FlipsIsInstalledWithoutANewInstance()
+    {
+        var missing = Path.Combine(_directory, "later");
+        _live = Options with
+        {
+            LlamaServerPath = Path.Combine(missing, "llama-server"),
+            ChatModelPath = Path.Combine(missing, "chat.gguf"),
+            EmbeddingModelPath = Path.Combine(missing, "embed.gguf"),
+        };
+        await using var llm = CreateLive();
+        Assert.False(llm.IsInstalled);
+        Assert.Equal(LlmStatus.NotInstalled, llm.Status);
+
+        // Files appear at the paths the options already point to: visible at once.
+        Directory.CreateDirectory(missing);
+        await File.WriteAllTextAsync(_live.LlamaServerPath!, "", Ct);
+        await File.WriteAllTextAsync(_live.ChatModelPath!, "", Ct);
+        Assert.True(llm.IsInstalled);
+        Assert.Equal(LlmStatus.Unloaded, llm.Status);
+
+        // The first chat request starts the server found on disk.
+        await llm.GetChatClientAsync(Ct);
+        Assert.Equal(_live.ChatModelPath, Assert.Single(_started).Options.ModelPath);
+    }
+
+    [Fact]
+    public async Task Live_ManifestChange_IsPickedUpAfterTheRefreshInterval()
+    {
+        _live = Options with { ChatModelPath = null, EmbeddingModelPath = null };
+        await using var llm = CreateLive();
+        Assert.Equal(LlmStatus.NotInstalled, llm.Status);
+
+        _live = Options;
+        Assert.Equal(LlmStatus.NotInstalled, llm.Status); // cached for a moment
+        _time.Advance(LocalLlm.OptionsRefreshInterval + TimeSpan.FromMilliseconds(1));
+
+        Assert.Equal(LlmStatus.Unloaded, llm.Status);
+    }
+
+    [Fact]
+    public async Task Live_Refresh_PicksUpNewPathsImmediately()
+    {
+        _live = Options with { ChatModelPath = null, EmbeddingModelPath = null };
+        await using var llm = CreateLive();
+        Assert.Equal(LlmStatus.NotInstalled, llm.Status);
+
+        _live = Options;
+        llm.Refresh();
+
+        Assert.Equal(LlmStatus.Unloaded, llm.Status);
+    }
+
+    [Fact]
+    public async Task Live_ARequestSeesNewPathsEvenInsideTheRefreshInterval()
+    {
+        _live = Options with { ChatModelPath = null };
+        await using var llm = CreateLive();
+        Assert.Equal(LlmStatus.Unloaded, llm.Status);
+
+        _live = Options;
+        var client = await llm.GetChatClientAsync(Ct);
+
+        Assert.Equal(ChatModel, Assert.Single(_started).Options.ModelPath);
+        Assert.Equal("chat", client.GetService<ChatClientMetadata>()?.DefaultModelId);
+    }
+
+    [Fact]
+    public async Task Live_SwitchingTheChatModel_RestartsTheChatServerOnTheNextRequest()
+    {
+        await File.WriteAllTextAsync(SecondChatModel, "", Ct);
+        _live = Options;
+        await using var llm = CreateLive();
+        var client = await llm.GetChatClientAsync(Ct);
+        await llm.GetEmbeddingGeneratorAsync(Ct);
+        var first = _started.Single(s => !s.Options.Embedding).Handle;
+        var embedding = _started.Single(s => s.Options.Embedding).Handle;
+
+        _live = Options with { ChatModelPath = SecondChatModel };
+        var response = await client.GetResponseAsync([new ChatMessage(ChatRole.User, "x")], cancellationToken: Ct);
+
+        Assert.Equal("pong", response.Text);
+        Assert.Equal(3, _started.Count);
+        Assert.Equal(SecondChatModel, _started.Last().Options.ModelPath);
+        Assert.False(_started.Last().Options.Embedding);
+        await WaitUntilAsync(() => first.Disposed);
+        Assert.True(first.Stopped);
+        Assert.False(embedding.Stopped);
+        Assert.Equal(LlmStatus.Ready, llm.Status);
+        Assert.Equal("chat-26b", client.GetService<ChatClientMetadata>()?.DefaultModelId);
+    }
+
+    [Fact]
+    public async Task Live_SwitchingTheChatModel_LetsAnInFlightRequestFinishOnTheOldServer()
+    {
+        await File.WriteAllTextAsync(SecondChatModel, "", Ct);
+        _live = Options;
+        await using var llm = CreateLive();
+        var client = await llm.GetChatClientAsync(Ct);
+        var first = Assert.Single(_started).Handle;
+        RequestGate = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var inFlight = client.GetResponseAsync([new ChatMessage(ChatRole.User, "x")], cancellationToken: Ct);
+        await WaitUntilAsync(() => !_http.Requests.IsEmpty);
+
+        _live = Options with { ChatModelPath = SecondChatModel };
+        await llm.GetChatClientAsync(Ct); // starts the new server
+
+        Assert.Equal(2, _started.Count);
+        Assert.False(first.Stopped);
+        Assert.False(first.Killed);
+        Assert.False(inFlight.IsCompleted);
+
+        RequestGate.SetResult();
+        var response = await inFlight;
+
+        Assert.Equal("pong", response.Text);
+        await WaitUntilAsync(() => first.Disposed);
+        Assert.True(first.Stopped);
+        Assert.False(_started.Last().Handle.Stopped);
+        Assert.Equal(LlmStatus.Ready, llm.Status);
+    }
+
+    [Fact]
+    public async Task Live_SwitchingTheEmbeddingModel_RestartsOnlyTheEmbeddingServer()
+    {
+        var second = Path.Combine(_directory, "embed2.gguf");
+        await File.WriteAllTextAsync(second, "", Ct);
+        _live = Options;
+        await using var llm = CreateLive();
+        await llm.GetChatClientAsync(Ct);
+        var generator = await llm.GetEmbeddingGeneratorAsync(Ct);
+        var chat = _started.Single(s => !s.Options.Embedding).Handle;
+        var firstEmbedding = _started.Single(s => s.Options.Embedding).Handle;
+
+        _live = Options with { EmbeddingModelPath = second };
+        await generator.GenerateAsync(["x"], cancellationToken: Ct);
+
+        Assert.Equal(3, _started.Count);
+        Assert.Equal(second, _started.Last().Options.ModelPath);
+        Assert.True(_started.Last().Options.Embedding);
+        await WaitUntilAsync(() => firstEmbedding.Disposed);
+        Assert.False(chat.Stopped);
+    }
+
+    [Fact]
+    public async Task Live_RemovingTheFiles_FlipsToNotInstalled_AndRequestsFail()
+    {
+        _live = Options;
+        await using var llm = CreateLive();
+        Assert.Equal(LlmStatus.Unloaded, llm.Status);
+
+        File.Delete(ChatModel);
+        File.Delete(EmbeddingModel);
+
+        Assert.Equal(LlmStatus.NotInstalled, llm.Status);
+        await Assert.ThrowsAsync<FileNotFoundException>(() => llm.GetChatClientAsync(Ct).AsTask());
+        Assert.Empty(_started);
+    }
+
+    [Fact]
+    public async Task Live_RemovedModelWithARunningServer_IsRetiredByTheNextRequest()
+    {
+        _live = Options;
+        await using var llm = CreateLive();
+        var client = await llm.GetChatClientAsync(Ct);
+        var first = Assert.Single(_started).Handle;
+
+        File.Delete(ChatModel);
+        _live = Options with { ChatModelPath = null };
+
+        await Assert.ThrowsAsync<FileNotFoundException>(() => client.GetResponseAsync([new ChatMessage(ChatRole.User, "x")], cancellationToken: Ct));
+        await WaitUntilAsync(() => first.Disposed);
+        Assert.True(first.Stopped);
+    }
+
     private static async Task WaitUntilAsync(Func<bool> condition)
     {
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(Ct);
