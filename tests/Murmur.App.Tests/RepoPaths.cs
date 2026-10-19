@@ -11,6 +11,8 @@ internal static class RepoPaths
 
     public static string TokensAxaml => Path.Combine(AppDirectory, "Styles", "Tokens.axaml");
 
+    public static string ResourcesDirectory => Path.Combine(AppDirectory, "Resources");
+
     public static string ScreenshotsDirectory => Path.Combine(Root, "docs", "screenshots");
 
     private static string FindRoot()

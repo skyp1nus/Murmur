@@ -18,6 +18,9 @@ public static class TokenGenerator
 
           Naming
             Color.<Name>        Color              Brush.<Name>        SolidColorBrush (one pair per colour token)
+                                Both live in ResourceDictionary.ThemeDictionaries: "Light" is built from "color", "Dark" from
+                                "colorDark" (same keys in both). Look them up with DynamicResource so a runtime theme change
+                                re-resolves them; StaticResource would freeze the theme that was active at load time.
             Font.Display/Body   Inter (embedded via Avalonia.Fonts.Inter)    Font.Mono   Geist Mono (embedded asset)
             FontWeight.<Role>   Display = 300, Body = first body weight, BodyMedium = second body weight, Mono
             FontSize.<Scale>    double, one per typeScale entry (plus FontSize.Mono)
@@ -31,6 +34,7 @@ public static class TokenGenerator
             Radius.<Name>       CornerRadius                   Hairline.*     border hairline width / thickness (brush: Brush.Hairline)
             Shadow.<Name>       BoxShadows (rgba converted to #AARRGGBB, px dropped; Avalonia parses unitless numbers)
 
+          Everything except Color.* / Brush.* is theme-independent and sits outside the theme dictionaries.
           Accent colours are only for the recording orb and icons; Orb*.axaml and Icons/ may reference them.
         -->
         """;
@@ -58,7 +62,7 @@ public static class TokenGenerator
         sb.Append("<ResourceDictionary xmlns=\"https://github.com/avaloniaui\"\n");
         sb.Append("                    xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\">\n");
 
-        EmitColors(sb, root.GetProperty("color"));
+        EmitThemes(sb, root.GetProperty("color"), root.GetProperty("colorDark"), root.GetProperty("border").GetProperty("hairline"));
         var font = root.GetProperty("font");
         EmitFonts(sb, font);
         EmitTypeScale(sb, font, root.GetProperty("typeScale"));
@@ -78,20 +82,56 @@ public static class TokenGenerator
 
     private static void Section(StringBuilder sb, string title) => sb.Append("\n  <!-- ").Append(title).Append(" -->\n");
 
-    private static void EmitColors(StringBuilder sb, JsonElement colors)
+    /// <summary>Theme dictionary keys, in the order they are emitted, with the tokens.json section each is built from.</summary>
+    private static readonly (string Variant, string Section)[] Themes = [("Light", "color"), ("Dark", "colorDark")];
+
+    private static void EmitThemes(StringBuilder sb, JsonElement light, JsonElement dark, JsonElement hairline)
     {
-        Section(sb, "Colours");
-        foreach (var color in colors.EnumerateObject())
+        RequireSameColourKeys(light, dark);
+        var hairlineColor = Pascal(hairline.GetProperty("color").GetString()!);
+        if (!light.TryGetProperty(hairline.GetProperty("color").GetString()!, out _))
         {
-            sb.Append("  <Color x:Key=\"Color.").Append(Pascal(color.Name)).Append("\">")
-                .Append(color.Value.GetString()).Append("</Color>\n");
+            throw new InvalidOperationException($"border.hairline.color '{hairlineColor}' is not a colour token.");
         }
 
-        foreach (var color in colors.EnumerateObject())
+        Section(sb, "Colours and brushes, one dictionary per theme (keys are identical; the order follows 'color')");
+        sb.Append("  <ResourceDictionary.ThemeDictionaries>\n");
+        for (var i = 0; i < Themes.Length; i++)
         {
-            var name = Pascal(color.Name);
-            sb.Append("  <SolidColorBrush x:Key=\"Brush.").Append(name)
-                .Append("\" Color=\"{StaticResource Color.").Append(name).Append("}\" />\n");
+            var colors = i == 0 ? light : dark;
+            sb.Append("    <ResourceDictionary x:Key=\"").Append(Themes[i].Variant).Append("\">\n");
+            foreach (var color in light.EnumerateObject())
+            {
+                sb.Append("      <Color x:Key=\"Color.").Append(Pascal(color.Name)).Append("\">")
+                    .Append(colors.GetProperty(color.Name).GetString()).Append("</Color>\n");
+            }
+
+            foreach (var color in light.EnumerateObject())
+            {
+                var name = Pascal(color.Name);
+                sb.Append("      <SolidColorBrush x:Key=\"Brush.").Append(name)
+                    .Append("\" Color=\"{StaticResource Color.").Append(name).Append("}\" />\n");
+            }
+
+            sb.Append("      <SolidColorBrush x:Key=\"Brush.Hairline\" Color=\"{StaticResource Color.").Append(hairlineColor).Append("}\" />\n");
+            sb.Append("    </ResourceDictionary>\n");
+        }
+
+        sb.Append("  </ResourceDictionary.ThemeDictionaries>\n");
+    }
+
+    /// <summary>Both themes must define exactly the same colour keys, otherwise a lookup would fail in one of them.</summary>
+    private static void RequireSameColourKeys(JsonElement light, JsonElement dark)
+    {
+        var lightKeys = light.EnumerateObject().Select(p => p.Name).ToHashSet(StringComparer.Ordinal);
+        var darkKeys = dark.EnumerateObject().Select(p => p.Name).ToHashSet(StringComparer.Ordinal);
+        var missingInDark = lightKeys.Except(darkKeys, StringComparer.Ordinal).Order(StringComparer.Ordinal).ToArray();
+        var missingInLight = darkKeys.Except(lightKeys, StringComparer.Ordinal).Order(StringComparer.Ordinal).ToArray();
+        if (missingInDark.Length > 0 || missingInLight.Length > 0)
+        {
+            throw new InvalidOperationException(
+                "tokens.json: 'color' and 'colorDark' must have the same keys. "
+                + $"Missing in colorDark: [{string.Join(", ", missingInDark)}]; missing in color: [{string.Join(", ", missingInLight)}].");
         }
     }
 
@@ -198,12 +238,10 @@ public static class TokenGenerator
 
     private static void EmitHairline(StringBuilder sb, JsonElement hairline)
     {
-        Section(sb, "Hairline border");
+        Section(sb, "Hairline border (the brush, Brush.Hairline, is in the theme dictionaries)");
         var width = Num(hairline.GetProperty("width").GetDouble());
-        var color = Pascal(hairline.GetProperty("color").GetString()!);
         sb.Append("  <x:Double x:Key=\"Hairline.Width\">").Append(width).Append("</x:Double>\n");
         sb.Append("  <Thickness x:Key=\"Hairline.Thickness\">").Append(width).Append("</Thickness>\n");
-        sb.Append("  <SolidColorBrush x:Key=\"Brush.Hairline\" Color=\"{StaticResource Color.").Append(color).Append("}\" />\n");
     }
 
     private static void EmitShadows(StringBuilder sb, JsonElement shadows)

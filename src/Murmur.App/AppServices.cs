@@ -2,6 +2,7 @@ using Murmur.App.Services;
 using Murmur.Core.Capture;
 using Murmur.Core.Recording;
 using Murmur.Core.Sessions;
+using Murmur.Core.Settings;
 
 namespace Murmur.App;
 
@@ -22,6 +23,11 @@ namespace Murmur.App;
 /// <param name="Processing">Post-recording pipeline status for library rows and the recording view.</param>
 /// <param name="Search">BM25 search over transcripts: the library search when <paramref name="Ai"/> is missing or fails.</param>
 /// <param name="Ai">Hybrid search and the "Запитати AI" chats; <c>null</c> = AI not wired (the chats explain how to install it).</param>
+/// <param name="Settings">
+/// User preferences. The app applies <c>Theme</c> at start-up and on every change and reads <c>Language</c> once at
+/// start-up (a language change applies on the next start, decision D-032); the later settings and onboarding screens
+/// save through it. <c>null</c> in designer and tests = light/system theme, Ukrainian.
+/// </param>
 public sealed record AppServices(
     IRecorder Recorder,
     ICapture Capture,
@@ -32,4 +38,5 @@ public sealed record AppServices(
     IAudioPlayback? Playback = null,
     ISessionProcessing? Processing = null,
     ISearchIndex? Search = null,
-    AiServices? Ai = null);
+    AiServices? Ai = null,
+    ISettingsStore? Settings = null);

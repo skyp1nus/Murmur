@@ -5,6 +5,8 @@
   <!--
     Control styles. Only design-token resources (see Tokens.axaml, generated from docs/design/tokens.json) are used here:
     no literal colours, fonts, radii or spacing. Only achromatic tokens appear in interaction states.
+    Every colour lookup is a DynamicResource: the light and dark palettes live in Tokens.axaml's ThemeDictionaries and a
+    runtime theme change must re-resolve them (TokensTests fails on a static lookup of a colour token).
     Accent colours are reserved for the recording orb and icons.
   -->
 
@@ -14,50 +16,114 @@
         <ResourceInclude Source="/Styles/Tokens.axaml" />
       </ResourceDictionary.MergedDictionaries>
 
-      <!-- Neutralise the Fluent accent on text inputs (focus ring, selection) so no chroma leaks in. -->
-      <StaticResource x:Key="TextControlBorderBrush" ResourceKey="Brush.Stone" />
-      <StaticResource x:Key="TextControlBorderBrushPointerOver" ResourceKey="Brush.Ash" />
-      <StaticResource x:Key="TextControlBorderBrushFocused" ResourceKey="Brush.Ink" />
-      <StaticResource x:Key="TextControlBackground" ResourceKey="Brush.Canvas" />
-      <StaticResource x:Key="TextControlBackgroundPointerOver" ResourceKey="Brush.Canvas" />
-      <StaticResource x:Key="TextControlBackgroundFocused" ResourceKey="Brush.Canvas" />
-      <StaticResource x:Key="TextControlForeground" ResourceKey="Brush.Ink" />
-      <StaticResource x:Key="TextControlForegroundPointerOver" ResourceKey="Brush.Ink" />
-      <StaticResource x:Key="TextControlForegroundFocused" ResourceKey="Brush.Ink" />
-      <StaticResource x:Key="TextControlPlaceholderForeground" ResourceKey="Brush.Smoke" />
-      <StaticResource x:Key="TextControlPlaceholderForegroundPointerOver" ResourceKey="Brush.Smoke" />
-      <StaticResource x:Key="TextControlPlaceholderForegroundFocused" ResourceKey="Brush.Ash" />
-      <StaticResource x:Key="TextControlSelectionHighlightColor" ResourceKey="Color.Stone" />
+      <!--
+        Fluent overrides that point at theme brushes. Each theme has its own dictionary, so StaticResource resolves against
+        that theme's Tokens (a plain StaticResource in the outer dictionary would freeze the theme active at load time).
+        Both dictionaries must list the same keys (checked by ThemeTests).
+      -->
+      <ResourceDictionary.ThemeDictionaries>
+        <ResourceDictionary x:Key="Light">
+          <!-- Semantic fills that differ between the themes (see the dark mockups): hover and pressed fills. -->
+          <StaticResource x:Key="Brush.FillHover" ResourceKey="Brush.Surface" />
+          <StaticResource x:Key="Brush.FillPressed" ResourceKey="Brush.Stone" />
+
+          <!-- Neutralise the Fluent accent on text inputs (focus ring, selection) so no chroma leaks in. -->
+          <StaticResource x:Key="TextControlBorderBrush" ResourceKey="Brush.Stone" />
+          <StaticResource x:Key="TextControlBorderBrushPointerOver" ResourceKey="Brush.Ash" />
+          <StaticResource x:Key="TextControlBorderBrushFocused" ResourceKey="Brush.Ink" />
+          <StaticResource x:Key="TextControlBackground" ResourceKey="Brush.Canvas" />
+          <StaticResource x:Key="TextControlBackgroundPointerOver" ResourceKey="Brush.Canvas" />
+          <StaticResource x:Key="TextControlBackgroundFocused" ResourceKey="Brush.Canvas" />
+          <StaticResource x:Key="TextControlForeground" ResourceKey="Brush.Ink" />
+          <StaticResource x:Key="TextControlForegroundPointerOver" ResourceKey="Brush.Ink" />
+          <StaticResource x:Key="TextControlForegroundFocused" ResourceKey="Brush.Ink" />
+          <StaticResource x:Key="TextControlPlaceholderForeground" ResourceKey="Brush.Smoke" />
+          <StaticResource x:Key="TextControlPlaceholderForegroundPointerOver" ResourceKey="Brush.Smoke" />
+          <StaticResource x:Key="TextControlPlaceholderForegroundFocused" ResourceKey="Brush.Ash" />
+          <StaticResource x:Key="TextControlSelectionHighlightColor" ResourceKey="Color.Stone" />
+
+          <!-- Combo boxes: same achromatic treatment as the text inputs. -->
+          <StaticResource x:Key="ComboBoxBackground" ResourceKey="Brush.Canvas" />
+          <StaticResource x:Key="ComboBoxBackgroundPointerOver" ResourceKey="Brush.Canvas" />
+          <StaticResource x:Key="ComboBoxBackgroundPressed" ResourceKey="Brush.Canvas" />
+          <StaticResource x:Key="ComboBoxBackgroundUnfocused" ResourceKey="Brush.Canvas" />
+          <StaticResource x:Key="ComboBoxBackgroundDisabled" ResourceKey="Brush.Surface" />
+          <StaticResource x:Key="ComboBoxBorderBrush" ResourceKey="Brush.Stone" />
+          <StaticResource x:Key="ComboBoxBorderBrushPointerOver" ResourceKey="Brush.Ash" />
+          <StaticResource x:Key="ComboBoxBorderBrushPressed" ResourceKey="Brush.Ink" />
+          <StaticResource x:Key="ComboBoxBorderBrushDisabled" ResourceKey="Brush.Stone" />
+          <StaticResource x:Key="ComboBoxForeground" ResourceKey="Brush.Ink" />
+          <StaticResource x:Key="ComboBoxForegroundDisabled" ResourceKey="Brush.Ash" />
+          <StaticResource x:Key="ComboBoxDropDownBackground" ResourceKey="Brush.Canvas" />
+          <StaticResource x:Key="ComboBoxDropDownBorderBrush" ResourceKey="Brush.Stone" />
+          <StaticResource x:Key="ComboBoxItemBackgroundPointerOver" ResourceKey="Brush.Surface" />
+          <StaticResource x:Key="ComboBoxItemBackgroundPressed" ResourceKey="Brush.Stone" />
+          <StaticResource x:Key="ComboBoxItemBackgroundSelected" ResourceKey="Brush.Stone" />
+          <StaticResource x:Key="ComboBoxItemBackgroundSelectedPointerOver" ResourceKey="Brush.Stone" />
+          <StaticResource x:Key="ComboBoxItemBackgroundSelectedPressed" ResourceKey="Brush.Stone" />
+          <StaticResource x:Key="ComboBoxItemForegroundSelected" ResourceKey="Brush.Ink" />
+          <StaticResource x:Key="ComboBoxItemForegroundSelectedPointerOver" ResourceKey="Brush.Ink" />
+          <StaticResource x:Key="ComboBoxItemForegroundSelectedPressed" ResourceKey="Brush.Ink" />
+
+          <!-- Progress bar: Ink on Stone, pill-shaped, no Fluent accent. -->
+          <StaticResource x:Key="ProgressBarForeground" ResourceKey="Brush.Ink" />
+          <StaticResource x:Key="ProgressBarBackground" ResourceKey="Brush.Stone" />
+          <StaticResource x:Key="ProgressBarBorderBrush" ResourceKey="Brush.Stone" />
+        </ResourceDictionary>
+        <ResourceDictionary x:Key="Dark">
+          <!-- Semantic fills that differ between the themes (see the dark mockups): hover and pressed fills. -->
+          <StaticResource x:Key="Brush.FillHover" ResourceKey="Brush.Stone" />
+          <StaticResource x:Key="Brush.FillPressed" ResourceKey="Brush.ButtonBorder" />
+
+          <!-- Neutralise the Fluent accent on text inputs (focus ring, selection) so no chroma leaks in. -->
+          <StaticResource x:Key="TextControlBorderBrush" ResourceKey="Brush.Stone" />
+          <StaticResource x:Key="TextControlBorderBrushPointerOver" ResourceKey="Brush.Ash" />
+          <StaticResource x:Key="TextControlBorderBrushFocused" ResourceKey="Brush.Ink" />
+          <StaticResource x:Key="TextControlBackground" ResourceKey="Brush.Canvas" />
+          <StaticResource x:Key="TextControlBackgroundPointerOver" ResourceKey="Brush.Canvas" />
+          <StaticResource x:Key="TextControlBackgroundFocused" ResourceKey="Brush.Canvas" />
+          <StaticResource x:Key="TextControlForeground" ResourceKey="Brush.Ink" />
+          <StaticResource x:Key="TextControlForegroundPointerOver" ResourceKey="Brush.Ink" />
+          <StaticResource x:Key="TextControlForegroundFocused" ResourceKey="Brush.Ink" />
+          <StaticResource x:Key="TextControlPlaceholderForeground" ResourceKey="Brush.Smoke" />
+          <StaticResource x:Key="TextControlPlaceholderForegroundPointerOver" ResourceKey="Brush.Smoke" />
+          <StaticResource x:Key="TextControlPlaceholderForegroundFocused" ResourceKey="Brush.Ash" />
+          <StaticResource x:Key="TextControlSelectionHighlightColor" ResourceKey="Color.Stone" />
+
+          <!-- Combo boxes: same achromatic treatment as the text inputs. -->
+          <StaticResource x:Key="ComboBoxBackground" ResourceKey="Brush.Canvas" />
+          <StaticResource x:Key="ComboBoxBackgroundPointerOver" ResourceKey="Brush.Canvas" />
+          <StaticResource x:Key="ComboBoxBackgroundPressed" ResourceKey="Brush.Canvas" />
+          <StaticResource x:Key="ComboBoxBackgroundUnfocused" ResourceKey="Brush.Canvas" />
+          <StaticResource x:Key="ComboBoxBackgroundDisabled" ResourceKey="Brush.Surface" />
+          <StaticResource x:Key="ComboBoxBorderBrush" ResourceKey="Brush.Stone" />
+          <StaticResource x:Key="ComboBoxBorderBrushPointerOver" ResourceKey="Brush.Ash" />
+          <StaticResource x:Key="ComboBoxBorderBrushPressed" ResourceKey="Brush.Ink" />
+          <StaticResource x:Key="ComboBoxBorderBrushDisabled" ResourceKey="Brush.Stone" />
+          <StaticResource x:Key="ComboBoxForeground" ResourceKey="Brush.Ink" />
+          <StaticResource x:Key="ComboBoxForegroundDisabled" ResourceKey="Brush.Ash" />
+          <StaticResource x:Key="ComboBoxDropDownBackground" ResourceKey="Brush.Canvas" />
+          <StaticResource x:Key="ComboBoxDropDownBorderBrush" ResourceKey="Brush.Stone" />
+          <StaticResource x:Key="ComboBoxItemBackgroundPointerOver" ResourceKey="Brush.Surface" />
+          <StaticResource x:Key="ComboBoxItemBackgroundPressed" ResourceKey="Brush.Stone" />
+          <StaticResource x:Key="ComboBoxItemBackgroundSelected" ResourceKey="Brush.Stone" />
+          <StaticResource x:Key="ComboBoxItemBackgroundSelectedPointerOver" ResourceKey="Brush.Stone" />
+          <StaticResource x:Key="ComboBoxItemBackgroundSelectedPressed" ResourceKey="Brush.Stone" />
+          <StaticResource x:Key="ComboBoxItemForegroundSelected" ResourceKey="Brush.Ink" />
+          <StaticResource x:Key="ComboBoxItemForegroundSelectedPointerOver" ResourceKey="Brush.Ink" />
+          <StaticResource x:Key="ComboBoxItemForegroundSelectedPressed" ResourceKey="Brush.Ink" />
+
+          <!-- Progress bar: Ink on Stone, pill-shaped, no Fluent accent. -->
+          <StaticResource x:Key="ProgressBarForeground" ResourceKey="Brush.Ink" />
+          <StaticResource x:Key="ProgressBarBackground" ResourceKey="Brush.Stone" />
+          <StaticResource x:Key="ProgressBarBorderBrush" ResourceKey="Brush.Stone" />
+        </ResourceDictionary>
+      </ResourceDictionary.ThemeDictionaries>
+
+      <!-- Theme-independent overrides. -->
       <StaticResource x:Key="TextControlBorderThemeThickness" ResourceKey="Hairline.Thickness" />
       <StaticResource x:Key="TextControlBorderThemeThicknessFocused" ResourceKey="Hairline.Thickness" />
 
-      <!-- Combo boxes: same achromatic treatment as the text inputs. -->
-      <StaticResource x:Key="ComboBoxBackground" ResourceKey="Brush.Canvas" />
-      <StaticResource x:Key="ComboBoxBackgroundPointerOver" ResourceKey="Brush.Canvas" />
-      <StaticResource x:Key="ComboBoxBackgroundPressed" ResourceKey="Brush.Canvas" />
-      <StaticResource x:Key="ComboBoxBackgroundUnfocused" ResourceKey="Brush.Canvas" />
-      <StaticResource x:Key="ComboBoxBackgroundDisabled" ResourceKey="Brush.Surface" />
-      <StaticResource x:Key="ComboBoxBorderBrush" ResourceKey="Brush.Stone" />
-      <StaticResource x:Key="ComboBoxBorderBrushPointerOver" ResourceKey="Brush.Ash" />
-      <StaticResource x:Key="ComboBoxBorderBrushPressed" ResourceKey="Brush.Ink" />
-      <StaticResource x:Key="ComboBoxBorderBrushDisabled" ResourceKey="Brush.Stone" />
-      <StaticResource x:Key="ComboBoxForeground" ResourceKey="Brush.Ink" />
-      <StaticResource x:Key="ComboBoxForegroundDisabled" ResourceKey="Brush.Ash" />
-      <StaticResource x:Key="ComboBoxDropDownBackground" ResourceKey="Brush.Canvas" />
-      <StaticResource x:Key="ComboBoxDropDownBorderBrush" ResourceKey="Brush.Stone" />
-      <StaticResource x:Key="ComboBoxItemBackgroundPointerOver" ResourceKey="Brush.Surface" />
-      <StaticResource x:Key="ComboBoxItemBackgroundPressed" ResourceKey="Brush.Stone" />
-      <StaticResource x:Key="ComboBoxItemBackgroundSelected" ResourceKey="Brush.Stone" />
-      <StaticResource x:Key="ComboBoxItemBackgroundSelectedPointerOver" ResourceKey="Brush.Stone" />
-      <StaticResource x:Key="ComboBoxItemBackgroundSelectedPressed" ResourceKey="Brush.Stone" />
-      <StaticResource x:Key="ComboBoxItemForegroundSelected" ResourceKey="Brush.Ink" />
-      <StaticResource x:Key="ComboBoxItemForegroundSelectedPointerOver" ResourceKey="Brush.Ink" />
-      <StaticResource x:Key="ComboBoxItemForegroundSelectedPressed" ResourceKey="Brush.Ink" />
-
-      <!-- Progress bar: Ink on Stone, pill-shaped, no Fluent accent. -->
-      <StaticResource x:Key="ProgressBarForeground" ResourceKey="Brush.Ink" />
-      <StaticResource x:Key="ProgressBarBackground" ResourceKey="Brush.Stone" />
-      <StaticResource x:Key="ProgressBarBorderBrush" ResourceKey="Brush.Stone" />
       <StaticResource x:Key="ProgressBarCornerRadius" ResourceKey="Radius.Pill" />
 
       <!-- Badge padding: horizontal 8 and vertical 4, both taken from the spacing scale (Space.8 / Space.4). -->
@@ -67,8 +133,8 @@
 
   <!-- Window -->
   <Style Selector="Window">
-    <Setter Property="Background" Value="{StaticResource Brush.Canvas}" />
-    <Setter Property="Foreground" Value="{StaticResource Brush.Ink}" />
+    <Setter Property="Background" Value="{DynamicResource Brush.Canvas}" />
+    <Setter Property="Foreground" Value="{DynamicResource Brush.Ink}" />
     <Setter Property="FontFamily" Value="{StaticResource Font.Body}" />
     <Setter Property="FontWeight" Value="{StaticResource FontWeight.Body}" />
     <Setter Property="FontSize" Value="{StaticResource FontSize.Body}" />
@@ -76,7 +142,7 @@
 
   <!-- Typography -->
   <Style Selector="TextBlock">
-    <Setter Property="Foreground" Value="{StaticResource Brush.Ink}" />
+    <Setter Property="Foreground" Value="{DynamicResource Brush.Ink}" />
   </Style>
   <Style Selector="TextBlock.display">
     <Setter Property="FontFamily" Value="{StaticResource Font.Display}" />
@@ -144,9 +210,9 @@
 
   <!-- Cards -->
   <Style Selector="Border.card">
-    <Setter Property="Background" Value="{StaticResource Brush.Surface}" />
+    <Setter Property="Background" Value="{DynamicResource Brush.Surface}" />
     <Setter Property="CornerRadius" Value="{StaticResource Radius.Card}" />
-    <Setter Property="BorderBrush" Value="{StaticResource Brush.Hairline}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource Brush.Hairline}" />
     <Setter Property="BorderThickness" Value="{StaticResource Hairline.Thickness}" />
     <Setter Property="BoxShadow" Value="{StaticResource Shadow.Subtle}" />
     <Setter Property="Padding" Value="{StaticResource Inset.Card}" />
@@ -164,47 +230,47 @@
   </Style>
 
   <Style Selector="Button.primary">
-    <Setter Property="Background" Value="{StaticResource Brush.Ink}" />
-    <Setter Property="Foreground" Value="{StaticResource Brush.Canvas}" />
-    <Setter Property="BorderBrush" Value="{StaticResource Brush.Ink}" />
+    <Setter Property="Background" Value="{DynamicResource Brush.Ink}" />
+    <Setter Property="Foreground" Value="{DynamicResource Brush.Canvas}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource Brush.Ink}" />
     <Setter Property="BorderThickness" Value="{StaticResource Hairline.Thickness}" />
   </Style>
   <Style Selector="Button.primary:pointerover /template/ ContentPresenter#PART_ContentPresenter">
-    <Setter Property="Background" Value="{StaticResource Brush.Graphite}" />
-    <Setter Property="BorderBrush" Value="{StaticResource Brush.Graphite}" />
-    <Setter Property="Foreground" Value="{StaticResource Brush.Canvas}" />
+    <Setter Property="Background" Value="{DynamicResource Brush.InkHover}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource Brush.InkHover}" />
+    <Setter Property="Foreground" Value="{DynamicResource Brush.Canvas}" />
   </Style>
   <Style Selector="Button.primary:pressed /template/ ContentPresenter#PART_ContentPresenter">
-    <Setter Property="Background" Value="{StaticResource Brush.Smoke}" />
-    <Setter Property="BorderBrush" Value="{StaticResource Brush.Smoke}" />
-    <Setter Property="Foreground" Value="{StaticResource Brush.Canvas}" />
+    <Setter Property="Background" Value="{DynamicResource Brush.Smoke}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource Brush.Smoke}" />
+    <Setter Property="Foreground" Value="{DynamicResource Brush.Canvas}" />
   </Style>
   <Style Selector="Button.primary:disabled /template/ ContentPresenter#PART_ContentPresenter">
-    <Setter Property="Background" Value="{StaticResource Brush.Ash}" />
-    <Setter Property="BorderBrush" Value="{StaticResource Brush.Ash}" />
-    <Setter Property="Foreground" Value="{StaticResource Brush.Canvas}" />
+    <Setter Property="Background" Value="{DynamicResource Brush.Ash}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource Brush.Ash}" />
+    <Setter Property="Foreground" Value="{DynamicResource Brush.Canvas}" />
   </Style>
 
   <Style Selector="Button.outline">
     <Setter Property="Background" Value="Transparent" />
-    <Setter Property="Foreground" Value="{StaticResource Brush.Ink}" />
-    <Setter Property="BorderBrush" Value="{StaticResource Brush.ButtonBorder}" />
+    <Setter Property="Foreground" Value="{DynamicResource Brush.Ink}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource Brush.ButtonBorder}" />
     <Setter Property="BorderThickness" Value="{StaticResource Hairline.Thickness}" />
   </Style>
   <Style Selector="Button.outline:pointerover /template/ ContentPresenter#PART_ContentPresenter">
-    <Setter Property="Background" Value="{StaticResource Brush.Surface}" />
-    <Setter Property="BorderBrush" Value="{StaticResource Brush.ButtonBorder}" />
-    <Setter Property="Foreground" Value="{StaticResource Brush.Ink}" />
+    <Setter Property="Background" Value="{DynamicResource Brush.FillHover}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource Brush.ButtonBorder}" />
+    <Setter Property="Foreground" Value="{DynamicResource Brush.Ink}" />
   </Style>
   <Style Selector="Button.outline:pressed /template/ ContentPresenter#PART_ContentPresenter">
-    <Setter Property="Background" Value="{StaticResource Brush.Stone}" />
-    <Setter Property="BorderBrush" Value="{StaticResource Brush.ButtonBorder}" />
-    <Setter Property="Foreground" Value="{StaticResource Brush.Ink}" />
+    <Setter Property="Background" Value="{DynamicResource Brush.FillPressed}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource Brush.ButtonBorder}" />
+    <Setter Property="Foreground" Value="{DynamicResource Brush.Ink}" />
   </Style>
   <Style Selector="Button.outline:disabled /template/ ContentPresenter#PART_ContentPresenter">
     <Setter Property="Background" Value="Transparent" />
-    <Setter Property="BorderBrush" Value="{StaticResource Brush.Stone}" />
-    <Setter Property="Foreground" Value="{StaticResource Brush.Ash}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource Brush.Stone}" />
+    <Setter Property="Foreground" Value="{DynamicResource Brush.Ash}" />
   </Style>
 
   <!-- Text inputs: 4 px radius, Stone hairline. TextBox.pill is the search variant. -->
@@ -215,9 +281,9 @@
     <Setter Property="FontFamily" Value="{StaticResource Font.Body}" />
     <Setter Property="FontWeight" Value="{StaticResource FontWeight.Body}" />
     <Setter Property="FontSize" Value="{StaticResource FontSize.BodySm}" />
-    <Setter Property="CaretBrush" Value="{StaticResource Brush.Ink}" />
-    <Setter Property="SelectionBrush" Value="{StaticResource Brush.Stone}" />
-    <Setter Property="SelectionForegroundBrush" Value="{StaticResource Brush.Ink}" />
+    <Setter Property="CaretBrush" Value="{DynamicResource Brush.Ink}" />
+    <Setter Property="SelectionBrush" Value="{DynamicResource Brush.Stone}" />
+    <Setter Property="SelectionForegroundBrush" Value="{DynamicResource Brush.Ink}" />
   </Style>
   <Style Selector="TextBox.pill">
     <Setter Property="CornerRadius" Value="{StaticResource Radius.Pill}" />
@@ -236,13 +302,13 @@
   <!-- Small outline badge (mic / system / screen) -->
   <Style Selector="Border.badge">
     <Setter Property="CornerRadius" Value="{StaticResource Radius.Pill}" />
-    <Setter Property="BorderBrush" Value="{StaticResource Brush.Stone}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource Brush.Stone}" />
     <Setter Property="BorderThickness" Value="{StaticResource Hairline.Thickness}" />
     <Setter Property="Padding" Value="{StaticResource Inset.Badge}" />
     <Setter Property="VerticalAlignment" Value="Center" />
   </Style>
   <Style Selector="Border.badge > TextBlock">
-    <Setter Property="Foreground" Value="{StaticResource Brush.Graphite}" />
+    <Setter Property="Foreground" Value="{DynamicResource Brush.Graphite}" />
   </Style>
 
   <!-- Pill toggle: Ink fill when checked, outline otherwise. Same shape as the buttons. -->
@@ -255,44 +321,44 @@
     <Setter Property="HorizontalContentAlignment" Value="Center" />
     <Setter Property="VerticalContentAlignment" Value="Center" />
     <Setter Property="Background" Value="Transparent" />
-    <Setter Property="Foreground" Value="{StaticResource Brush.Ink}" />
-    <Setter Property="BorderBrush" Value="{StaticResource Brush.ButtonBorder}" />
+    <Setter Property="Foreground" Value="{DynamicResource Brush.Ink}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource Brush.ButtonBorder}" />
     <Setter Property="BorderThickness" Value="{StaticResource Hairline.Thickness}" />
   </Style>
   <Style Selector="ToggleButton.pill:pointerover /template/ ContentPresenter#PART_ContentPresenter">
-    <Setter Property="Background" Value="{StaticResource Brush.Surface}" />
-    <Setter Property="BorderBrush" Value="{StaticResource Brush.ButtonBorder}" />
-    <Setter Property="Foreground" Value="{StaticResource Brush.Ink}" />
+    <Setter Property="Background" Value="{DynamicResource Brush.FillHover}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource Brush.ButtonBorder}" />
+    <Setter Property="Foreground" Value="{DynamicResource Brush.Ink}" />
   </Style>
   <Style Selector="ToggleButton.pill:pressed /template/ ContentPresenter#PART_ContentPresenter">
-    <Setter Property="Background" Value="{StaticResource Brush.Stone}" />
-    <Setter Property="BorderBrush" Value="{StaticResource Brush.ButtonBorder}" />
-    <Setter Property="Foreground" Value="{StaticResource Brush.Ink}" />
+    <Setter Property="Background" Value="{DynamicResource Brush.FillPressed}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource Brush.ButtonBorder}" />
+    <Setter Property="Foreground" Value="{DynamicResource Brush.Ink}" />
   </Style>
   <Style Selector="ToggleButton.pill:checked /template/ ContentPresenter#PART_ContentPresenter">
-    <Setter Property="Background" Value="{StaticResource Brush.Ink}" />
-    <Setter Property="BorderBrush" Value="{StaticResource Brush.Ink}" />
-    <Setter Property="Foreground" Value="{StaticResource Brush.Canvas}" />
+    <Setter Property="Background" Value="{DynamicResource Brush.Ink}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource Brush.Ink}" />
+    <Setter Property="Foreground" Value="{DynamicResource Brush.Canvas}" />
   </Style>
   <Style Selector="ToggleButton.pill:checked:pointerover /template/ ContentPresenter#PART_ContentPresenter">
-    <Setter Property="Background" Value="{StaticResource Brush.Graphite}" />
-    <Setter Property="BorderBrush" Value="{StaticResource Brush.Graphite}" />
-    <Setter Property="Foreground" Value="{StaticResource Brush.Canvas}" />
+    <Setter Property="Background" Value="{DynamicResource Brush.InkHover}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource Brush.InkHover}" />
+    <Setter Property="Foreground" Value="{DynamicResource Brush.Canvas}" />
   </Style>
   <Style Selector="ToggleButton.pill:checked:pressed /template/ ContentPresenter#PART_ContentPresenter">
-    <Setter Property="Background" Value="{StaticResource Brush.Smoke}" />
-    <Setter Property="BorderBrush" Value="{StaticResource Brush.Smoke}" />
-    <Setter Property="Foreground" Value="{StaticResource Brush.Canvas}" />
+    <Setter Property="Background" Value="{DynamicResource Brush.Smoke}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource Brush.Smoke}" />
+    <Setter Property="Foreground" Value="{DynamicResource Brush.Canvas}" />
   </Style>
   <Style Selector="ToggleButton.pill:disabled /template/ ContentPresenter#PART_ContentPresenter">
     <Setter Property="Background" Value="Transparent" />
-    <Setter Property="BorderBrush" Value="{StaticResource Brush.Stone}" />
-    <Setter Property="Foreground" Value="{StaticResource Brush.Ash}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource Brush.Stone}" />
+    <Setter Property="Foreground" Value="{DynamicResource Brush.Ash}" />
   </Style>
   <Style Selector="ToggleButton.pill:checked:disabled /template/ ContentPresenter#PART_ContentPresenter">
-    <Setter Property="Background" Value="{StaticResource Brush.Smoke}" />
-    <Setter Property="BorderBrush" Value="{StaticResource Brush.Smoke}" />
-    <Setter Property="Foreground" Value="{StaticResource Brush.Canvas}" />
+    <Setter Property="Background" Value="{DynamicResource Brush.Smoke}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource Brush.Smoke}" />
+    <Setter Property="Foreground" Value="{DynamicResource Brush.Canvas}" />
   </Style>
 
   <!-- Combo boxes -->
@@ -316,40 +382,40 @@
     <Setter Property="Padding" Value="0" />
     <Setter Property="CornerRadius" Value="{StaticResource Radius.Small}" />
     <Setter Property="Background" Value="Transparent" />
-    <Setter Property="Foreground" Value="{StaticResource Brush.Ink}" />
+    <Setter Property="Foreground" Value="{DynamicResource Brush.Ink}" />
   </Style>
   <Style Selector="ListBox.sessions ListBoxItem:pointerover /template/ ContentPresenter#PART_ContentPresenter">
-    <Setter Property="Background" Value="{StaticResource Brush.Canvas}" />
-    <Setter Property="Foreground" Value="{StaticResource Brush.Ink}" />
+    <Setter Property="Background" Value="{DynamicResource Brush.Canvas}" />
+    <Setter Property="Foreground" Value="{DynamicResource Brush.Ink}" />
   </Style>
   <Style Selector="ListBox.sessions ListBoxItem:selected /template/ ContentPresenter#PART_ContentPresenter">
-    <Setter Property="Background" Value="{StaticResource Brush.Stone}" />
-    <Setter Property="Foreground" Value="{StaticResource Brush.Ink}" />
+    <Setter Property="Background" Value="{DynamicResource Brush.Stone}" />
+    <Setter Property="Foreground" Value="{DynamicResource Brush.Ink}" />
   </Style>
   <Style Selector="ListBox.sessions ListBoxItem:selected:pointerover /template/ ContentPresenter#PART_ContentPresenter">
-    <Setter Property="Background" Value="{StaticResource Brush.Stone}" />
-    <Setter Property="Foreground" Value="{StaticResource Brush.Ink}" />
+    <Setter Property="Background" Value="{DynamicResource Brush.Stone}" />
+    <Setter Property="Foreground" Value="{DynamicResource Brush.Ink}" />
   </Style>
 
   <!-- Recording view: waveform, transcript text and the transcript list (achromatic only). -->
   <Style Selector="controls|WaveformControl">
-    <Setter Property="WaveBrush" Value="{StaticResource Brush.Ash}" />
-    <Setter Property="PlayedBrush" Value="{StaticResource Brush.Ink}" />
-    <Setter Property="PlayheadBrush" Value="{StaticResource Brush.Ink}" />
+    <Setter Property="WaveBrush" Value="{DynamicResource Brush.Ash}" />
+    <Setter Property="PlayedBrush" Value="{DynamicResource Brush.Ink}" />
+    <Setter Property="PlayheadBrush" Value="{DynamicResource Brush.Ink}" />
   </Style>
   <Style Selector="controls|TranscriptTextControl">
-    <Setter Property="Foreground" Value="{StaticResource Brush.Ink}" />
+    <Setter Property="Foreground" Value="{DynamicResource Brush.Ink}" />
     <Setter Property="FontFamily" Value="{StaticResource Font.Body}" />
     <Setter Property="FontWeight" Value="{StaticResource FontWeight.Body}" />
     <Setter Property="FontSize" Value="{StaticResource FontSize.Body}" />
     <Setter Property="LineHeight" Value="{StaticResource LineHeight.Body}" />
     <Setter Property="LetterSpacing" Value="{StaticResource LetterSpacing.Body}" />
-    <Setter Property="HighlightBrush" Value="{StaticResource Brush.Stone}" />
-    <Setter Property="HighlightBorderBrush" Value="{StaticResource Brush.Ash}" />
+    <Setter Property="HighlightBrush" Value="{DynamicResource Brush.Stone}" />
+    <Setter Property="HighlightBorderBrush" Value="{DynamicResource Brush.Ash}" />
     <Setter Property="HighlightCornerRadius" Value="{StaticResource Radius.Input}" />
   </Style>
   <Style Selector="Border.card.transcript">
-    <Setter Property="Background" Value="{StaticResource Brush.Canvas}" />
+    <Setter Property="Background" Value="{DynamicResource Brush.Canvas}" />
     <Setter Property="Padding" Value="{StaticResource Inset.8}" />
   </Style>
   <Style Selector="TextBlock.speaker">
@@ -358,7 +424,7 @@
     <Setter Property="FontSize" Value="{StaticResource FontSize.BodySm}" />
     <Setter Property="LineHeight" Value="{StaticResource LineHeight.BodySm}" />
     <Setter Property="LetterSpacing" Value="{StaticResource LetterSpacing.BodySm}" />
-    <Setter Property="Foreground" Value="{StaticResource Brush.Smoke}" />
+    <Setter Property="Foreground" Value="{DynamicResource Brush.Smoke}" />
   </Style>
 
   <!-- Time chip: Geist Mono on a Stone hairline pill; clicking it seeks. Same achromatic hover as the outline button. -->
@@ -366,8 +432,8 @@
     <Setter Property="CornerRadius" Value="{StaticResource Radius.Pill}" />
     <Setter Property="Padding" Value="{StaticResource Inset.Badge}" />
     <Setter Property="Background" Value="Transparent" />
-    <Setter Property="Foreground" Value="{StaticResource Brush.Graphite}" />
-    <Setter Property="BorderBrush" Value="{StaticResource Brush.Stone}" />
+    <Setter Property="Foreground" Value="{DynamicResource Brush.Graphite}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource Brush.Stone}" />
     <Setter Property="BorderThickness" Value="{StaticResource Hairline.Thickness}" />
     <Setter Property="FontFamily" Value="{StaticResource Font.Mono}" />
     <Setter Property="FontWeight" Value="{StaticResource FontWeight.Mono}" />
@@ -376,21 +442,21 @@
     <Setter Property="VerticalAlignment" Value="Center" />
   </Style>
   <Style Selector="Button.chip:pointerover /template/ ContentPresenter#PART_ContentPresenter">
-    <Setter Property="Background" Value="{StaticResource Brush.Stone}" />
-    <Setter Property="BorderBrush" Value="{StaticResource Brush.Stone}" />
-    <Setter Property="Foreground" Value="{StaticResource Brush.Ink}" />
+    <Setter Property="Background" Value="{DynamicResource Brush.FillPressed}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource Brush.FillPressed}" />
+    <Setter Property="Foreground" Value="{DynamicResource Brush.Ink}" />
   </Style>
   <Style Selector="Button.chip:pressed /template/ ContentPresenter#PART_ContentPresenter">
-    <Setter Property="Background" Value="{StaticResource Brush.Stone}" />
-    <Setter Property="BorderBrush" Value="{StaticResource Brush.Ash}" />
-    <Setter Property="Foreground" Value="{StaticResource Brush.Ink}" />
+    <Setter Property="Background" Value="{DynamicResource Brush.FillPressed}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource Brush.Ash}" />
+    <Setter Property="Foreground" Value="{DynamicResource Brush.Ink}" />
   </Style>
 
   <!-- The same chip as a label inside a clickable row (library search results): no own hover. -->
   <Style Selector="Border.chip">
     <Setter Property="CornerRadius" Value="{StaticResource Radius.Pill}" />
     <Setter Property="Padding" Value="{StaticResource Inset.Badge}" />
-    <Setter Property="BorderBrush" Value="{StaticResource Brush.Stone}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource Brush.Stone}" />
     <Setter Property="BorderThickness" Value="{StaticResource Hairline.Thickness}" />
     <Setter Property="VerticalAlignment" Value="Center" />
   </Style>
@@ -400,14 +466,14 @@
     <Setter Property="FontSize" Value="{StaticResource FontSize.Caption}" />
     <Setter Property="LineHeight" Value="{StaticResource LineHeight.Caption}" />
     <Setter Property="LetterSpacing" Value="0" />
-    <Setter Property="Foreground" Value="{StaticResource Brush.Graphite}" />
+    <Setter Property="Foreground" Value="{DynamicResource Brush.Graphite}" />
   </Style>
 
   <!-- AI chat: the user's question sits right, on Surface, with the card radius; answers are plain text. -->
   <Style Selector="Border.bubble">
-    <Setter Property="Background" Value="{StaticResource Brush.Surface}" />
+    <Setter Property="Background" Value="{DynamicResource Brush.Surface}" />
     <Setter Property="CornerRadius" Value="{StaticResource Radius.Card}" />
-    <Setter Property="BorderBrush" Value="{StaticResource Brush.Hairline}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource Brush.Hairline}" />
     <Setter Property="BorderThickness" Value="{StaticResource Hairline.Thickness}" />
     <Setter Property="Padding" Value="{StaticResource Inset.Search}" />
   </Style>

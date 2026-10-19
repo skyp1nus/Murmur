@@ -5,6 +5,8 @@
     <OutputType>Library</OutputType>
     <RootNamespace>Murmur.App</RootNamespace>
     <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
+    <!-- Resources/Strings.resx is Ukrainian, the neutral language of the resources (see the EmbeddedResource items below). -->
+    <NeutralLanguage>uk</NeutralLanguage>
   </PropertyGroup>
 
   <ItemGroup>
@@ -17,6 +19,43 @@
   <ItemGroup>
     <AvaloniaResource Include="Assets\Fonts\*.ttf" />
   </ItemGroup>
+
+  <ItemGroup>
+    <!--
+      Both languages are embedded in Murmur.App.dll itself (Murmur.App.Resources.Strings.resources = Ukrainian,
+      Murmur.App.Resources.Strings.en.resources = English); WithCulture="false" stops the SDK from turning Strings.en.resx
+      into a satellite assembly. Native AOT cannot load satellite assemblies: the English texts would never be found.
+      Strings.cs picks the resource set by the UI culture.
+    -->
+    <EmbeddedResource Update="Resources\Strings.resx" />
+    <EmbeddedResource Update="Resources\Strings.en.resx" WithCulture="false" />
+  </ItemGroup>
+
+  <!--
+    Strongly typed accessor: one `public static string <Key> => Get("<Key>")` per entry of Strings.resx, written at build
+    time into obj/ (Strings.keys.g.cs, a partial of Resources/Strings.cs). No reflection and no runtime lookup by name
+    from XAML: {x:Static res:Strings.Key} is compiled into a property read. A key that is in only one language fails
+    LocalizationTests.
+  -->
+  <Target Name="MurmurGenerateStringsAccessor" Inputs="Resources\Strings.resx;$(MSBuildProjectFullPath)" Outputs="$(IntermediateOutputPath)Strings.keys.g.cs">
+    <XmlPeek XmlInputPath="Resources\Strings.resx" Query="/root/data/@name">
+      <Output TaskParameter="Result" ItemName="MurmurStringKey" />
+    </XmlPeek>
+    <ItemGroup>
+      <MurmurStringLine Include="@(MurmurStringKey->'    public static string %(Identity) =&gt; Get(&quot;%(Identity)&quot;)%3B')" />
+    </ItemGroup>
+    <WriteLinesToFile File="$(IntermediateOutputPath)Strings.keys.g.cs" Overwrite="true" WriteOnlyWhenDifferent="true"
+                      Lines="// &lt;auto-generated/&gt; from Resources/Strings.resx by Murmur.App.csproj - do not edit;namespace Murmur.App.Resources%3B;public static partial class Strings;{;@(MurmurStringLine);}" />
+    <!-- WriteOnlyWhenDifferent leaves the file alone when only a text (not a key) changed; touch it so the target stays up to date. -->
+    <Touch Files="$(IntermediateOutputPath)Strings.keys.g.cs" />
+  </Target>
+
+  <Target Name="MurmurIncludeStringsAccessor" BeforeTargets="CoreCompile" DependsOnTargets="MurmurGenerateStringsAccessor">
+    <ItemGroup>
+      <Compile Include="$(IntermediateOutputPath)Strings.keys.g.cs" />
+      <FileWrites Include="$(IntermediateOutputPath)Strings.keys.g.cs" />
+    </ItemGroup>
+  </Target>
 
   <ItemGroup>
     <ProjectReference Include="..\Murmur.Core\Murmur.Core.csproj" />

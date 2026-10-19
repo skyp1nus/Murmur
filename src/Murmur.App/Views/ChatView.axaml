@@ -1,6 +1,7 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="using:Murmur.App.ViewModels"
+             xmlns:res="using:Murmur.App.Resources"
              x:Class="Murmur.App.Views.ChatView"
              x:DataType="vm:ChatViewModel">
 
@@ -45,9 +46,9 @@
                               Spacing="{StaticResource Space.12}"
                               IsVisible="{Binding IsAssistant}">
                     <TextBlock Classes="bodySm"
-                               Foreground="{StaticResource Brush.Smoke}"
+                               Foreground="{DynamicResource Brush.Smoke}"
                                IsVisible="{Binding ShowThinking}"
-                               Text="Думаю…" />
+                               Text="{x:Static res:Strings.Chat_Thinking}" />
                     <TextBlock Classes="body"
                                TextWrapping="Wrap"
                                IsVisible="{Binding HasText}"
@@ -71,7 +72,7 @@
                     </ItemsControl>
                     <TextBlock Classes="bodySm"
                                TextWrapping="Wrap"
-                               Foreground="{StaticResource Brush.Smoke}"
+                               Foreground="{DynamicResource Brush.Smoke}"
                                IsVisible="{Binding HasStatus}"
                                Text="{Binding StatusText}" />
                   </StackPanel>
@@ -96,7 +97,7 @@
                      HorizontalAlignment="Center"
                      TextAlignment="Center"
                      TextWrapping="Wrap"
-                     Foreground="{StaticResource Brush.Graphite}"
+                     Foreground="{DynamicResource Brush.Graphite}"
                      Text="{Binding EmptyText}" />
         </StackPanel>
 
@@ -113,11 +114,11 @@
                        Text="{Binding NoticeTitle}" />
             <TextBlock Classes="body"
                        TextWrapping="Wrap"
-                       Foreground="{StaticResource Brush.Graphite}"
+                       Foreground="{DynamicResource Brush.Graphite}"
                        Text="{Binding NoticeText}" />
             <Button Classes="outline"
                     HorizontalAlignment="Left"
-                    Content="Перевірити знову"
+                    Content="{x:Static res:Strings.Chat_CheckAgain}"
                     IsVisible="{Binding CanCheckAgain}"
                     Command="{Binding RefreshAvailabilityCommand}" />
           </StackPanel>
@@ -139,13 +140,13 @@
       <Button Grid.Column="1"
               Classes="primary"
               VerticalAlignment="Center"
-              Content="Запитати"
+              Content="{x:Static res:Strings.Chat_Ask}"
               IsVisible="{Binding !IsGenerating}"
               Command="{Binding AskCommand}" />
       <Button Grid.Column="1"
               Classes="outline"
               VerticalAlignment="Center"
-              Content="Зупинити"
+              Content="{x:Static res:Strings.Common_Stop}"
               IsVisible="{Binding IsGenerating}"
               Command="{Binding CancelCommand}" />
     </Grid>

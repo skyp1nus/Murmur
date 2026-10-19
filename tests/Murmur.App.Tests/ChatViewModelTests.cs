@@ -167,7 +167,7 @@ public sealed class ChatViewModelTests : IDisposable
         await chat.AskTask;
 
         var answer = chat.Messages[1];
-        Assert.Equal(ChatViewModel.FailedPrefix + "сервер не відповідає", answer.StatusText);
+        Assert.Equal(ChatViewModel.FailedText("сервер не відповідає"), answer.StatusText);
         Assert.False(answer.IsStreaming);
         Assert.False(chat.IsGenerating);
         Assert.Equal(ChatAvailability.Ready, chat.Availability);
