@@ -5,7 +5,8 @@ namespace Murmur.Models;
 
 /// <summary>
 /// The pinned catalog (data in code). Sizes are approximate display values; the real total comes from the server.
-/// SHA-256 values are not pinned yet: <c>tools/Murmur.ModelFetch</c> (workflow <c>models.yml</c>) prints them.
+/// SHA-256 values and sizes are pinned where known; <c>tools/Murmur.ModelFetch --resolve-pins</c> (workflow <c>models.yml</c>)
+/// prints the current upstream values, the commit of every Hugging Face repository and whether a pin has drifted.
 /// </summary>
 /// <remarks>
 /// The AI items (<c>llama-cpp-*</c>, <c>embeddinggemma-*</c> and one <c>gemma-4-*</c>) are useful only together:
@@ -20,6 +21,16 @@ public static class ModelCatalog
     public const string EmbeddingId = "embeddinggemma-300m-q8";
     public const string ChatE4BId = "gemma-4-e4b-q4";
     public const string Chat26BId = "gemma-4-26b-a4b-q4";
+
+    /// <summary>
+    /// Hugging Face repository to the commit its pinned hashes belong to. A hash pinned on <c>resolve/main</c> would break
+    /// every install for good the day upstream re-uploads a file, so a repository listed here is downloaded from
+    /// <c>resolve/&lt;sha&gt;</c>. A repository that is not listed yet is downloaded from <c>main</c>: fill the value in from
+    /// the <c>--resolve-pins</c> output of the models workflow (and re-pin the hashes of that repository from the same run).
+    /// </summary>
+    public static IReadOnlyDictionary<string, string> HuggingFaceRevisions { get; } = new Dictionary<string, string>(StringComparer.Ordinal)
+    {
+    };
 
     /// <summary>Directory (below the models directory) holding the llama.cpp server and its libraries.</summary>
     public const string LlamaCppDirectoryName = "llama.cpp";
@@ -162,6 +173,9 @@ public static class ModelCatalog
                 [.. fallbacks.Select(f => new ModelMirror(HuggingFaceUrl(sources, f.Repo, f.FileName), f.Repo, f.FileName, f.Sha256, f.SizeBytes))])],
             Repo: first.Repo);
 
-    private static string HuggingFaceUrl(ModelCatalogSources sources, string repo, string file) =>
-        $"{sources.HuggingFace}/{repo}/resolve/main/{file}";
+    private static string HuggingFaceUrl(ModelCatalogSources sources, string repo, string file)
+    {
+        var revisions = sources.Revisions ?? HuggingFaceRevisions;
+        return $"{sources.HuggingFace}/{repo}/resolve/{(revisions.TryGetValue(repo, out var revision) ? revision : "main")}/{file}";
+    }
 }

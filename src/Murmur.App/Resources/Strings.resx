@@ -377,4 +377,263 @@
   <data name="Month_12" xml:space="preserve">
     <value>грудня</value>
   </data>
+  <data name="Nav_Library" xml:space="preserve">
+    <value>Бібліотека</value>
+  </data>
+  <data name="Nav_Settings" xml:space="preserve">
+    <value>Налаштування</value>
+  </data>
+  <data name="Nav_Sections" xml:space="preserve">
+    <value>Розділи</value>
+  </data>
+  <data name="Nav_OfflineTitle" xml:space="preserve">
+    <value>Повністю офлайн</value>
+  </data>
+  <data name="Nav_OfflineText" xml:space="preserve">
+    <value>Записи й моделі лишаються на цьому ПК</value>
+  </data>
+  <data name="Settings_Title" xml:space="preserve">
+    <value>Налаштування</value>
+  </data>
+  <data name="Settings_ModelsTitle" xml:space="preserve">
+    <value>Моделі</value>
+  </data>
+  <data name="Settings_ModelsText" xml:space="preserve">
+    <value>Усе працює локально. Моделі завантажуються лише коли потрібні й вивантажуються після роботи.</value>
+  </data>
+  <data name="Settings_DevicesTitle" xml:space="preserve">
+    <value>Пристрої</value>
+  </data>
+  <data name="Settings_DevicesText" xml:space="preserve">
+    <value>Мікрофон стає доріжкою «Я», системний звук — «Інші».</value>
+  </data>
+  <data name="Settings_StorageTitle" xml:space="preserve">
+    <value>Сховище</value>
+  </data>
+  <data name="Settings_StorageText" xml:space="preserve">
+    <value>Аудіо та відео нових записів зберігаються в цій папці.</value>
+  </data>
+  <data name="Settings_HotkeysTitle" xml:space="preserve">
+    <value>Гарячі клавіші</value>
+  </data>
+  <data name="Settings_HotkeysText" xml:space="preserve">
+    <value>Працюватимуть, навіть коли вікно згорнуте.</value>
+  </data>
+  <data name="Settings_AppearanceTitle" xml:space="preserve">
+    <value>Вигляд</value>
+  </data>
+  <data name="Settings_AppearanceText" xml:space="preserve">
+    <value>Тема й мова інтерфейсу.</value>
+  </data>
+  <data name="Settings_AboutTitle" xml:space="preserve">
+    <value>Про програму</value>
+  </data>
+  <data name="Settings_AboutText" xml:space="preserve">
+    <value>Безкоштовно, без акаунтів і хмари.</value>
+  </data>
+  <data name="Settings_SaveFailed" xml:space="preserve">
+    <value>Не вдалося зберегти налаштування: {0}</value>
+    <comment>{0} = error message</comment>
+  </data>
+  <data name="Models_Installed" xml:space="preserve">
+    <value>Встановлено</value>
+  </data>
+  <data name="Models_Install" xml:space="preserve">
+    <value>Завантажити</value>
+  </data>
+  <data name="Models_Retry" xml:space="preserve">
+    <value>Повторити</value>
+  </data>
+  <data name="Models_Cancel" xml:space="preserve">
+    <value>Скасувати</value>
+  </data>
+  <data name="Models_Remove" xml:space="preserve">
+    <value>Видалити</value>
+  </data>
+  <data name="Models_RemoveConfirm" xml:space="preserve">
+    <value>Так, видалити</value>
+  </data>
+  <data name="Models_Queued" xml:space="preserve">
+    <value>В черзі</value>
+  </data>
+  <data name="Models_Default" xml:space="preserve">
+    <value>За замовчуванням</value>
+  </data>
+  <data name="Models_Recommended" xml:space="preserve">
+    <value>Рекомендовано</value>
+  </data>
+  <data name="Models_MakeDefault" xml:space="preserve">
+    <value>Зробити основною</value>
+  </data>
+  <data name="Models_InstallFailed" xml:space="preserve">
+    <value>Не вдалося завантажити. Перевірте зʼєднання й спробуйте ще раз.</value>
+  </data>
+  <data name="Models_ActionFailed" xml:space="preserve">
+    <value>Не вдалося виконати дію: {0}</value>
+    <comment>{0} = error message</comment>
+  </data>
+  <data name="Models_DescAsr" xml:space="preserve">
+    <value>Транскрипція · 25 європейських мов · CPU</value>
+  </data>
+  <data name="Models_DescVad" xml:space="preserve">
+    <value>Розбиття мовлення на фрагменти</value>
+  </data>
+  <data name="Models_DescRuntime" xml:space="preserve">
+    <value>Локальний рушій AI (llama.cpp)</value>
+  </data>
+  <data name="Models_DescChat" xml:space="preserve">
+    <value>AI-чат, резюме, action items</value>
+  </data>
+  <data name="Models_DescChatLarge" xml:space="preserve">
+    <value>Для потужних ПК · точніші відповіді</value>
+  </data>
+  <data name="Models_DescEmbedding" xml:space="preserve">
+    <value>Семантичний пошук по транскриптах</value>
+  </data>
+  <data name="Models_AiNote" xml:space="preserve">
+    <value>AI-моделі працюють разом: чат-модель встановлюється разом із рушієм і моделлю пошуку.</value>
+  </data>
+  <data name="Models_FreeSpace" xml:space="preserve">
+    <value>Вільно на диску: {0}</value>
+    <comment>{0} = size</comment>
+  </data>
+  <data name="Models_Folder" xml:space="preserve">
+    <value>Папка моделей: {0}</value>
+    <comment>{0} = path</comment>
+  </data>
+  <data name="Models_Downloaded" xml:space="preserve">
+    <value>{0} із {1}</value>
+    <comment>{0} = downloaded size, {1} = total size</comment>
+  </data>
+  <data name="Size_Gb" xml:space="preserve">
+    <value>{0:0.00} ГБ</value>
+  </data>
+  <data name="Size_Mb" xml:space="preserve">
+    <value>{0:0} МБ</value>
+  </data>
+  <data name="Size_Kb" xml:space="preserve">
+    <value>{0:0} КБ</value>
+  </data>
+  <data name="Devices_SystemDefault" xml:space="preserve">
+    <value>За замовчуванням</value>
+  </data>
+  <data name="Devices_PrimaryDisplay" xml:space="preserve">
+    <value>Основний екран</value>
+  </data>
+  <data name="Devices_Display" xml:space="preserve">
+    <value>{0} · {1}×{2}</value>
+    <comment>{0} = name, {1} = width, {2} = height</comment>
+  </data>
+  <data name="Devices_Screen" xml:space="preserve">
+    <value>Запис екрана</value>
+  </data>
+  <data name="Devices_ScreenNote" xml:space="preserve">
+    <value>Записується весь екран; запис окремого вікна не підтримується.</value>
+  </data>
+  <data name="Devices_ScreenUnavailable" xml:space="preserve">
+    <value>Запис екрана недоступний у цій системі.</value>
+  </data>
+  <data name="Devices_ScreenByDefault" xml:space="preserve">
+    <value>Вмикати запис екрана за замовчуванням</value>
+  </data>
+  <data name="Devices_ScreenByDefaultText" xml:space="preserve">
+    <value>Перемикач «Екран» на екрані запису буде ввімкнений одразу.</value>
+  </data>
+  <data name="Devices_On" xml:space="preserve">
+    <value>Увімкнено</value>
+  </data>
+  <data name="Devices_Off" xml:space="preserve">
+    <value>Вимкнено</value>
+  </data>
+  <data name="Storage_Default" xml:space="preserve">
+    <value>Папка за замовчуванням</value>
+  </data>
+  <data name="Storage_Note" xml:space="preserve">
+    <value>Нові записи потраплятимуть у цю папку. Наявні записи лишаються на місці.</value>
+  </data>
+  <data name="Storage_Change" xml:space="preserve">
+    <value>Змінити</value>
+  </data>
+  <data name="Storage_Open" xml:space="preserve">
+    <value>Відкрити в Провіднику</value>
+  </data>
+  <data name="Storage_Reset" xml:space="preserve">
+    <value>Повернути за замовчуванням</value>
+  </data>
+  <data name="Storage_PickerTitle" xml:space="preserve">
+    <value>Виберіть папку для записів</value>
+  </data>
+  <data name="Storage_OpenFailed" xml:space="preserve">
+    <value>Не вдалося відкрити папку: {0}</value>
+    <comment>{0} = error message</comment>
+  </data>
+  <data name="Hotkeys_Record" xml:space="preserve">
+    <value>Почати / зупинити запис</value>
+  </data>
+  <data name="Hotkeys_ToggleScreen" xml:space="preserve">
+    <value>Перемкнути запис екрана</value>
+  </data>
+  <data name="Hotkeys_ShowApp" xml:space="preserve">
+    <value>Відкрити Murmur</value>
+  </data>
+  <data name="Hotkeys_None" xml:space="preserve">
+    <value>Не задано</value>
+  </data>
+  <data name="Hotkeys_Press" xml:space="preserve">
+    <value>Натисніть комбінацію…</value>
+  </data>
+  <data name="Hotkeys_Hint" xml:space="preserve">
+    <value>Esc скасовує, Backspace прибирає комбінацію.</value>
+  </data>
+  <data name="Hotkeys_NeedModifier" xml:space="preserve">
+    <value>Додайте Ctrl, Alt або Win.</value>
+  </data>
+  <data name="Hotkeys_Invalid" xml:space="preserve">
+    <value>Таку комбінацію не можна використати.</value>
+  </data>
+  <data name="Hotkeys_Duplicate" xml:space="preserve">
+    <value>Уже використовується: «{0}».</value>
+    <comment>{0} = name of the other action</comment>
+  </data>
+  <data name="Appearance_Theme" xml:space="preserve">
+    <value>Тема</value>
+  </data>
+  <data name="Appearance_ThemeLight" xml:space="preserve">
+    <value>Світла</value>
+  </data>
+  <data name="Appearance_ThemeDark" xml:space="preserve">
+    <value>Темна</value>
+  </data>
+  <data name="Appearance_ThemeSystem" xml:space="preserve">
+    <value>Як у системі</value>
+  </data>
+  <data name="Appearance_Language" xml:space="preserve">
+    <value>Мова</value>
+  </data>
+  <data name="Appearance_LanguageUk" xml:space="preserve">
+    <value>Українська</value>
+  </data>
+  <data name="Appearance_LanguageEn" xml:space="preserve">
+    <value>English</value>
+  </data>
+  <data name="Appearance_RestartNote" xml:space="preserve">
+    <value>Мова зміниться після перезапуску.</value>
+  </data>
+  <data name="Appearance_Onboarding" xml:space="preserve">
+    <value>Знайомство з програмою</value>
+  </data>
+  <data name="Appearance_OnboardingRestart" xml:space="preserve">
+    <value>Пройти знайомство ще раз</value>
+  </data>
+  <data name="Appearance_OnboardingDone" xml:space="preserve">
+    <value>Знайомство зʼявиться під час наступного запуску.</value>
+  </data>
+  <data name="About_License" xml:space="preserve">
+    <value>Ліцензія проєкту — {0}</value>
+    <comment>{0} = licence name</comment>
+  </data>
+  <data name="About_Credit" xml:space="preserve">
+    <value>{0} — {1}</value>
+    <comment>{0} = component, {1} = author and licence</comment>
+  </data>
 </root>

@@ -1,0 +1,503 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Murmur.App.ViewModels"
+             xmlns:res="using:Murmur.App.Resources"
+             xmlns:controls="using:Murmur.App.Controls"
+             x:Class="Murmur.App.Views.SettingsView"
+             x:DataType="vm:SettingsViewModel">
+
+  <ScrollViewer x:Name="Scroller"
+                HorizontalScrollBarVisibility="Disabled"
+                VerticalScrollBarVisibility="Auto">
+    <StackPanel MaxWidth="{StaticResource Size.SettingsMaxWidth}"
+                HorizontalAlignment="Stretch"
+                Margin="{StaticResource Inset.16}"
+                Spacing="{StaticResource Space.48}">
+
+      <TextBlock Classes="heading"
+                 Text="{x:Static res:Strings.Settings_Title}" />
+
+      <!-- Models -->
+      <controls:ResponsivePairPanel x:Name="ModelsSection"
+                                    IsVisible="{Binding HasModels}"
+                                    LeftWidth="{StaticResource Size.SettingsSide}"
+                                    WrapBelow="{StaticResource Size.SettingsWrap}"
+                                    ColumnSpacing="{StaticResource Space.40}"
+                                    RowSpacing="{StaticResource Space.24}">
+        <StackPanel Spacing="{StaticResource Space.8}">
+          <TextBlock Classes="sectionTitle"
+                     Text="{x:Static res:Strings.Settings_ModelsTitle}" />
+          <TextBlock Classes="note"
+                     Text="{x:Static res:Strings.Settings_ModelsText}" />
+        </StackPanel>
+        <StackPanel Spacing="{StaticResource Space.16}">
+          <Border Classes="panel">
+            <ItemsControl Classes="rows"
+                          ItemsSource="{Binding Models.Rows}">
+              <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="vm:ModelRowViewModel">
+                  <Border Classes="row"
+                          Padding="{StaticResource Inset.20}">
+                    <Grid ColumnDefinitions="*,Auto,Auto"
+                          ColumnSpacing="{StaticResource Space.16}">
+                      <StackPanel Grid.Column="0"
+                                  VerticalAlignment="Center"
+                                  Spacing="{StaticResource Space.4}">
+                        <StackPanel Orientation="Horizontal"
+                                    Spacing="{StaticResource Space.8}">
+                          <TextBlock Classes="body"
+                                     FontWeight="{StaticResource FontWeight.BodyMedium}"
+                                     TextTrimming="CharacterEllipsis"
+                                     Text="{Binding Name}" />
+                          <Border Classes="badge"
+                                  IsVisible="{Binding HasBadge}">
+                            <TextBlock Classes="caption"
+                                       Text="{Binding BadgeText}" />
+                          </Border>
+                        </StackPanel>
+                        <TextBlock Classes="note"
+                                   Text="{Binding Description}" />
+                        <StackPanel Orientation="Horizontal"
+                                    Spacing="{StaticResource Space.12}"
+                                    IsVisible="{Binding ShowProgress}">
+                          <ProgressBar Width="{StaticResource Size.ProgressWidth}"
+                                       Height="{StaticResource Size.Progress}"
+                                       VerticalAlignment="Center"
+                                       Minimum="0"
+                                       Maximum="100"
+                                       Value="{Binding Percent}" />
+                          <TextBlock Classes="mono"
+                                     VerticalAlignment="Center"
+                                     Foreground="{DynamicResource Brush.Graphite}"
+                                     Text="{Binding PercentText}" />
+                          <TextBlock Classes="mono"
+                                     VerticalAlignment="Center"
+                                     Foreground="{DynamicResource Brush.Smoke}"
+                                     Text="{Binding TransferText}" />
+                        </StackPanel>
+                        <TextBlock Classes="note"
+                                   Foreground="{DynamicResource Brush.Graphite}"
+                                   IsVisible="{Binding IsQueued}"
+                                   Text="{Binding QueuedText}" />
+                        <TextBlock Classes="note"
+                                   Foreground="{DynamicResource Brush.Graphite}"
+                                   IsVisible="{Binding HasError}"
+                                   Text="{Binding Error}" />
+                      </StackPanel>
+
+                      <TextBlock Grid.Column="1"
+                                 Classes="mono"
+                                 VerticalAlignment="Center"
+                                 Foreground="{DynamicResource Brush.Smoke}"
+                                 IsVisible="{Binding ShowSize}"
+                                 Text="{Binding SizeText}" />
+
+                      <StackPanel Grid.Column="2"
+                                  Orientation="Horizontal"
+                                  VerticalAlignment="Center"
+                                  Spacing="{StaticResource Space.8}">
+                        <Border Classes="status"
+                                IsVisible="{Binding IsInstalled}">
+                          <StackPanel Orientation="Horizontal"
+                                      Spacing="{StaticResource Space.8}">
+                            <controls:IconControl Width="{StaticResource Size.SmallIcon}"
+                                                  Height="{StaticResource Size.SmallIcon}"
+                                                  Data="{StaticResource Icon.Check}" />
+                            <TextBlock Classes="label"
+                                       VerticalAlignment="Center"
+                                       Text="{Binding InstalledText}" />
+                          </StackPanel>
+                        </Border>
+                        <Button Classes="outline compact"
+                                IsVisible="{Binding ShowMakeDefault}"
+                                Content="{x:Static res:Strings.Models_MakeDefault}"
+                                Command="{Binding MakeDefaultCommand}" />
+                        <Button Classes="outline compact"
+                                IsVisible="{Binding ShowRemove}"
+                                Content="{x:Static res:Strings.Models_Remove}"
+                                Command="{Binding RequestRemoveCommand}" />
+                        <Button Classes="outline compact"
+                                IsVisible="{Binding IsConfirmingRemove}"
+                                Content="{x:Static res:Strings.Models_RemoveConfirm}"
+                                Command="{Binding ConfirmRemoveCommand}" />
+                        <Button Classes="outline compact"
+                                IsVisible="{Binding IsConfirmingRemove}"
+                                Content="{x:Static res:Strings.Models_Cancel}"
+                                Command="{Binding CancelRemoveCommand}" />
+                        <Button Classes="outline compact"
+                                IsVisible="{Binding ShowInstall}"
+                                Command="{Binding InstallCommand}">
+                          <StackPanel Orientation="Horizontal"
+                                      Spacing="{StaticResource Space.8}">
+                            <controls:IconControl Width="{StaticResource Size.SmallIcon}"
+                                                  Height="{StaticResource Size.SmallIcon}"
+                                                  Data="{StaticResource Icon.Download}" />
+                            <TextBlock VerticalAlignment="Center"
+                                       Foreground="{Binding $parent[ContentPresenter].Foreground}"
+                                       Text="{Binding InstallLabel}" />
+                          </StackPanel>
+                        </Button>
+                        <Button Classes="outline compact"
+                                IsVisible="{Binding ShowCancel}"
+                                Content="{x:Static res:Strings.Models_Cancel}"
+                                Command="{Binding CancelCommand}" />
+                      </StackPanel>
+                    </Grid>
+                  </Border>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+          </Border>
+          <TextBlock Classes="note"
+                     IsVisible="{Binding Models.HasAiNote}"
+                     Text="{x:Static res:Strings.Models_AiNote}" />
+          <TextBlock Classes="note"
+                     IsVisible="{Binding Models.HasFreeSpace}"
+                     Text="{Binding Models.FreeSpaceText}" />
+          <TextBlock Classes="note"
+                     Text="{Binding Models.FolderText}" />
+        </StackPanel>
+      </controls:ResponsivePairPanel>
+
+      <Border Classes="divider"
+              IsVisible="{Binding HasModels}" />
+
+      <!-- Devices -->
+      <controls:ResponsivePairPanel x:Name="DevicesSection"
+                                    LeftWidth="{StaticResource Size.SettingsSide}"
+                                    WrapBelow="{StaticResource Size.SettingsWrap}"
+                                    ColumnSpacing="{StaticResource Space.40}"
+                                    RowSpacing="{StaticResource Space.24}">
+        <StackPanel Spacing="{StaticResource Space.8}">
+          <TextBlock Classes="sectionTitle"
+                     Text="{x:Static res:Strings.Settings_DevicesTitle}" />
+          <TextBlock Classes="note"
+                     Text="{x:Static res:Strings.Settings_DevicesText}" />
+        </StackPanel>
+        <StackPanel Spacing="{StaticResource Space.16}">
+          <StackPanel Spacing="{StaticResource Space.8}">
+            <TextBlock Classes="label"
+                       Text="{x:Static res:Strings.Common_Microphone}" />
+            <ComboBox x:Name="MicrophoneBox"
+                      ItemsSource="{Binding Devices.Microphones}"
+                      SelectedItem="{Binding Devices.SelectedMicrophone, Mode=TwoWay}"
+                      IsEnabled="{Binding Devices.MicrophoneAvailable}">
+              <ComboBox.ItemTemplate>
+                <DataTemplate x:DataType="vm:ChoiceItem">
+                  <TextBlock Text="{Binding Name}"
+                             TextTrimming="CharacterEllipsis" />
+                </DataTemplate>
+              </ComboBox.ItemTemplate>
+            </ComboBox>
+          </StackPanel>
+          <StackPanel Spacing="{StaticResource Space.8}">
+            <TextBlock Classes="label"
+                       Text="{x:Static res:Strings.Recording_SystemAudio}" />
+            <ComboBox x:Name="SystemAudioBox"
+                      ItemsSource="{Binding Devices.SystemDevices}"
+                      SelectedItem="{Binding Devices.SelectedSystemDevice, Mode=TwoWay}"
+                      IsEnabled="{Binding Devices.SystemAudioAvailable}">
+              <ComboBox.ItemTemplate>
+                <DataTemplate x:DataType="vm:ChoiceItem">
+                  <TextBlock Text="{Binding Name}"
+                             TextTrimming="CharacterEllipsis" />
+                </DataTemplate>
+              </ComboBox.ItemTemplate>
+            </ComboBox>
+          </StackPanel>
+          <StackPanel Spacing="{StaticResource Space.8}">
+            <TextBlock Classes="label"
+                       Text="{x:Static res:Strings.Devices_Screen}" />
+            <ComboBox x:Name="DisplayBox"
+                      ItemsSource="{Binding Devices.Displays}"
+                      SelectedItem="{Binding Devices.SelectedDisplay, Mode=TwoWay}"
+                      IsEnabled="{Binding Devices.ScreenAvailable}">
+              <ComboBox.ItemTemplate>
+                <DataTemplate x:DataType="vm:ChoiceItem">
+                  <TextBlock Text="{Binding Name}"
+                             TextTrimming="CharacterEllipsis" />
+                </DataTemplate>
+              </ComboBox.ItemTemplate>
+            </ComboBox>
+            <TextBlock Classes="note"
+                       IsVisible="{Binding Devices.ScreenAvailable}"
+                       Text="{x:Static res:Strings.Devices_ScreenNote}" />
+            <TextBlock Classes="note"
+                       IsVisible="{Binding Devices.ScreenUnavailable}"
+                       Text="{x:Static res:Strings.Devices_ScreenUnavailable}" />
+          </StackPanel>
+          <Grid ColumnDefinitions="*,Auto"
+                ColumnSpacing="{StaticResource Space.16}"
+                IsVisible="{Binding Devices.ScreenAvailable}">
+            <StackPanel Grid.Column="0"
+                        VerticalAlignment="Center"
+                        Spacing="{StaticResource Space.4}">
+              <TextBlock Classes="label"
+                         Text="{x:Static res:Strings.Devices_ScreenByDefault}" />
+              <TextBlock Classes="note"
+                         Text="{x:Static res:Strings.Devices_ScreenByDefaultText}" />
+            </StackPanel>
+            <ToggleButton Grid.Column="1"
+                          x:Name="ScreenByDefaultToggle"
+                          Classes="pill"
+                          VerticalAlignment="Center"
+                          Content="{Binding Devices.ScreenByDefaultLabel}"
+                          IsChecked="{Binding Devices.ScreenByDefault, Mode=TwoWay}" />
+          </Grid>
+          <TextBlock Classes="note"
+                     Foreground="{DynamicResource Brush.Graphite}"
+                     IsVisible="{Binding Devices.HasError}"
+                     Text="{Binding Devices.Error}" />
+        </StackPanel>
+      </controls:ResponsivePairPanel>
+
+      <Border Classes="divider" />
+
+      <!-- Storage -->
+      <controls:ResponsivePairPanel x:Name="StorageSection"
+                                    LeftWidth="{StaticResource Size.SettingsSide}"
+                                    WrapBelow="{StaticResource Size.SettingsWrap}"
+                                    ColumnSpacing="{StaticResource Space.40}"
+                                    RowSpacing="{StaticResource Space.24}">
+        <StackPanel Spacing="{StaticResource Space.8}">
+          <TextBlock Classes="sectionTitle"
+                     Text="{x:Static res:Strings.Settings_StorageTitle}" />
+          <TextBlock Classes="note"
+                     Text="{x:Static res:Strings.Settings_StorageText}" />
+        </StackPanel>
+        <StackPanel Spacing="{StaticResource Space.12}">
+          <Grid ColumnDefinitions="*,Auto,Auto"
+                ColumnSpacing="{StaticResource Space.12}">
+            <Border Grid.Column="0"
+                    Classes="field">
+              <StackPanel Orientation="Horizontal"
+                          Spacing="{StaticResource Space.12}">
+                <controls:IconControl Width="{StaticResource Size.NavIcon}"
+                                      Height="{StaticResource Size.NavIcon}"
+                                      Data="{StaticResource Icon.Folder}"
+                                      TextElement.Foreground="{DynamicResource Brush.Smoke}" />
+                <TextBlock x:Name="RecordingsPath"
+                           Classes="mono"
+                           VerticalAlignment="Center"
+                           TextTrimming="CharacterEllipsis"
+                           Text="{Binding Storage.EffectivePath}" />
+              </StackPanel>
+            </Border>
+            <Button Grid.Column="1"
+                    x:Name="ChangeFolderButton"
+                    Classes="outline compact"
+                    Content="{x:Static res:Strings.Storage_Change}"
+                    Command="{Binding Storage.ChangeCommand}" />
+            <Button Grid.Column="2"
+                    x:Name="OpenFolderButton"
+                    Classes="outline compact"
+                    Content="{x:Static res:Strings.Storage_Open}"
+                    Command="{Binding Storage.OpenCommand}" />
+          </Grid>
+          <StackPanel Orientation="Horizontal"
+                      Spacing="{StaticResource Space.12}">
+            <Border Classes="badge"
+                    IsVisible="{Binding Storage.IsDefaultFolder}">
+              <TextBlock Classes="caption"
+                         Text="{x:Static res:Strings.Storage_Default}" />
+            </Border>
+            <Button Classes="outline compact"
+                    IsVisible="{Binding Storage.CanReset}"
+                    Content="{x:Static res:Strings.Storage_Reset}"
+                    Command="{Binding Storage.ResetCommand}" />
+          </StackPanel>
+          <TextBlock Classes="note"
+                     Text="{x:Static res:Strings.Storage_Note}" />
+          <TextBlock Classes="note"
+                     Foreground="{DynamicResource Brush.Graphite}"
+                     IsVisible="{Binding Storage.HasError}"
+                     Text="{Binding Storage.Error}" />
+        </StackPanel>
+      </controls:ResponsivePairPanel>
+
+      <Border Classes="divider" />
+
+      <!-- Hotkeys -->
+      <controls:ResponsivePairPanel x:Name="HotkeysSection"
+                                    LeftWidth="{StaticResource Size.SettingsSide}"
+                                    WrapBelow="{StaticResource Size.SettingsWrap}"
+                                    ColumnSpacing="{StaticResource Space.40}"
+                                    RowSpacing="{StaticResource Space.24}">
+        <StackPanel Spacing="{StaticResource Space.8}">
+          <TextBlock Classes="sectionTitle"
+                     Text="{x:Static res:Strings.Settings_HotkeysTitle}" />
+          <TextBlock Classes="note"
+                     Text="{x:Static res:Strings.Settings_HotkeysText}" />
+        </StackPanel>
+        <StackPanel Spacing="{StaticResource Space.12}">
+          <Border Classes="panel">
+            <ItemsControl Classes="rows"
+                          ItemsSource="{Binding Hotkeys.Rows}">
+              <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="vm:HotkeyRowViewModel">
+                  <Border Classes="row"
+                          Padding="{StaticResource Inset.20}">
+                    <Grid ColumnDefinitions="*,Auto"
+                          RowDefinitions="Auto,Auto"
+                          ColumnSpacing="{StaticResource Space.12}"
+                          RowSpacing="{StaticResource Space.4}">
+                      <TextBlock Grid.Column="0"
+                                 Classes="bodySm"
+                                 VerticalAlignment="Center"
+                                 Text="{Binding Label}" />
+                      <Button Grid.Column="1"
+                              Classes="keycap"
+                              Classes.capturing="{Binding IsCapturing}"
+                              Content="{Binding DisplayText}"
+                              Command="{Binding CaptureCommand}" />
+                      <TextBlock Grid.Row="1"
+                                 Grid.ColumnSpan="2"
+                                 Classes="note"
+                                 IsVisible="{Binding IsCapturing}"
+                                 Text="{Binding Hint}" />
+                      <TextBlock Grid.Row="1"
+                                 Grid.ColumnSpan="2"
+                                 Classes="note"
+                                 Foreground="{DynamicResource Brush.Graphite}"
+                                 IsVisible="{Binding HasError}"
+                                 Text="{Binding Error}" />
+                    </Grid>
+                  </Border>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+          </Border>
+          <TextBlock Classes="note"
+                     Foreground="{DynamicResource Brush.Graphite}"
+                     IsVisible="{Binding Hotkeys.HasError}"
+                     Text="{Binding Hotkeys.Error}" />
+        </StackPanel>
+      </controls:ResponsivePairPanel>
+
+      <Border Classes="divider" />
+
+      <!-- Appearance -->
+      <controls:ResponsivePairPanel x:Name="AppearanceSection"
+                                    LeftWidth="{StaticResource Size.SettingsSide}"
+                                    WrapBelow="{StaticResource Size.SettingsWrap}"
+                                    ColumnSpacing="{StaticResource Space.40}"
+                                    RowSpacing="{StaticResource Space.24}">
+        <StackPanel Spacing="{StaticResource Space.8}">
+          <TextBlock Classes="sectionTitle"
+                     Text="{x:Static res:Strings.Settings_AppearanceTitle}" />
+          <TextBlock Classes="note"
+                     Text="{x:Static res:Strings.Settings_AppearanceText}" />
+        </StackPanel>
+        <StackPanel Spacing="{StaticResource Space.24}">
+          <StackPanel Spacing="{StaticResource Space.8}">
+            <TextBlock Classes="label"
+                       Text="{x:Static res:Strings.Appearance_Theme}" />
+            <StackPanel Orientation="Horizontal"
+                        Spacing="{StaticResource Space.8}">
+              <ToggleButton x:Name="ThemeLight"
+                            Classes="pill"
+                            Content="{x:Static res:Strings.Appearance_ThemeLight}"
+                            IsChecked="{Binding Appearance.IsLight, Mode=TwoWay}" />
+              <ToggleButton x:Name="ThemeDark"
+                            Classes="pill"
+                            Content="{x:Static res:Strings.Appearance_ThemeDark}"
+                            IsChecked="{Binding Appearance.IsDark, Mode=TwoWay}" />
+              <ToggleButton x:Name="ThemeSystem"
+                            Classes="pill"
+                            Content="{x:Static res:Strings.Appearance_ThemeSystem}"
+                            IsChecked="{Binding Appearance.IsSystem, Mode=TwoWay}" />
+            </StackPanel>
+          </StackPanel>
+          <StackPanel Spacing="{StaticResource Space.8}">
+            <TextBlock Classes="label"
+                       Text="{x:Static res:Strings.Appearance_Language}" />
+            <StackPanel Orientation="Horizontal"
+                        Spacing="{StaticResource Space.8}">
+              <ToggleButton x:Name="LanguageUk"
+                            Classes="pill"
+                            Content="{x:Static res:Strings.Appearance_LanguageUk}"
+                            IsChecked="{Binding Appearance.IsUkrainian, Mode=TwoWay}" />
+              <ToggleButton x:Name="LanguageEn"
+                            Classes="pill"
+                            Content="{x:Static res:Strings.Appearance_LanguageEn}"
+                            IsChecked="{Binding Appearance.IsEnglish, Mode=TwoWay}" />
+            </StackPanel>
+            <TextBlock Classes="note"
+                       IsVisible="{Binding Appearance.NeedsRestart}"
+                       Text="{x:Static res:Strings.Appearance_RestartNote}" />
+          </StackPanel>
+          <StackPanel Spacing="{StaticResource Space.8}">
+            <TextBlock Classes="label"
+                       Text="{x:Static res:Strings.Appearance_Onboarding}" />
+            <Button x:Name="RestartOnboardingButton"
+                    Classes="outline compact"
+                    HorizontalAlignment="Left"
+                    Content="{x:Static res:Strings.Appearance_OnboardingRestart}"
+                    Command="{Binding Appearance.RestartOnboardingCommand}" />
+            <TextBlock Classes="note"
+                       IsVisible="{Binding Appearance.OnboardingReset}"
+                       Text="{x:Static res:Strings.Appearance_OnboardingDone}" />
+          </StackPanel>
+          <TextBlock Classes="note"
+                     Foreground="{DynamicResource Brush.Graphite}"
+                     IsVisible="{Binding Appearance.HasError}"
+                     Text="{Binding Appearance.Error}" />
+        </StackPanel>
+      </controls:ResponsivePairPanel>
+
+      <Border Classes="divider" />
+
+      <!-- About -->
+      <controls:ResponsivePairPanel x:Name="AboutSection"
+                                    LeftWidth="{StaticResource Size.SettingsSide}"
+                                    WrapBelow="{StaticResource Size.SettingsWrap}"
+                                    ColumnSpacing="{StaticResource Space.40}"
+                                    RowSpacing="{StaticResource Space.24}">
+        <StackPanel Spacing="{StaticResource Space.8}">
+          <TextBlock Classes="sectionTitle"
+                     Text="{x:Static res:Strings.Settings_AboutTitle}" />
+          <TextBlock Classes="note"
+                     Text="{x:Static res:Strings.Settings_AboutText}" />
+        </StackPanel>
+        <Border Classes="well">
+          <StackPanel Orientation="Horizontal"
+                      Spacing="{StaticResource Space.20}">
+            <Grid Width="{StaticResource Size.AboutOrbSlot}"
+                  Height="{StaticResource Size.AboutOrbSlot}"
+                  VerticalAlignment="Top">
+              <controls:OrbControl Width="{StaticResource Size.AboutOrb}"
+                                   Height="{StaticResource Size.AboutOrb}"
+                                   HorizontalAlignment="Center"
+                                   VerticalAlignment="Center" />
+            </Grid>
+            <StackPanel Spacing="{StaticResource Space.8}">
+              <StackPanel Orientation="Horizontal"
+                          Spacing="{StaticResource Space.12}">
+                <TextBlock Classes="bodyLg"
+                           FontWeight="{StaticResource FontWeight.Display}"
+                           Text="Murmur" />
+                <TextBlock x:Name="VersionText"
+                           Classes="mono"
+                           VerticalAlignment="Bottom"
+                           Foreground="{DynamicResource Brush.Smoke}"
+                           Text="{Binding About.Version}" />
+              </StackPanel>
+              <TextBlock Classes="bodySm"
+                         Foreground="{DynamicResource Brush.Graphite}"
+                         Text="{Binding About.License}" />
+              <ItemsControl ItemsSource="{Binding About.Credits}">
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate x:DataType="x:String">
+                    <TextBlock Classes="bodySm"
+                               Foreground="{DynamicResource Brush.Graphite}"
+                               Text="{Binding}" />
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
+            </StackPanel>
+          </StackPanel>
+        </Border>
+      </controls:ResponsivePairPanel>
+    </StackPanel>
+  </ScrollViewer>
+</UserControl>

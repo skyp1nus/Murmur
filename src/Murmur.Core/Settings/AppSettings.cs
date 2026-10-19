@@ -37,6 +37,15 @@ public sealed record AppSettings
     /// <summary>Global start/stop hotkey in Avalonia gesture syntax (e.g. <c>Ctrl+Shift+R</c>); <c>null</c> = none.</summary>
     public string? RecordHotkey { get; init; } = "Ctrl+Shift+R";
 
+    /// <summary>Global hotkey that turns screen recording on/off during a recording; <c>null</c> = none.</summary>
+    public string? ToggleScreenHotkey { get; init; } = "Ctrl+Shift+S";
+
+    /// <summary>Global hotkey that brings the Murmur window to the front; <c>null</c> = none.</summary>
+    public string? ShowAppHotkey { get; init; } = "Ctrl+Shift+M";
+
+    /// <summary>Display recorded when the screen is on; <c>null</c> = the primary display.</summary>
+    public string? ScreenDisplayId { get; init; }
+
     /// <summary>Where new recordings go; <c>null</c> = the default data folder.</summary>
     public string? RecordingsDirectory { get; init; }
 

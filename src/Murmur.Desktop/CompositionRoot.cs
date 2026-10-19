@@ -3,12 +3,14 @@ using Murmur.App.Services;
 using Murmur.Core.Capture;
 using Murmur.Core.Capture.Synthetic;
 using Murmur.Core.Jobs;
+using Murmur.Core.Models;
 using Murmur.Core.Processing;
 using Murmur.Core.Recording;
 using Murmur.Core.Settings;
 using Murmur.Core.Transcription;
 using Murmur.Intelligence;
 using Murmur.Intelligence.Rag;
+using Murmur.Models;
 using Murmur.Storage;
 
 namespace Murmur.Desktop;
@@ -28,6 +30,7 @@ internal sealed class CompositionRoot : IDisposable
     private RecordingHeapTrimmer? _heapTrimmer;
     private LocalLlm? _llm;
     private Assistant? _assistant;
+    private ModelManager? _modelManager;
 
     public CompositionRoot(string[] args)
     {
@@ -47,11 +50,18 @@ internal sealed class CompositionRoot : IDisposable
     /// </summary>
     public AppServices CreateServices()
     {
-        var storage = _storage ??= SqliteStorage.CreateDefault();
-
         // settings.json sits next to the database (same data folder); the app reads the language from it once at
-        // start-up and follows the theme live.
-        var settings = _settings ??= new JsonSettingsStore(storage.Paths);
+        // start-up and follows the theme live. Storage asks it for the recordings folder at every new recording.
+        var paths = StoragePaths.FromEnvironment();
+        var settings = _settings ??= new JsonSettingsStore(paths);
+        if (_storage is null)
+        {
+            _storage = new SqliteStorage(paths, () => settings.Current.RecordingsDirectory);
+            _storage.RecordingsFolderFallback += static info => Console.Error.WriteLine(
+                $"Recordings folder '{info.RequestedFolder}' is unusable ({info.Reason}); session {info.Session} went to the default folder.");
+        }
+
+        var storage = _storage;
         var capture = CreateCapture();
         var recorder = new Recorder(capture, storage, TimeProvider.System, RecorderSettings.Default);
 
@@ -70,6 +80,10 @@ internal sealed class CompositionRoot : IDisposable
         var activity = _activity ??= new RecordingActivity(recorder);
         var llm = _llm ??= CreateLlm(models.ModelsDirectory, activity);
         var assistant = _assistant ??= new Assistant(llm, storage);
+
+        // The model manager installs into the same folder the ASR and the AI read from. Its active-model lookup is handed
+        // to the UI as a delegate because IModelManager does not expose it.
+        var modelManager = _modelManager ??= new ModelManager(models.ModelsDirectory);
         var processor = _processor ??= new SessionProcessor(
             recorder,
             storage,
@@ -99,7 +113,10 @@ internal sealed class CompositionRoot : IDisposable
             new SessionProcessingAdapter(processor, models),
             storage,
             new AiServices(assistant, llm, models.ModelsDirectory),
-            settings);
+            settings,
+            modelManager,
+            modelManager.ActiveModelId,
+            storage.Paths.RecordingsDirectory);
     }
 
     public void Dispose()
@@ -112,6 +129,9 @@ internal sealed class CompositionRoot : IDisposable
         // Stops the llama-server processes, so none outlives the app.
         _llm?.DisposeAsync().AsTask().GetAwaiter().GetResult();
         _asr?.DisposeAsync().AsTask().GetAwaiter().GetResult();
+
+        // Stops running model downloads (their partial files are kept for the next start).
+        _modelManager?.Dispose();
         _storage?.Dispose();
     }
 

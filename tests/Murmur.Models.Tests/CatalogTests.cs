@@ -35,6 +35,26 @@ public sealed class CatalogTests
     }
 
     [Fact]
+    public void ARepositoryWithARevision_IsDownloadedFromThatCommit_TheOthersFromMain()
+    {
+        var revisions = new Dictionary<string, string> { ["ggml-org/embeddinggemma-300M-GGUF"] = "0123456789abcdef0123456789abcdef01234567" };
+        var items = ModelCatalog.Create(Hosts with { Revisions = revisions }, ModelPlatform.Linux);
+
+        var embed = items.Single(i => i.Id == ModelCatalog.EmbeddingId).Files.Single();
+        Assert.Equal("http://hf.test/ggml-org/embeddinggemma-300M-GGUF/resolve/0123456789abcdef0123456789abcdef01234567/embeddinggemma-300M-Q8_0.gguf", embed.Url);
+        Assert.Equal("http://hf.test/unsloth/embeddinggemma-300m-GGUF/resolve/main/embeddinggemma-300m-Q8_0.gguf", embed.Fallbacks![0].Url);
+        Assert.Equal(
+            "http://hf.test/csukuangfj/sherpa-onnx-nemo-parakeet-tdt-0.6b-v3-int8/resolve/main/encoder.int8.onnx",
+            items.Single(i => i.Id == ModelCatalog.ParakeetId).Files[0].Url);
+    }
+
+    [Fact]
+    public void EveryRevisionInTheCatalog_IsACommitSha()
+    {
+        Assert.All(ModelCatalog.HuggingFaceRevisions.Values, v => Assert.Matches("^[0-9a-f]{40}$", v));
+    }
+
+    [Fact]
     public void Vad_IsASingleFileInTheModelsRoot()
     {
         var vad = ModelCatalog.Create(Hosts, ModelPlatform.Linux).Single(i => i.Id == ModelCatalog.SileroVadId);
