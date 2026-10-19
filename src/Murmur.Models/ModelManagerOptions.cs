@@ -31,6 +31,9 @@ public sealed class ModelManagerOptions
 
     /// <summary>Compute the SHA-256 of every downloaded file even when the catalog does not pin it (see <see cref="ModelManager.GetLastInstallReport"/>).</summary>
     public bool ReportHashes { get; init; }
+
+    /// <summary>Test seam: called on the worker thread right before a removal starts deleting.</summary>
+    internal Action<string>? BeforeRemove { get; init; }
 }
 
 /// <summary>A downloaded file, as recorded by the last install of an item.</summary>

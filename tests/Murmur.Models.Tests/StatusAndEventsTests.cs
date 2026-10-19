@@ -129,24 +129,29 @@ public sealed class StatusAndEventsTests
     public async Task Events_AreThrottledToTenPerSecond()
     {
         await using var h = new Harness();
-        var route = h.Server.Add("/m", Harness.Bytes(1_000_000));
-        route.ChunkSize = 8 * 1024; // ~120 chunks, 3 ms apart: ~400 ms of body
-        route.ChunkDelay = TimeSpan.FromMilliseconds(3);
+        const int Chunks = 30;
+        var route = h.Server.Add("/m", Harness.Bytes(Chunks * 40_000));
+        route.ChunkSize = 40_000;
+        route.ChunkDelay = TimeSpan.FromMilliseconds(20); // 600 ms or more; Windows timers are coarser, which only helps
         using var manager = h.Manager([Harness.FileItem("m", h.Server, "/m", "gguf/m.gguf")]); // default 100 ms interval
         var recorder = new Recorder();
         recorder.Attach(manager);
 
+        var started = Stopwatch.StartNew();
         await manager.InstallAsync("m", TestContext.Current.CancellationToken);
+        started.Stop();
 
         var events = recorder.Snapshot();
         var downloading = events.Where(e => e.Status.State == ModelInstallState.Downloading).ToList();
-        Assert.InRange(downloading.Count, 2, 12); // far fewer than the ~120 chunks
         for (var i = 1; i < downloading.Count; i++)
         {
             var gap = Stopwatch.GetElapsedTime(downloading[i - 1].Timestamp, downloading[i].Timestamp);
             Assert.True(gap >= TimeSpan.FromMilliseconds(90), $"events {i - 1} and {i} are only {gap.TotalMilliseconds:0} ms apart");
         }
 
+        Assert.True(downloading.Count >= 2);
+        Assert.True(downloading.Count <= (started.ElapsedMilliseconds / 100) + 2, $"{downloading.Count} events in {started.ElapsedMilliseconds} ms");
+        Assert.True(downloading.Count < Chunks / 2, $"{downloading.Count} events for {Chunks} chunks");
         Assert.Equal(ModelInstallState.Installed, events[^1].Status.State); // the final state is never throttled away
     }
 
@@ -166,6 +171,21 @@ public sealed class StatusAndEventsTests
         Assert.Equal(ModelInstallState.Downloading, manager.GetStatus("m").State);
         release.Set();
         await install;
+    }
+
+    [Fact]
+    public async Task InstallingAnInstalledItem_RaisesOnlyTheFinalState()
+    {
+        await using var h = new Harness();
+        h.Server.Add("/m", Harness.Bytes(1000));
+        using var manager = h.Manager([Harness.FileItem("m", h.Server, "/m", "gguf/m.gguf")]);
+        await manager.InstallAsync("m", TestContext.Current.CancellationToken);
+        var recorder = new Recorder();
+        recorder.Attach(manager);
+
+        await manager.InstallAsync("m", TestContext.Current.CancellationToken);
+
+        Assert.Equal(ModelInstallState.Installed, Assert.Single(recorder.Snapshot()).Status.State);
     }
 
     [Fact]

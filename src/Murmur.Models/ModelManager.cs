@@ -1,3 +1,4 @@
+using System.Buffers;
 using System.Diagnostics;
 using System.Security.Cryptography;
 using Murmur.Core.Models;
@@ -13,8 +14,10 @@ namespace Murmur.Models;
 /// finished set is moved into place in one step (a folder is swapped, a single file is renamed), so a half-installed
 /// item never looks installed. A failed install faults the returned task with <see cref="ModelInstallException"/> and
 /// leaves <see cref="ModelInstallState.Failed"/> in <see cref="GetStatus"/> until the next attempt. Installing an item
-/// that is already installed only (re)activates it in <c>models.json</c>. A joiner of a running install waits for the
-/// install started by the first caller: only that caller's token cancels the download.
+/// that is already installed only (re)activates it in <c>models.json</c> and touches no files or network: to repair a
+/// damaged install, <see cref="RemoveAsync"/> the item first and install it again. A joiner of a running install waits
+/// for the install started by the first caller: only that caller's token cancels the download. Disposing the manager
+/// cancels running installs (their partial downloads are kept).
 /// </remarks>
 public sealed class ModelManager : IModelManager, IDisposable
 {
@@ -31,6 +34,9 @@ public sealed class ModelManager : IModelManager, IDisposable
     private readonly TimeSpan _progressInterval;
     private readonly bool _reportHashes;
     private readonly HttpClient? _ownedClient;
+    private readonly Action<string>? _beforeRemove;
+    private readonly CancellationTokenSource _lifetime = new();
+    private int _disposed;
 
     private readonly object _gate = new();
     private readonly Dictionary<string, Operation> _operations = [];
@@ -62,7 +68,8 @@ public sealed class ModelManager : IModelManager, IDisposable
         if (http is null)
         {
             // Default handler: honours the system proxy. No overall timeout (multi-GB bodies), the stall timeout applies.
-            http = _ownedClient = new HttpClient { Timeout = Timeout.InfiniteTimeSpan };
+            // PooledConnectionLifetime: a long-lived process must notice DNS changes of the hosts (CDN rotation).
+            http = _ownedClient = new HttpClient(new SocketsHttpHandler { PooledConnectionLifetime = TimeSpan.FromMinutes(15) }) { Timeout = Timeout.InfiniteTimeSpan };
             http.DefaultRequestHeaders.UserAgent.ParseAdd("Murmur-ModelManager/1.0");
         }
 
@@ -75,6 +82,7 @@ public sealed class ModelManager : IModelManager, IDisposable
         _totalMemory = options.TotalMemoryProbe ?? (() => GC.GetGCMemoryInfo().TotalAvailableMemoryBytes);
         _progressInterval = options.ProgressInterval;
         _reportHashes = options.ReportHashes;
+        _beforeRemove = options.BeforeRemove;
     }
 
     /// <summary>The catalog for this OS on the real hosts, installing into <paramref name="modelsDirectory"/>.</summary>
@@ -169,6 +177,11 @@ public sealed class ModelManager : IModelManager, IDisposable
     public Task InstallAsync(string id, CancellationToken cancellationToken)
     {
         var item = Find(id);
+        if (Volatile.Read(ref _disposed) != 0)
+        {
+            return Task.FromException(new ObjectDisposedException(nameof(ModelManager)));
+        }
+
         lock (_gate)
         {
             if (_operations.TryGetValue(id, out var running))
@@ -214,6 +227,7 @@ public sealed class ModelManager : IModelManager, IDisposable
                 try
                 {
                     cancellationToken.ThrowIfCancellationRequested();
+                    _beforeRemove?.Invoke(id);
                     DeleteItem(item);
                 }
                 finally
@@ -232,7 +246,16 @@ public sealed class ModelManager : IModelManager, IDisposable
             CancellationToken.None);
     }
 
-    public void Dispose() => _ownedClient?.Dispose();
+    public void Dispose()
+    {
+        if (Interlocked.Exchange(ref _disposed, 1) != 0)
+        {
+            return;
+        }
+
+        _lifetime.Cancel(); // running installs stop and keep their partial downloads
+        _ownedClient?.Dispose();
+    }
 
     private static long DefaultFreeSpace(string directory)
     {
@@ -256,7 +279,27 @@ public sealed class ModelManager : IModelManager, IDisposable
 
     private static long Length(string path) => File.Exists(path) ? new FileInfo(path).Length : 0;
 
-    private static string HexOf(ReadOnlySpan<byte> hash) => Convert.ToHexStringLower(hash);
+    private static async Task<string> Sha256Async(string path, CancellationToken cancellationToken)
+    {
+        const int BufferBytes = 1 << 20;
+        await using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read, 1, FileOptions.Asynchronous | FileOptions.SequentialScan);
+        using var hasher = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
+        var buffer = ArrayPool<byte>.Shared.Rent(BufferBytes);
+        try
+        {
+            int read;
+            while ((read = await stream.ReadAsync(buffer.AsMemory(0, BufferBytes), cancellationToken).ConfigureAwait(false)) > 0)
+            {
+                hasher.AppendData(buffer, 0, read);
+            }
+
+            return Convert.ToHexStringLower(hasher.GetHashAndReset());
+        }
+        finally
+        {
+            ArrayPool<byte>.Shared.Return(buffer);
+        }
+    }
 
     private ModelCatalogItem Find(string id)
     {
@@ -365,18 +408,30 @@ public sealed class ModelManager : IModelManager, IDisposable
         Raise(operation.Snapshot());
     }
 
-    private async Task RunAsync(Operation operation, CancellationToken cancellationToken)
+    private async Task RunAsync(Operation operation, CancellationToken callerToken)
     {
         var item = operation.Item;
         string? error = null;
+        using var linked = CancellationTokenSource.CreateLinkedTokenSource(callerToken, _lifetime.Token);
+        var cancellationToken = linked.Token;
         try
         {
-            RaiseProgress(operation, force: true);
+            // An item that is already installed only gets (re)activated: no "Downloading" flicker for the UI.
+            if (!IsInstalled(item))
+            {
+                RaiseProgress(operation, force: true);
+            }
+
             await InstallCoreAsync(operation, cancellationToken).ConfigureAwait(false);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
             throw; // partial downloads stay for the next attempt
+        }
+        catch (Exception) when (cancellationToken.IsCancellationRequested)
+        {
+            // Whatever broke while the install was being cancelled (e.g. the client being disposed) is a cancellation.
+            throw new OperationCanceledException(cancellationToken);
         }
         catch (ModelInstallException ex)
         {
@@ -393,7 +448,7 @@ public sealed class ModelManager : IModelManager, IDisposable
             ModelStatus status;
             lock (_gate)
             {
-                _operations.Remove(item.Id);
+                _operations.Remove(item.Id); // also releases the disk space it reserved
                 if (operation.KnownTotal is { } total)
                 {
                     _lastTotals[item.Id] = total;
@@ -490,32 +545,31 @@ public sealed class ModelManager : IModelManager, IDisposable
             var length = Length(path);
             if (length == 0)
             {
-                File.Delete(path);
+                ModelDownloader.DiscardPart(path);
                 throw new ModelInstallException($"{spec.Url} downloaded as an empty file");
             }
 
             if (spec.SizeBytes is { } wanted && length != wanted)
             {
-                File.Delete(path);
+                ModelDownloader.DiscardPart(path);
                 throw new ModelInstallException($"{spec.Url}: expected {wanted} bytes, got {length}");
             }
 
             string? hash = null;
             if (spec.Sha256 is not null || _reportHashes)
             {
-                await using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read, 1, FileOptions.Asynchronous | FileOptions.SequentialScan);
-                hash = HexOf(await SHA256.HashDataAsync(stream, cancellationToken).ConfigureAwait(false));
+                hash = await Sha256Async(path, cancellationToken).ConfigureAwait(false);
                 if (spec.Sha256 is not null && !string.Equals(hash, spec.Sha256, StringComparison.OrdinalIgnoreCase))
                 {
-                    stream.Close();
-                    File.Delete(path);
+                    ModelDownloader.DiscardPart(path);
                     throw new ModelInstallException($"{spec.Url}: SHA-256 mismatch (expected {spec.Sha256.ToLowerInvariant()}, got {hash})");
                 }
             }
 
             if (!complete[i])
             {
-                File.Move(part, final, overwrite: true);
+                FileOps.MoveFile(part, final, overwrite: true);
+                File.Delete(part + ".validator");
             }
 
             operation.Set(i, length, length);
@@ -533,8 +587,14 @@ public sealed class ModelManager : IModelManager, IDisposable
         TryDeleteStaging(root);
     }
 
+    /// <summary>
+    /// Fails fast when the remaining download (plus ~4x the archive for its extraction) does not fit next to what the
+    /// other running installs still need. The need is reserved on success, so parallel installs do not all see the
+    /// same free space.
+    /// </summary>
     private void EnsureFreeSpace(Operation operation, bool[] complete)
     {
+        var item = operation.Item;
         long remaining = 0;
         var allKnown = true;
         for (var i = 0; i < complete.Length; i++)
@@ -554,15 +614,38 @@ public sealed class ModelManager : IModelManager, IDisposable
             remaining += total - operation.DoneOf(i);
         }
 
+        long archiveBytes = 0;
         if (!allKnown)
         {
-            remaining = Math.Max(0, operation.Item.Info.SizeBytes - operation.BytesDone); // only the approximate size is known
+            remaining = Math.Max(0, item.Info.SizeBytes - operation.BytesDone); // only the approximate size is known
+            archiveBytes = item.Info.SizeBytes;
+        }
+        else if (item.Packaging != ModelPackaging.Files)
+        {
+            archiveBytes = operation.TotalOf(0);
         }
 
-        var free = _freeSpace(ModelsDirectory);
-        if (free < remaining)
+        remaining += 4 * archiveBytes; // extracted copy plus the staged folder
+
+        lock (_gate)
         {
-            throw new ModelInstallException($"Not enough disk space for '{operation.Item.Id}': {remaining} bytes needed, {free} free in {ModelsDirectory}");
+            long others = 0;
+            foreach (var other in _operations.Values)
+            {
+                if (!ReferenceEquals(other, operation))
+                {
+                    others += other.ReservedRemaining;
+                }
+            }
+
+            var free = _freeSpace(ModelsDirectory);
+            if (free < remaining + others)
+            {
+                throw new ModelInstallException(
+                    $"Not enough disk space for '{item.Id}': {remaining} bytes needed (+{others} reserved by other installs), {free} free in {ModelsDirectory}");
+            }
+
+            operation.Reserve(remaining);
         }
     }
 
@@ -580,7 +663,7 @@ public sealed class ModelManager : IModelManager, IDisposable
             }
             else
             {
-                File.Move(Path.Combine(dl, item.Files[0].RelativePath), target, overwrite: true);
+                FileOps.MoveFile(Path.Combine(dl, item.Files[0].RelativePath), target, overwrite: true);
             }
 
             return;
@@ -598,11 +681,19 @@ public sealed class ModelManager : IModelManager, IDisposable
         {
             serverDirectory = await ArchiveExtractor.ExtractAsync(archive, item.Packaging, item.ExecutableName!, extract, cancellationToken).ConfigureAwait(false);
         }
-        catch (ModelInstallException)
+        catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            // A broken archive would fail the same way again: download it afresh next time.
-            File.Delete(archive);
-            Directory.Delete(extract, recursive: true);
+            // A broken archive would fail the same way again: download it afresh next time. The clean-up must not
+            // hide the original error.
+            try
+            {
+                ModelDownloader.DiscardPart(archive);
+                Directory.Delete(extract, recursive: true);
+            }
+            catch (Exception cleanup) when (cleanup is IOException or UnauthorizedAccessException)
+            {
+            }
+
             throw;
         }
 
@@ -613,7 +704,7 @@ public sealed class ModelManager : IModelManager, IDisposable
             Directory.Delete(ready, recursive: true);
         }
 
-        Directory.Move(serverDirectory, ready);
+        FileOps.MoveDirectory(serverDirectory, ready);
         ReplaceDirectory(ready, target, Path.Combine(root, "old"));
     }
 
@@ -627,18 +718,18 @@ public sealed class ModelManager : IModelManager, IDisposable
         var hadOld = Directory.Exists(target);
         if (hadOld)
         {
-            Directory.Move(target, backup);
+            FileOps.MoveDirectory(target, backup);
         }
 
         try
         {
-            Directory.Move(source, target);
+            FileOps.MoveDirectory(source, target);
         }
         catch
         {
             if (hadOld && !Directory.Exists(target))
             {
-                Directory.Move(backup, target);
+                FileOps.MoveDirectory(backup, target);
             }
 
             throw;
@@ -673,27 +764,51 @@ public sealed class ModelManager : IModelManager, IDisposable
     private void DeleteItem(ModelCatalogItem item)
     {
         var target = TargetFullPath(item);
-        if (item.IsDirectory)
+        var root = StagingRoot(item);
+        try
         {
-            if (Directory.Exists(target))
+            // Step 1 is a move into the item's trash: atomic, and it fails (changing nothing) when something such as a
+            // running llama-server.exe holds the folder, instead of leaving it half deleted.
+            if (item.IsDirectory ? Directory.Exists(target) : File.Exists(target))
             {
-                Directory.Delete(target, recursive: true);
+                var trash = Path.Combine(root, "trash");
+                Directory.CreateDirectory(root);
+                if (Directory.Exists(trash))
+                {
+                    Directory.Delete(trash, recursive: true);
+                }
+
+                Directory.CreateDirectory(trash);
+                if (item.IsDirectory)
+                {
+                    FileOps.MoveDirectory(target, Path.Combine(trash, "item"));
+                }
+                else
+                {
+                    FileOps.MoveFile(target, Path.Combine(trash, "item"), overwrite: true);
+                }
+            }
+
+            // The item is gone from its place now: the manifest must not name it any longer.
+            if (item.Info.Kind is ModelKind.Chat or ModelKind.Embedding)
+            {
+                _manifest.ClearIfActive(item.Info.Kind, target);
+            }
+
+            if (Directory.Exists(root))
+            {
+                Directory.Delete(root, recursive: true);
+            }
+
+            var staging = Path.GetDirectoryName(root)!;
+            if (Directory.Exists(staging) && !Directory.EnumerateFileSystemEntries(staging).Any())
+            {
+                Directory.Delete(staging);
             }
         }
-        else if (File.Exists(target))
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
-            File.Delete(target);
-        }
-
-        var root = StagingRoot(item);
-        if (Directory.Exists(root))
-        {
-            Directory.Delete(root, recursive: true);
-        }
-
-        if (item.Info.Kind is ModelKind.Chat or ModelKind.Embedding)
-        {
-            _manifest.ClearIfActive(item.Info.Kind, target);
+            throw new ModelInstallException($"Removing '{item.Id}' failed: {ex.Message}", ex);
         }
 
         lock (_gate)
@@ -747,6 +862,18 @@ public sealed class ModelManager : IModelManager, IDisposable
 
                 return sum;
             }
+        }
+
+        private long _reserved;
+        private long _reservedAtBytes;
+
+        /// <summary>Bytes this install still needs on disk, as reserved when it started (shrinks as it downloads).</summary>
+        public long ReservedRemaining => Math.Max(0, Volatile.Read(ref _reserved) - Math.Max(0, BytesDone - Volatile.Read(ref _reservedAtBytes)));
+
+        public void Reserve(long bytes)
+        {
+            Volatile.Write(ref _reservedAtBytes, BytesDone);
+            Volatile.Write(ref _reserved, bytes);
         }
 
         public long TotalOf(int index) => Volatile.Read(ref _total[index]);

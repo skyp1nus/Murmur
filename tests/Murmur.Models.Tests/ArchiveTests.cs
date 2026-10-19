@@ -1,3 +1,4 @@
+using System.Formats.Tar;
 using Murmur.Core.Models;
 using Murmur.Models.Tests.Support;
 
@@ -144,5 +145,37 @@ public sealed class ArchiveTests
 
         Assert.False(File.Exists(Llama(h, "stale.txt")));
         Assert.True(File.Exists(Llama(h, "a.dll")));
+    }
+
+    /// <summary>Hostile tarballs: each must fail, write nothing outside the staging folder and leave no llama.cpp folder.</summary>
+    [Theory]
+    [InlineData("escaping-file")]
+    [InlineData("symlink-out")]
+    [InlineData("hardlink-out")]
+    public async Task TarGz_WithEntriesThatEscapeTheFolder_FailsAndWritesNothingOutside(string attack)
+    {
+        await using var h = new Harness();
+        var outside = Path.Combine(h.Root, "outside");
+        Directory.CreateDirectory(outside);
+        File.WriteAllText(Path.Combine(h.Root, "x"), "precious");
+        var server = new TarSpec("llama-server", Content: Harness.Bytes(10, 1));
+        var entries = attack switch
+        {
+            "escaping-file" => new[] { new TarSpec("../../evil.txt", Content: Harness.Text("pwned")), server },
+            // A link pointing at a directory outside, then a file written "through" it.
+            "symlink-out" => [new TarSpec("link", TarEntryType.SymbolicLink, outside), new TarSpec("link/pwned", Content: Harness.Text("pwned")), server],
+            _ => [new TarSpec("hard", TarEntryType.HardLink, "../x"), server],
+        };
+        h.Server.Add("/llama.tar.gz", Harness.TarGz(entries));
+        using var manager = h.Manager([Harness.ArchiveItem("llama", h.Server, "/llama.tar.gz", ModelPackaging.TarGz, "llama-server")]);
+
+        await Assert.ThrowsAsync<ModelInstallException>(() => InstallAsync(manager));
+
+        Assert.False(File.Exists(Path.Combine(h.Root, "evil.txt")));
+        Assert.False(File.Exists(Path.Combine(h.Models, "evil.txt")));
+        Assert.Empty(Directory.EnumerateFileSystemEntries(outside)); // nothing written through the link
+        Assert.Equal("precious", await File.ReadAllTextAsync(Path.Combine(h.Root, "x"), TestContext.Current.CancellationToken));
+        Assert.False(Directory.Exists(Llama(h)));
+        Assert.Equal(ModelInstallState.Failed, manager.GetStatus("llama").State);
     }
 }

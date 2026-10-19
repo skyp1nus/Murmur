@@ -5,6 +5,9 @@ using Murmur.Core.Models;
 
 namespace Murmur.Models.Tests.Support;
 
+/// <summary>A tar entry for archives that are not what they should be.</summary>
+internal sealed record TarSpec(string Name, TarEntryType Type = TarEntryType.RegularFile, string? LinkName = null, byte[]? Content = null);
+
 /// <summary>A temp models directory plus a fake server, and builders for managers and catalog items pointing at it.</summary>
 internal sealed class Harness : IAsyncDisposable
 {
@@ -17,6 +20,8 @@ internal sealed class Harness : IAsyncDisposable
     public string Root { get; }
 
     public FakeFileServer Server { get; } = new();
+
+    public HttpClient Http { get; } = new() { Timeout = Timeout.InfiniteTimeSpan };
 
     public ModelCatalogSources Sources => new(Server.BaseAddress, Server.BaseAddress);
 
@@ -71,18 +76,20 @@ internal sealed class Harness : IAsyncDisposable
         Func<string, long>? freeSpace = null,
         TimeSpan? progressInterval = null,
         Func<long>? memory = null,
-        bool reportHashes = false) =>
+        bool reportHashes = false,
+        Action<string>? beforeRemove = null) =>
         new(new ModelManagerOptions
         {
             ModelsDirectory = Models,
             Catalog = items ?? ModelCatalog.Create(Sources, ModelPlatform.Linux),
-            HttpClient = new HttpClient { Timeout = Timeout.InfiniteTimeSpan },
+            HttpClient = Http,
             RetryDelays = [.. Enumerable.Repeat(TimeSpan.FromMilliseconds(1), retries)],
             StallTimeout = stall ?? TimeSpan.FromSeconds(30),
             FreeSpaceProbe = freeSpace,
             ProgressInterval = progressInterval ?? TimeSpan.FromMilliseconds(100),
             TotalMemoryProbe = memory,
             ReportHashes = reportHashes,
+            BeforeRemove = beforeRemove,
         });
 
     public static byte[] Zip(params (string Name, byte[] Content)[] entries)
@@ -121,6 +128,31 @@ internal sealed class Harness : IAsyncDisposable
         return stream.ToArray();
     }
 
+    public static byte[] TarGz(params TarSpec[] entries)
+    {
+        using var stream = new MemoryStream();
+        using (var gzip = new GZipStream(stream, CompressionLevel.Fastest, leaveOpen: true))
+        using (var tar = new TarWriter(gzip, TarEntryFormat.Pax, leaveOpen: false))
+        {
+            foreach (var spec in entries)
+            {
+                var entry = new PaxTarEntry(spec.Type, spec.Name) { Mode = UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.GroupRead | UnixFileMode.OtherRead };
+                if (spec.Type is TarEntryType.SymbolicLink or TarEntryType.HardLink)
+                {
+                    entry.LinkName = spec.LinkName!;
+                }
+                else if (spec.Type == TarEntryType.RegularFile)
+                {
+                    entry.DataStream = new MemoryStream(spec.Content ?? []);
+                }
+
+                tar.WriteEntry(entry);
+            }
+        }
+
+        return stream.ToArray();
+    }
+
     public static byte[] Text(string text) => Encoding.UTF8.GetBytes(text);
 
     public static async Task WaitUntilAsync(Func<bool> condition, int timeoutMs = 10_000)
@@ -140,6 +172,7 @@ internal sealed class Harness : IAsyncDisposable
     public async ValueTask DisposeAsync()
     {
         await Server.DisposeAsync();
+        Http.Dispose();
         try
         {
             Directory.Delete(Root, recursive: true);

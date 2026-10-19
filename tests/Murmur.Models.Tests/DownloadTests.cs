@@ -123,13 +123,14 @@ public sealed class DownloadTests
         await using var h = new Harness();
         var content = Harness.Bytes(60_000);
         var route = h.Server.Add(Path1, content);
-        route.StatusFor = hit => hit <= 3 ? 500 : null; // three failures = all three retries used
+        route.StatusFor = hit => hit is >= 2 and <= 4 ? 500 : null; // hit 1 is the size probe; three failed downloads = all three retries used
         using var manager = h.Manager([Harness.FileItem("m", h.Server, Path1, "gguf/model.gguf")]);
 
         await manager.InstallAsync("m", TestContext.Current.CancellationToken);
 
         Assert.Equal(content, await File.ReadAllBytesAsync(Target(h, "gguf/model.gguf"), TestContext.Current.CancellationToken));
         Assert.Equal(ModelInstallState.Installed, manager.GetStatus("m").State);
+        Assert.Equal(4, h.Server.Requests.Count(r => r.Range != "bytes=0-0")); // three failures and the success
     }
 
     [Fact]
@@ -137,12 +138,13 @@ public sealed class DownloadTests
     {
         await using var h = new Harness();
         var route = h.Server.Add(Path1, Harness.Bytes(1000));
-        route.StatusFor = _ => 503;
+        route.StatusFor = hit => hit >= 2 ? 503 : null; // the size probe passes, every download fails
         using var manager = h.Manager([Harness.FileItem("m", h.Server, Path1, "gguf/model.gguf")]);
 
         var ex = await Assert.ThrowsAsync<ModelInstallException>(() => manager.InstallAsync("m", TestContext.Current.CancellationToken));
 
-        Assert.Equal(4, route.Hits); // the first try plus three retries
+        Assert.Equal(4, h.Server.Requests.Count(r => r.Range != "bytes=0-0")); // the first try plus three retries
+        Assert.Equal(5, route.Hits);
         Assert.Contains("503", ex.Message);
         var status = manager.GetStatus("m");
         Assert.Equal(ModelInstallState.Failed, status.State);

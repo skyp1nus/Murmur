@@ -1,4 +1,5 @@
 using System.Buffers;
+using System.Globalization;
 using System.Net;
 using System.Net.Http.Headers;
 
@@ -31,6 +32,72 @@ internal sealed class ModelDownloader(HttpClient http, IReadOnlyList<TimeSpan> r
             },
             () => File.Exists(partPath) ? new FileInfo(partPath).Length : 0,
             cancellationToken);
+
+    /// <summary>Deletes a part file and the record of which server version it came from.</summary>
+    public static void DiscardPart(string partPath)
+    {
+        File.Delete(partPath);
+        File.Delete(ValidatorPath(partPath));
+    }
+
+    private static string ValidatorPath(string partPath) => partPath + ".validator";
+
+    /// <summary>
+    /// What the part was started from: a strong ETag or Last-Modified for <c>If-Range</c>, and the total size the server
+    /// announced then. Missing or unreadable record: no condition, total unknown (-1).
+    /// </summary>
+    private static (RangeConditionHeaderValue? Condition, long Total) ReadValidator(string partPath)
+    {
+        RangeConditionHeaderValue? condition = null;
+        long total = -1;
+        try
+        {
+            foreach (var line in File.ReadAllLines(ValidatorPath(partPath)))
+            {
+                if (line.StartsWith("etag:", StringComparison.Ordinal) && EntityTagHeaderValue.TryParse(line["etag:".Length..], out var etag) && !etag.IsWeak)
+                {
+                    condition = new RangeConditionHeaderValue(etag);
+                }
+                else if (line.StartsWith("lm:", StringComparison.Ordinal) && DateTimeOffset.TryParseExact(line["lm:".Length..], "R", CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal, out var modified))
+                {
+                    condition = new RangeConditionHeaderValue(modified);
+                }
+                else if (line.StartsWith("total:", StringComparison.Ordinal) && long.TryParse(line["total:".Length..], NumberStyles.Integer, CultureInfo.InvariantCulture, out var announced))
+                {
+                    total = announced;
+                }
+            }
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            // No record: resume unconditionally.
+        }
+
+        return (condition, total);
+    }
+
+    private static void WriteValidator(string partPath, HttpResponseMessage response, long total)
+    {
+        var condition = "none";
+        if (response.Headers.ETag is { IsWeak: false } etag)
+        {
+            condition = "etag:" + etag.Tag;
+        }
+        else if (response.Content.Headers.LastModified is { } modified)
+        {
+            condition = "lm:" + modified.ToString("R", CultureInfo.InvariantCulture);
+        }
+
+        try
+        {
+            Directory.CreateDirectory(Path.GetDirectoryName(partPath)!);
+            File.WriteAllText(ValidatorPath(partPath), $"{condition}\ntotal:{total.ToString(CultureInfo.InvariantCulture)}\n");
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            // Without the record a later resume is merely unconditional.
+        }
+    }
 
     private async Task<long> ProbeOnceAsync(string url, CancellationToken cancellationToken)
     {
@@ -71,9 +138,16 @@ internal sealed class ModelDownloader(HttpClient http, IReadOnlyList<TimeSpan> r
         using var stall = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         stall.CancelAfter(stallTimeout);
         using var request = new HttpRequestMessage(HttpMethod.Get, url);
+        var recordedTotal = -1L;
         if (existing > 0)
         {
             request.Headers.Range = new RangeHeaderValue(existing, null);
+
+            // If the file changed on the server since the part was started, the server answers 200 with the whole new
+            // file (restart below) instead of a 206 that would splice two versions together.
+            var (condition, announced) = ReadValidator(partPath);
+            recordedTotal = announced;
+            request.Headers.IfRange = condition;
         }
 
         using var response = await http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, stall.Token).ConfigureAwait(false);
@@ -92,6 +166,13 @@ internal sealed class ModelDownloader(HttpClient http, IReadOnlyList<TimeSpan> r
             }
 
             total = range.Length ?? (response.Content.Headers.ContentLength is { } rest ? existing + rest : -1);
+            if (recordedTotal >= 0 && total >= 0 && total != recordedTotal)
+            {
+                // No validator to rely on, but the size changed: the file is a different version.
+                DiscardPart(partPath);
+                throw new IOException($"{url} changed on the server ({recordedTotal} -> {total} bytes); restarting");
+            }
+
             append = true;
         }
         else if (response.StatusCode == HttpStatusCode.RequestedRangeNotSatisfiable)
@@ -117,6 +198,11 @@ internal sealed class ModelDownloader(HttpClient http, IReadOnlyList<TimeSpan> r
         if (total >= 0)
         {
             onTotal(total);
+        }
+
+        if (!append || !File.Exists(ValidatorPath(partPath)))
+        {
+            WriteValidator(partPath, response, total);
         }
 
         var position = existing;
@@ -162,15 +248,17 @@ internal sealed class ModelDownloader(HttpClient http, IReadOnlyList<TimeSpan> r
             ArrayPool<byte>.Shared.Return(buffer);
         }
 
-        if (total >= 0 && position < total)
+        // Without a Content-Length the size probe is the only reference there is.
+        var expected = total >= 0 ? total : knownTotal;
+        if (expected >= 0 && position < expected)
         {
-            throw new IOException($"Connection closed after {position} of {total} bytes: {url}");
+            throw new IOException($"Connection closed after {position} of {expected} bytes: {url}");
         }
 
-        if (total >= 0 && position > total)
+        if (expected >= 0 && position > expected)
         {
-            File.Delete(partPath);
-            throw new ModelInstallException($"{url} delivered {position} bytes, more than the announced {total}");
+            DiscardPart(partPath);
+            throw new ModelInstallException($"{url} delivered {position} bytes, more than the announced {expected}");
         }
     }
 
@@ -206,19 +294,23 @@ internal sealed class ModelDownloader(HttpClient http, IReadOnlyList<TimeSpan> r
 
     private async Task<T> RetryAsync<T>(string what, Func<Task<T>> action, Func<long> progress, CancellationToken cancellationToken)
     {
-        // A failure after progress resets the budget: a flaky link that keeps delivering bytes is not a dead link.
+        // A failure after new progress resets the budget: a flaky link that keeps delivering more bytes is not a dead
+        // link. "New" means beyond the furthest point reached so far, so a server that ignores Range and restarts from
+        // zero every time cannot keep the loop alive by re-delivering the same prefix.
         var failures = 0;
+        var furthest = progress();
         while (true)
         {
-            var before = progress();
             try
             {
                 return await action().ConfigureAwait(false);
             }
             catch (Exception ex) when (IsTransient(ex, cancellationToken))
             {
-                if (progress() > before)
+                var reached = progress();
+                if (reached > furthest)
                 {
+                    furthest = reached;
                     failures = 0;
                 }
 

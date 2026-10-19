@@ -53,6 +53,7 @@ jobs:
       # Required ASR files, the llama.cpp runtime (tar.gz, extracted) and the embedding model. No cache on purpose:
       # the point is to download from the real hosts. The chat models are 5 and 17 GB, so they are only probed.
       - name: Install silero-vad, parakeet, llama.cpp and the embedding model
+        id: install
         run: |
           dotnet run -c Release --no-build --project tools/Murmur.ModelFetch -- \
             --dir "$MURMUR_MODELS_DIR" \
@@ -68,7 +69,9 @@ jobs:
             --head-only gemma-4-e4b-q4,gemma-4-26b-a4b-q4 \
             --summary "$GITHUB_STEP_SUMMARY"
 
+      # The checks below need the install; they run even when the (guessed) 26B probe above is red.
       - name: Check the layout the app reads
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: |
           parakeet=sherpa-onnx-nemo-parakeet-tdt-0.6b-v3-int8
           for f in "$parakeet/encoder.int8.onnx" "$parakeet/decoder.int8.onnx" "$parakeet/joiner.int8.onnx" "$parakeet/tokens.txt" \
@@ -82,6 +85,7 @@ jobs:
           find "$MURMUR_MODELS_DIR" -maxdepth 2 -printf '%s %p\n' | sort -k2
 
       - name: A second run installs nothing
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: |
           dotnet run -c Release --no-build --project tools/Murmur.ModelFetch -- \
             --dir "$MURMUR_MODELS_DIR" \

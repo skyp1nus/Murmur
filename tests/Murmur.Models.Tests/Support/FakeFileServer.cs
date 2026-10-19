@@ -4,7 +4,7 @@ using System.Net.Sockets;
 
 namespace Murmur.Models.Tests.Support;
 
-internal sealed record RecordedRequest(string Method, string Path, string? Range);
+internal sealed record RecordedRequest(string Method, string Path, string? Range, string? IfRange = null);
 
 /// <summary>What a path serves and how it misbehaves. Hit numbers start at 1 and count every request to the path.</summary>
 internal sealed class Route(byte[] content)
@@ -15,6 +15,15 @@ internal sealed class Route(byte[] content)
     public byte[] Content { get; set; } = content;
 
     public bool SupportsRange { get; set; } = true;
+
+    /// <summary>Sent as the ETag header; a request whose If-Range differs gets the whole body (status 200).</summary>
+    public string? ETag { get; set; }
+
+    /// <summary>Serve a different body for the given hit number (e.g. a file that changed meanwhile).</summary>
+    public Func<int, byte[]?>? ContentFor { get; set; }
+
+    /// <summary>Answer the given hit chunked, without Content-Length and ignoring Range.</summary>
+    public Func<int, bool>? Chunked { get; set; }
 
     public bool NotFound { get; set; }
 
@@ -170,7 +179,8 @@ internal sealed class FakeFileServer : IAsyncDisposable
         var response = context.Response;
         var path = request.Url!.AbsolutePath;
         var range = request.Headers["Range"];
-        Requests.Enqueue(new RecordedRequest(request.HttpMethod, path, range));
+        var ifRange = request.Headers["If-Range"];
+        Requests.Enqueue(new RecordedRequest(request.HttpMethod, path, range, ifRange));
 
         if (!Routes.TryGetValue(path, out var route) || route.NotFound)
         {
@@ -197,10 +207,17 @@ internal sealed class FakeFileServer : IAsyncDisposable
             return;
         }
 
-        var content = route.Content;
+        var content = route.ContentFor?.Invoke(hit) ?? route.Content;
+        var chunked = route.Chunked?.Invoke(hit) == true;
+        if (route.ETag is { } etag)
+        {
+            response.AddHeader("ETag", etag);
+        }
+
         long start = 0;
         long count = content.Length;
-        if (route.SupportsRange && TryParseRange(range, content.Length, out var from, out var to))
+        var rangeAllowed = route.SupportsRange && !chunked && (ifRange is null || ifRange == route.ETag);
+        if (rangeAllowed && TryParseRange(range, content.Length, out var from, out var to))
         {
             if (from >= content.Length)
             {
@@ -220,7 +237,15 @@ internal sealed class FakeFileServer : IAsyncDisposable
             response.StatusCode = 200;
         }
 
-        response.ContentLength64 = count;
+        if (chunked)
+        {
+            response.SendChunked = true;
+        }
+        else
+        {
+            response.ContentLength64 = count;
+        }
+
         var cutoff = route.DisconnectAfter?.Invoke(hit);
         long sent = 0;
         while (sent < count)
