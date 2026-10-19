@@ -8,7 +8,7 @@ The orb is four stacked CSS radial gradients on a lavender base:
     radial-gradient(circle at 72% 20%, #f4a6c8 0%, transparent 50%)   pink
     #d8c8f0                                                            base
 This script draws the same thing (CSS "farthest-corner" radius, first layer on top) at 4x and downsamples, once per
-icon size, then packs the PNGs into a Windows .ico (PNG-compressed entries, Vista and later).
+icon size, then packs them into a Windows .ico: 32-bit BMP entries up to 128 px, a PNG entry for 256 px.
 
 Needs: python3, numpy, Pillow.   Usage: python3 installer/make-icon.py [output.ico]
 """
@@ -65,12 +65,31 @@ def render(size: int) -> Image.Image:
     return Image.fromarray(np.clip(np.rint(out), 0, 255).astype(np.uint8), 'RGBA')
 
 
+def dib(img: Image.Image) -> bytes:
+    """A 32-bit BMP icon entry: BITMAPINFOHEADER, bottom-up BGRA pixels, then the 1-bit AND mask."""
+    w, h = img.size
+    rgba = np.asarray(img, dtype=np.uint8)
+    bgra = rgba[..., [2, 1, 0, 3]][::-1]  # bottom-up rows, BGRA order
+    row_bytes = ((w + 31) // 32) * 4
+    mask = np.zeros((h, row_bytes), dtype=np.uint8)
+    transparent = (rgba[..., 3] == 0)[::-1]
+    packed = np.packbits(transparent, axis=1)  # most significant bit first, as ICO wants
+    mask[:, : packed.shape[1]] = packed
+    header = struct.pack('<IiiHHIIiiII', 40, w, h * 2, 1, 32, 0, bgra.size + mask.size, 0, 0, 0, 0)
+    return header + bgra.tobytes() + mask.tobytes()
+
+
 def pack_ico(images: list[Image.Image]) -> bytes:
+    """Sizes below 256 are 32-bit BMP entries (the most compatible form: shell, old tools, the Win32 resource
+    compiler); only the 256 px entry is PNG-compressed, which is what Vista and later expect for it."""
     blobs = []
     for img in images:
-        buf = io.BytesIO()
-        img.save(buf, format='PNG', optimize=True)
-        blobs.append(buf.getvalue())
+        if img.width >= 256:
+            buf = io.BytesIO()
+            img.save(buf, format='PNG', optimize=True)
+            blobs.append(buf.getvalue())
+        else:
+            blobs.append(dib(img))
     header = struct.pack('<HHH', 0, 1, len(blobs))
     offset = 6 + 16 * len(blobs)
     entries = b''

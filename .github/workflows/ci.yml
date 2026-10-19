@@ -262,14 +262,21 @@ jobs:
           path: artifacts/publish/win-x64
 
       # ISCC may already be on the image; scripts/build-installer.ps1 looks in PATH and the usual Inno Setup 6 folders.
+      # installer/Murmur.iss needs Inno Setup 6.3 (x64compatible): an older image copy is upgraded.
       - name: Inno Setup
         run: |
           $known = @("${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe", "$env:ProgramFiles\Inno Setup 6\ISCC.exe")
-          if ((Get-Command ISCC.exe -ErrorAction SilentlyContinue) -or ($known | Where-Object { Test-Path $_ })) {
-            Write-Host 'Inno Setup is already installed.'
-          } else {
+          $iscc = (Get-Command ISCC.exe -ErrorAction SilentlyContinue).Source
+          if (-not $iscc) { $iscc = $known | Where-Object { Test-Path $_ } | Select-Object -First 1 }
+          if (-not $iscc) {
             choco install innosetup -y --no-progress
             if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          } elseif ((Get-Item $iscc).VersionInfo.FileVersionRaw -lt [version]'6.3') {
+            Write-Host "Inno Setup at $iscc is older than 6.3, upgrading."
+            choco upgrade innosetup -y --no-progress
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          } else {
+            Write-Host "Inno Setup is already installed: $iscc ($((Get-Item $iscc).VersionInfo.FileVersionRaw))"
           }
 
       - name: Build installer
@@ -288,8 +295,12 @@ jobs:
           $setup = (Get-ChildItem artifacts/installer -Filter 'Murmur-Setup-*.exe' | Select-Object -First 1).FullName
           pwsh scripts/verify-local.ps1 -Installer -SetupExe $setup
           $code = $LASTEXITCODE
-          Get-ChildItem artifacts/local-verify -Filter report.md -Recurse | ForEach-Object {
-            Get-Content $_.FullName -Raw | Out-File $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
+          $report = Get-ChildItem artifacts/local-verify -Filter report.md -Recurse | Select-Object -First 1
+          if ($report) { Get-Content $report.FullName -Raw | Out-File $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8 }
+          # A skipped step must not look green: the report has to say PASS for the installer.
+          if ($code -eq 0 -and -not ($report -and (Select-String -Path $report.FullName -SimpleMatch '| Installer | PASS |' -Quiet))) {
+            Write-Host '::error::The installer smoke test did not report PASS (skipped?)'
+            exit 1
           }
           exit $code
 

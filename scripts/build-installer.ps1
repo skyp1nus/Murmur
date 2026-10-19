@@ -24,7 +24,7 @@
     `| Select-Object -Last 1`.
 
 .PARAMETER Version
-    x.y.z or x.y.z-suffix. Default: <Version> in src/Murmur.Desktop/Murmur.Desktop.csproj. Also passed to the publish as
+    x.y.z or x.y.z-suffix. Default: <Version> in Directory.Build.props (one version for all assemblies). Also passed to the publish as
     /p:Version.
 .PARAMETER SkipPublish
     Use the existing -PublishDir as is.
@@ -56,7 +56,7 @@ $ProgressPreference = 'SilentlyContinue'
 
 $repo = (Resolve-Path (Join-Path $PSScriptRoot '..')).ProviderPath
 $iss = Join-Path $repo 'installer/Murmur.iss'
-$csproj = Join-Path $repo 'src/Murmur.Desktop/Murmur.Desktop.csproj'
+$buildProps = Join-Path $repo 'Directory.Build.props'
 
 function Resolve-RepoPath([string] $Path) {
     if ([System.IO.Path]::IsPathRooted($Path)) { return [System.IO.Path]::GetFullPath($Path) }
@@ -70,8 +70,8 @@ function Fail([string] $Message) {
 
 # --- Version ---------------------------------------------------------------------------------------------------------
 if ([string]::IsNullOrWhiteSpace($Version)) {
-    $m = [regex]::Match((Get-Content -LiteralPath $csproj -Raw), '<Version>\s*([^<\s]+)\s*</Version>')
-    if (-not $m.Success) { Fail "no <Version> in $csproj; pass -Version" }
+    $m = [regex]::Match((Get-Content -LiteralPath $buildProps -Raw), '<Version>\s*([^<\s]+)\s*</Version>')
+    if (-not $m.Success) { Fail "no <Version> in $buildProps; pass -Version" }
     $Version = $m.Groups[1].Value
 }
 $vm = [regex]::Match($Version, '^(\d+)\.(\d+)\.(\d+)(-[0-9A-Za-z][0-9A-Za-z.\-]*)?$')
@@ -79,7 +79,7 @@ if (-not $vm.Success) { Fail "version '$Version' is not x.y.z or x.y.z-suffix" }
 $versionNumeric = "$($vm.Groups[1].Value).$($vm.Groups[2].Value).$($vm.Groups[3].Value).0"
 
 # Windows minimum: $(MurmurWindowsMinVersion) of Directory.Build.props (a.b.c.d), Inno wants a.b.c.
-$mm = [regex]::Match((Get-Content -LiteralPath (Join-Path $repo 'Directory.Build.props') -Raw), '<MurmurWindowsMinVersion>\s*(\d+\.\d+\.\d+)(?:\.\d+)?\s*</MurmurWindowsMinVersion>')
+$mm = [regex]::Match((Get-Content -LiteralPath $buildProps -Raw), '<MurmurWindowsMinVersion>\s*(\d+\.\d+\.\d+)(?:\.\d+)?\s*</MurmurWindowsMinVersion>')
 if (-not $mm.Success) { Fail 'MurmurWindowsMinVersion not found in Directory.Build.props' }
 $minWindows = $mm.Groups[1].Value
 
@@ -103,6 +103,18 @@ function Test-WorkerPublished { Test-Path -LiteralPath (Join-Path $PublishDir 'M
 if (-not $SkipPublish -and -not $DryRun) {
     if (-not $IsWindows) { Fail 'the Native AOT win-x64 publish needs Windows (or use -SkipPublish with a downloaded publish folder)' }
     New-Item -ItemType Directory -Force -Path $OutDir | Out-Null
+    # A fresh publish goes into an empty folder: leftovers of an older publish (a removed dll, a stale worker) would
+    # otherwise end up in the installer. Only a folder that is empty or holds a previous publish is cleaned.
+    if (Test-Path -LiteralPath $PublishDir) {
+        $sep = [System.IO.Path]::DirectorySeparatorChar
+        $isRepoOrParent = ($repo.TrimEnd('/', '\') + $sep).StartsWith($PublishDir.TrimEnd('/', '\') + $sep, [System.StringComparison]::OrdinalIgnoreCase)
+        $existing = @(Get-ChildItem -LiteralPath $PublishDir -Force)
+        if ($isRepoOrParent) { Fail "refusing to clean $PublishDir (it contains the repository)" }
+        if ($existing.Count -gt 0 -and -not (Test-Path -LiteralPath (Join-Path $PublishDir 'Murmur.exe'))) {
+            Fail "$PublishDir is not empty and does not look like a Murmur publish folder (no Murmur.exe); not cleaning it"
+        }
+        $existing | Remove-Item -Recurse -Force
+    }
     $logs = @()
     $log = Join-Path $OutDir 'publish-desktop.log'
     $logs += $log
@@ -178,7 +190,14 @@ if (-not $iscc) {
     Write-Host '  (or: choco install innosetup -y), then open a new terminal so that PATH is refreshed.' -ForegroundColor Red
     exit 1
 }
-Write-Host "ISCC: $iscc"
+# ArchitecturesAllowed=x64compatible needs Inno Setup 6.3. ISCC.exe carries the Inno Setup version as its file version.
+$isccVersion = (Get-Item -LiteralPath $iscc).VersionInfo.FileVersionRaw
+Write-Host "ISCC: $iscc ($isccVersion)"
+if ($isccVersion -and $isccVersion -lt [version]'6.3') {
+    Write-Host "Inno Setup $isccVersion is too old: installer/Murmur.iss needs 6.3 or newer. Upgrade it with:" -ForegroundColor Red
+    Write-Host '    winget upgrade JRSoftware.InnoSetup   (or: choco upgrade innosetup -y)' -ForegroundColor Red
+    exit 1
+}
 
 if (Test-Path -LiteralPath $setupPath) { Remove-Item -LiteralPath $setupPath -Force }
 & $iscc /Q "/O$OutDir" "/DAppVersion=$Version" "/DAppVersionNumeric=$versionNumeric" "/DMinWindowsVersion=$minWindows" "/DPublishDir=$PublishDir" $iss

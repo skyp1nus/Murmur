@@ -11,8 +11,6 @@
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <PublishAot>true</PublishAot>
     <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
-    <!-- Product version: the installer (scripts/build-installer.ps1, installer/Murmur.iss) takes its default from here. -->
-    <Version>0.1.0</Version>
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(TargetFramework)' == '$(MurmurWindowsTargetFramework)'">

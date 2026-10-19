@@ -172,7 +172,7 @@ WAV читається вбудованим C#-хелпером (`Add-Type`), т
 ```powershell
 pwsh scripts/build-installer.ps1                       # publish + інсталятор -> artifacts/installer/Murmur-Setup-<версія>.exe (+ .sha256, payload.md)
 pwsh scripts/build-installer.ps1 -SkipPublish          # з наявної artifacts/publish/win-x64 (або -PublishDir <тека>)
-pwsh scripts/build-installer.ps1 -Version 0.2.0        # інша версія; за замовчуванням <Version> із src/Murmur.Desktop/Murmur.Desktop.csproj
+pwsh scripts/build-installer.ps1 -Version 0.2.0        # інша версія; за замовчуванням <Version> із Directory.Build.props (одна версія для всіх збірок)
 pwsh scripts/verify-local.ps1 -Publish -Installer     # + смоук-тест: встановити, запустити, видалити
 ```
 

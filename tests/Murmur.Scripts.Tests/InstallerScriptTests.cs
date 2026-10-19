@@ -27,6 +27,9 @@ public sealed partial class InstallerScriptTests : IDisposable
     [GeneratedRegex(@"#define\s+AppVersion\s+""([^""]+)""")]
     private static partial Regex AppVersionDefine();
 
+    [GeneratedRegex(@"#define\s+AppVersionNumeric\s+""([^""]+)""")]
+    private static partial Regex AppVersionNumericDefine();
+
     [GeneratedRegex(@"<Version>([^<]+)</Version>")]
     private static partial Regex VersionProperty();
 
@@ -58,10 +61,30 @@ public sealed partial class InstallerScriptTests : IDisposable
     {
         var iss = File.ReadAllText(RepoPath("installer", "Murmur.iss"));
         var props = File.ReadAllText(RepoPath("Directory.Build.props"));
-        var csproj = File.ReadAllText(RepoPath("src", "Murmur.Desktop", "Murmur.Desktop.csproj"));
 
         Assert.Equal(MinVersionProperty().Match(props).Groups[1].Value, MinVersionDefine().Match(iss).Groups[1].Value);
-        Assert.Equal(VersionProperty().Match(csproj).Groups[1].Value, AppVersionDefine().Match(iss).Groups[1].Value);
+        var version = VersionProperty().Match(props).Groups[1].Value;
+        Assert.Equal(version, AppVersionDefine().Match(iss).Groups[1].Value);
+        Assert.Equal(version + ".0", AppVersionNumericDefine().Match(iss).Groups[1].Value);
+    }
+
+    [Fact]
+    public void The_product_version_is_defined_once_in_directory_build_props()
+    {
+        Assert.Matches(VersionProperty(), File.ReadAllText(RepoPath("Directory.Build.props")));
+        Assert.DoesNotMatch(VersionProperty(), File.ReadAllText(RepoPath("src", "Murmur.Desktop", "Murmur.Desktop.csproj")));
+    }
+
+    [Fact]
+    public void The_uninstall_code_never_deletes_user_data_silently_and_only_in_one_place()
+    {
+        var iss = File.ReadAllText(RepoPath("installer", "Murmur.iss"));
+        var code = iss[iss.IndexOf("[Code]", StringComparison.Ordinal)..];
+
+        Assert.Contains("not UninstallSilent", code, StringComparison.Ordinal);
+        Assert.Contains(@"ExpandConstant('{localappdata}\Murmur')", code, StringComparison.Ordinal);
+        Assert.Contains("IDNO", code, StringComparison.Ordinal);
+        Assert.Single(Regex.Matches(code, @"\bDelTree\s*\("));
     }
 
     [Fact]
@@ -74,18 +97,33 @@ public sealed partial class InstallerScriptTests : IDisposable
         var count = BitConverter.ToUInt16(ico, 4);
         var sizes = Enumerable.Range(0, count).Select(i => ico[6 + (16 * i)] == 0 ? 256 : ico[6 + (16 * i)]).ToArray();
         Assert.Equal([16, 24, 32, 48, 64, 128, 256], sizes);
+
+        // Up to 128 px: 32-bit BMP entries (BITMAPINFOHEADER, height doubled for the AND mask); 256 px: PNG.
+        for (var i = 0; i < count; i++)
+        {
+            var offset = (int)BitConverter.ToUInt32(ico, 6 + (16 * i) + 12);
+            if (sizes[i] == 256)
+            {
+                Assert.Equal(0x474E5089u, BitConverter.ToUInt32(ico, offset));
+            }
+            else
+            {
+                Assert.Equal(40u, BitConverter.ToUInt32(ico, offset));
+                Assert.Equal(sizes[i] * 2, BitConverter.ToInt32(ico, offset + 8));
+                Assert.Equal(32, BitConverter.ToUInt16(ico, offset + 14));
+            }
+        }
     }
 
     [Fact]
-    public void The_dry_run_takes_the_version_from_the_csproj_and_leaves_debug_files_out()
+    public void The_dry_run_takes_the_version_from_directory_build_props_and_leaves_debug_files_out()
     {
         var publish = Publish("Murmur.exe", "Murmur.Transcription.exe", "onnxruntime.dll", "sherpa-onnx-c-api.dll", "Murmur.pdb", "Murmur.Transcription.dbg", "libSkiaSharp.dll", "libSkiaSharp.pdb");
 
         var run = Run(publish);
 
         Assert.Equal(0, run.ExitCode);
-        var csproj = File.ReadAllText(RepoPath("src", "Murmur.Desktop", "Murmur.Desktop.csproj"));
-        var version = VersionProperty().Match(csproj).Groups[1].Value;
+        var version = VersionProperty().Match(File.ReadAllText(RepoPath("Directory.Build.props"))).Groups[1].Value;
         Assert.Contains($"version={version} numeric={version}.0 ", run.Output, StringComparison.Ordinal);
         Assert.Contains("included=5 excluded=3 ", run.Output, StringComparison.Ordinal);
         Assert.Contains($"Murmur-Setup-{version}.exe", run.Output, StringComparison.Ordinal);

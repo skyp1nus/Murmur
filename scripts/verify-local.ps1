@@ -207,6 +207,31 @@ function Wait-Until([scriptblock] $Condition, [int] $TimeoutS) {
     return [bool](& $Condition)
 }
 
+# Number of RT_GROUP_ICON resources of an exe (the icon set that ApplicationIcon embeds), -1 when it cannot be opened.
+function Get-IconGroupCount([string] $Path) {
+    if (-not ('Murmur.PeIcons' -as [type])) {
+        Add-Type -Namespace Murmur -Name PeIcons -MemberDefinition @'
+public delegate bool EnumProc(IntPtr module, IntPtr type, IntPtr name, IntPtr param);
+[System.Runtime.InteropServices.DllImport("kernel32.dll", SetLastError = true, CharSet = System.Runtime.InteropServices.CharSet.Unicode)]
+static extern IntPtr LoadLibraryEx(string file, IntPtr reserved, uint flags);
+[System.Runtime.InteropServices.DllImport("kernel32.dll", SetLastError = true)]
+static extern bool EnumResourceNames(IntPtr module, IntPtr type, EnumProc callback, IntPtr param);
+[System.Runtime.InteropServices.DllImport("kernel32.dll")]
+static extern bool FreeLibrary(IntPtr module);
+public static int CountGroupIcons(string path)
+{
+    IntPtr module = LoadLibraryEx(path, IntPtr.Zero, 0x2); // LOAD_LIBRARY_AS_DATAFILE
+    if (module == IntPtr.Zero) return -1;
+    int count = 0;
+    EnumResourceNames(module, (IntPtr)14, (m, t, n, p) => { count++; return true; }, IntPtr.Zero); // RT_GROUP_ICON
+    FreeLibrary(module);
+    return count;
+}
+'@
+    }
+    return [Murmur.PeIcons]::CountGroupIcons($Path)
+}
+
 function Invoke-InstallerCheck {
     $appId = [regex]::Match((Get-Content -LiteralPath 'installer/Murmur.iss' -Raw), 'AppId=\{\{([0-9A-Fa-f-]+)\}').Groups[1].Value
     $uninstallKey = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\{$appId}_is1"
@@ -238,6 +263,9 @@ function Invoke-InstallerCheck {
     $dataDirExisted = Test-Path -LiteralPath $dataDir
     $problems = [System.Collections.Generic.List[string]]::new()
     $installed = $false
+    $keyExisted = Test-Path -LiteralPath $uninstallKey
+    $version = [regex]::Match($setup.Name, '^Murmur-Setup-(.+)\.exe$').Groups[1].Value
+    $facts = ''
 
     try {
         New-Item -ItemType Directory -Force -Path $dataDir | Out-Null
@@ -255,15 +283,33 @@ function Invoke-InstallerCheck {
         if (-not (Test-Path -LiteralPath $shortcut)) { $problems.Add('no Start-menu shortcut') }
 
         $installedExe = Join-Path $installDir 'Murmur.exe'
-        if (Test-Path -LiteralPath $installedExe) { Invoke-StartupCheck 'Installer startup' $installedExe 'installer-startup' }
+        if (Test-Path -LiteralPath $installedExe) {
+            # The version and the icon of the installed exe: the version must be there (the Version property of
+            # Directory.Build.props), a missing icon resource is only reported.
+            $productVersion = (Get-Item -LiteralPath $installedExe).VersionInfo.ProductVersion
+            if ([string]::IsNullOrWhiteSpace($productVersion)) { $problems.Add('Murmur.exe has no VersionInfo') }
+            else { $facts += "; exe version $productVersion" }
+            if ($productVersion -and $version -and -not $productVersion.StartsWith($version)) { Write-Host "Note: Murmur.exe ProductVersion '$productVersion' does not start with the setup version '$version'." -ForegroundColor Yellow }
+            $icons = Get-IconGroupCount $installedExe
+            $facts += $(if ($icons -gt 0) { '; exe has an icon resource' } else { '; exe has NO icon resource' })
+            Write-Host "Installed exe: ProductVersion '$productVersion', $icons icon group resource(s)."
+            Invoke-StartupCheck 'Installer startup' $installedExe 'installer-startup'
+        }
     }
     finally {
         if ($installed) {
-            Start-Process -FilePath (Join-Path $installDir 'unins000.exe') -ArgumentList @('/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', "/LOG=`"$uninstallLog`"") -Wait | Out-Null
+            $u = Start-Process -FilePath (Join-Path $installDir 'unins000.exe') -ArgumentList @('/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', "/LOG=`"$uninstallLog`"") -Wait -PassThru
+            if ($u.ExitCode -ne 0) { $problems.Add("uninstaller exit code $($u.ExitCode) (see installer-uninstall.log)") }
             # unins000.exe hands over to a copy of itself in %TEMP% and may return before the files are gone.
             if (-not (Wait-Until { -not (Test-Path -LiteralPath $installDir) } 60)) { $problems.Add('install folder still exists after the silent uninstall') }
             if (Test-Path -LiteralPath $uninstallKey) { $problems.Add('uninstall entry still in HKCU') }
             if (Test-Path -LiteralPath $shortcut) { $problems.Add('Start-menu shortcut still there') }
+        }
+        # A failed or partial install can leave its uninstall entry behind; remove it only when it points at our temp folder.
+        if (-not $keyExisted -and (Test-Path -LiteralPath $uninstallKey)) {
+            $entry = Get-ItemProperty -LiteralPath $uninstallKey
+            $location = 'Inno Setup: App Path', 'InstallLocation' | ForEach-Object { if ($entry.PSObject.Properties[$_]) { $entry.$_ } } | Where-Object { $_ } | Select-Object -First 1
+            if ($location -and $location.TrimEnd('\') -ieq $installDir.TrimEnd('\')) { Remove-Item -LiteralPath $uninstallKey -Recurse -Force -ErrorAction SilentlyContinue }
         }
         if (-not (Test-Path -LiteralPath $sentinel)) { $problems.Add('user data was deleted by a silent uninstall') }
         Remove-Item -LiteralPath $sentinel -Force -ErrorAction SilentlyContinue
@@ -274,7 +320,7 @@ function Invoke-InstallerCheck {
     }
 
     $sizeMb = [math]::Round($setup.Length / 1MB, 1)
-    if ($problems.Count -eq 0) { Add-Result 'Installer' 'PASS' "$($setup.Name) $sizeMb MB; silent install, uninstall, user data kept" }
+    if ($problems.Count -eq 0) { Add-Result 'Installer' 'PASS' "$($setup.Name) $sizeMb MB; silent install, uninstall, user data kept$facts" }
     else { Add-Result 'Installer' 'FAIL' "$($setup.Name) $sizeMb MB: $($problems -join '; ')" }
 }
 
@@ -388,6 +434,13 @@ if ($AiEval) {
         Add-Result 'AI eval' ($(if ($code -eq 0) { 'PASS' } elseif ($code -eq 2) { 'SKIP' } else { 'FAIL' })) $summary
         $text = Read-Text $md
         if ($text) { Add-Section 'AI eval' $text }
+    }
+}
+
+# On GitHub Actions a requested -Installer that was skipped must not look green.
+if ($env:GITHUB_ACTIONS -eq 'true' -and $PSBoundParameters.ContainsKey('Installer')) {
+    foreach ($r in $results) {
+        if ($r.Step -eq 'Installer' -and $r.Status -eq 'SKIP') { $r.Status = 'FAIL'; $r.Summary = "skipped on CI, which counts as a failure: $($r.Summary)" }
     }
 }
 
