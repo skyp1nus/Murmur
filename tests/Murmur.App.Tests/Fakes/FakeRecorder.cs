@@ -16,6 +16,9 @@ internal sealed class FakeRecorder : IRecorder
 
     public RecorderStats Stats { get; set; }
 
+    /// <summary>The <see cref="SessionRecord.Duration"/> of the finished session when set; <see cref="Elapsed"/> otherwise.</summary>
+    public TimeSpan? FinishedDuration { get; set; }
+
     public Exception? StartFailure { get; set; }
 
     public Exception? StopFailure { get; set; }
@@ -29,6 +32,9 @@ internal sealed class FakeRecorder : IRecorder
     /// <see cref="SessionRecord.Error"/>, like <see cref="Recorder"/> when Windows denies microphone access.
     /// </summary>
     public string? StartWarning { get; set; }
+
+    /// <summary>Screen segments the finished session carries (<see cref="SessionRecord.ScreenSegments"/>).</summary>
+    public List<ScreenSegment> Segments { get; } = [];
 
     public List<RecordingOptions> Starts { get; } = [];
 
@@ -104,7 +110,8 @@ internal sealed class FakeRecorder : IRecorder
         var finished = current with
         {
             State = SessionState.Recorded,
-            Duration = Elapsed,
+            Duration = FinishedDuration ?? Elapsed,
+            ScreenSegments = [.. Segments],
             Error = StopError ?? current.Error,
         };
         Current = null;

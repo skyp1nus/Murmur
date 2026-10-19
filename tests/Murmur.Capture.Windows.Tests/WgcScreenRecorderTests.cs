@@ -489,10 +489,10 @@ public sealed class WgcScreenRecorderTests(ITestOutputHelper output)
     /// <summary>
     /// The file's own timeline (the sum of its trun sample durations: what spec-compliant players and
     /// scripts/check-recording.ps1 go by) and its header duration (mvhd) both match the wall-clock length of the segment.
-    /// The segment's timeline starts inside StartSegmentAsync and ends at the stop request inside StopSegmentAsync, so
-    /// the file lasts at least <see cref="SegmentClock.Inner"/> and at most <see cref="SegmentClock.Outer"/>, give or
-    /// take one frame interval plus <see cref="TimelineSlack"/>: a tight bound on an idle machine that only widens by
-    /// the time the start and stop calls really took under load.
+    /// The segment's timeline starts at the StartSegmentAsync call and ends at the StopSegmentAsync call (the exact
+    /// bound is ScreenSegmentClockTests), so the file lasts at least <see cref="SegmentClock.Inner"/> and at most
+    /// <see cref="SegmentClock.Outer"/>, give or take one frame interval plus <see cref="TimelineSlack"/>: a loose bound
+    /// that widens by the time the start and stop calls really took.
     /// </summary>
     private void AssertTimeline(string path, SegmentClock elapsed, int frameRate)
     {
