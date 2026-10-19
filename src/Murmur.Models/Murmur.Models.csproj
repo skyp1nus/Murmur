@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Model manager: downloads (resumable, verified), stages and installs the ASR/VAD/LLM files into the models directory
+    in the layout the rest of the app reads. References Murmur.Core only; no platform code, no extra packages.
+  -->
+  <PropertyGroup>
+    <RootNamespace>Murmur.Models</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Murmur.Core\Murmur.Core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Murmur.Models.Tests" />
+  </ItemGroup>
+
+</Project>
