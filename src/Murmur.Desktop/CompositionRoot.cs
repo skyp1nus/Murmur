@@ -31,6 +31,9 @@ internal sealed class CompositionRoot : IDisposable
     private LocalLlm? _llm;
     private Assistant? _assistant;
     private ModelManager? _modelManager;
+    private AiAwareModelManager? _aiModels;
+    private AiReindexScheduler? _reindex;
+    private CancellationTokenSource? _recoveryRetry;
 
     public CompositionRoot(string[] args)
     {
@@ -84,6 +87,10 @@ internal sealed class CompositionRoot : IDisposable
         // The model manager installs into the same folder the ASR and the AI read from. Its active-model lookup is handed
         // to the UI as a delegate because IModelManager does not expose it.
         var modelManager = _modelManager ??= new ModelManager(models.ModelsDirectory);
+
+        // The UI removes models through this wrapper: it stops the llama-server first, so the files are not held open.
+        var aiModels = _aiModels ??= new AiAwareModelManager(
+            modelManager, llm, id => ItemPath(modelManager, id), llm.IsUsingModel);
         var processor = _processor ??= new SessionProcessor(
             recorder,
             storage,
@@ -92,6 +99,37 @@ internal sealed class CompositionRoot : IDisposable
             queue,
             indexer: (session, cancellationToken) => assistant.IndexSessionAsync(session, cancellationToken).AsTask(),
             isAiInstalled: () => llm.IsInstalled);
+
+        // AI installed in the app while it runs: sessions finished without it get their vectors now, not at the next start.
+        if (_reindex is null)
+        {
+            var reindex = _reindex = new AiReindexScheduler(
+                () => activity.IsRecording,
+                cancellationToken =>
+                {
+                    llm.Refresh();
+                    return processor.ReindexAllAsync(cancellationToken: cancellationToken).AsTask();
+                },
+                static ex => Console.Error.WriteLine($"Reindex after the AI install failed: {ex.Message}"));
+            activity.RecordingStopped += reindex.NotifyRecordingStopped;
+            modelManager.StatusChanged += status =>
+            {
+                // Synchronously, and before the UI's handlers (subscribed later): they poll Status in reaction to this event.
+                if (status.State is ModelInstallState.Installed or ModelInstallState.NotInstalled
+                    && status.Model.Kind is ModelKind.LlmRuntime or ModelKind.Chat or ModelKind.Embedding)
+                {
+                    llm.Refresh();
+                }
+
+                if (status.State == ModelInstallState.Installed
+                    && status.Model.Kind is ModelKind.LlmRuntime or ModelKind.Embedding
+                    && IsInstalled(modelManager, ModelKind.LlmRuntime)
+                    && IsInstalled(modelManager, ModelKind.Embedding))
+                {
+                    reindex.Request();
+                }
+            };
+        }
 
         // Start-up work runs before the library loads; the shell awaits it off the UI thread.
         var recovery = new RecoveryService(storage);
@@ -103,6 +141,10 @@ internal sealed class CompositionRoot : IDisposable
             async cancellationToken =>
             {
                 await recovery.RecoverAsync(cancellationToken).ConfigureAwait(false);
+
+                // Tracks still held by an antivirus/indexer right after a crash: retry just those sessions later.
+                _recoveryRetry = new CancellationTokenSource();
+                _ = recovery.RetryBusyInBackgroundAsync(_recoveryRetry.Token);
                 await processor.ResumePendingAsync(cancellationToken).ConfigureAwait(false);
 
                 // Sessions finished while the AI was not installed get their vectors now (a no-op without the models).
@@ -114,14 +156,16 @@ internal sealed class CompositionRoot : IDisposable
             storage,
             new AiServices(assistant, llm, models.ModelsDirectory),
             settings,
-            modelManager,
+            aiModels,
             modelManager.ActiveModelId,
             storage.Paths.RecordingsDirectory);
     }
 
     public void Dispose()
     {
+        _recoveryRetry?.Cancel();
         _heapTrimmer?.Dispose();
+        _reindex?.Dispose();
         _processor?.Dispose();
         _queue?.DisposeAsync().AsTask().GetAwaiter().GetResult();
         _activity?.Dispose();
@@ -137,9 +181,37 @@ internal sealed class CompositionRoot : IDisposable
 
     private static LocalLlm CreateLlm(string modelsDirectory, RecordingActivity activity)
     {
-        var llm = new LocalLlm(AiModelPaths.Resolve(modelsDirectory, Environment.GetEnvironmentVariable), () => activity.IsRecording);
+        // Paths are resolved again on demand (environment, manifest, defaults), so models installed, switched or removed
+        // in the app are noticed without a restart.
+        var llm = new LocalLlm(() => AiModelPaths.Resolve(modelsDirectory, Environment.GetEnvironmentVariable), () => activity.IsRecording);
         activity.RecordingStarted += llm.NotifyRecordingStarted;
         return llm;
+    }
+
+    private static string? ItemPath(ModelManager manager, string id)
+    {
+        foreach (var item in manager.Items)
+        {
+            if (string.Equals(item.Id, id, StringComparison.Ordinal))
+            {
+                return Path.GetFullPath(Path.Combine(manager.ModelsDirectory, item.TargetPath));
+            }
+        }
+
+        return null;
+    }
+
+    private static bool IsInstalled(IModelManager manager, ModelKind kind)
+    {
+        foreach (var model in manager.Catalog)
+        {
+            if (model.Kind == kind && manager.GetStatus(model.Id).State == ModelInstallState.Installed)
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private static ICapture CreateCapture()

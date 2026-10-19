@@ -82,7 +82,11 @@ public sealed record ModelCatalogItem(
 /// <param name="HuggingFace">Hugging Face, without trailing slash.</param>
 /// <param name="GitHub">GitHub (release downloads), without trailing slash.</param>
 /// <param name="PinHashes">Attach the pinned SHA-256 values and exact sizes; tests that serve made-up content turn it off.</param>
-public sealed record ModelCatalogSources(string HuggingFace, string GitHub, bool PinHashes = true)
+/// <param name="Revisions">
+/// Hugging Face repository to commit SHA; a file of such a repository is downloaded from <c>resolve/&lt;sha&gt;/</c>. A
+/// repository that is not listed is downloaded from <c>resolve/main</c>. <c>null</c>: <see cref="ModelCatalog.HuggingFaceRevisions"/>.
+/// </param>
+public sealed record ModelCatalogSources(string HuggingFace, string GitHub, bool PinHashes = true, IReadOnlyDictionary<string, string>? Revisions = null)
 {
     public static ModelCatalogSources Default { get; } = new("https://huggingface.co", "https://github.com");
 }

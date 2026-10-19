@@ -83,6 +83,10 @@
     <MSBuild Projects="$(MurmurWorkerProject)" Targets="Publish" Properties="TargetFramework=$(MurmurTargetFramework);RuntimeIdentifier=$(RuntimeIdentifier);PublishDir=$(MurmurWorkerPublishDir)" />
   </Target>
 
+  <ItemGroup>
+    <InternalsVisibleTo Include="Murmur.Desktop.Tests" />
+  </ItemGroup>
+
   <ItemGroup Condition="'$(TargetFramework)' == '$(MurmurWindowsTargetFramework)'">
     <ProjectReference Include="..\Murmur.Capture.Windows\Murmur.Capture.Windows.csproj" />
   </ItemGroup>

@@ -109,6 +109,112 @@ public sealed class CheckRecordingScriptTests : IDisposable
         Assert.DoesNotContain("screen video", run.Output);
     }
 
+    private const string SyncRow = "screen-000.mp4 duration vs session segment";
+
+    [Fact]
+    public void A_segment_as_long_as_the_session_says_passes_the_sync_check()
+    {
+        var run = RunWithSegments(["screen-000.mp4"], [Video(10, 30)], Segments((0, 0.0, 10.0)));
+
+        Assert.Equal(0, run.ExitCode);
+        Assert.Equal("PASS", Status(run, SyncRow));
+        Assert.Equal("INFO", Status(run, "screen-000.mp4 media - segment durationS (signed)"));
+        Assert.Contains("| 0.000 s (offsetS 0.000) |", run.Output);
+    }
+
+    [Fact]
+    public void A_segment_that_started_late_fails_the_sync_check()
+    {
+        // The bug: media time 0 taken after the encoder start-up, so the file is shorter than the segment (0.5 s here,
+        // a whole number of frames; the owner's PC lost 0.43-0.48 s).
+        var run = RunWithSegments(["screen-000.mp4"], [Video(9.5, 30)], Segments((0, 0.0, 10.0)));
+
+        Assert.Equal(1, run.ExitCode);
+        Assert.Equal("FAIL", Status(run, SyncRow));
+        Assert.Contains("| -0.500 s (offsetS 0.000) |", run.Output);
+        Assert.Equal("PASS", Status(run, "screen video duration vs durationS")); // the summed check is far too loose for this
+    }
+
+    [Fact]
+    public void The_sync_tolerance_is_a_quarter_second_and_can_be_changed()
+    {
+        Assert.Equal(0, RunWithSegments(["screen-000.mp4"], [Video(9.8, 30)], Segments((0, 0.0, 10.0))).ExitCode);
+        Assert.Equal(0, RunWithSegments(["screen-000.mp4"], [Video(10.2, 30)], Segments((0, 0.0, 10.0))).ExitCode);
+
+        var outside = RunWithSegments(["screen-000.mp4"], [Video(9.7, 30)], Segments((0, 0.0, 10.0)));
+        Assert.Equal(1, outside.ExitCode);
+        Assert.Equal("FAIL", Status(outside, SyncRow));
+
+        Assert.Equal(0, RunWithSegments(["screen-000.mp4"], [Video(9.7, 30)], Segments((0, 0.0, 10.0)), "-SegmentToleranceS", "0.5").ExitCode);
+    }
+
+    [Fact]
+    public void Each_segment_is_matched_to_its_entry_by_index()
+    {
+        var both = RunWithSegments(["screen-000.mp4", "screen-001.mp4"], [Video(4, 30), Video(5.5, 30)], Segments((0, 0.0, 4.0), (1, 4.5, 5.5)));
+        Assert.Equal(0, both.ExitCode);
+        Assert.Equal("PASS", Status(both, SyncRow));
+        Assert.Equal("PASS", Status(both, "screen-001.mp4 duration vs session segment"));
+
+        // The second file is compared with entry 1, not entry 0.
+        var swapped = RunWithSegments(["screen-000.mp4", "screen-001.mp4"], [Video(4, 30), Video(5.5, 30)], Segments((0, 0.0, 5.5), (1, 4.5, 4.0)));
+        Assert.Equal(1, swapped.ExitCode);
+        Assert.Equal("FAIL", Status(swapped, SyncRow));
+        Assert.Equal("FAIL", Status(swapped, "screen-001.mp4 duration vs session segment"));
+    }
+
+    [Fact]
+    public void Only_the_segment_that_disagrees_with_its_entry_fails_in_a_three_segment_session()
+    {
+        var run = RunWithSegments(
+            ["screen-000.mp4", "screen-001.mp4", "screen-002.mp4"],
+            [Video(3, 30), Video(2.5, 30), Video(4, 30)],
+            Segments((0, 0.2, 3.0), (1, 3.7, 3.0), (2, 7.0, 4.0)));
+
+        Assert.Equal(1, run.ExitCode);
+        Assert.Equal("PASS", Status(run, SyncRow));
+        Assert.Equal("FAIL", Status(run, "screen-001.mp4 duration vs session segment"));
+        Assert.Equal("PASS", Status(run, "screen-002.mp4 duration vs session segment"));
+        Assert.Contains("| -0.500 s (offsetS 3.700) |", run.Output);
+    }
+
+    [Fact]
+    public void A_file_without_an_entry_fails_and_a_json_without_entries_skips_the_check()
+    {
+        var missing = RunWithSegments(["screen-000.mp4"], [Video(10, 30)], Segments((7, 0.0, 10.0)));
+        Assert.Equal(1, missing.ExitCode);
+        Assert.Equal("FAIL", Status(missing, SyncRow));
+
+        // An empty list is not "no list": the file has no entry, which fails.
+        var empty = RunWithSegments(["screen-000.mp4"], [Video(10, 30)], "[]");
+        Assert.Equal(1, empty.ExitCode);
+        Assert.Equal("FAIL", Status(empty, SyncRow));
+
+        var older = Run(["screen-000.mp4"], [Video(10, 30)]);
+        Assert.Equal(0, older.ExitCode);
+        Assert.Equal("SKIP", Status(older, SyncRow));
+    }
+
+    [Fact]
+    public void The_signed_audio_difference_is_reported()
+    {
+        // system.wav is 10 s, durationS 10: zero. (The wav check itself stays +/- 1 s.)
+        var run = Run(["screen-000.mp4"], [Video(10, 30)]);
+
+        Assert.Equal("INFO", Status(run, "system.wav duration - durationS (signed)"));
+        Assert.Contains("| 0.000 s |", run.Output);
+        Assert.Equal("PASS", Status(run, "system.wav duration vs durationS"));
+    }
+
+    [Fact]
+    public void The_screen_start_is_reported_when_the_perf_json_has_it()
+    {
+        var run = RunWithSegments(["screen-000.mp4"], [Video(10, 30)], Segments((0, 0.0, 10.0)), screenStartMs: 452.4);
+
+        Assert.Equal("INFO", Status(run, "screenStartMs"));
+        Assert.Contains("| 452 |", run.Output);
+    }
+
     private const string SlopeRow = "working-set slope after 60 s";
 
     [Fact]
@@ -203,7 +309,14 @@ public sealed class CheckRecordingScriptTests : IDisposable
     private ScriptRun Run(string[] names, byte[][] files, string? option = null, string? value = null, bool expectScreen = true) =>
         Run(names, files, option is null ? [] : [option, value!], expectScreen, memory: null);
 
-    private ScriptRun Run(string[] names, byte[][] files, string[] options, bool expectScreen, string? memory)
+    /// <summary>session.screenSegmentTimes JSON for <c>(index, offsetS, durationS)</c> entries.</summary>
+    private static string Segments(params (int Index, double OffsetS, double DurationS)[] entries) =>
+        "[" + string.Join(", ", entries.Select(e => string.Create(System.Globalization.CultureInfo.InvariantCulture, $"{{ \"index\": {e.Index}, \"offsetS\": {e.OffsetS}, \"durationS\": {e.DurationS} }}"))) + "]";
+
+    private ScriptRun RunWithSegments(string[] names, byte[][] files, string segments, string? option = null, string? value = null, double? screenStartMs = null) =>
+        Run(names, files, option is null ? [] : [option, value!], expectScreen: true, memory: null, segments, screenStartMs);
+
+    private ScriptRun Run(string[] names, byte[][] files, string[] options, bool expectScreen, string? memory, string? segments = null, double? screenStartMs = null)
     {
         var pwsh = FindPwsh();
         Assert.SkipUnless(pwsh is not null, "pwsh (PowerShell 7) is not available; set MURMUR_PWSH to run the script tests.");
@@ -221,9 +334,9 @@ public sealed class CheckRecordingScriptTests : IDisposable
             json,
             $$"""
             { "durationS": {{DurationS}}, "idleCpuPct": 0.0, "cpuAvgPct": 0.0, "cpuP95Pct": 0.0, "cpuAvgPctOneCore": 0.0,
-              "wsAvgMb": 0.0, "wsMaxMb": 0.0, "privateMaxMb": 0.0, "wsSlopeMbPerMin": 0.0,{{(memory is null ? string.Empty : " \"memory\": " + memory + ",")}}
+              "wsAvgMb": 0.0, "wsMaxMb": 0.0, "privateMaxMb": 0.0, "wsSlopeMbPerMin": 0.0,{{(memory is null ? string.Empty : " \"memory\": " + memory + ",")}}{{(screenStartMs is null ? string.Empty : string.Create(System.Globalization.CultureInfo.InvariantCulture, $" \"screenStartMs\": {screenStartMs},"))}}
               "recorderStats": { "microphoneFrames": 0, "systemFrames": 160000, "droppedFrames": 0, "screenFramesDropped": 0 },
-              "session": { "id": "test", "folder": "{{folder}}", "micSeconds": 0.0, "systemSeconds": {{DurationS}}, "screenSegments": {{names.Length}} } }
+              "session": { "id": "test", "folder": "{{folder}}", "micSeconds": 0.0, "systemSeconds": {{DurationS}}, "screenSegments": {{names.Length}}{{(segments is null ? string.Empty : ", \"screenSegmentTimes\": " + segments)}} } }
             """);
 
         var info = new ProcessStartInfo(pwsh!)
