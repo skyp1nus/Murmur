@@ -39,6 +39,14 @@ public partial class MainWindow : Window
         _stopping ??= StopThenCloseAsync(shell);
     }
 
+    protected override void OnClosed(EventArgs e)
+    {
+        base.OnClosed(e);
+
+        // The audio meters and the trial recording of the onboarding never outlive the window.
+        (DataContext as ShellViewModel)?.OnWindowClosed();
+    }
+
     private async Task StopThenCloseAsync(ShellViewModel shell)
     {
         try

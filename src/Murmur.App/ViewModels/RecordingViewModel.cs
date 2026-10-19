@@ -234,6 +234,7 @@ public sealed partial class RecordingViewModel : ObservableObject, ILevelSource
         try
         {
             var session = await _recorder.StopAsync(CancellationToken.None);
+            _sessionId = null;
             ApplyState(_recorder.State);
             TimerText = UiFormat.Duration(TimeSpan.Zero);
             if (session.Error is { Length: > 0 } sessionError)
@@ -417,9 +418,10 @@ public sealed partial class RecordingViewModel : ObservableObject, ILevelSource
             State = state;
         }
 
-        if (wasActive && state == RecorderState.Idle && !_stopRequested)
+        if (wasActive && state == RecorderState.Idle && !_stopRequested && _sessionId is not null)
         {
-            // The recorder stopped on its own (every audio source failed). Tell the user why.
+            // The recorder stopped on its own (every audio source failed). Tell the user why - but only for the session this
+            // screen started: a recording another screen runs (the onboarding's trial) ends in its own way.
             AutoStopReport = ReportAutoStopAsync();
         }
     }
@@ -439,6 +441,7 @@ public sealed partial class RecordingViewModel : ObservableObject, ILevelSource
             reason = UiText.Format(Strings.Recording_StoppedItselfWithError, ex.Message);
         }
 
+        _sessionId = null;
         Error = reason;
         TimerText = UiFormat.Duration(TimeSpan.Zero);
     }

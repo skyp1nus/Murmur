@@ -90,6 +90,9 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable
     /// <summary>The last settings change started by any section (for tests).</summary>
     internal Task LastSave => _writer.LastSave;
 
+    /// <summary>The one writer of every settings change; the onboarding saves through it so its edits never overlap the sections' own.</summary>
+    internal SettingsWriter Writer => _writer;
+
     /// <summary>A link of the sidebar was clicked: the view scrolls the section into view.</summary>
     public event Action<string>? SectionRequested;
 

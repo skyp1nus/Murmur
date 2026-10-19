@@ -1,0 +1,181 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Murmur.App.ViewModels"
+             xmlns:res="using:Murmur.App.Resources"
+             xmlns:controls="using:Murmur.App.Controls"
+             x:Class="Murmur.App.Views.FirstRecordingStepView"
+             x:DataType="vm:FirstRecordingStepViewModel">
+
+  <!-- Step 5: a ten-second recording, the orb that follows the voice, the countdown and the recognised text. -->
+  <StackPanel HorizontalAlignment="Stretch"
+              Spacing="{StaticResource Space.32}">
+
+    <StackPanel Spacing="{StaticResource Space.12}"
+                HorizontalAlignment="Center">
+      <TextBlock Classes="heading onbHeadline"
+                 TextAlignment="Center"
+                 TextWrapping="Wrap"
+                 Text="{Binding Title}" />
+      <TextBlock Classes="body"
+                 TextAlignment="Center"
+                 TextWrapping="Wrap"
+                 Foreground="{DynamicResource Brush.Smoke}"
+                 Text="{Binding Subtitle}" />
+    </StackPanel>
+
+    <StackPanel HorizontalAlignment="Center"
+                Spacing="{StaticResource Space.16}">
+      <controls:OrbControl x:Name="VoiceOrb"
+                           HorizontalAlignment="Center"
+                           Width="{StaticResource Size.OnbVoiceOrb}"
+                           Height="{StaticResource Size.OnbVoiceOrb}"
+                           IsActive="{Binding IsRecording}" />
+      <Border x:Name="Countdown"
+              Classes="countdown">
+        <StackPanel Orientation="Horizontal"
+                    Spacing="{StaticResource Space.12}">
+          <TextBlock x:Name="StatusLabel"
+                     Classes="bodySm"
+                     Foreground="{DynamicResource Brush.Graphite}"
+                     Text="{Binding StatusLabel}" />
+          <TextBlock x:Name="ClockLabel"
+                     Classes="mono"
+                     Text="{Binding ClockText}" />
+        </StackPanel>
+      </Border>
+    </StackPanel>
+
+    <StackPanel MaxWidth="{StaticResource Size.OnbTranscriptWidth}"
+                HorizontalAlignment="Stretch"
+                Spacing="{StaticResource Space.12}">
+
+      <!-- Waiting: the dashed card, with a progress bar while the model downloads or the text is being recognised. -->
+      <Border x:Name="PlaceholderCard"
+              BorderBrush="{DynamicResource Brush.DashedBorder}"
+              BorderThickness="{StaticResource Hairline.Thickness}"
+              CornerRadius="{StaticResource Radius.Card}"
+              Padding="{StaticResource Inset.Banner}"
+              IsVisible="{Binding ShowPlaceholder}">
+        <StackPanel Spacing="{StaticResource Space.12}"
+                    HorizontalAlignment="Center">
+          <TextBlock x:Name="PlaceholderLabel"
+                     Classes="bodySm"
+                     TextAlignment="Center"
+                     TextWrapping="Wrap"
+                     Foreground="{DynamicResource Brush.Smoke}"
+                     Text="{Binding PlaceholderText}" />
+          <ProgressBar x:Name="TrialProgress"
+                       Height="{StaticResource Size.Progress}"
+                       Minimum="0"
+                       Maximum="100"
+                       Value="{Binding Progress}"
+                       IsVisible="{Binding ShowProgress}" />
+        </StackPanel>
+      </Border>
+
+      <!-- Done: who said what, with a time chip -->
+      <Border x:Name="TranscriptCard"
+              Classes="panel"
+              Padding="{StaticResource Inset.Banner}"
+              IsVisible="{Binding ShowTranscript}">
+        <Grid ColumnDefinitions="*,Auto"
+              ColumnSpacing="{StaticResource Space.16}">
+          <ItemsControl ItemsSource="{Binding Segments}">
+            <ItemsControl.ItemsPanel>
+              <ItemsPanelTemplate>
+                <StackPanel Spacing="{StaticResource Space.16}" />
+              </ItemsPanelTemplate>
+            </ItemsControl.ItemsPanel>
+            <ItemsControl.ItemTemplate>
+              <DataTemplate x:DataType="vm:TrialSegment">
+                <Grid ColumnDefinitions="Auto,*"
+                      ColumnSpacing="{StaticResource Space.16}">
+                  <Border Classes="avatar">
+                    <TextBlock Classes="caption"
+                               HorizontalAlignment="Center"
+                               VerticalAlignment="Center"
+                               Foreground="{DynamicResource Brush.Canvas}"
+                               Text="{Binding Initial}" />
+                  </Border>
+                  <StackPanel Grid.Column="1"
+                              Spacing="{StaticResource Space.8}">
+                    <StackPanel Orientation="Horizontal"
+                                Spacing="{StaticResource Space.12}">
+                      <TextBlock Classes="speaker"
+                                 VerticalAlignment="Center"
+                                 Text="{Binding Speaker}" />
+                      <Border Classes="chip">
+                        <StackPanel Orientation="Horizontal"
+                                    Spacing="{StaticResource Space.4}">
+                          <Path Data="{StaticResource Icon.Play}"
+                                Width="{StaticResource Space.8}"
+                                Height="{StaticResource Space.8}"
+                                Stretch="Uniform"
+                                VerticalAlignment="Center"
+                                Fill="{DynamicResource Brush.Graphite}" />
+                          <TextBlock Classes="mono"
+                                     FontSize="{StaticResource FontSize.Caption}"
+                                     Foreground="{DynamicResource Brush.Graphite}"
+                                     Text="{Binding Time}" />
+                        </StackPanel>
+                      </Border>
+                    </StackPanel>
+                    <TextBlock Classes="body"
+                               TextWrapping="Wrap"
+                               Text="{Binding Text}" />
+                  </StackPanel>
+                </Grid>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+          <Button x:Name="TryAgainButton"
+                  Grid.Column="1"
+                  Classes="text"
+                  VerticalAlignment="Top"
+                  Content="{x:Static res:Strings.Onb5_TryAgain}"
+                  Command="{Binding TryAgainCommand}" />
+        </Grid>
+      </Border>
+
+      <!-- Failed, or nothing recognised -->
+      <Border x:Name="MessageCard"
+              Classes="panel"
+              Padding="{StaticResource Inset.Banner}"
+              IsVisible="{Binding ShowMessage}">
+        <Grid ColumnDefinitions="Auto,*,Auto"
+              ColumnSpacing="{StaticResource Space.16}">
+          <controls:IconControl Width="{StaticResource Size.NavIcon}"
+                                Height="{StaticResource Size.NavIcon}"
+                                VerticalAlignment="Top"
+                                TextElement.Foreground="{DynamicResource Brush.Smoke}"
+                                Data="{StaticResource Icon.Info}" />
+          <TextBlock x:Name="MessageLabel"
+                     Grid.Column="1"
+                     Classes="bodySm"
+                     VerticalAlignment="Center"
+                     TextWrapping="Wrap"
+                     Text="{Binding MessageText}" />
+          <Button x:Name="MessageTryAgainButton"
+                  Grid.Column="2"
+                  Classes="text"
+                  VerticalAlignment="Center"
+                  Content="{x:Static res:Strings.Onb5_TryAgain}"
+                  Command="{Binding TryAgainCommand}" />
+        </Grid>
+      </Border>
+    </StackPanel>
+
+    <!-- Consent -->
+    <StackPanel x:Name="ConsentNote"
+                Orientation="Horizontal"
+                HorizontalAlignment="Center"
+                Spacing="{StaticResource Space.8}">
+      <controls:IconControl Width="{StaticResource Size.SmallIcon}"
+                            Height="{StaticResource Size.SmallIcon}"
+                            TextElement.Foreground="{DynamicResource Brush.Smoke}"
+                            Data="{StaticResource Icon.Info}" />
+      <TextBlock Classes="note"
+                 Text="{x:Static res:Strings.Onb5_Consent}" />
+    </StackPanel>
+  </StackPanel>
+</UserControl>

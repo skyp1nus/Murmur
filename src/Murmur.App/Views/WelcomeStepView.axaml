@@ -1,0 +1,29 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Murmur.App.ViewModels"
+             xmlns:controls="using:Murmur.App.Controls"
+             x:Class="Murmur.App.Views.WelcomeStepView"
+             x:DataType="vm:WelcomeStepViewModel">
+
+  <!-- Step 1: the animated orb, the headline and the promise that everything stays on this computer. -->
+  <StackPanel HorizontalAlignment="Center"
+              Spacing="{StaticResource Space.48}">
+    <controls:OrbControl x:Name="WelcomeOrb"
+                         HorizontalAlignment="Center"
+                         Width="{StaticResource Size.OnbOrb}"
+                         Height="{StaticResource Size.OnbOrb}"
+                         IsActive="True" />
+    <StackPanel Spacing="{StaticResource Space.12}"
+                HorizontalAlignment="Center">
+      <TextBlock Classes="display onbHeadline"
+                 TextAlignment="Center"
+                 TextWrapping="Wrap"
+                 Text="{Binding Title}" />
+      <TextBlock Classes="body"
+                 TextAlignment="Center"
+                 TextWrapping="Wrap"
+                 Foreground="{DynamicResource Brush.Smoke}"
+                 Text="{Binding Subtitle}" />
+    </StackPanel>
+  </StackPanel>
+</UserControl>
