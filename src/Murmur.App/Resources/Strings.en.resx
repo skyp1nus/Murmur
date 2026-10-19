@@ -1,0 +1,377 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <!--
+    English UI texts (satellite assembly en).
+    Keep both files in step: same keys, same {n} placeholders (checked by LocalizationTests).
+  -->
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <data name="Common_Back" xml:space="preserve">
+    <value>Back</value>
+  </data>
+  <data name="Common_Stop" xml:space="preserve">
+    <value>Stop</value>
+  </data>
+  <data name="Common_Microphone" xml:space="preserve">
+    <value>Microphone</value>
+  </data>
+  <data name="Common_Screen" xml:space="preserve">
+    <value>Screen</value>
+  </data>
+  <data name="Common_AskAi" xml:space="preserve">
+    <value>Ask AI</value>
+  </data>
+  <data name="Common_Percent" xml:space="preserve">
+    <value>{0}%</value>
+    <comment>{0} = whole percent</comment>
+  </data>
+  <data name="Common_UntitledRecording" xml:space="preserve">
+    <value>Untitled recording</value>
+  </data>
+  <data name="Library_SearchPlaceholder" xml:space="preserve">
+    <value>Search recordings</value>
+  </data>
+  <data name="Library_NewRecording" xml:space="preserve">
+    <value>New recording</value>
+  </data>
+  <data name="Library_FilterToday" xml:space="preserve">
+    <value>Today</value>
+  </data>
+  <data name="Library_FilterWeek" xml:space="preserve">
+    <value>Week</value>
+  </data>
+  <data name="Library_FilterAll" xml:space="preserve">
+    <value>All</value>
+  </data>
+  <data name="Library_AskAll" xml:space="preserve">
+    <value>Ask AI across all recordings</value>
+  </data>
+  <data name="Library_BadgeSystem" xml:space="preserve">
+    <value>System</value>
+  </data>
+  <data name="Library_NothingFound" xml:space="preserve">
+    <value>Nothing found</value>
+  </data>
+  <data name="Library_NoMatches" xml:space="preserve">
+    <value>No titles or transcripts match. Try other words or another period.</value>
+  </data>
+  <data name="Library_Searching" xml:space="preserve">
+    <value>Searching…</value>
+  </data>
+  <data name="Library_EmptyTitle" xml:space="preserve">
+    <value>No recordings yet</value>
+  </data>
+  <data name="Library_EmptyHintFiltered" xml:space="preserve">
+    <value>Try another period or change the search.</value>
+  </data>
+  <data name="Library_EmptyHint" xml:space="preserve">
+    <value>Press “New recording” to record your first meeting. Everything stays on your computer.</value>
+  </data>
+  <data name="Library_LoadFailed" xml:space="preserve">
+    <value>Could not load the recordings: {0}</value>
+    <comment>{0} = error message</comment>
+  </data>
+  <data name="Library_SearchFailed" xml:space="preserve">
+    <value>Search failed: {0}</value>
+    <comment>{0} = error message</comment>
+  </data>
+  <data name="Shell_RecoveryFailed" xml:space="preserve">
+    <value>Could not recover the interrupted recordings: {0}</value>
+    <comment>{0} = error message</comment>
+  </data>
+  <data name="Recording_SystemAudio" xml:space="preserve">
+    <value>System audio</value>
+  </data>
+  <data name="Recording_SystemOutput" xml:space="preserve">
+    <value>System audio output</value>
+  </data>
+  <data name="Recording_Notice" xml:space="preserve">
+    <value>Tell the meeting participants that you are recording.</value>
+  </data>
+  <data name="Recording_Start" xml:space="preserve">
+    <value>Start recording</value>
+  </data>
+  <data name="Recording_NoSources" xml:space="preserve">
+    <value>No audio source found.</value>
+  </data>
+  <data name="Recording_EnableSource" xml:space="preserve">
+    <value>Turn on the microphone or system audio.</value>
+  </data>
+  <data name="Recording_NoMicrophone" xml:space="preserve">
+    <value>No microphone found — only system audio will be recorded.</value>
+  </data>
+  <data name="Recording_StopFailed" xml:space="preserve">
+    <value>Could not stop the recording: {0}</value>
+    <comment>{0} = error message</comment>
+  </data>
+  <data name="Recording_StartFailed" xml:space="preserve">
+    <value>Could not start the recording: {0}</value>
+    <comment>{0} = error message</comment>
+  </data>
+  <data name="Recording_StoppedItself" xml:space="preserve">
+    <value>The recording stopped by itself.</value>
+  </data>
+  <data name="Recording_StoppedWithReason" xml:space="preserve">
+    <value>The recording stopped: {0}</value>
+    <comment>{0} = reason</comment>
+  </data>
+  <data name="Recording_StoppedItselfWithError" xml:space="preserve">
+    <value>The recording stopped by itself: {0}</value>
+    <comment>{0} = error message</comment>
+  </data>
+  <data name="Recording_ScreenOnFailed" xml:space="preserve">
+    <value>Could not turn screen recording on: {0}</value>
+    <comment>{0} = error message</comment>
+  </data>
+  <data name="Recording_ScreenOffFailed" xml:space="preserve">
+    <value>Could not turn screen recording off: {0}</value>
+    <comment>{0} = error message</comment>
+  </data>
+  <data name="Session_TabTranscript" xml:space="preserve">
+    <value>Transcript</value>
+  </data>
+  <data name="Session_TabSummary" xml:space="preserve">
+    <value>Summary</value>
+  </data>
+  <data name="Session_SummaryPlaceholder" xml:space="preserve">
+    <value>Coming in phase 3: a short meeting summary with decisions and tasks, composed locally.</value>
+  </data>
+  <data name="Session_Play" xml:space="preserve">
+    <value>Play</value>
+  </data>
+  <data name="Session_Pause" xml:space="preserve">
+    <value>Pause</value>
+  </data>
+  <data name="Session_Loading" xml:space="preserve">
+    <value>Loading…</value>
+  </data>
+  <data name="Session_TryAgain" xml:space="preserve">
+    <value>Try again</value>
+  </data>
+  <data name="Session_Transcribe" xml:space="preserve">
+    <value>Transcribe</value>
+  </data>
+  <data name="Session_QueueFailed" xml:space="preserve">
+    <value>Could not queue the recording: {0}</value>
+    <comment>{0} = error message</comment>
+  </data>
+  <data name="Session_AudioMissing" xml:space="preserve">
+    <value>The audio files of the recording were not found.</value>
+  </data>
+  <data name="Session_AudioOpenFailed" xml:space="preserve">
+    <value>Could not open the audio: {0}</value>
+    <comment>{0} = error message</comment>
+  </data>
+  <data name="Session_TranscriptReadFailed" xml:space="preserve">
+    <value>Could not read the transcript: {0}</value>
+    <comment>{0} = error message</comment>
+  </data>
+  <data name="Session_NoSpeechTitle" xml:space="preserve">
+    <value>No speech found</value>
+  </data>
+  <data name="Session_NoSpeechText" xml:space="preserve">
+    <value>The recording contains no recognised speech.</value>
+  </data>
+  <data name="Session_StillRecordingTitle" xml:space="preserve">
+    <value>Still recording</value>
+  </data>
+  <data name="Session_StillRecordingText" xml:space="preserve">
+    <value>The transcript will appear when the recording ends.</value>
+  </data>
+  <data name="Session_NoTranscriptTitle" xml:space="preserve">
+    <value>No transcript yet</value>
+  </data>
+  <data name="Session_NoTranscriptText" xml:space="preserve">
+    <value>This recording has not been transcribed yet.</value>
+  </data>
+  <data name="Session_FailedTitle" xml:space="preserve">
+    <value>Could not transcribe the recording</value>
+  </data>
+  <data name="Session_UnknownError" xml:space="preserve">
+    <value>Unknown error.</value>
+  </data>
+  <data name="Session_AsrMissingTitle" xml:space="preserve">
+    <value>The Parakeet model is not installed</value>
+  </data>
+  <data name="Session_AsrMissingText" xml:space="preserve">
+    <value>To transcribe this recording, install the speech recognition model: run scripts/fetch-models.ps1. Then press “Try again”.</value>
+  </data>
+  <data name="Session_AsrMissingTextWithFolder" xml:space="preserve">
+    <value>To transcribe this recording, install the speech recognition model: run scripts/fetch-models.ps1. The files will go to {0}. Then press “Try again”.</value>
+    <comment>{0} = models folder</comment>
+  </data>
+  <data name="Session_ProcessingText" xml:space="preserve">
+    <value>The result will appear here automatically.</value>
+  </data>
+  <data name="Segment_Me" xml:space="preserve">
+    <value>Me</value>
+  </data>
+  <data name="Segment_Others" xml:space="preserve">
+    <value>Others</value>
+  </data>
+  <data name="Chat_Thinking" xml:space="preserve">
+    <value>Thinking…</value>
+  </data>
+  <data name="Chat_Ask" xml:space="preserve">
+    <value>Ask</value>
+  </data>
+  <data name="Chat_CheckAgain" xml:space="preserve">
+    <value>Check again</value>
+  </data>
+  <data name="Chat_NotInstalledTitle" xml:space="preserve">
+    <value>AI is not installed</value>
+  </data>
+  <data name="Chat_PausedTitle" xml:space="preserve">
+    <value>AI is paused while recording</value>
+  </data>
+  <data name="Chat_Cancelled" xml:space="preserve">
+    <value>Stopped.</value>
+  </data>
+  <data name="Chat_Interrupted" xml:space="preserve">
+    <value>The answer was interrupted: a recording started. Ask again when the recording ends.</value>
+  </data>
+  <data name="Chat_Failed" xml:space="preserve">
+    <value>Could not get an answer: {0}</value>
+    <comment>{0} = error message</comment>
+  </data>
+  <data name="Chat_ModelsNotFound" xml:space="preserve">
+    <value>AI models not found.</value>
+  </data>
+  <data name="Chat_PlaceholderLibrary" xml:space="preserve">
+    <value>Ask about any recording</value>
+  </data>
+  <data name="Chat_PlaceholderSession" xml:space="preserve">
+    <value>Ask about this recording</value>
+  </data>
+  <data name="Chat_EmptyTitleLibrary" xml:space="preserve">
+    <value>Ask about all recordings</value>
+  </data>
+  <data name="Chat_EmptyTextLibrary" xml:space="preserve">
+    <value>For example: “What did we decide about the release?” The answer will point to the right recordings and minutes.</value>
+  </data>
+  <data name="Chat_EmptyTextSession" xml:space="preserve">
+    <value>For example: “Which tasks did we assign?” Every answer has timestamps — press one to listen.</value>
+  </data>
+  <data name="Chat_NoticeNotInstalled" xml:space="preserve">
+    <value>To ask questions about your recordings, download the local models: run scripts/fetch-models.ps1 -Ai. Then press “Check again”. Keyword search works without AI.</value>
+  </data>
+  <data name="Chat_NoticeNotInstalledWithFolder" xml:space="preserve">
+    <value>To ask questions about your recordings, download the local models: run scripts/fetch-models.ps1 -Ai (the files will go to {0}). Then press “Check again”. Keyword search works without AI.</value>
+    <comment>{0} = models folder</comment>
+  </data>
+  <data name="Chat_NoticePaused" xml:space="preserve">
+    <value>Models are not loaded while a recording is running, so they do not take memory and CPU from it. Ask when the recording ends.</value>
+  </data>
+  <data name="LibraryChat_Subtitle" xml:space="preserve">
+    <value>Answers refer to recordings and minutes — press a timestamp to open the recording there.</value>
+  </data>
+  <data name="Processing_Queued" xml:space="preserve">
+    <value>Queued</value>
+  </data>
+  <data name="Processing_Transcribing" xml:space="preserve">
+    <value>Transcribing</value>
+  </data>
+  <data name="Processing_TranscribingPercent" xml:space="preserve">
+    <value>Transcribing {0}</value>
+    <comment>{0} = percent, e.g. 42 %</comment>
+  </data>
+  <data name="Processing_Indexing" xml:space="preserve">
+    <value>Indexing</value>
+  </data>
+  <data name="Processing_Done" xml:space="preserve">
+    <value>Done</value>
+  </data>
+  <data name="Processing_Failed" xml:space="preserve">
+    <value>Failed</value>
+  </data>
+  <data name="Processing_NoTranscript" xml:space="preserve">
+    <value>No transcript</value>
+  </data>
+  <data name="Processing_Interrupted" xml:space="preserve">
+    <value>Interrupted</value>
+  </data>
+  <data name="Processing_Recording" xml:space="preserve">
+    <value>Recording</value>
+  </data>
+  <data name="Stage_Queued" xml:space="preserve">
+    <value>Queued for transcription</value>
+  </data>
+  <data name="Stage_BuildingPeaks" xml:space="preserve">
+    <value>Preparing the audio track</value>
+  </data>
+  <data name="Stage_Transcribing" xml:space="preserve">
+    <value>Transcribing speech</value>
+  </data>
+  <data name="Stage_Saving" xml:space="preserve">
+    <value>Saving the transcript</value>
+  </data>
+  <data name="Stage_Indexing" xml:space="preserve">
+    <value>Indexing for search</value>
+  </data>
+  <data name="Stage_Default" xml:space="preserve">
+    <value>Processing</value>
+  </data>
+  <data name="Date_Today" xml:space="preserve">
+    <value>Today, {0}</value>
+    <comment>{0} = time, 14:30</comment>
+  </data>
+  <data name="Date_Yesterday" xml:space="preserve">
+    <value>Yesterday, {0}</value>
+    <comment>{0} = time, 14:30</comment>
+  </data>
+  <data name="Date_ThisYear" xml:space="preserve">
+    <value>{1} {0}, {2}</value>
+    <comment>{0} = day, {1} = month name, {2} = time</comment>
+  </data>
+  <data name="Date_OtherYear" xml:space="preserve">
+    <value>{1} {0}, {3}, {2}</value>
+    <comment>{0} = day, {1} = month name, {2} = time, {3} = year</comment>
+  </data>
+  <data name="Month_01" xml:space="preserve">
+    <value>January</value>
+    <comment>Month name as used inside a date (genitive in Ukrainian)</comment>
+  </data>
+  <data name="Month_02" xml:space="preserve">
+    <value>February</value>
+  </data>
+  <data name="Month_03" xml:space="preserve">
+    <value>March</value>
+  </data>
+  <data name="Month_04" xml:space="preserve">
+    <value>April</value>
+  </data>
+  <data name="Month_05" xml:space="preserve">
+    <value>May</value>
+  </data>
+  <data name="Month_06" xml:space="preserve">
+    <value>June</value>
+  </data>
+  <data name="Month_07" xml:space="preserve">
+    <value>July</value>
+  </data>
+  <data name="Month_08" xml:space="preserve">
+    <value>August</value>
+  </data>
+  <data name="Month_09" xml:space="preserve">
+    <value>September</value>
+  </data>
+  <data name="Month_10" xml:space="preserve">
+    <value>October</value>
+  </data>
+  <data name="Month_11" xml:space="preserve">
+    <value>November</value>
+  </data>
+  <data name="Month_12" xml:space="preserve">
+    <value>December</value>
+  </data>
+</root>

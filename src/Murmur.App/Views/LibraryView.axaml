@@ -1,6 +1,7 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="using:Murmur.App.ViewModels"
+             xmlns:res="using:Murmur.App.Resources"
              x:Class="Murmur.App.Views.LibraryView"
              x:DataType="vm:LibraryViewModel">
 
@@ -20,12 +21,12 @@
                HorizontalAlignment="Right"
                Width="360"
                VerticalAlignment="Center"
-               PlaceholderText="Пошук по записах"
+               PlaceholderText="{x:Static res:Strings.Library_SearchPlaceholder}"
                Text="{Binding SearchText}" />
       <Button Grid.Column="2"
               Classes="primary"
               VerticalAlignment="Center"
-              Content="Новий запис"
+              Content="{x:Static res:Strings.Library_NewRecording}"
               Command="{Binding NewRecordingCommand}" />
     </Grid>
 
@@ -37,13 +38,13 @@
                   Orientation="Horizontal"
                   Spacing="{StaticResource Space.8}">
         <ToggleButton Classes="pill"
-                      Content="Сьогодні"
+                      Content="{x:Static res:Strings.Library_FilterToday}"
                       IsChecked="{Binding IsTodayFilter, Mode=TwoWay}" />
         <ToggleButton Classes="pill"
-                      Content="Тиждень"
+                      Content="{x:Static res:Strings.Library_FilterWeek}"
                       IsChecked="{Binding IsWeekFilter, Mode=TwoWay}" />
         <ToggleButton Classes="pill"
-                      Content="Усі"
+                      Content="{x:Static res:Strings.Library_FilterAll}"
                       IsChecked="{Binding IsAllFilter, Mode=TwoWay}" />
       </StackPanel>
       <TextBlock Grid.Column="1"
@@ -55,7 +56,7 @@
       <Button Grid.Column="2"
               Classes="outline"
               VerticalAlignment="Center"
-              Content="Запитати AI по всіх записах"
+              Content="{x:Static res:Strings.Library_AskAll}"
               IsVisible="{Binding CanAskAll}"
               Command="{Binding AskAllCommand}" />
     </Grid>
@@ -81,7 +82,7 @@
                            TextTrimming="CharacterEllipsis"
                            Text="{Binding Title}" />
                 <TextBlock Classes="bodySm"
-                           Foreground="{StaticResource Brush.Smoke}"
+                           Foreground="{DynamicResource Brush.Smoke}"
                            Text="{Binding DateText}" />
               </StackPanel>
               <StackPanel Grid.Column="1"
@@ -96,23 +97,23 @@
                 <Border Classes="badge"
                         IsVisible="{Binding HasMicrophone}">
                   <TextBlock Classes="caption"
-                             Text="Мікрофон" />
+                             Text="{x:Static res:Strings.Common_Microphone}" />
                 </Border>
                 <Border Classes="badge"
                         IsVisible="{Binding HasSystemAudio}">
                   <TextBlock Classes="caption"
-                             Text="Системний" />
+                             Text="{x:Static res:Strings.Library_BadgeSystem}" />
                 </Border>
                 <Border Classes="badge"
                         IsVisible="{Binding HasScreen}">
                   <TextBlock Classes="caption"
-                             Text="Екран" />
+                             Text="{x:Static res:Strings.Common_Screen}" />
                 </Border>
               </StackPanel>
               <TextBlock Grid.Column="2"
                          Classes="mono"
                          VerticalAlignment="Center"
-                         Foreground="{StaticResource Brush.Graphite}"
+                         Foreground="{DynamicResource Brush.Graphite}"
                          Text="{Binding DurationText}" />
             </Grid>
           </DataTemplate>
@@ -127,7 +128,7 @@
           IsVisible="{Binding ShowSearchResults}">
       <TextBlock Grid.Row="0"
                  Classes="bodySm"
-                 Foreground="{StaticResource Brush.Smoke}"
+                 Foreground="{DynamicResource Brush.Smoke}"
                  TextWrapping="Wrap"
                  IsVisible="{Binding HasSearchStatus}"
                  Text="{Binding SearchStatusText}" />
@@ -159,7 +160,7 @@
                              Text="{Binding Title}" />
                 </Grid>
                 <TextBlock Classes="bodySm"
-                           Foreground="{StaticResource Brush.Graphite}"
+                           Foreground="{DynamicResource Brush.Graphite}"
                            TextWrapping="Wrap"
                            MaxLines="2"
                            TextTrimming="CharacterEllipsis"
@@ -179,13 +180,13 @@
           <TextBlock Classes="headingSm"
                      HorizontalAlignment="Center"
                      TextAlignment="Center"
-                     Text="Нічого не знайдено" />
+                     Text="{x:Static res:Strings.Library_NothingFound}" />
           <TextBlock Classes="body"
                      HorizontalAlignment="Center"
                      TextAlignment="Center"
                      TextWrapping="Wrap"
-                     Foreground="{StaticResource Brush.Graphite}"
-                     Text="Ні в назвах, ні в транскриптах немає збігів. Спробуй інші слова або інший період." />
+                     Foreground="{DynamicResource Brush.Graphite}"
+                     Text="{x:Static res:Strings.Library_NoMatches}" />
         </StackPanel>
       </Border>
     </Grid>
@@ -207,11 +208,11 @@
                    HorizontalAlignment="Center"
                    TextAlignment="Center"
                    TextWrapping="Wrap"
-                   Foreground="{StaticResource Brush.Graphite}"
+                   Foreground="{DynamicResource Brush.Graphite}"
                    Text="{Binding EmptyText}" />
         <Button Classes="primary"
                 HorizontalAlignment="Center"
-                Content="Новий запис"
+                Content="{x:Static res:Strings.Library_NewRecording}"
                 Command="{Binding NewRecordingCommand}" />
       </StackPanel>
     </Border>

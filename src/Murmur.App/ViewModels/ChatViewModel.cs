@@ -2,6 +2,7 @@ using System.Collections.ObjectModel;
 using System.Runtime.CompilerServices;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using Murmur.App.Resources;
 using Murmur.Core.Intelligence;
 using Murmur.Core.Recording;
 using Murmur.Core.Sessions;
@@ -34,15 +35,16 @@ public sealed partial class ChatViewModel : ObservableObject, IDisposable
     /// <summary>At most this many earlier turns (questions and answers) are sent with a new question.</summary>
     public const int MaxHistoryTurns = 6;
 
-    public const string NotInstalledTitle = "AI не встановлено";
+    public static string NotInstalledTitle => Strings.Chat_NotInstalledTitle;
 
-    public const string PausedTitle = "AI на паузі, поки йде запис";
+    public static string PausedTitle => Strings.Chat_PausedTitle;
 
-    public const string CancelledText = "Зупинено.";
+    public static string CancelledText => Strings.Chat_Cancelled;
 
-    public const string InterruptedByRecordingText = "Відповідь перервано: почався запис. Запитай ще раз, коли запис завершиться.";
+    public static string InterruptedByRecordingText => Strings.Chat_Interrupted;
 
-    public const string FailedPrefix = "Не вдалося отримати відповідь: ";
+    /// <summary>"Не вдалося отримати відповідь: <paramref name="reason"/>" in the UI language.</summary>
+    public static string FailedText(string reason) => UiText.Format(Strings.Chat_Failed, reason);
 
     private readonly IAssistant? _assistant;
     private readonly ILlm? _llm;
@@ -106,13 +108,13 @@ public sealed partial class ChatViewModel : ObservableObject, IDisposable
     [NotifyPropertyChangedFor(nameof(CanEditQuestion))]
     public partial ChatAvailability Availability { get; private set; }
 
-    public string PlaceholderText => Scope is null ? "Запитай про будь-який запис" : "Запитай про цей запис";
+    public string PlaceholderText => Scope is null ? Strings.Chat_PlaceholderLibrary : Strings.Chat_PlaceholderSession;
 
-    public string EmptyTitle => Scope is null ? "Запитай про всі записи" : "Запитай про цей запис";
+    public string EmptyTitle => Scope is null ? Strings.Chat_EmptyTitleLibrary : Strings.Chat_PlaceholderSession;
 
     public string EmptyText => Scope is null
-        ? "Наприклад: «Що ми вирішили щодо релізу?» Відповідь посилатиметься на потрібні записи й хвилини."
-        : "Наприклад: «Які завдання ми розподілили?» Кожна відповідь має таймкоди — натисни, щоб послухати.";
+        ? Strings.Chat_EmptyTextLibrary
+        : Strings.Chat_EmptyTextSession;
 
     /// <summary>The install or pause card is on screen.</summary>
     public bool ShowNotice => Availability != ChatAvailability.Ready;
@@ -126,12 +128,10 @@ public sealed partial class ChatViewModel : ObservableObject, IDisposable
 
     public string NoticeText => Availability switch
     {
-        ChatAvailability.NotInstalled =>
-            "Щоб ставити запитання до записів, завантаж локальні моделі: запусти scripts/fetch-models.ps1 -Ai"
-            + (_modelsDirectory.Length > 0 ? $" (файли потраплять у {_modelsDirectory})" : string.Empty)
-            + ". Потім натисни «Перевірити знову». Пошук за ключовими словами працює й без AI.",
-        ChatAvailability.PausedForRecording =>
-            "Поки триває запис, моделі не завантажуються, щоб не забирати памʼять і процесор у запису. Запитай, коли запис завершиться.",
+        ChatAvailability.NotInstalled => _modelsDirectory.Length > 0
+            ? UiText.Format(Strings.Chat_NoticeNotInstalledWithFolder, _modelsDirectory)
+            : Strings.Chat_NoticeNotInstalled,
+        ChatAvailability.PausedForRecording => Strings.Chat_NoticePaused,
         _ => string.Empty,
     };
 
@@ -251,8 +251,8 @@ public sealed partial class ChatViewModel : ObservableObject, IDisposable
             answer.Stop(Availability switch
             {
                 ChatAvailability.PausedForRecording => InterruptedByRecordingText,
-                ChatAvailability.NotInstalled => FailedPrefix + "AI-моделі не знайдено.",
-                _ => FailedPrefix + ex.Message,
+                ChatAvailability.NotInstalled => FailedText(Strings.Chat_ModelsNotFound),
+                _ => FailedText(ex.Message),
             });
         }
         finally

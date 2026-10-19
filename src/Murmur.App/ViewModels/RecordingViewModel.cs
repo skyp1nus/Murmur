@@ -1,6 +1,7 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Murmur.App.Controls;
+using Murmur.App.Resources;
 using Murmur.Core.Capture;
 using Murmur.Core.Recording;
 using Murmur.Core.Sessions;
@@ -106,15 +107,15 @@ public sealed partial class RecordingViewModel : ObservableObject, ILevelSource
 
     public bool CanGoBack => State == RecorderState.Idle;
 
-    public string StartStopLabel => IsRecording ? "Зупинити" : "Почати запис";
+    public string StartStopLabel => IsRecording ? Strings.Common_Stop : Strings.Recording_Start;
 
     public bool HasError => Error is not null;
 
     /// <summary>Shown under the source pills when nothing can be recorded.</summary>
     public string? SourceHint => State != RecorderState.Idle ? null
-        : !MicrophoneAvailable && !SystemAudioAvailable ? "Не знайдено жодного джерела звуку."
-        : !(Microphone && MicrophoneAvailable) && !(SystemAudio && SystemAudioAvailable) ? "Увімкни мікрофон або системний звук."
-        : !MicrophoneAvailable ? "Мікрофон не знайдено — запишемо лише системний звук."
+        : !MicrophoneAvailable && !SystemAudioAvailable ? Strings.Recording_NoSources
+        : !(Microphone && MicrophoneAvailable) && !(SystemAudio && SystemAudioAvailable) ? Strings.Recording_EnableSource
+        : !MicrophoneAvailable ? Strings.Recording_NoMicrophone
         : null;
 
     public bool HasSourceHint => SourceHint is not null;
@@ -235,7 +236,7 @@ public sealed partial class RecordingViewModel : ObservableObject, ILevelSource
         }
         catch (Exception ex)
         {
-            Error = "Не вдалося зупинити запис: " + ex.Message;
+            Error = UiText.Format(Strings.Recording_StopFailed, ex.Message);
             ApplyState(_recorder.State);
         }
         finally
@@ -279,7 +280,7 @@ public sealed partial class RecordingViewModel : ObservableObject, ILevelSource
         }
         catch (Exception ex)
         {
-            Error = "Не вдалося почати запис: " + ex.Message;
+            Error = UiText.Format(Strings.Recording_StartFailed, ex.Message);
         }
         finally
         {
@@ -350,17 +351,17 @@ public sealed partial class RecordingViewModel : ObservableObject, ILevelSource
 
     private async Task ReportAutoStopAsync()
     {
-        var reason = "Запис зупинився сам.";
+        var reason = Strings.Recording_StoppedItself;
         try
         {
             if (_sessionId is { } id && await _store.GetSessionAsync(id, CancellationToken.None) is { } session)
             {
-                reason = string.IsNullOrWhiteSpace(session.Error) ? reason : "Запис зупинився: " + session.Error;
+                reason = string.IsNullOrWhiteSpace(session.Error) ? reason : UiText.Format(Strings.Recording_StoppedWithReason, session.Error);
             }
         }
         catch (Exception ex)
         {
-            reason = "Запис зупинився сам: " + ex.Message;
+            reason = UiText.Format(Strings.Recording_StoppedItselfWithError, ex.Message);
         }
 
         Error = reason;
@@ -404,7 +405,7 @@ public sealed partial class RecordingViewModel : ObservableObject, ILevelSource
         }
         catch (Exception ex)
         {
-            Error = (enabled ? "Не вдалося увімкнути запис екрана: " : "Не вдалося вимкнути запис екрана: ") + ex.Message;
+            Error = UiText.Format(enabled ? Strings.Recording_ScreenOnFailed : Strings.Recording_ScreenOffFailed, ex.Message);
             _suppressScreenChange = true;
             try
             {

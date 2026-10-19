@@ -1,5 +1,6 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using Murmur.App.Resources;
 using Murmur.App.Services;
 using Murmur.Core.Intelligence;
 using Murmur.Core.Processing;
@@ -156,16 +157,16 @@ public sealed partial class LibraryViewModel : ObservableObject
     public bool ShowNoSearchResults => ShowSearchResults && _searchCompleted && !IsSearching && SearchError is null && SearchResults.Count == 0;
 
     /// <summary>"Шукаю…" or the search error while results are shown; <c>null</c> otherwise.</summary>
-    public string? SearchStatusText => !ShowSearchResults ? null : SearchError ?? (IsSearching ? "Шукаю…" : null);
+    public string? SearchStatusText => !ShowSearchResults ? null : SearchError ?? (IsSearching ? Strings.Library_Searching : null);
 
     public bool HasSearchStatus => SearchStatusText is not null;
 
     /// <summary>The phase-0 empty state, or a hint when a filter or search hides everything.</summary>
-    public string EmptyTitle => IsFiltered ? "Нічого не знайдено" : "Ще немає записів";
+    public string EmptyTitle => IsFiltered ? Strings.Library_NothingFound : Strings.Library_EmptyTitle;
 
     public string EmptyText => IsFiltered
-        ? "Спробуй інший період або зміни пошуковий запит."
-        : "Натисни «Новий запис», щоб записати перший мітинг. Усе лишається на твоєму компʼютері.";
+        ? Strings.Library_EmptyHintFiltered
+        : Strings.Library_EmptyHint;
 
     public bool IsTodayFilter
     {
@@ -211,7 +212,7 @@ public sealed partial class LibraryViewModel : ObservableObject
             }
 
             _loaded = [];
-            Error = "Не вдалося завантажити записи: " + ex.Message;
+            Error = UiText.Format(Strings.Library_LoadFailed, ex.Message);
         }
 
         IsLoading = false;
@@ -419,7 +420,7 @@ public sealed partial class LibraryViewModel : ObservableObject
             catch (Exception ex) when (ex is not OperationCanceledException || !cancellationToken.IsCancellationRequested)
             {
                 hits = [];
-                error = "Пошук не вдався: " + ex.Message;
+                error = UiText.Format(Strings.Library_SearchFailed, ex.Message);
             }
 
             var rows = await BuildResultsAsync(query, hits, cancellationToken).ConfigureAwait(true);

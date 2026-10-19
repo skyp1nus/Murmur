@@ -1,4 +1,5 @@
 using CommunityToolkit.Mvvm.ComponentModel;
+using Murmur.App.Resources;
 using Murmur.App.Services;
 using Murmur.Core.Intelligence;
 using Murmur.Core.Sessions;
@@ -108,7 +109,7 @@ public sealed partial class ShellViewModel : ObservableObject
             }
             catch (Exception ex)
             {
-                startupError = "Не вдалося відновити перервані записи: " + ex.Message;
+                startupError = UiText.Format(Strings.Shell_RecoveryFailed, ex.Message);
             }
         }
 

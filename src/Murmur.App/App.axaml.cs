@@ -2,7 +2,9 @@ using Avalonia;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Markup.Xaml;
 using Avalonia.Threading;
+using Murmur.App.Appearance;
 using Murmur.App.Diagnostics;
+using Murmur.App.Localization;
 using Murmur.App.ViewModels;
 using Murmur.App.Views;
 
@@ -34,13 +36,29 @@ public partial class App : Application
         Services = services;
     }
 
+    private ThemeApplier? _themeApplier;
+
     /// <summary>Services handed over by the composition root, if any.</summary>
     public AppServices? Services { get; }
 
     /// <summary>Command-line arguments the process was started with.</summary>
     public IReadOnlyList<string> Args { get; }
 
-    public override void Initialize() => AvaloniaXamlLoader.Load(this);
+    public override void Initialize()
+    {
+        if (Services?.Settings is { } settings)
+        {
+            // The language is read once, before any text is looked up; a change applies on the next start (D-032).
+            UiCulture.Apply(settings.Current.Language);
+        }
+
+        AvaloniaXamlLoader.Load(this);
+
+        if (Services?.Settings is { } themeSettings)
+        {
+            _themeApplier = new ThemeApplier(this, themeSettings);
+        }
+    }
 
     public override void OnFrameworkInitializationCompleted()
     {

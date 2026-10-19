@@ -1,6 +1,7 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="using:Murmur.App.ViewModels"
+             xmlns:res="using:Murmur.App.Resources"
              xmlns:controls="using:Murmur.App.Controls"
              xmlns:views="using:Murmur.App.Views"
              x:Class="Murmur.App.Views.SessionView"
@@ -23,7 +24,7 @@
       <Button Grid.Column="0"
               Classes="outline"
               VerticalAlignment="Center"
-              Content="Назад"
+              Content="{x:Static res:Strings.Common_Back}"
               Command="{Binding BackCommand}" />
       <StackPanel Grid.Column="1"
                   VerticalAlignment="Center">
@@ -31,7 +32,7 @@
                    TextTrimming="CharacterEllipsis"
                    Text="{Binding Title}" />
         <TextBlock Classes="bodySm"
-                   Foreground="{StaticResource Brush.Smoke}"
+                   Foreground="{DynamicResource Brush.Smoke}"
                    Text="{Binding DateText}" />
       </StackPanel>
     </Grid>
@@ -59,7 +60,7 @@
                        Text="{Binding PositionText}" />
             <TextBlock Grid.Column="1"
                        Classes="mono"
-                       Foreground="{StaticResource Brush.Smoke}"
+                       Foreground="{DynamicResource Brush.Smoke}"
                        Text="{Binding DurationText}" />
           </Grid>
           <Button Classes="primary"
@@ -69,7 +70,7 @@
                   Command="{Binding PlayPauseCommand}" />
           <TextBlock Classes="bodySm"
                      TextWrapping="Wrap"
-                     Foreground="{StaticResource Brush.Smoke}"
+                     Foreground="{DynamicResource Brush.Smoke}"
                      IsVisible="{Binding HasPlayerError}"
                      Text="{Binding PlayerError}" />
         </StackPanel>
@@ -83,13 +84,13 @@
                     Orientation="Horizontal"
                     Spacing="{StaticResource Space.8}">
           <ToggleButton Classes="pill"
-                        Content="Транскрипт"
+                        Content="{x:Static res:Strings.Session_TabTranscript}"
                         IsChecked="{Binding IsTranscriptTab, Mode=TwoWay}" />
           <ToggleButton Classes="pill"
-                        Content="Резюме"
+                        Content="{x:Static res:Strings.Session_TabSummary}"
                         IsChecked="{Binding IsSummaryTab, Mode=TwoWay}" />
           <ToggleButton Classes="pill"
-                        Content="Запитати AI"
+                        Content="{x:Static res:Strings.Common_AskAi}"
                         IsChecked="{Binding IsAskTab, Mode=TwoWay}" />
         </StackPanel>
 
@@ -146,14 +147,14 @@
                        Text="{Binding StatusTitle}" />
             <TextBlock Classes="body"
                        TextWrapping="Wrap"
-                       Foreground="{StaticResource Brush.Graphite}"
+                       Foreground="{DynamicResource Brush.Graphite}"
                        Text="{Binding StatusText}" />
             <ProgressBar Minimum="0"
                          Maximum="100"
                          Value="{Binding ProgressValue}"
                          IsVisible="{Binding ShowProgress}" />
             <TextBlock Classes="mono"
-                       Foreground="{StaticResource Brush.Smoke}"
+                       Foreground="{DynamicResource Brush.Smoke}"
                        IsVisible="{Binding ShowProgress}"
                        Text="{Binding ProgressText}" />
             <Button Classes="primary"
@@ -174,14 +175,14 @@
           <StackPanel Spacing="{StaticResource Space.12}">
             <TextBlock Classes="subheading"
                        FontWeight="{StaticResource FontWeight.BodyMedium}"
-                       Text="Резюме" />
+                       Text="{x:Static res:Strings.Session_TabSummary}" />
             <TextBlock Classes="body"
                        TextWrapping="Wrap"
-                       Foreground="{StaticResource Brush.Graphite}"
-                       Text="Зʼявиться у фазі 3: короткий підсумок мітингу, рішення й завдання, складені локально." />
+                       Foreground="{DynamicResource Brush.Graphite}"
+                       Text="{x:Static res:Strings.Session_SummaryPlaceholder}" />
           </StackPanel>
         </Border>
-        <!-- Запитати AI: chat about this session; chips seek the player -->
+        <!-- "Ask AI" tab: chat about this session; chips seek the player -->
         <Panel Grid.Row="1"
                IsVisible="{Binding ShowAsk}">
           <views:ChatView DataContext="{Binding Chat}" />

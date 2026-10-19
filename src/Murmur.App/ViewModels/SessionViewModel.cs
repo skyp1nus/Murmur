@@ -1,5 +1,6 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using Murmur.App.Resources;
 using Murmur.App.Services;
 using Murmur.Core.Audio;
 using Murmur.Core.Capture;
@@ -103,7 +104,7 @@ public sealed partial class SessionViewModel : ObservableObject, IDisposable
         _time = time;
         _post = post ?? (action => Avalonia.Threading.Dispatcher.UIThread.Post(action));
 
-        Title = string.IsNullOrWhiteSpace(record.Title) ? "Запис без назви" : record.Title;
+        Title = string.IsNullOrWhiteSpace(record.Title) ? Strings.Common_UntitledRecording : record.Title;
         DateText = UiFormat.Date(record.StartedAt, time);
         Duration = record.Duration;
         DurationText = UiFormat.Duration(record.Duration);
@@ -167,7 +168,7 @@ public sealed partial class SessionViewModel : ObservableObject, IDisposable
     [ObservableProperty]
     public partial byte[] Peaks { get; private set; } = [];
 
-    public string PlayPauseLabel => IsPlaying ? "Пауза" : "Відтворити";
+    public string PlayPauseLabel => IsPlaying ? Strings.Session_Pause : Strings.Session_Play;
 
     public bool HasPlayerError => PlayerError is not null;
 
@@ -191,7 +192,7 @@ public sealed partial class SessionViewModel : ObservableObject, IDisposable
     public partial TranscriptStatus Status { get; private set; } = TranscriptStatus.Loading;
 
     [ObservableProperty]
-    public partial string StatusTitle { get; private set; } = "Завантаження…";
+    public partial string StatusTitle { get; private set; } = Strings.Session_Loading;
 
     [ObservableProperty]
     public partial string? StatusText { get; private set; }
@@ -204,7 +205,7 @@ public sealed partial class SessionViewModel : ObservableObject, IDisposable
     public partial string ProgressText { get; private set; } = string.Empty;
 
     [ObservableProperty]
-    public partial string RetryLabel { get; private set; } = "Спробувати ще";
+    public partial string RetryLabel { get; private set; } = Strings.Session_TryAgain;
 
     [ObservableProperty]
     public partial SessionTab SelectedTab { get; set; } = SessionTab.Transcript;
@@ -385,7 +386,7 @@ public sealed partial class SessionViewModel : ObservableObject, IDisposable
         }
         catch (Exception ex)
         {
-            ShowFailed("Не вдалося поставити запис у чергу: " + ex.Message);
+            ShowFailed(UiText.Format(Strings.Session_QueueFailed, ex.Message));
             return;
         }
 
@@ -417,7 +418,7 @@ public sealed partial class SessionViewModel : ObservableObject, IDisposable
 
         if (tracks.Count == 0)
         {
-            PlayerError = "Аудіофайли запису не знайдено.";
+            PlayerError = Strings.Session_AudioMissing;
             return;
         }
 
@@ -427,7 +428,7 @@ public sealed partial class SessionViewModel : ObservableObject, IDisposable
         }
         catch (Exception ex)
         {
-            PlayerError = "Не вдалося відкрити аудіо: " + ex.Message;
+            PlayerError = UiText.Format(Strings.Session_AudioOpenFailed, ex.Message);
             return;
         }
 
@@ -470,7 +471,7 @@ public sealed partial class SessionViewModel : ObservableObject, IDisposable
         }
         catch (Exception ex)
         {
-            ShowFailed("Не вдалося прочитати транскрипт: " + ex.Message);
+            ShowFailed(UiText.Format(Strings.Session_TranscriptReadFailed, ex.Message));
             return;
         }
 
@@ -505,11 +506,11 @@ public sealed partial class SessionViewModel : ObservableObject, IDisposable
         Segments = rows;
         if (rows.Length == 0)
         {
-            SetStatus(TranscriptStatus.Empty, "Мовлення не знайдено", "У записі немає розпізнаного мовлення.", "Спробувати ще");
+            SetStatus(TranscriptStatus.Empty, Strings.Session_NoSpeechTitle, Strings.Session_NoSpeechText, Strings.Session_TryAgain);
             return;
         }
 
-        SetStatus(TranscriptStatus.Available, string.Empty, null, "Спробувати ще");
+        SetStatus(TranscriptStatus.Available, string.Empty, null, Strings.Session_TryAgain);
         UpdateCurrent(forceScroll: false);
     }
 
@@ -533,32 +534,32 @@ public sealed partial class SessionViewModel : ObservableObject, IDisposable
         }
         else if (_record.State == SessionState.Recording)
         {
-            SetStatus(TranscriptStatus.NotTranscribed, "Запис ще триває", "Транскрипт зʼявиться, коли запис завершиться.", "Транскрибувати");
+            SetStatus(TranscriptStatus.NotTranscribed, Strings.Session_StillRecordingTitle, Strings.Session_StillRecordingText, Strings.Session_Transcribe);
         }
         else
         {
-            SetStatus(TranscriptStatus.NotTranscribed, "Транскрипту ще немає", "Цей запис ще не розшифровано.", "Транскрибувати");
+            SetStatus(TranscriptStatus.NotTranscribed, Strings.Session_NoTranscriptTitle, Strings.Session_NoTranscriptText, Strings.Session_Transcribe);
         }
     }
 
     private void ShowFailed(string? message) =>
-        SetStatus(TranscriptStatus.Failed, "Не вдалося розшифрувати запис", string.IsNullOrWhiteSpace(message) ? "Невідома помилка." : message, "Спробувати ще");
+        SetStatus(TranscriptStatus.Failed, Strings.Session_FailedTitle, string.IsNullOrWhiteSpace(message) ? Strings.Session_UnknownError : message, Strings.Session_TryAgain);
 
     private void ShowAsrMissing()
     {
-        var where = string.IsNullOrEmpty(_processing.ModelsDirectory) ? string.Empty : $" Файли потраплять у {_processing.ModelsDirectory}.";
+        var folder = _processing.ModelsDirectory;
         SetStatus(
             TranscriptStatus.AsrMissing,
-            SessionProcessor.AsrNotInstalledMessage,
-            "Щоб розшифрувати цей запис, встанови модель розпізнавання мовлення: запусти scripts/fetch-models.ps1." + where + " Потім натисни «Спробувати ще».",
-            "Спробувати ще");
+            Strings.Session_AsrMissingTitle,
+            string.IsNullOrEmpty(folder) ? Strings.Session_AsrMissingText : UiText.Format(Strings.Session_AsrMissingTextWithFolder, folder),
+            Strings.Session_TryAgain);
     }
 
     private void ShowProcessing(SessionProcessingStage stage, double progress)
     {
         ProgressValue = ProcessingText.Percent(progress);
         ProgressText = ProcessingText.PercentText(progress);
-        SetStatus(TranscriptStatus.Processing, ProcessingText.Stage(stage), "Результат зʼявиться тут автоматично.", "Спробувати ще");
+        SetStatus(TranscriptStatus.Processing, ProcessingText.Stage(stage), Strings.Session_ProcessingText, Strings.Session_TryAgain);
     }
 
     private void SetStatus(TranscriptStatus status, string title, string? text, string retryLabel)

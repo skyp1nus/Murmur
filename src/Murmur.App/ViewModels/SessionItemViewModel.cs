@@ -1,4 +1,5 @@
 using CommunityToolkit.Mvvm.ComponentModel;
+using Murmur.App.Resources;
 using Murmur.Core.Processing;
 using Murmur.Core.Sessions;
 
@@ -16,7 +17,7 @@ public sealed partial class SessionItemViewModel : ObservableObject
         ArgumentNullException.ThrowIfNull(time);
         Record = record;
         Id = record.Id;
-        Title = string.IsNullOrWhiteSpace(record.Title) ? "Запис без назви" : record.Title;
+        Title = string.IsNullOrWhiteSpace(record.Title) ? Strings.Common_UntitledRecording : record.Title;
         DateText = UiFormat.Date(record.StartedAt, time);
         DurationText = UiFormat.Duration(record.Duration);
         HasMicrophone = record.HasMicrophone;

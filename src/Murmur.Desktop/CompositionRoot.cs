@@ -5,6 +5,7 @@ using Murmur.Core.Capture.Synthetic;
 using Murmur.Core.Jobs;
 using Murmur.Core.Processing;
 using Murmur.Core.Recording;
+using Murmur.Core.Settings;
 using Murmur.Core.Transcription;
 using Murmur.Intelligence;
 using Murmur.Intelligence.Rag;
@@ -19,6 +20,7 @@ namespace Murmur.Desktop;
 internal sealed class CompositionRoot : IDisposable
 {
     private SqliteStorage? _storage;
+    private JsonSettingsStore? _settings;
     private WorkerAsrClient? _asr;
     private JobQueue? _queue;
     private SessionProcessor? _processor;
@@ -46,6 +48,10 @@ internal sealed class CompositionRoot : IDisposable
     public AppServices CreateServices()
     {
         var storage = _storage ??= SqliteStorage.CreateDefault();
+
+        // settings.json sits next to the database (same data folder); the app reads the language from it once at
+        // start-up and follows the theme live.
+        var settings = _settings ??= new JsonSettingsStore(storage.Paths);
         var capture = CreateCapture();
         var recorder = new Recorder(capture, storage, TimeProvider.System, RecorderSettings.Default);
 
@@ -92,7 +98,8 @@ internal sealed class CompositionRoot : IDisposable
             CreatePlayback(),
             new SessionProcessingAdapter(processor, models),
             storage,
-            new AiServices(assistant, llm, models.ModelsDirectory));
+            new AiServices(assistant, llm, models.ModelsDirectory),
+            settings);
     }
 
     public void Dispose()
