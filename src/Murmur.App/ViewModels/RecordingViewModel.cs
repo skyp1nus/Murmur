@@ -5,6 +5,7 @@ using Murmur.App.Resources;
 using Murmur.Core.Capture;
 using Murmur.Core.Recording;
 using Murmur.Core.Sessions;
+using Murmur.Core.Settings;
 
 namespace Murmur.App.ViewModels;
 
@@ -22,6 +23,7 @@ public sealed partial class RecordingViewModel : ObservableObject, ILevelSource
     private readonly ICapture _capture;
     private readonly ISessionStore _store;
     private readonly Action<Action> _post;
+    private readonly ISettingsStore? _settings;
     private SessionId? _sessionId;
     private bool _stopRequested;
 
@@ -30,7 +32,11 @@ public sealed partial class RecordingViewModel : ObservableObject, ILevelSource
     private bool _suppressScreenChange;
 
     /// <param name="post">Marshals a callback to the UI thread; recorder events can arrive on any thread.</param>
-    public RecordingViewModel(IRecorder recorder, ICapture capture, ISessionStore store, Action<Action>? post = null)
+    /// <param name="settings">
+    /// The user's defaults (devices, display, screen on/off) the screen starts with every time it is shown;
+    /// <c>null</c> = system default devices and no screen.
+    /// </param>
+    public RecordingViewModel(IRecorder recorder, ICapture capture, ISessionStore store, Action<Action>? post = null, ISettingsStore? settings = null)
     {
         ArgumentNullException.ThrowIfNull(recorder);
         ArgumentNullException.ThrowIfNull(capture);
@@ -39,9 +45,11 @@ public sealed partial class RecordingViewModel : ObservableObject, ILevelSource
         _capture = capture;
         _store = store;
         _post = post ?? (action => Avalonia.Threading.Dispatcher.UIThread.Post(action));
+        _settings = settings;
 
         ScreenAvailable = capture.Capabilities.Screen;
         RefreshDevices();
+        ApplyDefaults();
         ApplyState(recorder.State);
         _recorder.StateChanged += OnRecorderStateChanged;
     }
@@ -156,6 +164,7 @@ public sealed partial class RecordingViewModel : ObservableObject, ILevelSource
         Error = null;
         TimerText = UiFormat.Duration(TimeSpan.Zero);
         RefreshDevices();
+        ApplyDefaults();
     }
 
     /// <summary>Polls the elapsed time. Called by the view at about 4 Hz while recording.</summary>
@@ -263,7 +272,8 @@ public sealed partial class RecordingViewModel : ObservableObject, ILevelSource
             SystemAudio: SystemAudio && SystemAudioAvailable,
             Screen: Screen && ScreenAvailable,
             MicrophoneDeviceId: SelectedMicrophone is { IsDefault: false } mic ? mic.Id : null,
-            SystemDeviceId: SelectedSystemDevice is { IsDefault: false } output ? output.Id : null);
+            SystemDeviceId: SelectedSystemDevice is { IsDefault: false } output ? output.Id : null,
+            DisplayId: SavedDisplayId());
 
         try
         {
@@ -306,6 +316,71 @@ public sealed partial class RecordingViewModel : ObservableObject, ILevelSource
         }
 
         NotifyStateDependents();
+    }
+
+    /// <summary>
+    /// Starts from the user's defaults: the saved microphone and output (when they are still plugged in), the screen on or
+    /// off. Called whenever the screen is shown, so a change in the Settings applies to the next recording.
+    /// </summary>
+    private void ApplyDefaults()
+    {
+        if (_settings is not { } store || State != RecorderState.Idle)
+        {
+            return;
+        }
+
+        var settings = store.Current;
+        SelectedMicrophone = Saved(MicrophoneDevices, settings.MicrophoneDeviceId) ?? SelectedMicrophone;
+        SelectedSystemDevice = Saved(SystemDevices, settings.SystemAudioDeviceId) ?? SelectedSystemDevice;
+
+        // The recorder is idle here, so the toggle only changes the pill, not a running recording.
+        Screen = settings.ScreenByDefault && ScreenAvailable;
+    }
+
+    /// <summary>The display chosen in the Settings while it is still connected, else <c>null</c> (the primary display).</summary>
+    private string? SavedDisplayId()
+    {
+        if (!ScreenAvailable || _settings?.Current.ScreenDisplayId is not { } id)
+        {
+            return null;
+        }
+
+        foreach (var display in _capture.GetDisplays())
+        {
+            if (display.Id == id)
+            {
+                return id;
+            }
+        }
+
+        return null;
+    }
+
+    private static AudioDevice? Saved(IReadOnlyList<AudioDevice> devices, string? id)
+    {
+        if (id is null)
+        {
+            // The system default: the device the platform marks as default, not whatever was picked last time.
+            foreach (var device in devices)
+            {
+                if (device.IsDefault)
+                {
+                    return device;
+                }
+            }
+
+            return devices.Count > 0 ? devices[0] : null;
+        }
+
+        foreach (var device in devices)
+        {
+            if (device.Id == id)
+            {
+                return device;
+            }
+        }
+
+        return null;
     }
 
     private static AudioDevice? Pick(IReadOnlyList<AudioDevice> devices, AudioDevice? previous)

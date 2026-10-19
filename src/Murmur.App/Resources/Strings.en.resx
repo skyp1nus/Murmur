@@ -377,4 +377,253 @@
   <data name="Month_12" xml:space="preserve">
     <value>December</value>
   </data>
+  <data name="Nav_Library" xml:space="preserve">
+    <value>Library</value>
+  </data>
+  <data name="Nav_Settings" xml:space="preserve">
+    <value>Settings</value>
+  </data>
+  <data name="Nav_Sections" xml:space="preserve">
+    <value>Sections</value>
+  </data>
+  <data name="Nav_OfflineTitle" xml:space="preserve">
+    <value>Fully offline</value>
+  </data>
+  <data name="Nav_OfflineText" xml:space="preserve">
+    <value>Recordings and models stay on this PC</value>
+  </data>
+  <data name="Settings_Title" xml:space="preserve">
+    <value>Settings</value>
+  </data>
+  <data name="Settings_ModelsTitle" xml:space="preserve">
+    <value>Models</value>
+  </data>
+  <data name="Settings_ModelsText" xml:space="preserve">
+    <value>Everything runs locally. Models are loaded only when needed and unloaded after the work.</value>
+  </data>
+  <data name="Settings_DevicesTitle" xml:space="preserve">
+    <value>Devices</value>
+  </data>
+  <data name="Settings_DevicesText" xml:space="preserve">
+    <value>The microphone becomes the “Me” track, system audio the “Others” track.</value>
+  </data>
+  <data name="Settings_StorageTitle" xml:space="preserve">
+    <value>Storage</value>
+  </data>
+  <data name="Settings_StorageText" xml:space="preserve">
+    <value>The audio and video of new recordings are saved in this folder.</value>
+  </data>
+  <data name="Settings_HotkeysTitle" xml:space="preserve">
+    <value>Hotkeys</value>
+  </data>
+  <data name="Settings_HotkeysText" xml:space="preserve">
+    <value>Will work even when the window is minimised.</value>
+  </data>
+  <data name="Settings_AppearanceTitle" xml:space="preserve">
+    <value>Appearance</value>
+  </data>
+  <data name="Settings_AppearanceText" xml:space="preserve">
+    <value>Theme and interface language.</value>
+  </data>
+  <data name="Settings_AboutTitle" xml:space="preserve">
+    <value>About</value>
+  </data>
+  <data name="Settings_AboutText" xml:space="preserve">
+    <value>Free, no accounts, no cloud.</value>
+  </data>
+  <data name="Settings_SaveFailed" xml:space="preserve">
+    <value>Could not save the settings: {0}</value>
+  </data>
+  <data name="Models_Installed" xml:space="preserve">
+    <value>Installed</value>
+  </data>
+  <data name="Models_Install" xml:space="preserve">
+    <value>Download</value>
+  </data>
+  <data name="Models_Retry" xml:space="preserve">
+    <value>Retry</value>
+  </data>
+  <data name="Models_Cancel" xml:space="preserve">
+    <value>Cancel</value>
+  </data>
+  <data name="Models_Remove" xml:space="preserve">
+    <value>Remove</value>
+  </data>
+  <data name="Models_RemoveConfirm" xml:space="preserve">
+    <value>Yes, remove</value>
+  </data>
+  <data name="Models_Queued" xml:space="preserve">
+    <value>Waiting</value>
+  </data>
+  <data name="Models_Default" xml:space="preserve">
+    <value>Default</value>
+  </data>
+  <data name="Models_Recommended" xml:space="preserve">
+    <value>Recommended</value>
+  </data>
+  <data name="Models_MakeDefault" xml:space="preserve">
+    <value>Make default</value>
+  </data>
+  <data name="Models_InstallFailed" xml:space="preserve">
+    <value>Download failed. Check your connection and try again.</value>
+  </data>
+  <data name="Models_ActionFailed" xml:space="preserve">
+    <value>The action failed: {0}</value>
+  </data>
+  <data name="Models_DescAsr" xml:space="preserve">
+    <value>Transcription · 25 European languages · CPU</value>
+  </data>
+  <data name="Models_DescVad" xml:space="preserve">
+    <value>Splits speech into segments</value>
+  </data>
+  <data name="Models_DescRuntime" xml:space="preserve">
+    <value>Local AI engine (llama.cpp)</value>
+  </data>
+  <data name="Models_DescChat" xml:space="preserve">
+    <value>AI chat, summaries, action items</value>
+  </data>
+  <data name="Models_DescChatLarge" xml:space="preserve">
+    <value>For powerful PCs · more accurate answers</value>
+  </data>
+  <data name="Models_DescEmbedding" xml:space="preserve">
+    <value>Semantic search across transcripts</value>
+  </data>
+  <data name="Models_AiNote" xml:space="preserve">
+    <value>AI models work together: a chat model is installed together with the engine and the search model.</value>
+  </data>
+  <data name="Models_FreeSpace" xml:space="preserve">
+    <value>Free on this drive: {0}</value>
+  </data>
+  <data name="Models_Folder" xml:space="preserve">
+    <value>Models folder: {0}</value>
+  </data>
+  <data name="Models_Downloaded" xml:space="preserve">
+    <value>{0} of {1}</value>
+  </data>
+  <data name="Size_Gb" xml:space="preserve">
+    <value>{0:0.00} GB</value>
+  </data>
+  <data name="Size_Mb" xml:space="preserve">
+    <value>{0:0} MB</value>
+  </data>
+  <data name="Size_Kb" xml:space="preserve">
+    <value>{0:0} KB</value>
+  </data>
+  <data name="Devices_SystemDefault" xml:space="preserve">
+    <value>System default</value>
+  </data>
+  <data name="Devices_PrimaryDisplay" xml:space="preserve">
+    <value>Primary display</value>
+  </data>
+  <data name="Devices_Display" xml:space="preserve">
+    <value>{0} · {1}×{2}</value>
+  </data>
+  <data name="Devices_Screen" xml:space="preserve">
+    <value>Screen recording</value>
+  </data>
+  <data name="Devices_ScreenNote" xml:space="preserve">
+    <value>The whole display is recorded; recording a single window is not supported.</value>
+  </data>
+  <data name="Devices_ScreenUnavailable" xml:space="preserve">
+    <value>Screen recording is not available on this system.</value>
+  </data>
+  <data name="Devices_ScreenByDefault" xml:space="preserve">
+    <value>Record the screen by default</value>
+  </data>
+  <data name="Devices_ScreenByDefaultText" xml:space="preserve">
+    <value>The “Screen” toggle on the recording screen starts switched on.</value>
+  </data>
+  <data name="Devices_On" xml:space="preserve">
+    <value>On</value>
+  </data>
+  <data name="Devices_Off" xml:space="preserve">
+    <value>Off</value>
+  </data>
+  <data name="Storage_Default" xml:space="preserve">
+    <value>Default folder</value>
+  </data>
+  <data name="Storage_Note" xml:space="preserve">
+    <value>New recordings go to this folder. Existing recordings stay where they are.</value>
+  </data>
+  <data name="Storage_Change" xml:space="preserve">
+    <value>Change</value>
+  </data>
+  <data name="Storage_Open" xml:space="preserve">
+    <value>Open folder</value>
+  </data>
+  <data name="Storage_Reset" xml:space="preserve">
+    <value>Use the default</value>
+  </data>
+  <data name="Storage_PickerTitle" xml:space="preserve">
+    <value>Choose a folder for recordings</value>
+  </data>
+  <data name="Storage_OpenFailed" xml:space="preserve">
+    <value>Could not open the folder: {0}</value>
+  </data>
+  <data name="Hotkeys_Record" xml:space="preserve">
+    <value>Start / stop recording</value>
+  </data>
+  <data name="Hotkeys_ToggleScreen" xml:space="preserve">
+    <value>Toggle screen recording</value>
+  </data>
+  <data name="Hotkeys_ShowApp" xml:space="preserve">
+    <value>Open Murmur</value>
+  </data>
+  <data name="Hotkeys_None" xml:space="preserve">
+    <value>Not set</value>
+  </data>
+  <data name="Hotkeys_Press" xml:space="preserve">
+    <value>Press a shortcut…</value>
+  </data>
+  <data name="Hotkeys_Hint" xml:space="preserve">
+    <value>Esc cancels, Backspace clears the shortcut.</value>
+  </data>
+  <data name="Hotkeys_NeedModifier" xml:space="preserve">
+    <value>Add Ctrl, Alt or Win.</value>
+  </data>
+  <data name="Hotkeys_Invalid" xml:space="preserve">
+    <value>This shortcut cannot be used.</value>
+  </data>
+  <data name="Hotkeys_Duplicate" xml:space="preserve">
+    <value>Already used by “{0}”.</value>
+  </data>
+  <data name="Appearance_Theme" xml:space="preserve">
+    <value>Theme</value>
+  </data>
+  <data name="Appearance_ThemeLight" xml:space="preserve">
+    <value>Light</value>
+  </data>
+  <data name="Appearance_ThemeDark" xml:space="preserve">
+    <value>Dark</value>
+  </data>
+  <data name="Appearance_ThemeSystem" xml:space="preserve">
+    <value>Like the system</value>
+  </data>
+  <data name="Appearance_Language" xml:space="preserve">
+    <value>Language</value>
+  </data>
+  <data name="Appearance_LanguageUk" xml:space="preserve">
+    <value>Українська</value>
+  </data>
+  <data name="Appearance_LanguageEn" xml:space="preserve">
+    <value>English</value>
+  </data>
+  <data name="Appearance_RestartNote" xml:space="preserve">
+    <value>The language changes after a restart.</value>
+  </data>
+  <data name="Appearance_Onboarding" xml:space="preserve">
+    <value>Introduction</value>
+  </data>
+  <data name="Appearance_OnboardingRestart" xml:space="preserve">
+    <value>Go through the introduction again</value>
+  </data>
+  <data name="Appearance_OnboardingDone" xml:space="preserve">
+    <value>The introduction will appear on the next start.</value>
+  </data>
+  <data name="About_License" xml:space="preserve">
+    <value>Project licence — {0}</value>
+  </data>
+  <data name="About_Credit" xml:space="preserve">
+    <value>{0} — {1}</value>
+  </data>
 </root>

@@ -14,6 +14,7 @@
     <ResourceDictionary>
       <ResourceDictionary.MergedDictionaries>
         <ResourceInclude Source="/Styles/Tokens.axaml" />
+        <ResourceInclude Source="/Styles/Icons.axaml" />
       </ResourceDictionary.MergedDictionaries>
 
       <!--
@@ -125,6 +126,26 @@
       <StaticResource x:Key="TextControlBorderThemeThicknessFocused" ResourceKey="Hairline.Thickness" />
 
       <StaticResource x:Key="ProgressBarCornerRadius" ResourceKey="Radius.Pill" />
+
+      <!-- Component sizes of the navigation and the settings (illustration sizes, not layout tokens). -->
+      <x:Double x:Key="Size.Sidebar">240</x:Double>
+      <x:Double x:Key="Size.NavItem">40</x:Double>
+      <x:Double x:Key="Size.NavSubItem">36</x:Double>
+      <x:Double x:Key="Size.NavIcon">18</x:Double>
+      <x:Double x:Key="Size.SmallIcon">14</x:Double>
+      <x:Double x:Key="Size.Field">40</x:Double>
+      <x:Double x:Key="Size.Compact">36</x:Double>
+      <x:Double x:Key="Size.Progress">4</x:Double>
+      <x:Double x:Key="Size.ProgressWidth">220</x:Double>
+      <x:Double x:Key="Size.SettingsSide">220</x:Double>
+      <x:Double x:Key="Size.SettingsWrap">720</x:Double>
+      <x:Double x:Key="Size.SettingsMaxWidth">980</x:Double>
+      <x:Double x:Key="Size.SidebarOrb">40</x:Double>
+      <x:Double x:Key="Size.AboutOrb">100</x:Double>
+      <x:Double x:Key="Size.AboutOrbSlot">56</x:Double>
+      <x:Double x:Key="Size.OrbSlot">22</x:Double>
+      <Thickness x:Key="Hairline.Top">0,1,0,0</Thickness>
+      <Thickness x:Key="Hairline.End">0,0,1,0</Thickness>
 
       <!-- Badge padding: horizontal 8 and vertical 4, both taken from the spacing scale (Space.8 / Space.4). -->
       <Thickness x:Key="Inset.Badge">8,4</Thickness>
@@ -476,5 +497,130 @@
     <Setter Property="BorderBrush" Value="{DynamicResource Brush.Hairline}" />
     <Setter Property="BorderThickness" Value="{StaticResource Hairline.Thickness}" />
     <Setter Property="Padding" Value="{StaticResource Inset.Search}" />
+  </Style>
+
+  <!-- Sidebar navigation (Library / Ask AI / Settings): pill rows with a line icon, Surface when hovered or current. -->
+  <Style Selector="Button.nav">
+    <Setter Property="CornerRadius" Value="{StaticResource Radius.Pill}" />
+    <Setter Property="Padding" Value="{StaticResource Inset.Input}" />
+    <Setter Property="MinHeight" Value="{StaticResource Size.NavItem}" />
+    <Setter Property="HorizontalAlignment" Value="Stretch" />
+    <Setter Property="HorizontalContentAlignment" Value="Left" />
+    <Setter Property="VerticalContentAlignment" Value="Center" />
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="Foreground" Value="{DynamicResource Brush.Graphite}" />
+    <Setter Property="BorderThickness" Value="0" />
+    <Setter Property="FontFamily" Value="{StaticResource Font.Body}" />
+    <Setter Property="FontWeight" Value="{StaticResource FontWeight.Body}" />
+    <Setter Property="FontSize" Value="{StaticResource FontSize.BodySm}" />
+  </Style>
+  <Style Selector="Button.nav.sub">
+    <Setter Property="MinHeight" Value="{StaticResource Size.NavSubItem}" />
+  </Style>
+  <Style Selector="Button.nav:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="{DynamicResource Brush.Surface}" />
+    <Setter Property="Foreground" Value="{DynamicResource Brush.Ink}" />
+  </Style>
+  <Style Selector="Button.nav:pressed /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="{DynamicResource Brush.Stone}" />
+    <Setter Property="Foreground" Value="{DynamicResource Brush.Ink}" />
+  </Style>
+  <Style Selector="Button.nav.on /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="{DynamicResource Brush.Surface}" />
+    <Setter Property="Foreground" Value="{DynamicResource Brush.Ink}" />
+    <Setter Property="FontWeight" Value="{StaticResource FontWeight.BodyMedium}" />
+  </Style>
+
+  <!-- Compact outline / primary button of settings rows: the same pill, less padding. -->
+  <Style Selector="Button.compact">
+    <Setter Property="Padding" Value="{StaticResource Inset.Input}" />
+    <Setter Property="MinHeight" Value="{StaticResource Size.Compact}" />
+    <Setter Property="FontSize" Value="{StaticResource FontSize.BodySm}" />
+    <Setter Property="VerticalAlignment" Value="Center" />
+  </Style>
+
+  <!-- Key caps of a hotkey: Geist Mono on a Surface plate with a Stone hairline; Ink border while it waits for a key. -->
+  <Style Selector="Button.keycap">
+    <Setter Property="CornerRadius" Value="{StaticResource Radius.Small}" />
+    <Setter Property="Padding" Value="{StaticResource Inset.Input}" />
+    <Setter Property="Background" Value="{DynamicResource Brush.Surface}" />
+    <Setter Property="Foreground" Value="{DynamicResource Brush.Ink}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource Brush.Stone}" />
+    <Setter Property="BorderThickness" Value="{StaticResource Hairline.Thickness}" />
+    <Setter Property="FontFamily" Value="{StaticResource Font.Mono}" />
+    <Setter Property="FontWeight" Value="{StaticResource FontWeight.Mono}" />
+    <Setter Property="FontSize" Value="{StaticResource FontSize.Mono}" />
+    <Setter Property="VerticalAlignment" Value="Center" />
+  </Style>
+  <Style Selector="Button.keycap:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="{DynamicResource Brush.FillHover}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource Brush.Stone}" />
+    <Setter Property="Foreground" Value="{DynamicResource Brush.Ink}" />
+  </Style>
+  <Style Selector="Button.keycap.capturing /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="{DynamicResource Brush.Canvas}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource Brush.Ink}" />
+    <Setter Property="Foreground" Value="{DynamicResource Brush.Smoke}" />
+  </Style>
+
+  <!-- Settings layout: bordered list panels, rows with hairline separators, section titles and explanations. -->
+  <Style Selector="Border.panel">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="CornerRadius" Value="{StaticResource Radius.Card}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource Brush.Hairline}" />
+    <Setter Property="BorderThickness" Value="{StaticResource Hairline.Thickness}" />
+    <Setter Property="ClipToBounds" Value="True" />
+  </Style>
+  <Style Selector="Border.well">
+    <Setter Property="Background" Value="{DynamicResource Brush.Surface}" />
+    <Setter Property="CornerRadius" Value="{StaticResource Radius.Card}" />
+    <Setter Property="Padding" Value="{StaticResource Inset.24}" />
+  </Style>
+  <Style Selector="ItemsControl.rows ContentPresenter:nth-child(1n+2) > Border.row">
+    <Setter Property="BorderBrush" Value="{DynamicResource Brush.Hairline}" />
+    <Setter Property="BorderThickness" Value="{StaticResource Hairline.Top}" />
+  </Style>
+  <Style Selector="Border.divider">
+    <Setter Property="Background" Value="{DynamicResource Brush.Hairline}" />
+    <Setter Property="Height" Value="{StaticResource Hairline.Width}" />
+  </Style>
+  <Style Selector="Border.status">
+    <Setter Property="Background" Value="{DynamicResource Brush.Surface}" />
+    <Setter Property="CornerRadius" Value="{StaticResource Radius.Pill}" />
+    <Setter Property="Padding" Value="{StaticResource Inset.Input}" />
+    <Setter Property="VerticalAlignment" Value="Center" />
+  </Style>
+  <Style Selector="Border.field">
+    <Setter Property="CornerRadius" Value="{StaticResource Radius.Input}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource Brush.Hairline}" />
+    <Setter Property="BorderThickness" Value="{StaticResource Hairline.Thickness}" />
+    <Setter Property="Padding" Value="{StaticResource Inset.Input}" />
+    <Setter Property="MinHeight" Value="{StaticResource Size.Field}" />
+  </Style>
+  <Style Selector="TextBlock.sectionTitle">
+    <Setter Property="FontFamily" Value="{StaticResource Font.Body}" />
+    <Setter Property="FontWeight" Value="{StaticResource FontWeight.BodyMedium}" />
+    <Setter Property="FontSize" Value="{StaticResource FontSize.Subheading}" />
+    <Setter Property="LineHeight" Value="{StaticResource LineHeight.Subheading}" />
+    <Setter Property="LetterSpacing" Value="{StaticResource LetterSpacing.Subheading}" />
+  </Style>
+  <Style Selector="TextBlock.note">
+    <Setter Property="FontFamily" Value="{StaticResource Font.Body}" />
+    <Setter Property="FontWeight" Value="{StaticResource FontWeight.Body}" />
+    <Setter Property="FontSize" Value="{StaticResource FontSize.BodySm}" />
+    <Setter Property="LineHeight" Value="{StaticResource LineHeight.BodySm}" />
+    <Setter Property="LetterSpacing" Value="{StaticResource LetterSpacing.BodySm}" />
+    <Setter Property="Foreground" Value="{DynamicResource Brush.Smoke}" />
+    <Setter Property="TextWrapping" Value="Wrap" />
+  </Style>
+  <Style Selector="TextBlock.label">
+    <Setter Property="FontFamily" Value="{StaticResource Font.Body}" />
+    <Setter Property="FontWeight" Value="{StaticResource FontWeight.BodyMedium}" />
+    <Setter Property="FontSize" Value="{StaticResource FontSize.BodySm}" />
+    <Setter Property="LineHeight" Value="{StaticResource LineHeight.BodySm}" />
+    <Setter Property="LetterSpacing" Value="{StaticResource LetterSpacing.BodySm}" />
+  </Style>
+  <Style Selector="controls|IconControl">
+    <Setter Property="VerticalAlignment" Value="Center" />
   </Style>
 </Styles>
