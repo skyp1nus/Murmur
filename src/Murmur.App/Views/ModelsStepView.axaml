@@ -79,7 +79,7 @@
               </Border>
             </StackPanel>
           </Grid>
-          <ProgressBar Classes="onb" x:Name="RequiredProgress"
+          <ProgressBar x:Name="RequiredProgress"
                        Height="{StaticResource Size.Progress}"
                        Minimum="0"
                        Maximum="100"
@@ -141,13 +141,13 @@
                             Spacing="{StaticResource Space.4}">
                   <TextBlock Classes="body"
                              FontWeight="{StaticResource FontWeight.BodyMedium}"
-                             TextTrimming="CharacterEllipsis"
+                             TextWrapping="Wrap"
                              Text="{Binding Name}" />
                   <TextBlock Classes="bodySm"
                              TextWrapping="Wrap"
                              Foreground="{DynamicResource Brush.Smoke}"
                              Text="{Binding Description}" />
-                  <ProgressBar Classes="onb" Height="{StaticResource Size.Progress}"
+                  <ProgressBar Height="{StaticResource Size.Progress}"
                                Minimum="0"
                                Maximum="100"
                                Value="{Binding Percent}"

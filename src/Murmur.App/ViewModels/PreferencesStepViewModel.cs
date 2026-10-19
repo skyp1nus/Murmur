@@ -22,12 +22,15 @@ public sealed partial class PreferencesStepViewModel : OnboardingStepViewModel
         Storage = settings.Storage;
         Hotkeys = settings.Hotkeys;
         Devices = settings.Devices;
-        HotkeyRow = settings.Hotkeys.Rows.First(r => r.Action == HotkeyAction.Record);
+        HotkeyRow = settings.Hotkeys.Rows.FirstOrDefault(r => r.Action == HotkeyAction.Record);
         _freeSpace = freeSpace ?? DiskSpace.TryGetFree;
         Storage.PropertyChanged += OnStorageChanged;
-        HotkeyRow.PropertyChanged += OnHotkeyChanged;
-        RefreshFreeSpace();
-        RefreshCaps();
+        if (HotkeyRow is not null)
+        {
+            HotkeyRow.PropertyChanged += OnHotkeyChanged;
+        }
+
+        // The drive is asked when the step opens, not while the window starts.
     }
 
     public override string Title => Strings.Onb4_Headline;
@@ -40,7 +43,10 @@ public sealed partial class PreferencesStepViewModel : OnboardingStepViewModel
 
     public DevicesSettingsViewModel Devices { get; }
 
-    public HotkeyRowViewModel HotkeyRow { get; }
+    /// <summary>The start/stop row of the Settings' hotkeys; <c>null</c> when they have none (the field is then hidden).</summary>
+    public HotkeyRowViewModel? HotkeyRow { get; }
+
+    public bool HasHotkey => HotkeyRow is not null;
 
     /// <summary>The only language of the MVP: Parakeet detects it by itself.</summary>
     public IReadOnlyList<string> Languages { get; } = [Strings.Onb4_Auto];
@@ -55,10 +61,10 @@ public sealed partial class PreferencesStepViewModel : OnboardingStepViewModel
     /// <summary>The caps of the saved hotkey, e.g. Ctrl + Shift + R; empty while none is set or one is being captured.</summary>
     public IReadOnlyList<HotkeyCap> Caps { get; private set; } = [];
 
-    public bool ShowCaps => !HotkeyRow.IsCapturing && Caps.Count > 0;
+    public bool ShowCaps => HotkeyRow is { IsCapturing: false } && Caps.Count > 0;
 
     /// <summary>"Not set" while no hotkey is saved.</summary>
-    public bool ShowNone => !HotkeyRow.IsCapturing && Caps.Count == 0;
+    public bool ShowNone => HotkeyRow is { IsCapturing: false } && Caps.Count == 0;
 
     internal override void Activate()
     {
@@ -96,7 +102,7 @@ public sealed partial class PreferencesStepViewModel : OnboardingStepViewModel
 
     private void RefreshCaps()
     {
-        var gesture = HotkeyRow.Gesture;
+        var gesture = HotkeyRow?.Gesture;
         if (string.IsNullOrEmpty(gesture))
         {
             Caps = [];

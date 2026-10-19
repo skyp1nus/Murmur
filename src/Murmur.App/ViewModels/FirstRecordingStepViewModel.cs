@@ -298,7 +298,7 @@ public sealed partial class FirstRecordingStepViewModel : OnboardingStepViewMode
             Screen: false,
             MicrophoneDeviceId: saved.MicrophoneDeviceId,
             SystemDeviceId: saved.SystemAudioDeviceId,
-            Title: Strings.Onb5_TrialTitle);
+            Title: TrialSessionCleaner.TitleOfTrial());
 
         try
         {
@@ -510,6 +510,16 @@ public sealed partial class FirstRecordingStepViewModel : OnboardingStepViewMode
         Error = null;
         if (trial is not null)
         {
+            // Our copy of the record can be stale (the recorder ended the session by itself): what the store says decides.
+            try
+            {
+                trial = await _sessions.GetSessionAsync(trial.Id, CancellationToken.None).ConfigureAwait(true) ?? trial;
+            }
+            catch (Exception)
+            {
+                // Keep the copy we have.
+            }
+
             await DeleteWhenSafeAsync(trial).ConfigureAwait(true);
         }
     }

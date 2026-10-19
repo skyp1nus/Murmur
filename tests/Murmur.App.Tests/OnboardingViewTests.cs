@@ -408,4 +408,31 @@ public sealed class OnboardingViewTests
         Assert.Equal([true, false], snapshot.after.Item2);
         Assert.Contains("Waiting for the other AI components…", snapshot.texts);
     }
+
+    [Fact]
+    public async Task ClosingTheWindowDuringTheTrial_StopsTheRecording_BeforeTheWindowCloses()
+    {
+        var snapshot = await Session.Dispatch(
+            async () =>
+            {
+                using var scope = UiCulture.Override("en");
+                var rig = new OnboardingRig();
+                var window = Show(rig);
+                await AdvanceAsync(rig, 5);
+                await OnboardingRig.UntilAsync(() => rig.Onboarding.FirstRecording.State == TrialState.Recording);
+                var closedWhileRecording = !rig.Recorder.State.Equals(RecorderState.Idle);
+
+                window.Close();
+                Assert.NotNull(window.StoppingTask);
+                await window.StoppingTask;
+                await rig.Onboarding.FirstRecording.Settled;
+                return (closedWhileRecording, rig.Recorder.State, rig.Recorder.Stops, window.IsVisible);
+            },
+            TestContext.Current.CancellationToken);
+
+        Assert.True(snapshot.closedWhileRecording);
+        Assert.Equal(RecorderState.Idle, snapshot.State);
+        Assert.Equal(1, snapshot.Stops);
+        Assert.False(snapshot.IsVisible);
+    }
 }

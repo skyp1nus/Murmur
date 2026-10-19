@@ -35,6 +35,8 @@
       <Thickness x:Key="Inset.Row">24,20</Thickness>
       <Thickness x:Key="Inset.Descender">0,0,0,4</Thickness>
       <Thickness x:Key="Inset.Cap">8,4</Thickness>
+      <!-- Deliberate deviation: the mockups draw the chosen card, the radio ring and the focused hotkey field with 1.5 px; the tokens
+           know only the 1 px hairline, so this one component value is kept here (a half pixel shift of the content when chosen). -->
       <Thickness x:Key="Border.Selected">1.5</Thickness>
 
       <!-- Component sizes (illustration sizes of the mockups, not layout tokens). -->
@@ -58,7 +60,9 @@
       <x:Double x:Key="Size.OnbPreferencesWidth">720</x:Double>
       <x:Double x:Key="Size.OnbTranscriptWidth">640</x:Double>
       <x:Double x:Key="Size.OnbPickerWidth">260</x:Double>
-      <x:Double x:Key="Opacity.Dimmed">0.55</x:Double>
+      <!-- A locked model card: the mockups dim disabled content to 45 %. -->
+      <x:Double x:Key="Opacity.Dimmed">0.45</x:Double>
+
 
       <!-- Line icons of the mockups' SVGs (24 x 24 grid), drawn by controls:IconControl. -->
       <StreamGeometry x:Key="Icon.ChevronLeft">M15 6l-6 6 6 6</StreamGeometry>
@@ -277,18 +281,6 @@
   </Style>
   <Style Selector="ToggleButton.switch:disabled /template/ Border#PART_Track">
     <Setter Property="Background" Value="{DynamicResource Brush.Surface}" />
-  </Style>
-
-  <!-- Download progress: Ink on Stone, pill-shaped (the Fluent accent never shows). -->
-  <Style Selector="ProgressBar.onb">
-    <Setter Property="Foreground" Value="{DynamicResource Brush.Ink}" />
-    <Setter Property="Background" Value="{DynamicResource Brush.Stone}" />
-    <Setter Property="BorderThickness" Value="0" />
-    <Setter Property="CornerRadius" Value="{StaticResource Radius.Pill}" />
-    <Setter Property="MinHeight" Value="0" />
-  </Style>
-  <Style Selector="ProgressBar.onb /template/ Border#PART_Indicator">
-    <Setter Property="CornerRadius" Value="{StaticResource Radius.Pill}" />
   </Style>
 
   <!-- Headlines: a little room below the line box so the descenders of the light display face are not cut. -->

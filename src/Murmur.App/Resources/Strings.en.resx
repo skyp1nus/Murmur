@@ -618,7 +618,7 @@
     <value>Go through the introduction again</value>
   </data>
   <data name="Appearance_OnboardingDone" xml:space="preserve">
-    <value>The introduction will appear on the next start.</value>
+    <value>The introduction opens now.</value>
   </data>
   <data name="About_License" xml:space="preserve">
     <value>Project licence — {0}</value>

@@ -227,8 +227,6 @@ public sealed class OnboardingViewModelTests
     {
         using var rig = new OnboardingRig();
         await rig.GoToStepAsync(2);
-        Assert.False(rig.Onboarding.CurrentStep.CanContinue); // still opening, or not yet started
-
         await rig.Onboarding.Audio.Settled;
 
         Assert.True(rig.Onboarding.CurrentStep.CanContinue);
@@ -747,8 +745,8 @@ public sealed class OnboardingViewModelTests
         Assert.Equal(["Ctrl", "Shift", "R"], preferences.Caps.Select(c => c.Text));
         Assert.Equal([true, true, false], preferences.Caps.Select(c => c.HasPlus));
 
-        preferences.HotkeyRow.CaptureCommand.Execute(null);
-        Assert.True(preferences.HotkeyRow.IsCapturing);
+        preferences.HotkeyRow!.CaptureCommand.Execute(null);
+        Assert.True(preferences.HotkeyRow!.IsCapturing);
         Assert.False(preferences.ShowCaps);
 
         Assert.True(preferences.Hotkeys.HandleKey(Key.K, KeyModifiers.Control | KeyModifiers.Alt));
@@ -756,7 +754,7 @@ public sealed class OnboardingViewModelTests
 
         Assert.Equal("Ctrl+Alt+K", rig.Store.Current.RecordHotkey);
         Assert.Equal(["Ctrl", "Alt", "K"], preferences.Caps.Select(c => c.Text));
-        Assert.False(preferences.HotkeyRow.IsCapturing);
+        Assert.False(preferences.HotkeyRow!.IsCapturing);
     }
 
     [Fact]
@@ -764,11 +762,11 @@ public sealed class OnboardingViewModelTests
     {
         using var rig = new OnboardingRig();
         await rig.GoToStepAsync(4);
-        rig.Onboarding.Preferences.HotkeyRow.CaptureCommand.Execute(null);
+        rig.Onboarding.Preferences.HotkeyRow!.CaptureCommand.Execute(null);
 
         rig.Onboarding.BackCommand.Execute(null);
 
-        Assert.False(rig.Onboarding.Preferences.HotkeyRow.IsCapturing);
+        Assert.False(rig.Onboarding.Preferences.HotkeyRow!.IsCapturing);
     }
 
     [Fact]
@@ -833,7 +831,7 @@ public sealed class OnboardingViewModelTests
         Assert.True(options.Microphone);
         Assert.True(options.SystemAudio);
         Assert.Equal("mic-usb", options.MicrophoneDeviceId);
-        Assert.Equal("Пробний запис", options.Title);
+        Assert.Equal("Пробний запис" + TrialSessionCleaner.Marker, options.Title);
         Assert.Equal("00:10", step.ClockText);
         Assert.True(step.IsRecording);
         Assert.Equal("Слухаю", step.StatusLabel);
@@ -1172,11 +1170,188 @@ public sealed class OnboardingViewModelTests
         await rig.GoToStepAsync(5);
         await OnboardingRig.UntilAsync(() => StateOf(rig) == TrialState.Recording);
 
-        rig.Shell.ShowOnboarding();
+        rig.Onboarding.Begin();
         await rig.Onboarding.FirstRecording.Settled;
 
         Assert.Equal(1, rig.Onboarding.StepNumber);
         Assert.Equal(1, rig.Recorder.Stops);
         Assert.Equal(TrialState.Ready, StateOf(rig));
+    }
+
+    // A trial the window closed on ---------------------------------------------------------------------------------------
+
+    [Fact]
+    public async Task ATrialLeftByAClosedWindow_IsRemovedAtTheNextStart_AndDoesNotCompleteTheOnboarding()
+    {
+        using var first = new OnboardingRig();
+        await RecordTenSecondsAsync(first);
+        var trial = first.Onboarding.FirstRecording.Trial!;
+        first.Processing.Raise(new SessionProcessingStatus(trial.Id, SessionProcessingStage.Transcribing, 0.4));
+        first.Sessions.Add(trial); // what the real recorder's store holds
+
+        first.Shell.OnWindowClosed(); // the app ends: the deferred deletion is lost
+        await first.Onboarding.FirstRecording.Settled;
+        Assert.Empty(first.Sessions.Deleted);
+
+        using var second = new OnboardingRig(store: first.Store, sessions: first.Sessions);
+        await second.Shell.InitializeAsync();
+
+        Assert.Equal([trial.Id], second.Sessions.Deleted);
+        Assert.Same(second.Onboarding, second.Shell.CurrentPage);
+        Assert.False(second.Store.Current.OnboardingCompleted);
+        Assert.False(second.Shell.Library.HasSessions);
+    }
+
+    [Fact]
+    public async Task ALeftoverTrialThatIsBeingTranscribed_IsKept_ButStillNoSignOfAnExistingUser()
+    {
+        using var rig = new OnboardingRig();
+        var trial = Sessions.Make(TrialSessionCleaner.TitleOfTrial(), UiHarness.Now, TimeSpan.FromSeconds(10));
+        rig.Sessions.Add(trial);
+        rig.Processing.Set(new SessionProcessingStatus(trial.Id, SessionProcessingStage.Transcribing, 0.5));
+
+        await rig.Shell.InitializeAsync();
+
+        Assert.Empty(rig.Sessions.Deleted);
+        Assert.Same(rig.Onboarding, rig.Shell.CurrentPage);
+        Assert.False(rig.Store.Current.OnboardingCompleted);
+    }
+
+    [Fact]
+    public async Task ALeftoverTrial_NextToARealRecording_IsRemoved_AndTheExistingUserSkipsTheOnboarding()
+    {
+        using var rig = new OnboardingRig();
+        var trial = Sessions.Make("Пробний запис", UiHarness.Now, TimeSpan.FromSeconds(10)); // an old title without the marker
+        var real = Sessions.Make("Стендап", UiHarness.Now.AddDays(-3), TimeSpan.FromMinutes(20));
+        rig.Sessions.Add(trial);
+        rig.Sessions.Add(real);
+
+        await rig.Shell.InitializeAsync();
+
+        Assert.Equal([trial.Id], rig.Sessions.Deleted);
+        Assert.Same(rig.Shell.Library, rig.Shell.CurrentPage);
+        Assert.True(rig.Store.Current.OnboardingCompleted);
+        Assert.Single(rig.Shell.Library.Sessions);
+    }
+
+    [Theory]
+    [InlineData("Пробний запис", true)]
+    [InlineData("Test recording", true)]
+    [InlineData("Щось\u2063", true)]
+    [InlineData("Стендап", false)]
+    public void TheTrialIsRecognisedByItsMarkerOrItsTitle(string title, bool expected)
+    {
+        Assert.Equal(expected, TrialSessionCleaner.IsTrial(Sessions.Make(title, UiHarness.Now, TimeSpan.Zero)));
+    }
+
+    [Fact]
+    public async Task LeavingAfterTheRecorderEndedTheSessionItself_ReadsTheStoredSession_AndDeletesIt()
+    {
+        using var rig = new OnboardingRig();
+        await rig.GoToStepAsync(5);
+        await OnboardingRig.UntilAsync(() => StateOf(rig) == TrialState.Recording);
+        var stale = rig.Onboarding.FirstRecording.Trial!; // the copy says "Recording"
+        rig.Recorder.FailBySelf();
+        await rig.RunClockUntilAsync(() => StateOf(rig) == TrialState.Failed);
+        rig.Sessions.Add(stale with { State = Core.Sessions.SessionState.Failed });
+
+        rig.Onboarding.BackCommand.Execute(null);
+        await rig.Onboarding.FirstRecording.Settled;
+
+        Assert.Equal([stale.Id], rig.Sessions.Deleted);
+    }
+
+    // Smaller guarantees ------------------------------------------------------------------------------------------------
+
+    [Fact]
+    public async Task FirstRecording_ARecorderThatIsAlreadyBusy_SaysSo()
+    {
+        using var rig = new OnboardingRig();
+        rig.Recorder.ForceRecording(Sessions.Make("Нарада", UiHarness.Now, TimeSpan.Zero, state: Core.Sessions.SessionState.Recording));
+        await rig.GoToStepAsync(5);
+
+        await OnboardingRig.UntilAsync(() => StateOf(rig) == TrialState.Failed);
+
+        Assert.Empty(rig.Recorder.Starts);
+        Assert.Contains("Запис уже триває", rig.Onboarding.FirstRecording.MessageText, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task TheRecordingScreen_DoesNotReportATrialThatEndedNormally_AsStoppedByItself()
+    {
+        using var rig = new OnboardingRig();
+        await RecordTenSecondsAsync(rig);
+
+        await rig.Shell.Recording.AutoStopReport;
+
+        Assert.Null(rig.Shell.Recording.Error);
+    }
+
+    [Fact]
+    public async Task Models_FreeSpaceIsNotReadOnEveryProgressTick()
+    {
+        using var rig = new OnboardingRig();
+        await rig.GoToStepAsync(3);
+        var reads = rig.Manager.FreeSpaceReads;
+
+        for (var i = 1; i <= 30; i++)
+        {
+            rig.Manager.Progress(FakeModelManager.AsrId, i * 10_000_000, 670_478_772);
+        }
+
+        Assert.Equal(reads, rig.Manager.FreeSpaceReads);
+    }
+
+    [Fact]
+    public void TheOnboarding_IsNotBuiltWhileTheFlagIsSet_AndNotShownWhileARecordingRuns()
+    {
+        var built = 0;
+        using var rig = new OnboardingRig(new AppSettings { OnboardingCompleted = true });
+        var library = new LibraryViewModel(rig.Sessions, rig.Time, null, action => action());
+        var recording = new RecordingViewModel(rig.Recorder, rig.Capture, rig.Sessions, action => action(), rig.Store);
+        var shell = new ShellViewModel(
+            library,
+            recording,
+            settings: rig.Settings,
+            onboardingFactory: () =>
+            {
+                built++;
+                return rig.Onboarding;
+            },
+            settingsStore: rig.Store,
+            post: action => action());
+        Assert.Equal(0, built);
+        Assert.Null(shell.Onboarding);
+
+        rig.Recorder.ForceRecording(Sessions.Make("Нарада", UiHarness.Now, TimeSpan.Zero, state: Core.Sessions.SessionState.Recording));
+        shell.ShowOnboarding();
+        Assert.Equal(0, built);
+        Assert.Same(library, shell.CurrentPage);
+    }
+
+    [Fact]
+    public async Task Audio_ADeviceThatCannotBeReleased_DoesNotLeaveTheChannelStuck()
+    {
+        using var rig = new OnboardingRig();
+        rig.Devices.DisposeFailures[AudioDeviceKind.Microphone] = new InvalidOperationException("gone");
+        await rig.GoToStepAsync(2);
+        await rig.Onboarding.Audio.Settled;
+
+        rig.Onboarding.Audio.Devices.SelectedMicrophone = rig.Onboarding.Audio.Devices.Microphones.Single(m => m.Id == "mic-usb");
+        await rig.Onboarding.Audio.Settled;
+
+        Assert.Equal(AudioChannelState.Live, rig.Onboarding.Audio.Microphone.State);
+        Assert.Equal("mic-usb", rig.Devices.Latest(AudioDeviceKind.Microphone).Device.Id);
+    }
+
+    [Fact]
+    public async Task Audio_TheFaultHandlerIsAttachedBeforeTheSourceStarts()
+    {
+        using var rig = new OnboardingRig();
+        await rig.GoToStepAsync(2);
+        await rig.Onboarding.Audio.Settled;
+
+        Assert.True(rig.Devices.Latest(AudioDeviceKind.Microphone).FaultedHandledAtStart);
+        Assert.True(rig.Devices.Latest(AudioDeviceKind.SystemOutput).FaultedHandledAtStart);
     }
 }

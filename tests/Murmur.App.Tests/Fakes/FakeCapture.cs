@@ -33,6 +33,9 @@ internal sealed class FakeCapture : ICapture
     /// <summary>Failure of <see cref="IAudioSource.Start"/> per kind (Windows reports a refused microphone there).</summary>
     public Dictionary<AudioDeviceKind, Exception> StartFailures { get; } = [];
 
+    /// <summary>Failure of disposing the sources of a kind.</summary>
+    public Dictionary<AudioDeviceKind, Exception> DisposeFailures { get; } = [];
+
     public List<(AudioDeviceKind Kind, string? DeviceId)> Opened { get; } = [];
 
     public IAudioSource CreateAudioSource(AudioDeviceKind kind, string? deviceId)
@@ -49,7 +52,7 @@ internal sealed class FakeCapture : ICapture
 
         var devices = kind == AudioDeviceKind.Microphone ? Microphones : Outputs;
         var device = devices.Find(d => d.Id == deviceId) ?? devices.Find(d => d.IsDefault) ?? new AudioDevice("none", "none", kind, IsDefault: true);
-        var source = new FakeAudioSource(device) { StartFailure = StartFailures.GetValueOrDefault(kind) };
+        var source = new FakeAudioSource(device) { StartFailure = StartFailures.GetValueOrDefault(kind), DisposeFailure = DisposeFailures.GetValueOrDefault(kind) };
         lock (Sources)
         {
             Sources.Add(source);

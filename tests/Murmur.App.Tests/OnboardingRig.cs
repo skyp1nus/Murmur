@@ -7,9 +7,10 @@ namespace Murmur.App.Tests;
 /// <summary>The onboarding with every service faked: the settings screen, the shell, a recorder, a model manager and a pipeline.</summary>
 internal sealed class OnboardingRig : IDisposable
 {
-    public OnboardingRig(AppSettings? initial = null, bool models = true, bool processing = true)
+    public OnboardingRig(AppSettings? initial = null, bool models = true, bool processing = true, FakeSettingsStore? store = null, FakeSessionStore? sessions = null)
     {
-        Store = new FakeSettingsStore(initial);
+        Store = store ?? new FakeSettingsStore(initial);
+        Sessions = sessions ?? new FakeSessionStore();
         Settings = new SettingsViewModel(Store, Capture, models ? Manager : null, null, "/data/Recordings", null, action => action(), version: "0.4.0");
         Onboarding = new OnboardingViewModel(
             Settings,
@@ -31,7 +32,10 @@ internal sealed class OnboardingRig : IDisposable
             recording,
             chatFactory: scope => new ChatViewModel(new FakeAssistant(), new FakeLlm(), Recorder, scope, "/models"),
             settings: Settings,
-            onboarding: Onboarding);
+            onboardingFactory: () => Onboarding,
+            settingsStore: Store,
+            trials: new TrialSessionCleaner(Sessions, processing ? Processing : null),
+            post: action => action());
     }
 
     public FakeSettingsStore Store { get; }
@@ -42,7 +46,7 @@ internal sealed class OnboardingRig : IDisposable
 
     public FakeRecorder Recorder { get; } = new();
 
-    public FakeSessionStore Sessions { get; } = new();
+    public FakeSessionStore Sessions { get; }
 
     public FakeModelManager Manager { get; } = new();
 

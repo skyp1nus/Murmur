@@ -22,8 +22,7 @@ public sealed record OnboardingSegment(bool IsFilled);
 /// <remarks>
 /// <para>The steps reuse the Settings' view models (devices, folder, hotkey, models) and its settings writer, so every
 /// choice is saved as it is made and the Settings screen shows the same state.</para>
-/// <para>"Пройти знайомство ще раз" in the Settings clears the flag; the store's change event brings the onboarding up at once
-/// (<see cref="RestartRequested"/>).</para>
+/// <para>The shell builds it lazily and watches the flag ("Пройти знайомство ще раз" in the Settings clears it).</para>
 /// </remarks>
 public sealed partial class OnboardingViewModel : ObservableObject, IDisposable
 {
@@ -33,7 +32,6 @@ public sealed partial class OnboardingViewModel : ObservableObject, IDisposable
     private readonly ISettingsStore _store;
     private readonly Action<Action> _post;
     private readonly OnboardingStepViewModel[] _steps;
-    private bool _wasCompleted;
     private bool _finishing;
     private bool _disposed;
 
@@ -88,9 +86,6 @@ public sealed partial class OnboardingViewModel : ObservableObject, IDisposable
         _steps = [new WelcomeStepViewModel(), Audio, modelsStep, Preferences, firstRecording];
         CurrentStep = _steps[0];
         Segments = BuildSegments(1);
-
-        _wasCompleted = store.Current.OnboardingCompleted;
-        store.Changed += OnSettingsChanged;
     }
 
     public AudioStepViewModel Audio { get; }
@@ -120,9 +115,6 @@ public sealed partial class OnboardingViewModel : ObservableObject, IDisposable
     /// <summary>The onboarding was finished or skipped; the flag is saved. The shell shows the library.</summary>
     public event Action? Completed;
 
-    /// <summary>The flag was cleared while the app runs (Settings → "Пройти знайомство ще раз"): show the onboarding now.</summary>
-    public event Action? RestartRequested;
-
     /// <summary>A trial session was deleted from the library: a visible library list should reload.</summary>
     public event Action? TrialSessionDeleted;
 
@@ -146,9 +138,6 @@ public sealed partial class OnboardingViewModel : ObservableObject, IDisposable
 
     /// <summary>The window is closing or another page replaces the onboarding: everything the current step runs stops.</summary>
     public void Suspend() => CurrentStep.Deactivate();
-
-    /// <summary>The visible page is the onboarding again after <see cref="Suspend"/> (for example the window was re-attached).</summary>
-    public void Resume() => CurrentStep.Activate();
 
     [RelayCommand]
     private void Continue()
@@ -219,28 +208,9 @@ public sealed partial class OnboardingViewModel : ObservableObject, IDisposable
         step.Deactivate();
 
         // The flag first: whatever happens to the clean-up, the onboarding does not come back at the next start.
-        _wasCompleted = true;
         await _writer.UpdateAsync(s => s with { OnboardingCompleted = true }).ConfigureAwait(true);
         await step.Settled.ConfigureAwait(true);
         Completed?.Invoke();
-    }
-
-    private void OnSettingsChanged(AppSettings settings)
-    {
-        _post(() =>
-        {
-            if (_disposed)
-            {
-                return;
-            }
-
-            var restart = _wasCompleted && !settings.OnboardingCompleted;
-            _wasCompleted = settings.OnboardingCompleted;
-            if (restart)
-            {
-                RestartRequested?.Invoke();
-            }
-        });
     }
 
     private static OnboardingSegment[] BuildSegments(int step)
@@ -262,7 +232,6 @@ public sealed partial class OnboardingViewModel : ObservableObject, IDisposable
         }
 
         _disposed = true;
-        _store.Changed -= OnSettingsChanged;
         Suspend();
         FirstRecording.Dispose();
     }

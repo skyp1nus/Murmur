@@ -393,6 +393,14 @@
     <Setter Property="HorizontalAlignment" Value="Stretch" />
   </Style>
 
+  <!-- Progress bars: Ink on Stone, pill-shaped. The Fluent resource overrides above do not reach the template, so the colours are set here. -->
+  <Style Selector="ProgressBar">
+    <Setter Property="Foreground" Value="{DynamicResource Brush.Ink}" />
+    <Setter Property="Background" Value="{DynamicResource Brush.Stone}" />
+    <Setter Property="CornerRadius" Value="{StaticResource Radius.Pill}" />
+    <Setter Property="MinHeight" Value="0" />
+  </Style>
+
   <!-- Library list: flat rows, achromatic hover and selection. -->
   <Style Selector="ListBox.sessions">
     <Setter Property="Background" Value="Transparent" />

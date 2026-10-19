@@ -626,7 +626,7 @@
     <value>Пройти знайомство ще раз</value>
   </data>
   <data name="Appearance_OnboardingDone" xml:space="preserve">
-    <value>Знайомство зʼявиться під час наступного запуску.</value>
+    <value>Знайомство відкриється зараз.</value>
   </data>
   <data name="About_License" xml:space="preserve">
     <value>Ліцензія проєкту — {0}</value>
@@ -680,13 +680,13 @@
     <value>Скажи кілька слів — індикатор має рухатись.</value>
   </data>
   <data name="Onb2_DeniedTitle" xml:space="preserve">
-    <value>Murmur потрібен доступ до мікрофона</value>
+    <value>Murmur потребує доступу до мікрофона</value>
   </data>
   <data name="Onb2_DeniedText" xml:space="preserve">
-    <value>Дозволь доступ до мікрофона для класичних застосунків у налаштуваннях конфіденційності Windows. Звук обробляється лише на цьому ПК.</value>
+    <value>Дозволь класичним програмам доступ до мікрофона в параметрах конфіденційності Windows. Звук обробляється лише на цьому ПК.</value>
   </data>
   <data name="Onb2_OpenSettings" xml:space="preserve">
-    <value>Відкрити налаштування Windows</value>
+    <value>Відкрити параметри Windows</value>
   </data>
   <data name="Onb2_TryAgain" xml:space="preserve">
     <value>Спробувати ще раз</value>
@@ -722,7 +722,7 @@
     <value>Завантажимо моделі.</value>
   </data>
   <data name="Onb3_Subline" xml:space="preserve">
-    <value>Моделі працюють на твоєму ПК. Обери те, що пасує до твого заліза.</value>
+    <value>Обери модель під свій компʼютер.</value>
   </data>
   <data name="Onb3_Transcription" xml:space="preserve">
     <value>Транскрипція · Parakeet v3</value>
@@ -775,10 +775,10 @@
     <value>Найкраща якість, потрібна потужна відеокарта</value>
   </data>
   <data name="Onb3_Light" xml:space="preserve">
-    <value>Швидка й нетребовальна до памʼяті</value>
+    <value>Швидка й невибаглива до памʼяті</value>
   </data>
   <data name="Onb3_SkipAi" xml:space="preserve">
-    <value>Пропустити AI зараз</value>
+    <value>Поки без AI</value>
   </data>
   <data name="Onb3_Background" xml:space="preserve">
     <value>Завантаження триває у фоні.</value>
@@ -816,7 +816,7 @@
     <comment>{0} = size</comment>
   </data>
   <data name="Onb4_Hotkey" xml:space="preserve">
-    <value>Гаряча клавіша старт / стоп</value>
+    <value>Гаряча клавіша: почати / зупинити запис</value>
   </data>
   <data name="Onb4_HotkeyText" xml:space="preserve">
     <value>Натисни на поле й задай нову комбінацію</value>

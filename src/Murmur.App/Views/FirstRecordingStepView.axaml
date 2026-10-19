@@ -64,7 +64,7 @@
                      TextWrapping="Wrap"
                      Foreground="{DynamicResource Brush.Smoke}"
                      Text="{Binding PlaceholderText}" />
-          <ProgressBar Classes="onb" x:Name="TrialProgress"
+          <ProgressBar x:Name="TrialProgress"
                        Height="{StaticResource Size.Progress}"
                        Minimum="0"
                        Maximum="100"

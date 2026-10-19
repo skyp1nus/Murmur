@@ -32,6 +32,12 @@ public sealed partial class ModelsStepViewModel : OnboardingStepViewModel
     private readonly IModelManager? _manager;
     private readonly List<ModelRowViewModel> _required = [];
 
+    /// <summary>
+    /// Free bytes of the models drive, read when the step opens, when the drive's free space changes (an install ended) and
+    /// when a choice is made; never on a progress tick. -1 = not read yet or unknown.
+    /// </summary>
+    private long _freeBytes = -1;
+
     internal ModelsStepViewModel(ModelsSettingsViewModel? models, IModelManager? manager)
     {
         _models = models;
@@ -147,6 +153,7 @@ public sealed partial class ModelsStepViewModel : OnboardingStepViewModel
         }
 
         _models.Refresh();
+        RefreshFreeBytes();
         if (!SkipAiSelected && !Choices.Any(c => c.IsSelected))
         {
             // Come back to a choice made earlier (or started in the Settings): the busy or the active chat model.
@@ -208,10 +215,11 @@ public sealed partial class ModelsStepViewModel : OnboardingStepViewModel
 
         if (!row.IsInstalled && !row.IsBusy)
         {
+            RefreshFreeBytes();
             var need = BytesStillNeeded(row);
             if (!HasSpaceFor(need))
             {
-                SpaceMessage = UiText.Format(Strings.Onb3_NoSpace, UiFormat.Size(need), UiFormat.Size(_manager!.AvailableFreeSpaceBytes));
+                SpaceMessage = UiText.Format(Strings.Onb3_NoSpace, UiFormat.Size(need), UiFormat.Size(_freeBytes));
                 return;
             }
         }
@@ -261,6 +269,7 @@ public sealed partial class ModelsStepViewModel : OnboardingStepViewModel
         {
             OnPropertyChanged(nameof(FreeSpaceText));
             OnPropertyChanged(nameof(HasFreeSpace));
+            RefreshFreeBytes();
             Recompute();
         }
     }
@@ -303,7 +312,7 @@ public sealed partial class ModelsStepViewModel : OnboardingStepViewModel
         {
             choice.IsEnabled = !Choices.Any(other => !ReferenceEquals(other, choice) && other.IsBusy);
             choice.SpaceText = choice.Row.State == ModelRowState.NotInstalled && !HasSpaceFor(BytesStillNeeded(choice.Row))
-                ? UiText.Format(Strings.Onb3_NoSpace, UiFormat.Size(BytesStillNeeded(choice.Row)), UiFormat.Size(_manager!.AvailableFreeSpaceBytes))
+                ? UiText.Format(Strings.Onb3_NoSpace, UiFormat.Size(BytesStillNeeded(choice.Row)), UiFormat.Size(_freeBytes))
                 : null;
             choice.Notify();
         }
@@ -338,10 +347,8 @@ public sealed partial class ModelsStepViewModel : OnboardingStepViewModel
         return bytes;
     }
 
+    private void RefreshFreeBytes() => _freeBytes = _manager?.AvailableFreeSpaceBytes ?? -1;
+
     /// <summary>The models drive can hold <paramref name="bytes"/>; an unknown amount of free space never blocks.</summary>
-    private bool HasSpaceFor(long bytes)
-    {
-        var free = _manager?.AvailableFreeSpaceBytes ?? -1;
-        return free < 0 || free == long.MaxValue || bytes <= free;
-    }
+    private bool HasSpaceFor(long bytes) => _freeBytes < 0 || _freeBytes == long.MaxValue || bytes <= _freeBytes;
 }

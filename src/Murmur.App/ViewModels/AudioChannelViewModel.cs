@@ -109,20 +109,17 @@ public sealed partial class AudioChannelViewModel : ObservableObject
         }
 
         var id = _deviceId();
-        var sink = Meter;
-        var (source, error) = await Task.Run(() => Open(id, sink)).ConfigureAwait(true);
+        var (running, error) = await Task.Run(() => Open(id)).ConfigureAwait(true);
         if (generation != _generation)
         {
             // Another start or a stop came while the device was opening: give this one back.
-            await CloseAsync(source is null ? null : new Running(source, null)).ConfigureAwait(true);
+            await CloseAsync(running).ConfigureAwait(true);
             return;
         }
 
-        if (source is not null)
+        if (running is not null)
         {
-            Action<CaptureFault> handler = fault => OnFaulted(source, fault);
-            _running = new Running(source, handler);
-            source.Faulted += handler;
+            _running = running;
             State = AudioChannelState.Live;
             return;
         }
@@ -131,9 +128,11 @@ public sealed partial class AudioChannelViewModel : ObservableObject
         State = error is null ? AudioChannelState.NoDevice : IsAccessDenied(error) ? AudioChannelState.Denied : AudioChannelState.Failed;
     }
 
-    private (IAudioSource? Source, Exception? Error) Open(string? deviceId, IAudioSink sink)
+    /// <summary>Opens and starts the source on a background thread. The fault handler is attached before the first buffer can arrive.</summary>
+    private (Running? Running, Exception? Error) Open(string? deviceId)
     {
         IAudioSource? source = null;
+        Action<CaptureFault>? handler = null;
         try
         {
             if (!HasDevice(deviceId))
@@ -141,13 +140,25 @@ public sealed partial class AudioChannelViewModel : ObservableObject
                 return (null, null);
             }
 
-            source = _capture.CreateAudioSource(_kind, deviceId);
-            source.Start(sink);
-            return (source, null);
+            var created = _capture.CreateAudioSource(_kind, deviceId);
+            source = created;
+            handler = fault => OnFaulted(created, fault);
+            created.Faulted += handler;
+            created.Start(Meter);
+            return (new Running(created, handler), null);
         }
         catch (Exception ex)
         {
-            source?.Dispose();
+            if (source is not null)
+            {
+                if (handler is not null)
+                {
+                    source.Faulted -= handler;
+                }
+
+                TryDispose(source);
+            }
+
             return (null, ex);
         }
     }
@@ -187,8 +198,21 @@ public sealed partial class AudioChannelViewModel : ObservableObject
                 // A device that is already gone cannot be stopped; it is released below either way.
             }
 
-            source.Dispose();
+            TryDispose(source);
         });
+    }
+
+    /// <summary>Releasing a device that is already gone may throw; it must not leave the channel stuck in "opening".</summary>
+    private static void TryDispose(IAudioSource source)
+    {
+        try
+        {
+            source.Dispose();
+        }
+        catch (Exception)
+        {
+            // Nothing more can be done with it.
+        }
     }
 
     private void OnFaulted(IAudioSource source, CaptureFault fault) => _post(() =>
