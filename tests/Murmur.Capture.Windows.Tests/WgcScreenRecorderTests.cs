@@ -169,7 +169,7 @@ public sealed class WgcScreenRecorderTests(ITestOutputHelper output)
             Assert.True(length > 10 * 1024, $"segment is only {length} bytes");
             Assert.True(stats.FramesEncoded >= 1, stats.ToString());
             Assert.Equal(0, recorder.PlaceholderFrames);
-            AssertDuration(TimeSpan.FromSeconds(3), probe);
+            AssertDuration(TimeSpan.FromSeconds(3), probe, elapsed);
             AssertFrameRate(recorder, requested: 60);
             AssertTimeline(path, elapsed, recorder.EncoderFrameRate);
             AssertEncoderKeptUp(recorder, stats, probe.Frames);
@@ -222,7 +222,7 @@ public sealed class WgcScreenRecorderTests(ITestOutputHelper output)
             Assert.True(second.FramesEncoded > first.FramesEncoded, "the second segment encoded nothing");
             for (var i = 0; i < paths.Length; i++)
             {
-                AssertDuration(TimeSpan.FromSeconds(1.5), probes[i]);
+                AssertDuration(TimeSpan.FromSeconds(1.5), probes[i], elapsed[i]);
                 AssertTimeline(paths[i], elapsed[i], frameRate: 15);
             }
 
@@ -268,7 +268,7 @@ public sealed class WgcScreenRecorderTests(ITestOutputHelper output)
             Assert.Equal(recorder.LastEncoderSize, new PixelSize(probe.Width, probe.Height));
             Assert.True(stats.FramesEncoded >= 1, stats.ToString());
             Assert.Equal(0, recorder.PlaceholderFrames);
-            AssertDuration(TimeSpan.FromSeconds(2), probe);
+            AssertDuration(TimeSpan.FromSeconds(2), probe, elapsed);
             AssertTimeline(path, elapsed, frameRate: 15);
             AssertEncoderKeptUp(recorder, stats, probe.Frames);
         }
@@ -339,7 +339,7 @@ public sealed class WgcScreenRecorderTests(ITestOutputHelper output)
             Assert.Equal(0, recorder.RepeatsSkipped);
             AssertFrameRate(recorder, fps);
             AssertTimeline(path, elapsed, recorder.EncoderFrameRate);
-            AssertDuration(TimeSpan.FromSeconds(5), Mp4Probe.Read(path));
+            AssertDuration(TimeSpan.FromSeconds(5), Mp4Probe.Read(path), elapsed);
         }
         finally
         {
@@ -518,10 +518,15 @@ public sealed class WgcScreenRecorderTests(ITestOutputHelper output)
         Assert.Equal(cpu ? Math.Min(requested, FramePathPolicy.CpuMaxFrameRate) : requested, recorder.EncoderFrameRate);
     }
 
-    private static void AssertDuration(TimeSpan expected, Mp4ProbeResult probe)
+    /// <summary>
+    /// The file is at least as long as the recording the test waited for. Its end is bounded by the measured start and
+    /// stop calls, not by <paramref name="expected"/>: since D-033 the file starts at the StartSegmentAsync call, so a
+    /// slow encoder start-up (up to ~2.4 s on WARP) is part of it. <see cref="AssertTimeline"/> checks that bound exactly.
+    /// </summary>
+    private static void AssertDuration(TimeSpan expected, Mp4ProbeResult probe, SegmentClock elapsed)
     {
         var actual = TimeSpan.FromTicks(probe.Duration);
-        Assert.InRange(actual, expected - DurationTolerance, expected + DurationTolerance);
+        Assert.InRange(actual, expected - DurationTolerance, elapsed.Outer + DurationTolerance);
     }
 
     private static string TempMp4() => Path.Combine(Path.GetTempPath(), $"murmur-screen-{Guid.NewGuid():N}.mp4");
