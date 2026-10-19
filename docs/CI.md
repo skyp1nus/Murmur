@@ -149,7 +149,7 @@ Workflow сам збирає Native AOT `Murmur.Desktop` win-x64 (без `Murmur
 
 ## Models (`.github/workflows/models.yml`)
 
-Реальні завантаження каталогу моделей (`src/Murmur.Models`, фаза 4 «моделі завантажуються при першому запуску») з Hugging Face і GitHub тим самим рушієм, що й застосунок. Юніт-тести `Murmur.Models.Tests` ходять лише до локального фейкового HTTP-сервера (вони в `ci.yml`), тож це єдине місце, де перевіряються справжні URL. Запускається на pull request, що чіпає `src/Murmur.Models/**`, `tools/Murmur.ModelFetch/**` або сам workflow, і вручну (`workflow_dispatch`); `concurrency: models-<ref>`, права `contents: read`, `ubuntu-latest`, 45 хв. Той самий пін SDK і крок `Verify SDK matches global.json`, що в `ci.yml`.
+Реальні завантаження каталогу моделей (`src/Murmur.Models`, фаза 4 «моделі завантажуються при першому запуску») з Hugging Face і GitHub тим самим рушієм, що й застосунок. Юніт-тести `Murmur.Models.Tests` ходять лише до локального фейкового HTTP-сервера (вони в `ci.yml`), тож це єдине місце, де перевіряються справжні URL. Запускається лише вручну (`workflow_dispatch`, рішення власника: менше запусків Actions); `concurrency: models-<ref>`, права `contents: read`, `ubuntu-latest`, 45 хв. Той самий пін SDK і крок `Verify SDK matches global.json`, що в `ci.yml`.
 
 Кроки:
 
@@ -161,7 +161,21 @@ Workflow сам збирає Native AOT `Murmur.Desktop` win-x64 (без `Murmur
 
 Тест ASR-воркера на справжній моделі до workflow не додано: `RealModelTests` беруть тестові WAV із `<parakeet>/test_wavs/`, а каталог ставить лише чотири файли моделі (без `test_wavs`), тож це не однорядкова команда.
 
-Локально: `dotnet run -c Release --project tools/Murmur.ModelFetch -- --dir ./models --ids silero-vad,llama-cpp-b11716`. Код виходу 0 - усе гаразд, 1 - предмет не встановився або URL недоступний, 2 - помилка аргументів. UNVERIFIED-ON-ACTIONS: workflow не запускався на GitHub Actions (YAML розібрано `python yaml`); завантаження `silero-vad` і `llama-cpp-b11716` (tar.gz) із GitHub перевірено вручну на Linux-середовищі розробки, Hugging Face там недоступний. Windows-збірка llama.cpp (zip) перевірена лише на синтетичному архіві (UNVERIFIED-ON-WINDOWS).
+### Локальний запуск `Murmur.ModelFetch` (Windows і Linux)
+
+Той самий інструмент власник може запускати на своєму ПК, щоб перевірити каталог без CI (потрібен лише .NET SDK з `global.json`; доступ до Hugging Face і GitHub):
+
+```powershell
+# Перевірити, що URL відповідають, і побачити розміри (нічого не качає):
+dotnet run -c Release --project tools/Murmur.ModelFetch -- --dir "$env:TEMP\murmur-models" --head-only parakeet-tdt-0.6b-v3-int8,silero-vad,llama-cpp-b11716,embeddinggemma-300m-q8,gemma-4-e4b-q4,gemma-4-26b-a4b-q4
+
+# Встановити предмети й надрукувати розмір та SHA-256 кожного файла (Windows-збірка llama.cpp - zip):
+dotnet run -c Release --project tools/Murmur.ModelFetch -- --dir "$env:TEMP\murmur-models" --ids silero-vad,llama-cpp-b11716,embeddinggemma-300m-q8 --summary summary.md
+```
+
+Параметри: `--dir <тека>` (обов'язковий; розкладка така, як читає застосунок: `silero_vad.onnx`, `llama.cpp\`, `gguf\` + `gguf\models.json`), `--ids a,b` (встановити), `--head-only a,b` (лише перевірити URL), `--summary <файл.md>` (дописати markdown-таблицю). Ідентифікатори: `parakeet-tdt-0.6b-v3-int8`, `silero-vad`, `llama-cpp-b11716`, `embeddinggemma-300m-q8`, `gemma-4-e4b-q4`, `gemma-4-26b-a4b-q4`. Перервану команду можна запустити знову: часткові файли (`.staging\<id>\`) докачуються. Код виходу 0 - усе гаразд, 1 - предмет не встановився або URL недоступний, 2 - помилка аргументів. Системний проксі враховується. На Windows `--head-only gemma-4-26b-a4b-q4` перевіряє припущення про ім'я файла 26B.
+
+UNVERIFIED-ON-ACTIONS: workflow не запускався на GitHub Actions (YAML розібрано `python yaml`); завантаження `silero-vad` і `llama-cpp-b11716` (tar.gz) із GitHub перевірено вручну на Linux-середовищі розробки, Hugging Face там недоступний. Windows-збірка llama.cpp (zip) і запуск інструмента на Windows перевірені лише на синтетичному архіві й тестами на Linux (UNVERIFIED-ON-WINDOWS).
 
 ## AI-eval: «відповідь AI веде на правильну хвилину» (`.github/workflows/ai-eval.yml`)
 

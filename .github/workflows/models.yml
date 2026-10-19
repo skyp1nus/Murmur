@@ -4,12 +4,8 @@ name: models
 # The unit tests of Murmur.Models run against a local fake server (ci.yml); this workflow is the only place that touches
 # the real hosts. It also prints the size and SHA-256 of every file so the catalog can pin them later.
 
+# Manual only (workflow_dispatch): the downloads are large and the hosts are external, so no automatic triggers.
 on:
-  pull_request:
-    paths:
-      - "src/Murmur.Models/**"
-      - "tools/Murmur.ModelFetch/**"
-      - ".github/workflows/models.yml"
   workflow_dispatch:
 
 concurrency:
