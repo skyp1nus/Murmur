@@ -8,6 +8,12 @@
     <IsTestProject>true</IsTestProject>
     <RootNamespace>Murmur.Capture.Windows.Tests</RootNamespace>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <!--
+      Same as Murmur.Core.Tests: the app ships as Native AOT (no JIT tiering). With tiering on, a tier-up can allocate
+      on the thread that triggers it, which the zero-allocation assertions (capture pump, sample conversion, playback
+      mixer, GPU frame copier) would blame on our code — seen as flaky failures under parallel test load.
+    -->
+    <TieredCompilation>false</TieredCompilation>
   </PropertyGroup>
 
   <ItemGroup>
