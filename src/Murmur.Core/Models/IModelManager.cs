@@ -60,8 +60,16 @@ public interface IModelManager
     /// <summary>
     /// Downloads (resuming a partial download), verifies (size, and SHA-256 when the catalog knows it) and installs
     /// the item atomically: until it completes, the previous state stays on disk. Cancelling keeps the partial
-    /// download for the next attempt. Installing a chat or embedding model also makes it the active one.
+    /// download for the next attempt. Installing a chat or embedding model also makes it the active one; installing an
+    /// item that is already installed only does that (no download, no re-verification — repair is Remove, then Install).
     /// </summary>
+    /// <remarks>
+    /// A call for an item that is already installing joins the running install: only the first caller's token cancels
+    /// the download, a joiner's token only stops that joiner's wait. A failed install both leaves
+    /// <see cref="ModelInstallState.Failed"/> in <see cref="GetStatus"/> and faults the returned task, so callers that
+    /// start an install must observe the task. UI: start installs with an app-lifetime token per item and offer an
+    /// explicit cancel.
+    /// </remarks>
     Task InstallAsync(string id, CancellationToken cancellationToken);
 
     /// <summary>Deletes the item's files. Removing the active chat model leaves AI without a chat model.</summary>
