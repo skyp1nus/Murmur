@@ -67,10 +67,25 @@ public sealed partial class SettingsStartupTests : IDisposable
         window.GetVisualDescendants().OfType<TextBlock>().Where(t => t.IsEffectivelyVisible && !string.IsNullOrEmpty(t.Text)).Select(t => t.Text!).ToArray();
 
     /// <summary>What <c>App.Initialize</c> does with the store, replayed on the running headless application.</summary>
-    private static ThemeApplier StartUp(JsonSettingsStore store)
+    private static StartUpScope StartUp(JsonSettingsStore store) => new(store);
+
+    /// <summary>The settings-driven start-up with the language scoped to the test flow, never the process-wide value.</summary>
+    private sealed class StartUpScope : IDisposable
     {
-        UiCulture.Apply(store.Current.Language);
-        return new ThemeApplier(Application.Current!, store);
+        private readonly IDisposable _language;
+        private readonly ThemeApplier _theme;
+
+        public StartUpScope(JsonSettingsStore store)
+        {
+            _language = UiCulture.Override(store.Current.Language);
+            _theme = new ThemeApplier(Application.Current!, store);
+        }
+
+        public void Dispose()
+        {
+            _theme.Dispose();
+            _language.Dispose();
+        }
     }
 
     [Theory]
@@ -89,7 +104,6 @@ public sealed partial class SettingsStartupTests : IDisposable
             {
                 var app = Application.Current!;
                 var before = app.RequestedThemeVariant;
-                var cultureBefore = UiCulture.Language;
                 try
                 {
                     using var applier = StartUp(store);
@@ -103,7 +117,6 @@ public sealed partial class SettingsStartupTests : IDisposable
                 finally
                 {
                     app.RequestedThemeVariant = before;
-                    UiCulture.Apply(cultureBefore);
                 }
             },
             TestContext.Current.CancellationToken);
@@ -190,7 +203,6 @@ public sealed partial class SettingsStartupTests : IDisposable
             {
                 var app = Application.Current!;
                 var before = app.RequestedThemeVariant;
-                var cultureBefore = UiCulture.Language;
                 try
                 {
                     using var applier = StartUp(store);
@@ -204,7 +216,6 @@ public sealed partial class SettingsStartupTests : IDisposable
                 finally
                 {
                     app.RequestedThemeVariant = before;
-                    UiCulture.Apply(cultureBefore);
                 }
             },
             TestContext.Current.CancellationToken);
