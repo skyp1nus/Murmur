@@ -190,7 +190,7 @@ function Invoke-StartupCheck([string] $Step, [string] $Exe, [string] $Name, [swi
         "median $([math]::Round([double]$json.stats.median)) ms (budget 400), first run $([math]::Round([double]$json.cold.startupMs)) ms"
     } else { "see $Name.log" }
     $status = if ($code -eq 0) { 'PASS' } else { 'FAIL' }
-    if ($status -eq 'FAIL' -and $BudgetIsInfo -and $json -and $json.stats -and [int]$json.failedRuns -eq 0) {
+    if ($status -eq 'FAIL' -and $BudgetIsInfo -and $json -and $json.stats -and [int]$json.failedRuns -eq 0 -and $json.withinBudget -eq $false) {
         $status = 'INFO'
         $summary += '; over budget here, the budget is checked by the Startup step'
     }

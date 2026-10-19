@@ -289,8 +289,9 @@ jobs:
           }
           exit $code
 
-      # Silent install into a temp folder -> Murmur.exe + Murmur.Transcription.exe present -> startup budget on the
-      # installed exe -> silent uninstall -> folder gone, user data kept.
+      # Silent install into a temp folder -> Murmur.exe + Murmur.Transcription.exe present -> startup check of the
+      # installed exe (every run renders a frame; the median is reported, the startup job enforces the budget) ->
+      # silent uninstall -> folder gone, user data kept.
       - name: Install, start, uninstall
         run: |
           $setup = (Get-ChildItem artifacts/installer -Filter 'Murmur-Setup-*.exe' | Select-Object -First 1).FullName
