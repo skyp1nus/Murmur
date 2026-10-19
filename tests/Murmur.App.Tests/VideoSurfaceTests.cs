@@ -83,7 +83,10 @@ public sealed class VideoSurfaceTests
         var (copied, builds, none, again) = await Session.Dispatch(
             () =>
             {
-                var (window, surface) = Show(player);
+                // Shown inactive and activated without pumping: the render-priority poll timer must not take the opened
+                // file's first picture before the test does (a pump lasts long enough for a tick on a coarse Windows clock).
+                var (window, surface) = Show(player, active: false);
+                surface.Active = true;
                 var first = surface.CopyFrame(); // the opened file's first picture
                 var noNews = Enumerable.Range(0, 5).Count(_ => surface.CopyFrame());
                 player.NewPicture();

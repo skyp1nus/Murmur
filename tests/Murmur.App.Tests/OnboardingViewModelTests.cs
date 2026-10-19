@@ -777,13 +777,15 @@ public sealed class OnboardingViewModelTests
         var preferences = rig.Onboarding.Preferences;
         Assert.Equal("/data/Recordings", preferences.Storage.EffectivePath);
         Assert.Contains("250", preferences.FreeSpaceText, StringComparison.Ordinal);
-        preferences.Storage.FolderPicker = new FakeFolderPicker { Result = "/mnt/big/Murmur" };
+        // Fully qualified on every OS: the view model rejects a rooted-but-driveless "/mnt/..." on Windows.
+        var chosen = OperatingSystem.IsWindows() ? @"D:\big\Murmur" : "/mnt/big/Murmur";
+        preferences.Storage.FolderPicker = new FakeFolderPicker { Result = chosen };
 
         preferences.Storage.ChangeCommand.Execute(null);
         await preferences.Storage.LastOperation;
 
-        Assert.Equal("/mnt/big/Murmur", rig.Store.Current.RecordingsDirectory);
-        Assert.Equal("/mnt/big/Murmur", preferences.Storage.EffectivePath);
+        Assert.Equal(chosen, rig.Store.Current.RecordingsDirectory);
+        Assert.Equal(chosen, preferences.Storage.EffectivePath);
     }
 
     [Fact]

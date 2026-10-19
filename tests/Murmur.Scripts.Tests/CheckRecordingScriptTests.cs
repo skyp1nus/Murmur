@@ -389,6 +389,8 @@ public sealed class CheckRecordingScriptTests : IDisposable
         {
             RedirectStandardOutput = true,
             RedirectStandardError = true,
+            StandardOutputEncoding = Encoding.UTF8, // the report carries Ukrainian warnings; the default is the console code page
+            StandardErrorEncoding = Encoding.UTF8,
             UseShellExecute = false,
             CreateNoWindow = true,
         };
