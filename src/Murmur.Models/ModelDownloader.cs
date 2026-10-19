@@ -40,16 +40,29 @@ internal sealed class ModelDownloader(HttpClient http, IReadOnlyList<TimeSpan> r
         File.Delete(ValidatorPath(partPath));
     }
 
+    /// <summary>
+    /// A part started from another source (mirror) must not be continued from this one: the files may differ.
+    /// A part without a record (older run) is kept.
+    /// </summary>
+    public static void DiscardForeignPart(string partPath, string url)
+    {
+        if (File.Exists(partPath) && ReadValidator(partPath).Url is { } recorded && recorded != url)
+        {
+            DiscardPart(partPath);
+        }
+    }
+
     private static string ValidatorPath(string partPath) => partPath + ".validator";
 
     /// <summary>
     /// What the part was started from: a strong ETag or Last-Modified for <c>If-Range</c>, and the total size the server
     /// announced then. Missing or unreadable record: no condition, total unknown (-1).
     /// </summary>
-    private static (RangeConditionHeaderValue? Condition, long Total) ReadValidator(string partPath)
+    private static (RangeConditionHeaderValue? Condition, long Total, string? Url) ReadValidator(string partPath)
     {
         RangeConditionHeaderValue? condition = null;
         long total = -1;
+        string? url = null;
         try
         {
             foreach (var line in File.ReadAllLines(ValidatorPath(partPath)))
@@ -62,6 +75,10 @@ internal sealed class ModelDownloader(HttpClient http, IReadOnlyList<TimeSpan> r
                 {
                     condition = new RangeConditionHeaderValue(modified);
                 }
+                else if (line.StartsWith("url:", StringComparison.Ordinal))
+                {
+                    url = line["url:".Length..];
+                }
                 else if (line.StartsWith("total:", StringComparison.Ordinal) && long.TryParse(line["total:".Length..], NumberStyles.Integer, CultureInfo.InvariantCulture, out var announced))
                 {
                     total = announced;
@@ -73,10 +90,10 @@ internal sealed class ModelDownloader(HttpClient http, IReadOnlyList<TimeSpan> r
             // No record: resume unconditionally.
         }
 
-        return (condition, total);
+        return (condition, total, url);
     }
 
-    private static void WriteValidator(string partPath, HttpResponseMessage response, long total)
+    private static void WriteValidator(string partPath, string url, HttpResponseMessage response, long total)
     {
         var condition = "none";
         if (response.Headers.ETag is { IsWeak: false } etag)
@@ -91,7 +108,7 @@ internal sealed class ModelDownloader(HttpClient http, IReadOnlyList<TimeSpan> r
         try
         {
             Directory.CreateDirectory(Path.GetDirectoryName(partPath)!);
-            File.WriteAllText(ValidatorPath(partPath), $"{condition}\ntotal:{total.ToString(CultureInfo.InvariantCulture)}\n");
+            File.WriteAllText(ValidatorPath(partPath), $"{condition}\nurl:{url}\ntotal:{total.ToString(CultureInfo.InvariantCulture)}\n");
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
@@ -117,6 +134,7 @@ internal sealed class ModelDownloader(HttpClient http, IReadOnlyList<TimeSpan> r
 
     private async Task DownloadOnceAsync(string url, string partPath, long knownTotal, Action<long> onProgress, Action<long> onTotal, CancellationToken cancellationToken)
     {
+        DiscardForeignPart(partPath, url);
         var existing = File.Exists(partPath) ? new FileInfo(partPath).Length : 0;
         if (knownTotal >= 0)
         {
@@ -145,7 +163,7 @@ internal sealed class ModelDownloader(HttpClient http, IReadOnlyList<TimeSpan> r
 
             // If the file changed on the server since the part was started, the server answers 200 with the whole new
             // file (restart below) instead of a 206 that would splice two versions together.
-            var (condition, announced) = ReadValidator(partPath);
+            var (condition, announced, _) = ReadValidator(partPath);
             recordedTotal = announced;
             request.Headers.IfRange = condition;
         }
@@ -202,7 +220,7 @@ internal sealed class ModelDownloader(HttpClient http, IReadOnlyList<TimeSpan> r
 
         if (!append || !File.Exists(ValidatorPath(partPath)))
         {
-            WriteValidator(partPath, response, total);
+            WriteValidator(partPath, url, response, total);
         }
 
         var position = existing;

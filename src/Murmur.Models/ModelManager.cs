@@ -160,15 +160,18 @@ public sealed class ModelManager : IModelManager, IDisposable
         }
     }
 
-    /// <summary>Asks the server for the size of every file of the item without downloading it (a one-byte range request).</summary>
+    /// <summary>
+    /// Asks the servers for the size of every file of the item without downloading it (a one-byte range request): the
+    /// first source of a file that answers wins. Fails, listing every source, when none answers.
+    /// </summary>
     public async Task<IReadOnlyList<ModelFileProbe>> ProbeAsync(string id, CancellationToken cancellationToken)
     {
         var item = Find(id);
         var result = new List<ModelFileProbe>(item.Files.Count);
         foreach (var file in item.Files)
         {
-            var length = await _downloader.ProbeAsync(file.Url, cancellationToken).ConfigureAwait(false);
-            result.Add(new ModelFileProbe(file.Url, length >= 0 ? length : null));
+            var choice = await ChooseMirrorAsync(file, cancellationToken).ConfigureAwait(false);
+            result.Add(new ModelFileProbe(choice.Mirror.Url, choice.Total >= 0 ? choice.Total : null, choice.Tried));
         }
 
         return result;
@@ -278,6 +281,53 @@ public sealed class ModelManager : IModelManager, IDisposable
     private static bool NonEmptyFile(string path) => File.Exists(path) && new FileInfo(path).Length > 0;
 
     private static long Length(string path) => File.Exists(path) ? new FileInfo(path).Length : 0;
+
+    private sealed record MirrorChoice(ModelMirror Mirror, long Total, IReadOnlyList<ModelCandidateProbe> Tried);
+
+    /// <summary>
+    /// Asks the sources of a file in order and takes the first that answers with a length (else the first that answers
+    /// at all). A source that does not answer, is empty, or reports a size other than the pinned one is skipped.
+    /// </summary>
+    private async Task<MirrorChoice> ChooseMirrorAsync(ModelFileSpec spec, CancellationToken cancellationToken)
+    {
+        var sources = spec.Sources;
+        var tried = new List<ModelCandidateProbe>(sources.Count);
+        MirrorChoice? withoutLength = null;
+        foreach (var mirror in sources)
+        {
+            try
+            {
+                var total = await _downloader.ProbeAsync(mirror.Url, cancellationToken).ConfigureAwait(false);
+                if (mirror.SizeBytes is { } expected && total >= 0 && total != expected)
+                {
+                    tried.Add(new ModelCandidateProbe(mirror.Url, total, $"the server reports {total} bytes, expected {expected}"));
+                    continue;
+                }
+
+                if (total == 0)
+                {
+                    tried.Add(new ModelCandidateProbe(mirror.Url, 0, "the file is empty"));
+                    continue;
+                }
+
+                tried.Add(new ModelCandidateProbe(mirror.Url, total >= 0 ? total : null, null));
+                if (total >= 0)
+                {
+                    return new MirrorChoice(mirror, total, tried);
+                }
+
+                withoutLength ??= new MirrorChoice(mirror, total, tried);
+            }
+            catch (ModelInstallException ex) when (sources.Count > 1)
+            {
+                tried.Add(new ModelCandidateProbe(mirror.Url, null, ex.Message));
+            }
+        }
+
+        return withoutLength
+            ?? throw new ModelInstallException(
+                $"None of the {sources.Count} sources of {spec.RelativePath} answered: {string.Join("; ", tried.Select(t => $"{t.Url}: {t.Error}"))}");
+    }
 
     private static async Task<string> Sha256Async(string path, CancellationToken cancellationToken)
     {
@@ -473,7 +523,7 @@ public sealed class ModelManager : IModelManager, IDisposable
 
         if (IsInstalled(item))
         {
-            Activate(item);
+            Activate(item, null);
             lock (_gate)
             {
                 _reports.Remove(item.Id); // nothing was downloaded this time
@@ -488,6 +538,7 @@ public sealed class ModelManager : IModelManager, IDisposable
 
         var files = item.Files;
         var complete = new bool[files.Count];
+        var chosen = new ModelMirror[files.Count];
         for (var i = 0; i < files.Count; i++)
         {
             var spec = files[i];
@@ -495,24 +546,20 @@ public sealed class ModelManager : IModelManager, IDisposable
             var part = final + ".part";
             if (NonEmptyFile(final))
             {
+                // Finished by an earlier run; which source it came from is not recorded, so assume the first.
+                chosen[i] = spec.Sources[0];
                 complete[i] = true;
                 operation.Set(i, Length(final), Length(final));
                 continue;
             }
 
             operation.Set(i, Length(part), -1);
-            var total = await _downloader.ProbeAsync(spec.Url, cancellationToken).ConfigureAwait(false);
-            if (spec.SizeBytes is { } expected && total >= 0 && total != expected)
-            {
-                throw new ModelInstallException($"{spec.Url}: expected {expected} bytes, the server reports {total}");
-            }
+            var choice = await ChooseMirrorAsync(spec, cancellationToken).ConfigureAwait(false);
+            chosen[i] = choice.Mirror;
 
-            if (total == 0)
-            {
-                throw new ModelInstallException($"{spec.Url} is empty");
-            }
-
-            operation.Set(i, Length(part), total);
+            // A part that another source started is not continued from this one.
+            ModelDownloader.DiscardForeignPart(part, choice.Mirror.Url);
+            operation.Set(i, Length(part), choice.Total);
         }
 
         EnsureFreeSpace(operation, complete);
@@ -525,11 +572,12 @@ public sealed class ModelManager : IModelManager, IDisposable
             var final = Path.Combine(dl, spec.RelativePath);
             var part = final + ".part";
             var index = i;
+            var mirror = chosen[i];
 
             if (!complete[i])
             {
                 await _downloader.DownloadAsync(
-                    spec.Url,
+                    mirror.Url,
                     part,
                     operation.TotalOf(i),
                     position =>
@@ -546,23 +594,23 @@ public sealed class ModelManager : IModelManager, IDisposable
             if (length == 0)
             {
                 ModelDownloader.DiscardPart(path);
-                throw new ModelInstallException($"{spec.Url} downloaded as an empty file");
+                throw new ModelInstallException($"{mirror.Url} downloaded as an empty file");
             }
 
-            if (spec.SizeBytes is { } wanted && length != wanted)
+            if (mirror.SizeBytes is { } wanted && length != wanted)
             {
                 ModelDownloader.DiscardPart(path);
-                throw new ModelInstallException($"{spec.Url}: expected {wanted} bytes, got {length}");
+                throw new ModelInstallException($"{mirror.Url}: expected {wanted} bytes, got {length}");
             }
 
             string? hash = null;
-            if (spec.Sha256 is not null || _reportHashes)
+            if (mirror.Sha256 is not null || _reportHashes)
             {
                 hash = await Sha256Async(path, cancellationToken).ConfigureAwait(false);
-                if (spec.Sha256 is not null && !string.Equals(hash, spec.Sha256, StringComparison.OrdinalIgnoreCase))
+                if (mirror.Sha256 is not null && !string.Equals(hash, mirror.Sha256, StringComparison.OrdinalIgnoreCase))
                 {
                     ModelDownloader.DiscardPart(path);
-                    throw new ModelInstallException($"{spec.Url}: SHA-256 mismatch (expected {spec.Sha256.ToLowerInvariant()}, got {hash})");
+                    throw new ModelInstallException($"{mirror.Url}: SHA-256 mismatch (expected {mirror.Sha256.ToLowerInvariant()}, got {hash})");
                 }
             }
 
@@ -573,7 +621,7 @@ public sealed class ModelManager : IModelManager, IDisposable
             }
 
             operation.Set(i, length, length);
-            reports.Add(new ModelFileReport(spec.Url, spec.RelativePath, length, hash));
+            reports.Add(new ModelFileReport(mirror.Url, spec.RelativePath, length, hash));
         }
 
         // A crash between the rename of a file and the deletion of its validator leaves the validator behind: it must
@@ -584,7 +632,7 @@ public sealed class ModelManager : IModelManager, IDisposable
         }
 
         await PlaceAsync(item, root, dl, cancellationToken).ConfigureAwait(false);
-        Activate(item);
+        Activate(item, chosen[0]);
 
         lock (_gate)
         {
@@ -743,11 +791,17 @@ public sealed class ModelManager : IModelManager, IDisposable
         }
     }
 
-    private void Activate(ModelCatalogItem item)
+    /// <summary>Makes a chat or embedding model the active one; <paramref name="source"/> is the mirror it came from, if known.</summary>
+    private void Activate(ModelCatalogItem item, ModelMirror? source)
     {
         if (item.Info.Kind is ModelKind.Chat or ModelKind.Embedding)
         {
-            _manifest.SetActive(item.Info.Kind, TargetFullPath(item), item.Repo, Path.GetFileName(item.TargetPath));
+            _manifest.SetActive(
+                item.Info.Kind,
+                TargetFullPath(item),
+                source?.Repo ?? item.Repo,
+                source?.FileName ?? Path.GetFileName(item.TargetPath),
+                keepRecordedSource: source is null);
         }
     }
 
