@@ -4,7 +4,9 @@ using Avalonia.Controls.Primitives;
 using Avalonia.Headless;
 using Avalonia.Media;
 using Avalonia.VisualTree;
+using Murmur.App.Tests.Fakes;
 using Murmur.App.Views;
+using Murmur.Core.Sessions;
 
 namespace Murmur.App.Tests;
 
@@ -109,6 +111,33 @@ public sealed class MainWindowTests
         Assert.False(hasLibraryView);
         Assert.Contains("Почати запис", labels);
         Assert.Contains("Назад", labels);
+    }
+
+    [Fact]
+    public async Task ARecorderWarning_ShowsAsAnInlineNoticeOnTheRecordingScreen()
+    {
+        var text = Murmur.App.Resources.Strings.Recording_ScreenFramesDropped;
+        var harness = new UiHarness();
+        var shell = harness.CreateShell();
+        shell.ShowRecording();
+        harness.Recorder.ForceRecording(Sessions.Make("Live", UiHarness.Now, TimeSpan.Zero, state: SessionState.Recording));
+
+        var (before, after) = await Session.Dispatch(
+            () =>
+            {
+                var window = UiHarness.Show(shell);
+                bool Visible() => window.GetVisualDescendants().OfType<TextBlock>().Any(t => t.IsVisible && t.Text == text);
+                var visibleBefore = Visible();
+                harness.Recorder.RaiseWarning("core text", Murmur.Core.Capture.CaptureFaultKind.FramesDropped);
+                UiHarness.Pump();
+                var visibleAfter = Visible();
+                window.Close();
+                return (visibleBefore, visibleAfter);
+            },
+            TestContext.Current.CancellationToken);
+
+        Assert.False(before);
+        Assert.True(after);
     }
 
     [Fact]

@@ -128,7 +128,15 @@ internal sealed class FakeRecorder : IRecorder
 
     public RecorderStats Stats => default;
 
+    public bool IsScreenRecording => false;
+
     public event Action<RecorderState>? StateChanged;
+
+    public event Action<RecorderWarning>? Warning
+    {
+        add { }
+        remove { }
+    }
 
     /// <summary>Raises Starting -&gt; Recording for <paramref name="session"/> (Current is set from Recording on, like the real recorder).</summary>
     public void BeginRecording(SessionRecord session)
