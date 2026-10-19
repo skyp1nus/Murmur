@@ -37,7 +37,7 @@ public sealed partial class SqliteStorage
 
     /// <summary>
     /// Absolute session folder. Works for sessions created by an earlier run (the folder is looked up in the database
-    /// and cached). Throws <see cref="KeyNotFoundException"/> for an unknown session.
+    /// and cached; it is stored relative to the data root, or absolute when it lies outside). Throws <see cref="KeyNotFoundException"/> for an unknown session.
     /// </summary>
     public SessionFiles GetFiles(SessionId id)
     {
@@ -174,6 +174,7 @@ public sealed partial class SqliteStorage
         if (relative is not null)
         {
             var folder = ResolveFolder(relative);
+            EnsureDeletable(relative, folder);
             if (Directory.Exists(folder))
             {
                 DeleteFolder(folder);
@@ -245,7 +246,10 @@ public sealed partial class SqliteStorage
     }
 
     /// <summary>
-    /// Creates <c>Recordings/yyyy-MM-dd_HH-mm-ss_&lt;first 8 chars of id&gt;</c> (local time) and returns it relative to the root.
+    /// Creates <c>yyyy-MM-dd_HH-mm-ss_&lt;first 8 chars of id&gt;</c> (local time) inside the configured recordings folder
+    /// (the default <c>Recordings</c> when none is configured or the configured one is unusable) and returns the value for the
+    /// <c>sessions.folder</c> column: relative to the data root with <c>/</c> separators when the folder lies under the root,
+    /// otherwise the absolute path.
     /// The id prefix of a UUIDv7 is its timestamp, so two sessions in the same second can share a name; a numeric suffix keeps
     /// the folders distinct.
     /// </summary>
@@ -253,30 +257,202 @@ public sealed partial class SqliteStorage
     {
         var stamp = startedAt.ToLocalTime().ToString("yyyy-MM-dd_HH-mm-ss", CultureInfo.InvariantCulture);
         var name = stamp + "_" + id.ToString()[..8];
+        var requested = _recordingsFolder?.Invoke();
 
+        string full;
+        RecordingsFolderFallbackInfo? fallback = null;
         lock (_folderLock)
         {
-            var candidate = name;
-            for (var n = 2; Directory.Exists(Path.Combine(_paths.RecordingsDirectory, candidate)); n++)
+            var useDefault = true;
+            full = string.Empty;
+            if (!string.IsNullOrWhiteSpace(requested))
             {
-                candidate = name + "_" + n.ToString(CultureInfo.InvariantCulture);
+                var trimmed = requested.Trim();
+                var reason = TryReserve(trimmed, name, out full);
+                if (reason is null)
+                {
+                    useDefault = false;
+                }
+                else
+                {
+                    fallback = new RecordingsFolderFallbackInfo(id, trimmed, reason);
+                }
             }
 
-            Directory.CreateDirectory(Path.Combine(_paths.RecordingsDirectory, candidate));
-            return StoragePaths.RecordingsFolderName + "/" + candidate;
+            if (useDefault)
+            {
+                // The default folder is ours; a failure here is a real error and propagates.
+                full = CreateUnique(_paths.RecordingsDirectory, name);
+            }
+        }
+
+        _lastFallback = fallback;
+        if (fallback is not null)
+        {
+            RaiseFallback(fallback);
+        }
+
+        return ToStoredFolder(full);
+    }
+
+    /// <summary>Returns <c>null</c> on success (the new folder in <paramref name="created"/>), otherwise why the folder is unusable.</summary>
+    private static string? TryReserve(string folder, string name, out string created)
+    {
+        created = string.Empty;
+        if (!Path.IsPathFullyQualified(folder))
+        {
+            return "The recordings folder is not an absolute path.";
+        }
+
+        try
+        {
+            created = CreateUnique(Path.GetFullPath(folder), name);
+            return null;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException)
+        {
+            return ex.Message;
         }
     }
 
-    private string ResolveFolder(string relative)
+    /// <summary>Creates <paramref name="name"/> (or <c>name_N</c>) inside <paramref name="parent"/>, creating the parent if needed.</summary>
+    private static string CreateUnique(string parent, string name)
     {
-        var full = Path.GetFullPath(Path.Combine(_paths.Root, relative.Replace('/', Path.DirectorySeparatorChar)));
-        var root = Path.TrimEndingDirectorySeparator(_paths.Root) + Path.DirectorySeparatorChar;
-        if (!full.StartsWith(root, StringComparison.Ordinal))
+        var candidate = name;
+        for (var n = 2; Directory.Exists(Path.Combine(parent, candidate)); n++)
         {
-            throw new InvalidDataException($"Session folder '{relative}' points outside the data root.");
+            candidate = name + "_" + n.ToString(CultureInfo.InvariantCulture);
+        }
+
+        var path = Path.Combine(parent, candidate);
+        Directory.CreateDirectory(path);
+        return path;
+    }
+
+    private void RaiseFallback(RecordingsFolderFallbackInfo fallback)
+    {
+        try
+        {
+            RecordingsFolderFallback?.Invoke(fallback);
+        }
+        catch (Exception)
+        {
+            // A faulty subscriber must not stop a recording from starting.
+        }
+    }
+
+    private static StringComparison PathComparison =>
+        OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
+
+    private string ToStoredFolder(string full)
+    {
+        var root = Path.TrimEndingDirectorySeparator(_paths.Root) + Path.DirectorySeparatorChar;
+        if (full.StartsWith(root, PathComparison))
+        {
+            return full[root.Length..].Replace(Path.DirectorySeparatorChar, '/');
         }
 
         return full;
+    }
+
+    /// <summary>
+    /// Maps a <c>sessions.folder</c> value to an absolute path. A relative value must stay under the data root
+    /// (a <c>..</c> that escapes it is refused); a fully qualified value is a folder outside the root and is taken as is.
+    /// </summary>
+    private string ResolveFolder(string stored)
+    {
+        if (Path.IsPathFullyQualified(stored))
+        {
+            return Path.GetFullPath(stored);
+        }
+
+        if (Path.IsPathRooted(stored))
+        {
+            throw new InvalidDataException($"Session folder '{stored}' is neither relative nor absolute.");
+        }
+
+        var full = Path.GetFullPath(Path.Combine(_paths.Root, stored.Replace('/', Path.DirectorySeparatorChar)));
+        var root = Path.TrimEndingDirectorySeparator(_paths.Root) + Path.DirectorySeparatorChar;
+        if (!full.StartsWith(root, StringComparison.Ordinal))
+        {
+            throw new InvalidDataException($"Session folder '{stored}' points outside the data root.");
+        }
+
+        return full;
+    }
+
+    /// <summary>
+    /// Delete guard for a folder stored as an absolute path. A row is plain data in a user-writable database, so a
+    /// tampered value (the user's home, a drive root) must never turn "delete session" into "delete that folder tree".
+    /// Only a path whose last segment has the shape <see cref="ReserveFolder"/> produces
+    /// (<c>yyyy-MM-dd_HH-mm-ss_&lt;8 hex&gt;</c> with an optional <c>_N</c> suffix) and that is not a drive/filesystem root
+    /// is deleted; anything else is refused with <see cref="InvalidDataException"/> and nothing is touched.
+    /// Relative values are already confined to the data root by <see cref="ResolveFolder"/>.
+    /// </summary>
+    private static void EnsureDeletable(string stored, string resolved)
+    {
+        if (!Path.IsPathFullyQualified(stored))
+        {
+            return;
+        }
+
+        var trimmed = Path.TrimEndingDirectorySeparator(resolved);
+        var root = Path.GetPathRoot(resolved);
+        if (root is null || Path.TrimEndingDirectorySeparator(root).Length >= trimmed.Length
+            || !IsSessionFolderName(Path.GetFileName(trimmed)))
+        {
+            throw new InvalidDataException($"Refusing to delete '{stored}': it is not a session folder created by Murmur.");
+        }
+    }
+
+    /// <summary>Whether <paramref name="name"/> looks like <c>yyyy-MM-dd_HH-mm-ss_&lt;8 hex&gt;</c> optionally followed by <c>_N</c>.</summary>
+    internal static bool IsSessionFolderName(string name)
+    {
+        const string Pattern = "dddd-dd-dd_dd-dd-dd_";
+        const int HexLength = 8;
+        const int Prefix = 20;
+        if (name.Length < Prefix + HexLength)
+        {
+            return false;
+        }
+
+        for (var i = 0; i < Prefix; i++)
+        {
+            var ok = Pattern[i] == 'd' ? char.IsAsciiDigit(name[i]) : name[i] == Pattern[i];
+            if (!ok)
+            {
+                return false;
+            }
+        }
+
+        for (var i = Prefix; i < Prefix + HexLength; i++)
+        {
+            if (!char.IsAsciiHexDigit(name[i]))
+            {
+                return false;
+            }
+        }
+
+        var rest = name.AsSpan(Prefix + HexLength);
+        if (rest.IsEmpty)
+        {
+            return true;
+        }
+
+        if (rest.Length < 2 || rest[0] != '_')
+        {
+            return false;
+        }
+
+        foreach (var c in rest[1..])
+        {
+            if (!char.IsAsciiDigit(c))
+            {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     private static void TryDeleteDirectory(string path)
