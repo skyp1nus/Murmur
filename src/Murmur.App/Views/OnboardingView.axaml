@@ -1,0 +1,130 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Murmur.App.ViewModels"
+             xmlns:res="using:Murmur.App.Resources"
+             xmlns:views="using:Murmur.App.Views"
+             xmlns:controls="using:Murmur.App.Controls"
+             x:Class="Murmur.App.Views.OnboardingView"
+             x:DataType="vm:OnboardingViewModel">
+
+  <!-- The step content is chosen by the step view model's type (no reflection-based view locator). -->
+  <UserControl.DataTemplates>
+    <DataTemplate DataType="vm:WelcomeStepViewModel">
+      <views:WelcomeStepView />
+    </DataTemplate>
+    <DataTemplate DataType="vm:AudioStepViewModel">
+      <views:AudioStepView />
+    </DataTemplate>
+    <DataTemplate DataType="vm:ModelsStepViewModel">
+      <views:ModelsStepView />
+    </DataTemplate>
+    <DataTemplate DataType="vm:PreferencesStepViewModel">
+      <views:PreferencesStepView />
+    </DataTemplate>
+    <DataTemplate DataType="vm:FirstRecordingStepViewModel">
+      <views:FirstRecordingStepView />
+    </DataTemplate>
+  </UserControl.DataTemplates>
+
+  <Grid RowDefinitions="Auto,*,Auto"
+        Margin="{StaticResource Inset.Onboarding}">
+
+    <!-- Top bar: wordmark, step indicator (1 / 5 and five segments) -->
+    <Grid Grid.Row="0"
+          ColumnDefinitions="*,Auto,*">
+      <StackPanel Grid.Column="0"
+                  Orientation="Horizontal"
+                  Spacing="{StaticResource Space.12}"
+                  VerticalAlignment="Center">
+        <Grid Width="{StaticResource Size.OrbSlot}"
+              Height="{StaticResource Size.OrbSlot}"
+              VerticalAlignment="Center">
+          <controls:OrbControl Width="{StaticResource Size.SidebarOrb}"
+                               Height="{StaticResource Size.SidebarOrb}"
+                               HorizontalAlignment="Center"
+                               VerticalAlignment="Center" />
+        </Grid>
+        <TextBlock Classes="subheading"
+                   FontWeight="{StaticResource FontWeight.BodyMedium}"
+                   VerticalAlignment="Center"
+                   Text="Murmur" />
+      </StackPanel>
+
+      <StackPanel Grid.Column="1"
+                  Orientation="Horizontal"
+                  Spacing="{StaticResource Space.16}"
+                  VerticalAlignment="Center"
+                  AutomationProperties.Name="{Binding StepAutomationName}">
+        <TextBlock Classes="mono"
+                   VerticalAlignment="Center"
+                   Foreground="{DynamicResource Brush.Smoke}"
+                   Text="{Binding StepLabel}" />
+        <ItemsControl ItemsSource="{Binding Segments}"
+                      VerticalAlignment="Center">
+          <ItemsControl.ItemsPanel>
+            <ItemsPanelTemplate>
+              <StackPanel Orientation="Horizontal"
+                          Spacing="{StaticResource Space.8}" />
+            </ItemsPanelTemplate>
+          </ItemsControl.ItemsPanel>
+          <ItemsControl.ItemTemplate>
+            <DataTemplate x:DataType="vm:OnboardingSegment">
+              <Border Classes="segment"
+                      Classes.on="{Binding IsFilled}" />
+            </DataTemplate>
+          </ItemsControl.ItemTemplate>
+        </ItemsControl>
+      </StackPanel>
+    </Grid>
+
+    <!-- The step: headline, secondary line and the content, centred; scrolls when the window is small. -->
+    <ScrollViewer Grid.Row="1"
+                  HorizontalScrollBarVisibility="Disabled"
+                  VerticalScrollBarVisibility="Auto">
+      <ContentControl HorizontalAlignment="Stretch"
+                      VerticalAlignment="Center"
+                      HorizontalContentAlignment="Stretch"
+                      Content="{Binding CurrentStep}" />
+    </ScrollViewer>
+
+    <!-- Bottom bar: Back and Skip on the left, Continue on the right -->
+    <Grid Grid.Row="2"
+          ColumnDefinitions="Auto,*,Auto">
+      <StackPanel Grid.Column="0"
+                  Orientation="Horizontal"
+                  Spacing="{StaticResource Space.4}">
+        <Button x:Name="BackButton"
+                Classes="text"
+                IsVisible="{Binding CurrentStep.ShowBack}"
+                Command="{Binding BackCommand}">
+          <StackPanel Orientation="Horizontal"
+                      Spacing="{StaticResource Space.8}">
+            <controls:IconControl Width="{StaticResource Size.NavIcon}"
+                                  Height="{StaticResource Size.NavIcon}"
+                                  Data="{StaticResource Icon.ChevronLeft}" />
+            <TextBlock Text="{x:Static res:Strings.Common_Back}" />
+          </StackPanel>
+        </Button>
+        <Button x:Name="SkipButton"
+                Classes="text muted"
+                IsVisible="{Binding CurrentStep.ShowSkip}"
+                Content="{x:Static res:Strings.Onb_Skip}"
+                Command="{Binding SkipCommand}" />
+      </StackPanel>
+      <StackPanel Grid.Column="2"
+                  Orientation="Horizontal"
+                  Spacing="{StaticResource Space.12}">
+        <Button x:Name="SecondaryButton"
+                Classes="outline onb"
+                IsVisible="{Binding CurrentStep.ShowSecondary}"
+                Content="{Binding CurrentStep.SecondaryLabel}"
+                Command="{Binding SecondaryCommand}" />
+        <Button x:Name="ContinueButton"
+                Classes="primary onb"
+                IsEnabled="{Binding CurrentStep.CanContinue}"
+                Content="{Binding CurrentStep.ContinueLabel}"
+                Command="{Binding ContinueCommand}" />
+      </StackPanel>
+    </Grid>
+  </Grid>
+</UserControl>

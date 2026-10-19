@@ -20,7 +20,7 @@ internal sealed class FakeDisplayCapture : ICapture
 
     public IReadOnlyList<AudioDevice> GetAudioDevices(AudioDeviceKind kind) => _inner.GetAudioDevices(kind);
 
-    public IAudioSource CreateAudioSource(AudioDeviceKind kind, string? deviceId) => throw new NotSupportedException();
+    public IAudioSource CreateAudioSource(AudioDeviceKind kind, string? deviceId) => _inner.CreateAudioSource(kind, deviceId);
 
     public IReadOnlyList<DisplayInfo> GetDisplays() => [.. Displays];
 
@@ -50,5 +50,22 @@ internal sealed class FakeFolderPicker : IFolderPicker
     {
         Calls.Add((title, startPath));
         return Task.FromResult(Result);
+    }
+}
+
+internal sealed class FakePrivacyLauncher : IPrivacySettingsLauncher
+{
+    public bool CanOpen { get; set; } = true;
+
+    public int Opened { get; private set; }
+
+    public string? Failure { get; set; }
+
+    public bool CanOpenMicrophoneSettings => CanOpen;
+
+    public string? TryOpenMicrophoneSettings()
+    {
+        Opened++;
+        return Failure;
     }
 }

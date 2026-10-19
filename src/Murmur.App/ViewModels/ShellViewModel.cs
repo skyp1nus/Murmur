@@ -21,13 +21,18 @@ public sealed partial class ShellViewModel : ObservableObject
     /// <param name="sessionFactory">Builds the recording view for a session; <c>null</c> = sessions cannot be opened.</param>
     /// <param name="chatFactory">Builds a chat for a scope (<c>null</c> = the whole library); <c>null</c> = no library-wide chat.</param>
     /// <param name="settings">The Settings screen; <c>null</c> = no Settings page and no sidebar (the pages fill the window).</param>
+    /// <param name="onboarding">
+    /// The first-run onboarding; <c>null</c> = none. It is shown, full window, instead of the library while
+    /// <c>AppSettings.OnboardingCompleted</c> is false, and again when the Settings clear that flag.
+    /// </param>
     public ShellViewModel(
         LibraryViewModel library,
         RecordingViewModel recording,
         Func<CancellationToken, Task>? startup = null,
         Func<SessionRecord, SessionViewModel>? sessionFactory = null,
         Func<SessionId?, ChatViewModel>? chatFactory = null,
-        SettingsViewModel? settings = null)
+        SettingsViewModel? settings = null,
+        OnboardingViewModel? onboarding = null)
     {
         ArgumentNullException.ThrowIfNull(library);
         ArgumentNullException.ThrowIfNull(recording);
@@ -47,6 +52,18 @@ public sealed partial class ShellViewModel : ObservableObject
         library.AskAllRequested += ShowLibraryChat;
         recording.BackRequested += ShowLibrary;
         recording.Stopped += OnRecordingStopped;
+
+        Onboarding = onboarding;
+        if (onboarding is not null)
+        {
+            onboarding.Completed += ShowLibrary;
+            onboarding.RestartRequested += ShowOnboarding;
+            onboarding.TrialSessionDeleted += OnTrialSessionDeleted;
+            if (!onboarding.IsCompleted)
+            {
+                ShowOnboarding();
+            }
+        }
     }
 
     public LibraryViewModel Library { get; }
@@ -55,6 +72,12 @@ public sealed partial class ShellViewModel : ObservableObject
 
     /// <summary>The Settings screen, or <c>null</c> when none is configured.</summary>
     public SettingsViewModel? Settings { get; }
+
+    /// <summary>The first-run onboarding, or <c>null</c> when none is configured.</summary>
+    public OnboardingViewModel? Onboarding { get; }
+
+    /// <summary>The onboarding is the page on screen: it fills the whole window, with no margin and no sidebar.</summary>
+    public bool IsOnboarding => CurrentPage is OnboardingViewModel;
 
     /// <summary>
     /// The left navigation while a top-level page (Library, the library-wide chat, Settings) is shown, otherwise <c>null</c>:
@@ -72,7 +95,7 @@ public sealed partial class ShellViewModel : ObservableObject
     /// <summary>The library-wide chat, created on first use and kept (with its history) for the whole run.</summary>
     public LibraryChatViewModel? LibraryChat { get; private set; }
 
-    /// <summary>The <see cref="Library"/>, the <see cref="Recording"/> screen, the open <see cref="Session"/>, the <see cref="LibraryChat"/> or the <see cref="Settings"/>.</summary>
+    /// <summary>The <see cref="Library"/>, the <see cref="Recording"/> screen, the open <see cref="Session"/>, the <see cref="LibraryChat"/>, the <see cref="Settings"/> or the <see cref="Onboarding"/>.</summary>
     [ObservableProperty]
     public partial ObservableObject CurrentPage { get; set; }
 
@@ -112,6 +135,16 @@ public sealed partial class ShellViewModel : ObservableObject
             services.Models,
             services.ActiveModelId,
             services.DefaultRecordingsDirectory);
+        var onboarding = new OnboardingViewModel(
+            settings,
+            store,
+            services.Capture,
+            services.Recorder,
+            services.Sessions,
+            services.Models,
+            processing,
+            services.Transcripts,
+            services.Time);
 
         return new ShellViewModel(
             new LibraryViewModel(services.Sessions, services.Time, processing, keywordSearch: services.Search, assistant: ai?.Assistant),
@@ -119,7 +152,8 @@ public sealed partial class ShellViewModel : ObservableObject
             services.Startup,
             sessionFactory,
             CreateChat,
-            settings);
+            settings,
+            onboarding);
     }
 
     /// <summary>
@@ -146,6 +180,40 @@ public sealed partial class ShellViewModel : ObservableObject
         {
             Library.Error = startupError;
         }
+
+        await SkipOnboardingForExistingUserAsync();
+    }
+
+    /// <summary>
+    /// A settings file from before the onboarding existed has the flag cleared although the user has been recording for a
+    /// while: when the library already has sessions the flag is set silently and the library stays. Only a first step that
+    /// nobody has touched yet is replaced (the library loads quickly, long before anyone gets further).
+    /// </summary>
+    private async Task SkipOnboardingForExistingUserAsync()
+    {
+        if (Onboarding is not { } onboarding || CurrentPage != onboarding || onboarding.StepNumber != 1 || !Library.HasSessions)
+        {
+            return;
+        }
+
+        await onboarding.CompleteSilentlyAsync();
+        if (CurrentPage == onboarding)
+        {
+            ShowLibrary();
+        }
+    }
+
+    /// <summary>Shows the onboarding from its first step, full window. Ignored without one.</summary>
+    public void ShowOnboarding()
+    {
+        if (Onboarding is not { } onboarding)
+        {
+            return;
+        }
+
+        CloseSession();
+        onboarding.Begin();
+        CurrentPage = onboarding;
     }
 
     public void ShowRecording()
@@ -259,8 +327,18 @@ public sealed partial class ShellViewModel : ObservableObject
         }
     }
 
+    partial void OnCurrentPageChanging(ObservableObject oldValue, ObservableObject newValue)
+    {
+        // Another page replaces the onboarding: its meters and the trial recording stop (finishing did that already).
+        if (oldValue is OnboardingViewModel onboarding && newValue != oldValue)
+        {
+            onboarding.Suspend();
+        }
+    }
+
     partial void OnCurrentPageChanged(ObservableObject value)
     {
+        OnPropertyChanged(nameof(IsOnboarding));
         if (_sidebar is null)
         {
             return;
@@ -305,4 +383,16 @@ public sealed partial class ShellViewModel : ObservableObject
     }
 
     private void OnRecordingStopped(SessionRecord session) => ShowLibrary();
+
+    /// <summary>A trial recording of the onboarding was removed: the library list on screen drops it.</summary>
+    private void OnTrialSessionDeleted()
+    {
+        if (CurrentPage == Library)
+        {
+            _ = Library.LoadAsync();
+        }
+    }
+
+    /// <summary>The window closed: stop what the onboarding runs (meters, the trial recording).</summary>
+    public void OnWindowClosed() => Onboarding?.Suspend();
 }
