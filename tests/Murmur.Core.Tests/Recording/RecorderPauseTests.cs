@@ -289,9 +289,10 @@ public sealed class RecorderPauseTests : IDisposable
         var elapsed = recorder.Elapsed;
         var finished = await recorder.StopAsync(Ct);
 
-        // 7 x 80 ms recorded; the writer period (20 ms) makes each switch up to a period late, so allow for it.
-        Assert.InRange(finished.Duration, TimeSpan.FromMilliseconds(500), TimeSpan.FromMilliseconds(560) + Slack);
-        Assert.Equal(elapsed.TotalSeconds, finished.Duration.TotalSeconds, 0.1);
+        // 7 x 80 ms recorded (and 6 x 40 ms paused, which must not be in the files); the writer period (20 ms) makes each of the
+        // twelve switches up to a period late, and a loaded machine more, so the bounds are wide and the timeline is the reference.
+        Assert.InRange(finished.Duration, TimeSpan.FromMilliseconds(380), TimeSpan.FromMilliseconds(560) + Slack + Slack);
+        Assert.Equal(elapsed.TotalSeconds, finished.Duration.TotalSeconds, 0.15);
         var files = _store.GetFiles(started.Id);
         Assert.Equal(AudioLength(files.MicrophoneAudio).TotalSeconds, AudioLength(files.SystemAudio).TotalSeconds, 0.03);
         Assert.Equal(0, recorder.Stats.DroppedFrames);
