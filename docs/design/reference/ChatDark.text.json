@@ -33,7 +33,7 @@
      "h": 17
     }
    ],
-   "baseline": 96,
+   "baseline": 101.5,
    "blockId": 1,
    "blockText": "New recording",
    "fontFamily": "Inter, ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
@@ -53,7 +53,7 @@
      "h": 17
     }
    ],
-   "baseline": 162,
+   "baseline": 167.5,
    "blockId": 2,
    "blockText": "Library",
    "fontFamily": "Inter, ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
@@ -73,7 +73,7 @@
      "h": 17
     }
    ],
-   "baseline": 204,
+   "baseline": 209.5,
    "blockId": 3,
    "blockText": "Ask AI",
    "fontFamily": "Inter, ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
@@ -93,7 +93,7 @@
      "h": 17
     }
    ],
-   "baseline": 246,
+   "baseline": 251.5,
    "blockId": 4,
    "blockText": "Settings",
    "fontFamily": "Inter, ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
@@ -133,7 +133,7 @@
      "h": 16
     }
    ],
-   "baseline": 331,
+   "baseline": 336,
    "blockId": 6,
    "blockText": "PDF export",
    "fontFamily": "Inter, ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
@@ -153,7 +153,7 @@
      "h": 16
     }
    ],
-   "baseline": 369,
+   "baseline": 374,
    "blockId": 7,
    "blockText": "Action items this week",
    "fontFamily": "Inter, ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
@@ -173,7 +173,7 @@
      "h": 16
     }
    ],
-   "baseline": 996,
+   "baseline": 1001,
    "blockId": 8,
    "blockText": "Fully offline",
    "fontFamily": "Inter, ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
@@ -219,7 +219,7 @@
      "h": 16
     }
    ],
-   "baseline": 30,
+   "baseline": 35,
    "blockId": 10,
    "blockText": "Whole library",
    "fontFamily": "Inter, ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
@@ -239,7 +239,7 @@
      "h": 16
     }
    ],
-   "baseline": 30,
+   "baseline": 35,
    "blockId": 11,
    "blockText": "Client demo — Q4 roadmap",
    "fontFamily": "Inter, ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
@@ -259,7 +259,7 @@
      "h": 15
     }
    ],
-   "baseline": 30,
+   "baseline": 34.5,
    "blockId": 12,
    "blockText": "Gemma 4 E4B · local",
    "fontFamily": "Inter, ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
@@ -339,7 +339,7 @@
      "h": 16
     }
    ],
-   "baseline": 216.75,
+   "baseline": 219.86,
    "blockId": 15,
    "blockText": "PDF export was moved to next sprint — meeting summaries and action items come first 12:52. The client said they need PDFs for their reports 12:40.",
    "fontFamily": "\"Geist Mono\", ui-monospace, monospace",
@@ -385,7 +385,7 @@
      "h": 16
     }
    ],
-   "baseline": 243.14,
+   "baseline": 246.25,
    "blockId": 15,
    "blockText": "PDF export was moved to next sprint — meeting summaries and action items come first 12:52. The client said they need PDFs for their reports 12:40.",
    "fontFamily": "\"Geist Mono\", ui-monospace, monospace",
@@ -451,7 +451,7 @@
      "h": 16
     }
    ],
-   "baseline": 311.92,
+   "baseline": 315.03,
    "blockId": 16,
    "blockText": "In the sprint retro, the team also agreed to review the report template with the designer before starting Retro · 31:05.",
    "fontFamily": "\"Geist Mono\", ui-monospace, monospace",
@@ -769,7 +769,7 @@
      "h": 16
     }
    ],
-   "baseline": 663.56,
+   "baseline": 666.67,
    "blockId": 29,
    "blockText": "You are — you promised to send it the same day 13:24.",
    "fontFamily": "\"Geist Mono\", ui-monospace, monospace",
@@ -800,26 +800,6 @@
    "color": "rgb(245, 243, 241)"
   },
   {
-   "text": "Question",
-   "lines": [
-    {
-     "x": 483.31,
-     "y": 1011,
-     "w": 60.3,
-     "h": 17
-    }
-   ],
-   "baseline": 1025,
-   "blockId": 30,
-   "blockText": "Question",
-   "fontFamily": "Inter, ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
-   "fontSize": 14,
-   "fontWeight": 400,
-   "letterSpacing": "0.14px",
-   "lineHeight": "normal",
-   "color": "rgb(245, 243, 241)"
-  },
-  {
    "text": "Answers are based only on your transcripts. Check them against the timestamps.",
    "lines": [
     {
@@ -830,7 +810,7 @@
     }
    ],
    "baseline": 1045,
-   "blockId": 31,
+   "blockId": 30,
    "blockText": "Answers are based only on your transcripts. Check them against the timestamps.",
    "fontFamily": "Inter, ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
    "fontSize": 12,

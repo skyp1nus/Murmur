@@ -54,18 +54,39 @@ for (const file of canvas.order) {
       if (!text || !el || el.closest('style,script,helmet,title')) continue;
       const cs = getComputedStyle(el);
       if (cs.visibility === 'hidden' || cs.display === 'none' || parseFloat(cs.opacity) === 0) continue;
+      const box = el.getBoundingClientRect();
+      if (box.width <= 1 || box.height <= 1) continue; // visually hidden labels (sr-only): not drawn
       const range = document.createRange();
       range.selectNodeContents(node);
       const lines = [...range.getClientRects()].filter(r => r.width > 0 && r.height > 0)
         .map(r => ({ x: +r.x.toFixed(2), y: +(r.y + window.scrollY).toFixed(2), w: +r.width.toFixed(2), h: +r.height.toFixed(2) }));
       if (lines.length === 0) continue;
-      // The first line's baseline, read from a zero-size inline-block marker placed before the text (its bottom edge
-      // sits on the baseline), so the app side can compare baselines instead of line boxes.
-      const marker = document.createElement('span');
-      marker.style.cssText = 'display:inline-block;width:0;height:0;vertical-align:baseline;padding:0;margin:0;border:0';
-      node.parentNode.insertBefore(marker, node);
-      const baseline = +(marker.getBoundingClientRect().bottom + window.scrollY).toFixed(2);
-      marker.remove();
+      // The first line's baseline, read from a zero-size inline-block marker placed right before the first visible
+      // character (its bottom edge sits on the baseline), so the app side can compare baselines instead of line boxes.
+      // The marker and the text are wrapped in one span: a text node that is a direct child of a flex or grid container
+      // is an anonymous item, and a bare marker next to it would become an item of its own. Leading whitespace stays
+      // outside the wrapper (inside it, it would render as a space and widen the item). If the text's line boxes move
+      // anyway, the baseline is not trusted and left out (null).
+      let baseline = null;
+      {
+        const lead = node.textContent.length - node.textContent.replace(/^\s+/, '').length;
+        const target = lead > 0 ? node.splitText(lead) : node;
+        const parent = target.parentNode;
+        const wrapper = document.createElement('span');
+        const marker = document.createElement('span');
+        marker.style.cssText = 'display:inline-block;width:0;height:0;vertical-align:baseline;padding:0;margin:0;border:0';
+        parent.insertBefore(wrapper, target);
+        wrapper.appendChild(marker);
+        wrapper.appendChild(target);
+        const probe = document.createRange();
+        probe.selectNodeContents(target);
+        const moved = [...probe.getClientRects()].filter(r => r.width > 0 && r.height > 0);
+        const same = moved.length > 0 && Math.abs(moved[0].x - lines[0].x) < 0.5 && Math.abs(moved[0].y + window.scrollY - lines[0].y) < 0.5;
+        if (same) baseline = +(marker.getBoundingClientRect().bottom + window.scrollY).toFixed(2);
+        parent.insertBefore(target, wrapper);
+        wrapper.remove();
+        if (lead > 0) { node.textContent = node.textContent + target.textContent; target.remove(); }
+      }
       // The nearest block-level ancestor: texts split around inline chips or highlights share it.
       let block = el;
       while (block.parentElement && /^inline/.test(getComputedStyle(block).display)) block = block.parentElement;

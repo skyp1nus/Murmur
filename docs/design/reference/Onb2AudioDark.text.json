@@ -153,7 +153,7 @@
      "h": 17
     }
    ],
-   "baseline": 416.69,
+   "baseline": 422.19,
    "blockId": 7,
    "blockText": "Microphone (USB Audio Device)",
    "fontFamily": "Inter, ui-sans-serif, system-ui, \"Segoe UI\", sans-serif",
@@ -233,7 +233,7 @@
      "h": 17
     }
    ],
-   "baseline": 416.69,
+   "baseline": 422.19,
    "blockId": 11,
    "blockText": "Speakers (Realtek Audio)",
    "fontFamily": "Inter, ui-sans-serif, system-ui, \"Segoe UI\", sans-serif",
@@ -313,7 +313,7 @@
      "h": 17
     }
    ],
-   "baseline": 736,
+   "baseline": 741.5,
    "blockId": 15,
    "blockText": "Back",
    "fontFamily": "Inter, ui-sans-serif, system-ui, \"Segoe UI\", sans-serif",
