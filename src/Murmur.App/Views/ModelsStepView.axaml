@@ -9,7 +9,7 @@
 
   <!-- Step 3: the required transcription model downloads by itself; the AI model is chosen. -->
   <StackPanel HorizontalAlignment="Stretch"
-              Spacing="{StaticResource Space.OnbModels}">
+              Spacing="{StaticResource Onb.Space.Models}">
 
     <StackPanel Spacing="{StaticResource Space.12}"
                 HorizontalAlignment="Center">
@@ -27,17 +27,17 @@
 
     <StackPanel MaxWidth="{StaticResource Size.OnbModelsWidth}"
                 HorizontalAlignment="Stretch"
-                Spacing="{StaticResource Space.OnbCards}"
+                Spacing="{StaticResource Onb.Space.Cards}"
                 IsVisible="{Binding IsAvailable}">
 
       <!-- Required: transcription -->
       <Border x:Name="RequiredCard"
               Classes="panel"
               Padding="{StaticResource Inset.OnbModel}">
-        <StackPanel Spacing="{StaticResource Space.OnbCards}">
+        <StackPanel Spacing="{StaticResource Onb.Space.Cards}">
           <Grid ColumnDefinitions="*,Auto"
                 ColumnSpacing="{StaticResource Space.16}">
-            <StackPanel Spacing="{StaticResource Space.OnbTight}"
+            <StackPanel Spacing="{StaticResource Onb.Space.Tight}"
                         VerticalAlignment="Center">
               <StackPanel Orientation="Horizontal"
                           Spacing="{StaticResource Space.8}">
@@ -64,7 +64,7 @@
               <Border Classes="onbStatus"
                       IsVisible="{Binding IsRequiredReady}">
                 <StackPanel Orientation="Horizontal"
-                            Spacing="{StaticResource Space.OnbIcon}">
+                            Spacing="{StaticResource Onb.Space.Icon}">
                   <controls:IconControl Width="{StaticResource Size.OnbCheck}"
                                         Height="{StaticResource Size.OnbCheck}"
                                         Stroke="{StaticResource Stroke.OnbCheck}"
@@ -117,7 +117,7 @@
         <ItemsControl.ItemsPanel>
           <ItemsPanelTemplate>
             <UniformGrid Rows="1"
-                         ColumnSpacing="{StaticResource Space.OnbCards}" />
+                         ColumnSpacing="{StaticResource Onb.Space.Cards}" />
           </ItemsPanelTemplate>
         </ItemsControl.ItemsPanel>
         <ItemsControl.ItemTemplate>
@@ -127,7 +127,7 @@
                     IsEnabled="{Binding IsEnabled}"
                     Command="{Binding SelectCommand}">
               <Grid ColumnDefinitions="Auto,*,Auto"
-                    ColumnSpacing="{StaticResource Space.OnbCards}">
+                    ColumnSpacing="{StaticResource Onb.Space.Cards}">
                 <Border Classes="radio"
                         Classes.on="{Binding IsSelected}">
                   <Ellipse />
@@ -149,12 +149,12 @@
                              Margin="{StaticResource Inset.OnbCardExtra}"
                              IsVisible="{Binding HasStatus}"
                              Text="{Binding StatusText}" />
-                  <Border Classes="onbStatus card"
+                  <Border Classes="onbStatus inCard"
                           Margin="{StaticResource Inset.OnbCardExtra}"
                           HorizontalAlignment="Left"
                           IsVisible="{Binding IsInstalled}">
                     <StackPanel Orientation="Horizontal"
-                                Spacing="{StaticResource Space.OnbIcon}">
+                                Spacing="{StaticResource Onb.Space.Icon}">
                       <controls:IconControl Width="{StaticResource Size.OnbCheck}"
                                             Height="{StaticResource Size.OnbCheck}"
                                             Stroke="{StaticResource Stroke.OnbCheck}"
@@ -184,9 +184,10 @@
                 Margin="{StaticResource Inset.OnbOptionPull}"
                 Command="{Binding SkipAiCommand}">
           <StackPanel Orientation="Horizontal"
-                      Spacing="{StaticResource Space.OnbBadge}">
+                      Spacing="{StaticResource Onb.Space.Badge}">
             <Border Classes="radio"
                     Classes.on="{Binding SkipAiSelected}"
+                    Margin="{StaticResource Inset.OnbRadioFlat}"
                     VerticalAlignment="Center">
               <Ellipse />
             </Border>
@@ -208,7 +209,7 @@
           <StackPanel x:Name="AllDoneNote"
                       Orientation="Horizontal"
                       HorizontalAlignment="Right"
-                      Spacing="{StaticResource Space.OnbIcon}"
+                      Spacing="{StaticResource Onb.Space.Icon}"
                       IsVisible="{Binding AllDone}">
             <controls:IconControl Width="{StaticResource Size.OnbNoteCheck}"
                                   Height="{StaticResource Size.OnbNoteCheck}"

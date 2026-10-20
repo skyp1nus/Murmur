@@ -346,7 +346,7 @@ public sealed class GlassOrbControl : Panel
             var pad = Math.Ceiling(HaloBlur);
             halo.CenterPoint = new Vector3D(centre.X + pad, centre.Y + pad, 0);
             halo.Scale = new Vector3D(_appliedHalo, _appliedHalo, 1);
-            halo.Opacity = (float)(HaloOpacity * (1 - _appliedFade));
+            halo.Opacity = (float)(1 - _appliedFade);
         }
     }
 
@@ -408,15 +408,20 @@ public sealed class GlassOrbControl : Panel
             var rect = new Rect((Bounds.Width - diameter) / 2, (Bounds.Height - diameter) / 2, diameter, diameter);
             EnsureBrushes(diameter);
 
-            context.DrawEllipse(_base, null, rect);
-            foreach (var blob in _blobs!)
+            // The halo's opacity is part of what gets blurred (CSS: blur first, then the group's opacity; blurring is linear, so
+            // both orders agree). A composition-level opacity on a layer with an effect does not.
+            using (_isHalo ? context.PushOpacity(_owner.HaloOpacity) : default)
             {
-                context.DrawEllipse(blob, null, rect);
-            }
+                context.DrawEllipse(_base, null, rect);
+                foreach (var blob in _blobs!)
+                {
+                    context.DrawEllipse(blob, null, rect);
+                }
 
-            if (!_isHalo && _glow is not null)
-            {
-                context.DrawEllipse(_glow, null, rect);
+                if (!_isHalo && _glow is not null)
+                {
+                    context.DrawEllipse(_glow, null, rect);
+                }
             }
         }
 

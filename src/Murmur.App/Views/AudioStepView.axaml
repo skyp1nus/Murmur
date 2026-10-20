@@ -33,7 +33,7 @@
           <StackPanel Spacing="{StaticResource Space.16}">
             <Grid ColumnDefinitions="*,Auto">
               <StackPanel Orientation="Horizontal"
-                          Spacing="{StaticResource Space.OnbBadge}">
+                          Spacing="{StaticResource Onb.Space.Badge}">
                 <Border Classes="iconBadge">
                   <controls:IconControl Width="{StaticResource Size.SmallIcon}"
                                         Height="{StaticResource Size.SmallIcon}"
@@ -49,7 +49,7 @@
                          VerticalAlignment="Center"
                          Text="{x:Static res:Strings.Onb2_TrackYou}" />
             </Grid>
-            <StackPanel Spacing="{StaticResource Space.OnbIcon}">
+            <StackPanel Spacing="{StaticResource Onb.Space.Icon}">
               <TextBlock Classes="onbLabel"
                          Text="{x:Static res:Strings.Onb2_InputDevice}" />
               <ComboBox x:Name="MicrophoneBox"
@@ -78,7 +78,7 @@
           <StackPanel Spacing="{StaticResource Space.16}">
             <Grid ColumnDefinitions="*,Auto">
               <StackPanel Orientation="Horizontal"
-                          Spacing="{StaticResource Space.OnbBadge}">
+                          Spacing="{StaticResource Onb.Space.Badge}">
                 <Border Classes="iconBadge">
                   <controls:IconControl Width="{StaticResource Size.SmallIcon}"
                                         Height="{StaticResource Size.SmallIcon}"
@@ -94,7 +94,7 @@
                          VerticalAlignment="Center"
                          Text="{x:Static res:Strings.Onb2_TrackOthers}" />
             </Grid>
-            <StackPanel Spacing="{StaticResource Space.OnbIcon}">
+            <StackPanel Spacing="{StaticResource Onb.Space.Icon}">
               <TextBlock Classes="onbLabel"
                          Text="{x:Static res:Strings.Onb2_OutputDevice}" />
               <ComboBox x:Name="SystemAudioBox"
@@ -136,7 +136,7 @@
           </Border>
           <StackPanel Grid.Column="1"
                       VerticalAlignment="Center"
-                      Spacing="{StaticResource Space.OnbHair}">
+                      Spacing="{StaticResource Onb.Space.Hair}">
             <TextBlock Classes="onbTitle"
                        Text="{x:Static res:Strings.Onb2_GrantedTitle}" />
             <TextBlock Classes="onbNote"
@@ -160,7 +160,7 @@
           </Border>
           <StackPanel Grid.Column="1"
                       VerticalAlignment="Center"
-                      Spacing="{StaticResource Space.OnbHair}">
+                      Spacing="{StaticResource Onb.Space.Hair}">
             <TextBlock Classes="onbTitle"
                        Text="{x:Static res:Strings.Onb2_DeniedTitle}" />
             <TextBlock Classes="onbNote"
@@ -173,16 +173,16 @@
           <StackPanel Grid.Column="2"
                       Orientation="Horizontal"
                       VerticalAlignment="Center"
-                      Spacing="{StaticResource Space.12}">
+                      Spacing="{StaticResource Space.8}">
+            <Button x:Name="TryAgainButton"
+                    Classes="text onbSmall"
+                    Content="{x:Static res:Strings.Onb2_TryAgain}"
+                    Command="{Binding TryAgainCommand}" />
             <Button x:Name="OpenSettingsButton"
                     Classes="primary onbBanner"
                     IsVisible="{Binding CanOpenSettings}"
                     Content="{x:Static res:Strings.Onb2_OpenSettings}"
                     Command="{Binding OpenSettingsCommand}" />
-            <Button x:Name="TryAgainButton"
-                    Classes="outline onbBanner"
-                    Content="{x:Static res:Strings.Onb2_TryAgain}"
-                    Command="{Binding TryAgainCommand}" />
           </StackPanel>
         </Grid>
       </Border>
@@ -202,7 +202,7 @@
           </Border>
           <StackPanel Grid.Column="1"
                       VerticalAlignment="Center"
-                      Spacing="{StaticResource Space.OnbHair}">
+                      Spacing="{StaticResource Onb.Space.Hair}">
             <TextBlock Classes="onbTitle"
                        Text="{x:Static res:Strings.Onb2_NoMicTitle}" />
             <TextBlock Classes="onbNote"
@@ -231,7 +231,7 @@
           </Border>
           <StackPanel Grid.Column="1"
                       VerticalAlignment="Center"
-                      Spacing="{StaticResource Space.OnbHair}">
+                      Spacing="{StaticResource Onb.Space.Hair}">
             <TextBlock Classes="onbTitle"
                        Text="{x:Static res:Strings.Onb2_MicFailedTitle}" />
             <TextBlock Classes="onbNote"

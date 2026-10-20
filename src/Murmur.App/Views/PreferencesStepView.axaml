@@ -8,7 +8,7 @@
 
   <!-- Step 4: one card with four rows; every change is saved at once, like in the Settings. -->
   <StackPanel HorizontalAlignment="Stretch"
-              Spacing="{StaticResource Space.OnbModels}">
+              Spacing="{StaticResource Onb.Space.Models}">
 
     <StackPanel Spacing="{StaticResource Space.12}"
                 HorizontalAlignment="Center">
@@ -29,7 +29,7 @@
               ColumnSpacing="{StaticResource Space.24}"
               Margin="{StaticResource Inset.Row}">
           <StackPanel VerticalAlignment="Center"
-                      Spacing="{StaticResource Space.OnbTight}">
+                      Spacing="{StaticResource Onb.Space.Tight}">
             <TextBlock Classes="onbTitle"
                        Text="{x:Static res:Strings.Onb4_Language}" />
             <TextBlock Classes="onbNote"
@@ -52,7 +52,7 @@
               ColumnSpacing="{StaticResource Space.24}"
               Margin="{StaticResource Inset.Row}">
           <StackPanel VerticalAlignment="Center"
-                      Spacing="{StaticResource Space.OnbTight}">
+                      Spacing="{StaticResource Onb.Space.Tight}">
             <TextBlock Classes="onbTitle"
                        Text="{x:Static res:Strings.Onb4_Folder}" />
             <TextBlock x:Name="FolderPath"
@@ -92,7 +92,7 @@
                 ColumnSpacing="{StaticResource Space.24}"
                 Margin="{StaticResource Inset.Row}">
             <StackPanel VerticalAlignment="Center"
-                        Spacing="{StaticResource Space.OnbTight}">
+                        Spacing="{StaticResource Onb.Space.Tight}">
               <TextBlock Classes="onbTitle"
                          Text="{x:Static res:Strings.Onb4_Hotkey}" />
               <TextBlock Classes="onbNote"
@@ -118,13 +118,13 @@
                   <ItemsControl.ItemsPanel>
                     <ItemsPanelTemplate>
                       <StackPanel Orientation="Horizontal"
-                                  Spacing="{StaticResource Space.OnbIcon}" />
+                                  Spacing="{StaticResource Onb.Space.Icon}" />
                     </ItemsPanelTemplate>
                   </ItemsControl.ItemsPanel>
                   <ItemsControl.ItemTemplate>
                     <DataTemplate x:DataType="vm:HotkeyCap">
                       <StackPanel Orientation="Horizontal"
-                                  Spacing="{StaticResource Space.OnbIcon}">
+                                  Spacing="{StaticResource Onb.Space.Icon}">
                         <Border Classes="cap">
                           <TextBlock Classes="onbMono"
                                      LetterSpacing="0"
@@ -172,7 +172,7 @@
               ColumnSpacing="{StaticResource Space.24}"
               Margin="{StaticResource Inset.Row}">
           <StackPanel VerticalAlignment="Center"
-                      Spacing="{StaticResource Space.OnbTight}">
+                      Spacing="{StaticResource Onb.Space.Tight}">
             <TextBlock Classes="onbTitle"
                        Text="{x:Static res:Strings.Onb4_Screen}" />
             <TextBlock Classes="onbNote"

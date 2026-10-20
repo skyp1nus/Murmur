@@ -47,7 +47,7 @@
 
       <StackPanel Grid.Column="1"
                   Orientation="Horizontal"
-                  Spacing="{StaticResource Space.OnbStep}"
+                  Spacing="{StaticResource Onb.Space.Step}"
                   VerticalAlignment="Center"
                   AutomationProperties.Name="{Binding StepAutomationName}">
         <TextBlock Classes="onbMono"
@@ -59,7 +59,7 @@
           <ItemsControl.ItemsPanel>
             <ItemsPanelTemplate>
               <StackPanel Orientation="Horizontal"
-                          Spacing="{StaticResource Space.OnbSegment}" />
+                          Spacing="{StaticResource Onb.Space.Segment}" />
             </ItemsPanelTemplate>
           </ItemsControl.ItemsPanel>
           <ItemsControl.ItemTemplate>
@@ -96,7 +96,7 @@
                 IsVisible="{Binding CurrentStep.ShowBack}"
                 Command="{Binding BackCommand}">
           <StackPanel Orientation="Horizontal"
-                      Spacing="{StaticResource Space.OnbIcon}">
+                      Spacing="{StaticResource Onb.Space.Icon}">
             <controls:IconControl Width="{StaticResource Size.OnbChevron}"
                                   Height="{StaticResource Size.OnbChevron}"
                                   Data="{StaticResource Icon.ChevronLeft}" />

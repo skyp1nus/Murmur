@@ -15,7 +15,7 @@
                               Width="{StaticResource Size.OnbOrb}"
                               Height="{StaticResource Size.OnbOrb}"
                               IsActive="True" />
-    <StackPanel Spacing="{StaticResource Space.OnbWelcomeText}"
+    <StackPanel Spacing="{StaticResource Onb.Space.WelcomeText}"
                 HorizontalAlignment="Center">
       <TextBlock Classes="display"
                  Margin="{StaticResource Inset.OnbDisplayLift}"

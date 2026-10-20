@@ -20,7 +20,7 @@
     </StackPanel>
 
     <StackPanel HorizontalAlignment="Center"
-                Spacing="{StaticResource Space.OnbRecorder}">
+                Spacing="{StaticResource Onb.Space.Recorder}">
       <controls:GlassOrbControl x:Name="VoiceOrb"
                                 Classes="voice"
                                 HorizontalAlignment="Center"
@@ -30,7 +30,7 @@
       <Border x:Name="Countdown"
               Classes="countdown">
         <StackPanel Orientation="Horizontal"
-                    Spacing="{StaticResource Space.OnbBadge}">
+                    Spacing="{StaticResource Onb.Space.Badge}">
           <TextBlock x:Name="StatusLabel"
                      Classes="onbNote"
                      VerticalAlignment="Center"
@@ -82,7 +82,7 @@
               Padding="{StaticResource Inset.OnbTranscript}"
               IsVisible="{Binding ShowTranscript}">
         <Grid ColumnDefinitions="*,Auto"
-              ColumnSpacing="{StaticResource Space.OnbCards}">
+              ColumnSpacing="{StaticResource Onb.Space.Cards}">
           <ItemsControl ItemsSource="{Binding Segments}">
             <ItemsControl.ItemsPanel>
               <ItemsPanelTemplate>
@@ -92,7 +92,7 @@
             <ItemsControl.ItemTemplate>
               <DataTemplate x:DataType="vm:TrialSegment">
                 <Grid ColumnDefinitions="Auto,*"
-                      ColumnSpacing="{StaticResource Space.OnbCards}">
+                      ColumnSpacing="{StaticResource Onb.Space.Cards}">
                   <Border Classes="avatar">
                     <TextBlock Classes="onbTag"
                                HorizontalAlignment="Center"
@@ -101,9 +101,9 @@
                                Text="{Binding Initial}" />
                   </Border>
                   <StackPanel Grid.Column="1"
-                              Spacing="{StaticResource Space.OnbHairTight}">
+                              Spacing="{StaticResource Onb.Space.HairTight}">
                     <StackPanel Orientation="Horizontal"
-                                Spacing="{StaticResource Space.OnbBadge}">
+                                Spacing="{StaticResource Onb.Space.Badge}">
                       <TextBlock Classes="onbNoteMedium"
                                  VerticalAlignment="Center"
                                  Text="{Binding Speaker}" />
@@ -117,7 +117,7 @@
                                 VerticalAlignment="Center"
                                 Fill="{DynamicResource Brush.Ink}" />
                           <TextBlock Classes="onbMono"
-                                     FontSize="{StaticResource FontSize.OnbLabel}"
+                                     FontSize="{StaticResource Onb.FontSize.Label}"
                                      VerticalAlignment="Center"
                                      Text="{Binding Time}" />
                         </StackPanel>
