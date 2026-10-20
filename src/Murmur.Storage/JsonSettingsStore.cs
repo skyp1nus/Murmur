@@ -10,6 +10,8 @@ namespace Murmur.Storage;
 /// <list type="bullet">
 /// <item>The file is read once, in the constructor. Properties missing from it take the defaults of
 /// <see cref="AppSettings"/>, unknown ones are ignored, so the file can grow and shrink between versions.</item>
+/// <item>A file without <c>settingsVersion</c> (written before D-039) is loaded with the default language <c>en</c> and
+/// the current version; the file itself is rewritten by the next save.</item>
 /// <item>A file that is not valid JSON (or does not hold a settings object) is renamed to <c>settings.json.bad</c>, and
 /// the defaults are used until the next save. A file that cannot be read at all (locked, no permission) is left
 /// untouched and the defaults are used.</item>
@@ -128,14 +130,15 @@ public sealed class JsonSettingsStore : ISettingsStore
         try
         {
             // Notepad and friends add a UTF-8 byte order mark; Utf8JsonReader rejects it.
-            ReadOnlySpan<byte> json = bytes;
-            if (json.StartsWith(Utf8Bom))
+            ReadOnlyMemory<byte> json = bytes;
+            if (json.Span.StartsWith(Utf8Bom))
             {
                 json = json[Utf8Bom.Length..];
             }
 
-            return JsonSerializer.Deserialize(json, Json)
+            var settings = JsonSerializer.Deserialize(json.Span, Json)
                 ?? throw new JsonException("settings.json holds null instead of an object.");
+            return IsCurrentVersion(json, settings) ? settings : Migrate(settings);
         }
         catch (JsonException)
         {
@@ -143,6 +146,30 @@ public sealed class JsonSettingsStore : ISettingsStore
             return new AppSettings();
         }
     }
+
+    /// <summary>The file carries a <c>settingsVersion</c> that is not older than the one this build writes.</summary>
+    private static bool IsCurrentVersion(ReadOnlyMemory<byte> json, AppSettings settings)
+    {
+        // The property default is the current version, so a missing property cannot be told from a present one after
+        // deserialization: look at the document itself (names are matched case-insensitively, like the deserializer does).
+        using var document = JsonDocument.Parse(json);
+        foreach (var property in document.RootElement.EnumerateObject())
+        {
+            if (string.Equals(property.Name, nameof(AppSettings.SettingsVersion), StringComparison.OrdinalIgnoreCase))
+            {
+                return settings.SettingsVersion >= new AppSettings().SettingsVersion;
+            }
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// D-039: before it, <c>"Language": "uk"</c> was written by a default and not by a choice; every stored value moves
+    /// to the new default <c>en</c> once. Everything else is kept; the version is the current one, so the next save records it.
+    /// </summary>
+    private static AppSettings Migrate(AppSettings settings) =>
+        settings with { Language = new AppSettings().Language, SettingsVersion = new AppSettings().SettingsVersion };
 
     private static void MoveAside(string path)
     {

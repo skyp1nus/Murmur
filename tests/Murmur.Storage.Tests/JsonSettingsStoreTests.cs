@@ -24,12 +24,12 @@ public sealed class JsonSettingsStoreTests
         var saved = new AppSettings
         {
             Theme = ThemePreference.Dark,
-            Language = "en",
+            Language = "uk",
             OnboardingCompleted = true,
             ScreenByDefault = true,
             MicrophoneDeviceId = "mic-1",
             SystemAudioDeviceId = "out-2",
-            TranscriptionLanguage = "uk",
+            TranscriptionLanguage = "de",
             RecordHotkey = null,
             RecordingsDirectory = "/data/rec",
             ChatModelId = "gemma-4-e2b",
@@ -68,6 +68,102 @@ public sealed class JsonSettingsStoreTests
 
         Assert.Equal(new AppSettings { Theme = ThemePreference.Light, Language = "en" }, store.Current);
         Assert.Equal("Ctrl+Shift+R", store.Current.RecordHotkey);
+        Assert.False(File.Exists(root.SettingsFile + ".bad"));
+    }
+
+    [Fact]
+    public void NoFile_DefaultsToEnglish_AtTheCurrentSettingsVersion()
+    {
+        using var root = new TempDataRoot();
+
+        var store = new JsonSettingsStore(new StoragePaths(root.Path));
+
+        Assert.Equal("en", store.Current.Language);
+        Assert.Equal(2, store.Current.SettingsVersion);
+    }
+
+    [Theory]
+    [InlineData("""{ "theme": "Dark", "language": "uk", "onboardingCompleted": true }""")]
+    [InlineData("""{ "Language": "uk" }""")]
+    [InlineData("""{ "theme": "Dark", "language": "en", "onboardingCompleted": true }""")]
+    [InlineData("""{ "settingsVersion": 1, "language": "uk" }""")]
+    public void AFileFromBeforeDecisionD039_IsLoadedInEnglishAtVersion2_ButKeepsEverythingElse(string json)
+    {
+        using var root = new TempDataRoot();
+        Directory.CreateDirectory(root.Path);
+        File.WriteAllText(root.SettingsFile, json);
+
+        var store = new JsonSettingsStore(new StoragePaths(root.Path));
+
+        Assert.Equal("en", store.Current.Language);
+        Assert.Equal(2, store.Current.SettingsVersion);
+        Assert.Equal(json.Contains("\"Dark\"", StringComparison.Ordinal) ? ThemePreference.Dark : ThemePreference.System, store.Current.Theme);
+        Assert.Equal(json.Contains("onboardingCompleted", StringComparison.Ordinal), store.Current.OnboardingCompleted);
+    }
+
+    [Fact]
+    public async Task AMigratedFile_IsRewrittenWithVersion2OnTheNextSave_AndTheChoiceThenSticks()
+    {
+        using var root = new TempDataRoot();
+        Directory.CreateDirectory(root.Path);
+        File.WriteAllText(root.SettingsFile, """{ "theme": "Light", "language": "uk" }""");
+        var migrated = new JsonSettingsStore(new StoragePaths(root.Path));
+        Assert.Equal("en", migrated.Current.Language);
+        // Nothing is written until something saves.
+        Assert.DoesNotContain("settingsVersion", File.ReadAllText(root.SettingsFile), StringComparison.Ordinal);
+
+        await migrated.SaveAsync(migrated.Current with { OnboardingCompleted = true }, TestContext.Current.CancellationToken);
+
+        Assert.Contains("\"settingsVersion\": 2", File.ReadAllText(root.SettingsFile), StringComparison.Ordinal);
+        Assert.Contains("\"language\": \"en\"", File.ReadAllText(root.SettingsFile), StringComparison.Ordinal);
+        var reopened = new JsonSettingsStore(new StoragePaths(root.Path));
+        Assert.Equal("en", reopened.Current.Language);
+        Assert.True(reopened.Current.OnboardingCompleted);
+
+        // The user now picks Ukrainian: that is a choice and survives restarts.
+        await reopened.SaveAsync(reopened.Current with { Language = "uk" }, TestContext.Current.CancellationToken);
+        Assert.Equal("uk", new JsonSettingsStore(new StoragePaths(root.Path)).Current.Language);
+    }
+
+    [Theory]
+    [InlineData("uk")]
+    [InlineData("en")]
+    public void AFileAtVersion2_KeepsTheLanguageTheUserChose(string language)
+    {
+        using var root = new TempDataRoot();
+        Directory.CreateDirectory(root.Path);
+        File.WriteAllText(root.SettingsFile, "{ \"settingsVersion\": 2, \"language\": \"" + language + "\", \"theme\": \"Dark\" }");
+
+        var store = new JsonSettingsStore(new StoragePaths(root.Path));
+
+        Assert.Equal(language, store.Current.Language);
+        Assert.Equal(ThemePreference.Dark, store.Current.Theme);
+        Assert.Equal(2, store.Current.SettingsVersion);
+    }
+
+    [Fact]
+    public void AFileFromANewerVersion_IsNotMigrated()
+    {
+        using var root = new TempDataRoot();
+        Directory.CreateDirectory(root.Path);
+        File.WriteAllText(root.SettingsFile, """{ "settingsVersion": 3, "language": "uk" }""");
+
+        var store = new JsonSettingsStore(new StoragePaths(root.Path));
+
+        Assert.Equal("uk", store.Current.Language);
+        Assert.Equal(3, store.Current.SettingsVersion);
+    }
+
+    [Fact]
+    public void AFileWithoutAVersion_ButWithBom_IsMigratedToo()
+    {
+        using var root = new TempDataRoot();
+        Directory.CreateDirectory(root.Path);
+        File.WriteAllBytes(root.SettingsFile, [.. new byte[] { 0xEF, 0xBB, 0xBF }, .. Encoding.UTF8.GetBytes("""{ "language": "uk" }""")]);
+
+        var store = new JsonSettingsStore(new StoragePaths(root.Path));
+
+        Assert.Equal("en", store.Current.Language);
         Assert.False(File.Exists(root.SettingsFile + ".bad"));
     }
 
@@ -124,9 +220,9 @@ public sealed class JsonSettingsStoreTests
         File.WriteAllText(root.SettingsFile, "garbage");
         var store = new JsonSettingsStore(new StoragePaths(root.Path));
 
-        await store.SaveAsync(new AppSettings { Language = "en" }, TestContext.Current.CancellationToken);
+        await store.SaveAsync(new AppSettings { Language = "uk" }, TestContext.Current.CancellationToken);
 
-        Assert.Equal("en", new JsonSettingsStore(new StoragePaths(root.Path)).Current.Language);
+        Assert.Equal("uk", new JsonSettingsStore(new StoragePaths(root.Path)).Current.Language);
         Assert.Equal("garbage", File.ReadAllText(root.SettingsFile + ".bad"));
     }
 

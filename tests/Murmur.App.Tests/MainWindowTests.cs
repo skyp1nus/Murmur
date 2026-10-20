@@ -4,6 +4,7 @@ using Avalonia.Controls.Primitives;
 using Avalonia.Headless;
 using Avalonia.Media;
 using Avalonia.VisualTree;
+using Murmur.App.Localization;
 using Murmur.App.Tests.Fakes;
 using Murmur.App.Views;
 using Murmur.Core.Sessions;
@@ -24,6 +25,7 @@ public sealed class MainWindowTests
         var snapshot = await Session.Dispatch(
             () =>
             {
+                using var scope = UiCulture.Override("en");
                 var window = UiHarness.Show(shell);
                 var texts = window.GetVisualDescendants().OfType<TextBlock>().Where(t => t.IsEffectivelyVisible).Select(t => t.Text).ToArray();
                 var buttons = window.GetVisualDescendants().OfType<Button>().Where(b => b is not ToggleButton && b.IsEffectivelyVisible).Select(b => b.Content as string).ToArray();
@@ -41,16 +43,17 @@ public sealed class MainWindowTests
         Assert.Equal(900, snapshot.MinWidth);
         Assert.Equal(600, snapshot.MinHeight);
         Assert.Contains("Murmur", snapshot.texts);
-        Assert.Contains("Ще немає записів", snapshot.texts);
-        Assert.Contains("Натисни «Новий запис», щоб записати перший мітинг. Усе лишається на твоєму компʼютері.", snapshot.texts);
-        Assert.Equal(["Новий запис", "Новий запис"], snapshot.buttons);
-        Assert.Equal(["Сьогодні", "Тиждень", "Усі"], snapshot.pills);
-        Assert.Equal("Пошук по записах", snapshot.PlaceholderText);
+        Assert.Contains("No recordings yet", snapshot.texts);
+        Assert.Contains("Click “New recording” to record your first meeting. Everything stays on your computer.", snapshot.texts);
+        Assert.Equal(["New recording", "New recording"], snapshot.buttons);
+        Assert.Equal(["Today", "This week", "All"], snapshot.pills);
+        Assert.Equal("Search titles and text", snapshot.PlaceholderText);
     }
 
     [Fact]
     public async Task Library_ListsSessionsInAVirtualisedList()
     {
+        using var uk = UiCulture.Override("uk");
         var harness = new UiHarness();
         harness.SeedSessions();
         var shell = harness.CreateShell();
@@ -59,6 +62,7 @@ public sealed class MainWindowTests
         var (titles, durations, listBoxes, hasVirtualPanel, emptyVisible) = await Session.Dispatch(
             () =>
             {
+                using var scope = UiCulture.Override("uk");
                 var window = UiHarness.Show(shell);
                 var texts = window.GetVisualDescendants().OfType<TextBlock>().ToArray();
                 var list = window.GetVisualDescendants().OfType<ListBox>().Where(l => l.IsEffectivelyVisible).ToArray();
@@ -87,6 +91,7 @@ public sealed class MainWindowTests
     [Fact]
     public async Task NewRecordingButton_SwitchesToTheRecordingScreen_ThroughTheDataTemplate()
     {
+        using var uk = UiCulture.Override("uk");
         var harness = new UiHarness();
         var shell = harness.CreateShell();
         await shell.Library.LoadAsync();
@@ -94,6 +99,7 @@ public sealed class MainWindowTests
         var (isRecordingView, hasLibraryView, labels) = await Session.Dispatch(
             () =>
             {
+                using var scope = UiCulture.Override("uk");
                 var window = UiHarness.Show(shell);
                 var header = window.GetVisualDescendants().OfType<Button>().First(b => b.Classes.Contains("primary"));
                 header.Command!.Execute(null);

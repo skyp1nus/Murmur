@@ -496,15 +496,15 @@ public sealed partial class SettingsViewTests
         var snapshot = await Session.Dispatch(
             async () =>
             {
-                using var scope = UiCulture.Override("uk");
+                using var scope = UiCulture.Override("en");
                 var rig = new Rig();
                 var window = rig.Show();
                 var noteBefore = VisibleTexts(window).Contains(Strings.Appearance_RestartNote);
 
-                Named<ToggleButton>(window, "LanguageEn").IsChecked = true;
+                Named<ToggleButton>(window, "LanguageUk").IsChecked = true;
                 await rig.Settings.LastSave;
                 UiHarness.Pump(4);
-                var result = (noteBefore, VisibleTexts(window).Contains(Strings.Appearance_RestartNote), rig.Store.Current.Language, UiCulture.Language, Named<ToggleButton>(window, "LanguageUk").IsChecked);
+                var result = (noteBefore, VisibleTexts(window).Contains(Strings.Appearance_RestartNote), rig.Store.Current.Language, UiCulture.Language, Named<ToggleButton>(window, "LanguageEn").IsChecked);
                 window.Close();
                 return result;
             },
@@ -512,8 +512,8 @@ public sealed partial class SettingsViewTests
 
         Assert.False(snapshot.noteBefore);
         Assert.True(snapshot.Item2);
-        Assert.Equal("en", snapshot.Item3);
-        Assert.Equal("uk", snapshot.Item4);
+        Assert.Equal("uk", snapshot.Item3);
+        Assert.Equal("en", snapshot.Item4);
         Assert.False(snapshot.Item5);
     }
 

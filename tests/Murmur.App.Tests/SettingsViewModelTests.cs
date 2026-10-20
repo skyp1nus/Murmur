@@ -10,8 +10,13 @@ using Murmur.Core.Settings;
 namespace Murmur.App.Tests;
 
 /// <summary>The Settings screen's view models: models, devices, storage, hotkeys, appearance and about, against fake services.</summary>
-public sealed class SettingsViewModelTests
+public sealed class SettingsViewModelTests : IDisposable
 {
+    // The texts asserted below are Ukrainian; English is the default language (D-039).
+    private readonly IDisposable _ukrainian = UiCulture.Override("uk");
+
+    public void Dispose() => _ukrainian.Dispose();
+
     private sealed class Rig
     {
         public Rig(AppSettings? initial = null, Func<ModelKind, string?>? activeModel = null, bool withModels = true, string? defaultFolder = "/data/Recordings")
@@ -793,26 +798,38 @@ public sealed class SettingsViewModelTests
     [Fact]
     public async Task Appearance_Language_IsSaved_AndFlagsARestartOnlyWhenItDiffersFromTheRunningOne()
     {
-        using var uk = UiCulture.Override("uk");
+        using var en = UiCulture.Override("en");
         var rig = new Rig();
         var appearance = rig.Vm.Appearance;
-        Assert.True(appearance.IsUkrainian);
-        Assert.False(appearance.NeedsRestart);
-
-        appearance.IsEnglish = true;
-        await appearance.LastSave;
-
-        Assert.Equal("en", rig.Store.Current.Language);
-        Assert.True(appearance.NeedsRestart);
         Assert.True(appearance.IsEnglish);
-        Assert.False(appearance.IsUkrainian);
-        // The running language does not change (decision D-032).
-        Assert.Equal("uk", UiCulture.Language);
+        Assert.False(appearance.NeedsRestart);
 
         appearance.IsUkrainian = true;
         await appearance.LastSave;
+
         Assert.Equal("uk", rig.Store.Current.Language);
+        Assert.True(appearance.NeedsRestart);
+        Assert.True(appearance.IsUkrainian);
+        Assert.False(appearance.IsEnglish);
+        // The running language does not change (decision D-032).
+        Assert.Equal("en", UiCulture.Language);
+
+        appearance.IsEnglish = true;
+        await appearance.LastSave;
+        Assert.Equal("en", rig.Store.Current.Language);
         Assert.False(appearance.NeedsRestart);
+    }
+
+    [Fact]
+    public void Appearance_OnACleanProfile_ShowsEnglish()
+    {
+        using var en = UiCulture.Override("en");
+        var rig = new Rig();
+
+        Assert.Equal("en", rig.Store.Current.Language);
+        Assert.Equal("en", rig.Vm.Appearance.Language);
+        Assert.True(rig.Vm.Appearance.IsEnglish);
+        Assert.False(rig.Vm.Appearance.IsUkrainian);
     }
 
     [Fact]
@@ -838,7 +855,7 @@ public sealed class SettingsViewModelTests
         var about = new SettingsViewModel(new FakeSettingsStore(), new FakeDisplayCapture(), version: "9.8.7").About;
 
         Assert.Equal("9.8.7", about.Version);
-        Assert.Equal("Project licence — Apache 2.0", about.License);
+        Assert.Equal("Project license — Apache 2.0", about.License);
         Assert.Contains("Parakeet TDT v3 — NVIDIA, CC-BY-4.0", about.Credits);
         Assert.Contains("Gemma 4 — Google, Apache 2.0", about.Credits);
         Assert.Contains("EmbeddingGemma — Google, Gemma Terms of Use", about.Credits);
@@ -875,12 +892,12 @@ public sealed class SettingsViewModelTests
 
         var first = writer.UpdateAsync(s => s with { ScreenByDefault = true });
         var second = writer.UpdateAsync(s => s with { RecordingsDirectory = "/x" });
-        var third = writer.UpdateAsync(s => s with { Language = "en" });
+        var third = writer.UpdateAsync(s => s with { Language = "uk" });
         await Task.WhenAll(first, second, third);
 
         Assert.True(store.Current.ScreenByDefault);
         Assert.Equal("/x", store.Current.RecordingsDirectory);
-        Assert.Equal("en", store.Current.Language);
+        Assert.Equal("uk", store.Current.Language);
         Assert.Equal(3, store.Saves);
     }
 
