@@ -1,0 +1,30 @@
+<Styles xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+  <!--
+    Per-theme resources of the Recording screen (Recording.dc.html / RecordingDark.dc.html). Like the other style files this one holds
+    no literal colours: the chip fill is a palette brush that differs between the themes, the orb numbers are the canvas's.
+  -->
+
+  <Styles.Resources>
+    <ResourceDictionary>
+      <ResourceDictionary.MergedDictionaries>
+        <ResourceInclude Source="/Styles/Tokens.axaml" />
+      </ResourceDictionary.MergedDictionaries>
+
+      <ResourceDictionary.ThemeDictionaries>
+        <!-- The source chips are Canvas in the light theme and Surface in the dark one; the dark orb has a wider halo and a fainter glow. The halo values are the radius of Avalonia's blur fitted to the canvas's blur(28px) / blur(32px) (see GlassOrbControl: 3.4 x the CSS sigma). -->
+        <ResourceDictionary x:Key="Light">
+          <StaticResource x:Key="Brush.RecordingChip" ResourceKey="Brush.Canvas" />
+          <x:Double x:Key="Rec.HaloBlur">95</x:Double>
+          <x:Double x:Key="Rec.InnerGlowOpacity">0.35</x:Double>
+        </ResourceDictionary>
+        <ResourceDictionary x:Key="Dark">
+          <StaticResource x:Key="Brush.RecordingChip" ResourceKey="Brush.Surface" />
+          <x:Double x:Key="Rec.HaloBlur">109</x:Double>
+          <x:Double x:Key="Rec.InnerGlowOpacity">0.25</x:Double>
+        </ResourceDictionary>
+      </ResourceDictionary.ThemeDictionaries>
+    </ResourceDictionary>
+  </Styles.Resources>
+</Styles>

@@ -193,7 +193,7 @@ public sealed class RecordingViewModelTests : IDisposable
         Assert.Equal("mic-usb", options.MicrophoneDeviceId);
         Assert.Null(options.SystemDeviceId);
         Assert.True(vm.IsRecording);
-        Assert.Equal("Зупинити", vm.StartStopLabel);
+        Assert.Equal("Зупинити й розпізнати", vm.StartStopLabel);
     }
 
     [Fact]

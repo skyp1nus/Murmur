@@ -63,7 +63,7 @@ public sealed class ScreenshotTests
             () =>
             {
                 var window = UiHarness.Show(shell);
-                UiHarness.BreatheOrb(window.GetVisualDescendants().OfType<OrbControl>().Single());
+                UiHarness.BreatheOrb(window.GetVisualDescendants().OfType<GlassOrbControl>().Single());
                 UiHarness.Pump();
                 UiHarness.Save(window, Path("phase1-recording-active.png"));
                 window.Close();
@@ -116,7 +116,7 @@ public sealed class ScreenshotTests
     private static byte[] RenderActive(int strayTicks)
     {
         var window = UiHarness.Show(ActiveShell());
-        var orb = window.GetVisualDescendants().OfType<OrbControl>().Single();
+        var orb = window.GetVisualDescendants().OfType<GlassOrbControl>().Single();
         for (var i = 0; i < strayTicks; i++)
         {
             Thread.Sleep(70 + (i * 13));
@@ -125,7 +125,7 @@ public sealed class ScreenshotTests
 
         if (strayTicks > 0)
         {
-            Assert.True(orb.SmoothedLevel > 0, "The stray ticks should have started the animation.");
+            Assert.True(orb.AppliedFrames > 1, "The stray ticks should have started the animation.");
         }
 
         UiHarness.BreatheOrb(orb);

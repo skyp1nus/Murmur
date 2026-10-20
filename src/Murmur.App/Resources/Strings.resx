@@ -996,4 +996,97 @@
   <data name="Storage_NotAbsolute" xml:space="preserve">
     <value>Use a full folder path, for example C:\Recordings.</value>
   </data>
+  <!-- Recording screen of the canvas (p41-recording): title, pause, tracks, "Let people know" -->
+  <data name="Recording_TitleLabel" xml:space="preserve">
+    <value>Title</value>
+  </data>
+  <data name="Recording_AutoSaved" xml:space="preserve">
+    <value>Auto-saved to disk every few seconds</value>
+  </data>
+  <data name="Recording_PausedNote" xml:space="preserve">
+    <value>Paused — nothing is recorded until you resume</value>
+  </data>
+  <data name="Recording_ScreenOff" xml:space="preserve">
+    <value>Screen off</value>
+  </data>
+  <data name="Recording_ScreenOn" xml:space="preserve">
+    <value>Screen · {0}p</value>
+    <comment>{0} = height of the recorded video in pixels</comment>
+  </data>
+  <data name="Recording_Pause" xml:space="preserve">
+    <value>Pause</value>
+  </data>
+  <data name="Recording_Resume" xml:space="preserve">
+    <value>Resume</value>
+  </data>
+  <data name="Recording_StopAndTranscribe" xml:space="preserve">
+    <value>Stop and transcribe</value>
+  </data>
+  <data name="Recording_Tracks" xml:space="preserve">
+    <value>Tracks</value>
+  </data>
+  <data name="Recording_TrackYou" xml:space="preserve">
+    <value>You · microphone</value>
+  </data>
+  <data name="Recording_TrackOthers" xml:space="preserve">
+    <value>Others · system audio</value>
+  </data>
+  <data name="Recording_Loopback" xml:space="preserve">
+    <value>{0} · loopback</value>
+    <comment>{0} = name of the output device</comment>
+  </data>
+  <data name="Recording_LevelDb" xml:space="preserve">
+    <value>{0} dB</value>
+    <comment>{0} = level, e.g. −18</comment>
+  </data>
+  <data name="Recording_TrackPaused" xml:space="preserve">
+    <value>Paused</value>
+  </data>
+  <data name="Recording_TrackOff" xml:space="preserve">
+    <value>Off</value>
+  </data>
+  <data name="Recording_TrackDenied" xml:space="preserve">
+    <value>Blocked</value>
+  </data>
+  <data name="Recording_TrackLost" xml:space="preserve">
+    <value>Unavailable</value>
+  </data>
+  <data name="Recording_TrackOffDetail" xml:space="preserve">
+    <value>Not recorded in this session</value>
+  </data>
+  <data name="Recording_TrackLostDetail" xml:space="preserve">
+    <value>The device could not be started</value>
+  </data>
+  <data name="Recording_LetPeopleKnow" xml:space="preserve">
+    <value>Let people know</value>
+  </data>
+  <data name="Recording_CopyMessage" xml:space="preserve">
+    <value>Copy message</value>
+  </data>
+  <data name="Recording_Copied" xml:space="preserve">
+    <value>Copied</value>
+  </data>
+  <data name="Recording_MessageToCopy" xml:space="preserve">
+    <value>Heads up: this meeting is being recorded.
+Увага: ця зустріч записується.</value>
+    <comment>The text copied to the clipboard: the same short notice in English and Ukrainian, whatever the UI language</comment>
+  </data>
+  <data name="Recording_AfterStop" xml:space="preserve">
+    <value>After you stop, Parakeet transcribes the recording in the background. You can close the window — the result will show up in your library.</value>
+  </data>
+  <data name="Recording_PauseFailed" xml:space="preserve">
+    <value>Couldn’t pause the recording: {0}</value>
+    <comment>{0} = error message</comment>
+  </data>
+  <data name="Recording_ResumeFailed" xml:space="preserve">
+    <value>Couldn’t resume the recording: {0}</value>
+    <comment>{0} = error message</comment>
+  </data>
+  <data name="Recording_RenameFailed" xml:space="preserve">
+    <value>Couldn’t rename the recording: {0}</value>
+    <comment>{0} = error message</comment>
+  </data>
+  <data name="Hotkeys_Pause" xml:space="preserve">
+    <value>Pause</value>
+  </data>
 </root>

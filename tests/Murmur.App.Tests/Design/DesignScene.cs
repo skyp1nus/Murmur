@@ -104,6 +104,14 @@ internal sealed class DesignScene : IDisposable
             orb.Tick();
         }
 
+        foreach (var orb in Window.GetVisualDescendants().OfType<GlassOrbControl>().ToArray())
+        {
+            // The canvas orbs at rest: scale 1, the halo at full strength (the reference is drawn with animations off).
+            orb.LevelSource = null;
+            orb.Clock = new TestTime(UiHarness.Now);
+            orb.Tick();
+        }
+
         // A live meter reads a constant level, so the timer ticks that run while the frame is taken do not change the bars.
         foreach (var meter in Window.GetVisualDescendants().OfType<LevelMeterControl>().ToArray())
         {
@@ -301,10 +309,22 @@ internal sealed class DesignScene : IDisposable
         rig.Recording.Microphone = true;
         rig.Recording.SystemAudio = true;
         rig.Recording.Screen = false;
+        rig.Recording.Title = DesignDemoData.RecordingTitle;
+        await rig.Recording.CommitTitleAsync();
         await rig.Recording.StartStopAsync();
         rig.Recorder.Elapsed = DesignDemoData.RecordingElapsed;
         rig.Recorder.Levels = new AudioLevels(DesignDemoData.RecordingLevels.Microphone, DesignDemoData.RecordingLevels.SystemAudio);
         rig.Recording.Refresh();
+        foreach (var peak in DesignDemoData.RecordingBars(1.3, 1))
+        {
+            rig.Recording.MicrophoneTrack.History.Push(peak);
+        }
+
+        foreach (var peak in DesignDemoData.RecordingBars(4.1, 0.7))
+        {
+            rig.Recording.SystemTrack.History.Push(peak);
+        }
+
         if (rig.Recording.State != RecorderState.Recording)
         {
             notes.Add("The recording did not start: state " + rig.Recording.State);

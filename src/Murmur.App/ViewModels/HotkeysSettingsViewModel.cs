@@ -25,6 +25,7 @@ public sealed partial class HotkeysSettingsViewModel : ObservableObject
             new HotkeyRowViewModel(HotkeyAction.ToggleRecording, Strings.Hotkeys_Record, null, this),
             new HotkeyRowViewModel(HotkeyAction.ToggleScreen, Strings.Hotkeys_ToggleScreen, null, this),
             new HotkeyRowViewModel(HotkeyAction.ShowApp, Strings.Hotkeys_ShowApp, null, this),
+            new HotkeyRowViewModel(HotkeyAction.TogglePause, Strings.Hotkeys_Pause, null, this),
         ];
         Refresh();
     }
@@ -202,6 +203,7 @@ public sealed partial class HotkeysSettingsViewModel : ObservableObject
     {
         HotkeyAction.ToggleRecording => settings.RecordHotkey,
         HotkeyAction.ToggleScreen => settings.ToggleScreenHotkey,
+        HotkeyAction.TogglePause => settings.PauseHotkey,
         _ => settings.ShowAppHotkey,
     };
 
@@ -209,6 +211,7 @@ public sealed partial class HotkeysSettingsViewModel : ObservableObject
     {
         HotkeyAction.ToggleRecording => settings with { RecordHotkey = gesture },
         HotkeyAction.ToggleScreen => settings with { ToggleScreenHotkey = gesture },
+        HotkeyAction.TogglePause => settings with { PauseHotkey = gesture },
         _ => settings with { ShowAppHotkey = gesture },
     };
 }

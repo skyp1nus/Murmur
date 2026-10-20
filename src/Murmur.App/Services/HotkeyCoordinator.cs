@@ -5,7 +5,7 @@ using Murmur.Core.Settings;
 namespace Murmur.App.Services;
 
 /// <summary>
-/// Connects the system-wide hotkeys to the app: registers the gestures of the settings (record, screen, show the window),
+/// Connects the system-wide hotkeys to the app: registers the gestures of the settings (record, screen, show the window, pause),
 /// keeps them in step with later settings changes and runs the action of a press on the UI thread.
 /// </summary>
 /// <remarks>
@@ -17,7 +17,7 @@ namespace Murmur.App.Services;
 /// <para><b>Re-registration.</b> Only the actions whose gesture text changed (and those that are <c>Taken</c>, which are tried
 /// again on every settings change) are registered. Everything that changed is released first and registered afterwards, so
 /// two actions may swap gestures, or one may take a gesture another gives up in the same change. Quick successive changes
-/// are coalesced to the latest settings. After every pass the latest <see cref="HotkeyRegistration"/> of all three actions is
+/// are coalesced to the latest settings. After every pass the latest <see cref="HotkeyRegistration"/> of every action is
 /// pushed to the Settings rows (a note under a row when the gesture is taken or unusable).</para>
 /// <para><b>Capturing.</b> While a Settings (or onboarding) row waits for a key combination every registration is released, so
 /// the combination reaches the field instead of triggering its action; when the capture ends they are registered again. Notes
@@ -26,7 +26,7 @@ namespace Murmur.App.Services;
 /// </remarks>
 internal sealed class HotkeyCoordinator : IDisposable
 {
-    private static readonly HotkeyAction[] Actions = [HotkeyAction.ToggleRecording, HotkeyAction.ToggleScreen, HotkeyAction.ShowApp];
+    private static readonly HotkeyAction[] Actions = [HotkeyAction.ToggleRecording, HotkeyAction.ToggleScreen, HotkeyAction.ShowApp, HotkeyAction.TogglePause];
 
     private readonly IGlobalHotkeys _hotkeys;
     private readonly ISettingsStore _settings;
@@ -44,9 +44,9 @@ internal sealed class HotkeyCoordinator : IDisposable
 
     // The background pass's own state, under _gate.
     private readonly Lock _gate = new();
-    private readonly string?[] _applied = new string?[3];
-    private readonly bool[] _known = new bool[3];
-    private readonly HotkeyRegistration[] _registrations = [HotkeyRegistration.Cleared, HotkeyRegistration.Cleared, HotkeyRegistration.Cleared];
+    private readonly string?[] _applied = new string?[Actions.Length];
+    private readonly bool[] _known = new bool[Actions.Length];
+    private readonly HotkeyRegistration[] _registrations = [HotkeyRegistration.Cleared, HotkeyRegistration.Cleared, HotkeyRegistration.Cleared, HotkeyRegistration.Cleared];
     private bool _suspended;
     private bool _started;
     private int _disposed;
@@ -196,8 +196,10 @@ internal sealed class HotkeyCoordinator : IDisposable
 
     private void Apply(AppSettings settings)
     {
-        string?[] wanted = _suspended ? [null, null, null] : [settings.RecordHotkey, settings.ToggleScreenHotkey, settings.ShowAppHotkey];
-        var changed = new List<int>(3);
+        string?[] wanted = _suspended
+            ? [null, null, null, null]
+            : [settings.RecordHotkey, settings.ToggleScreenHotkey, settings.ShowAppHotkey, settings.PauseHotkey];
+        var changed = new List<int>(Actions.Length);
         for (var i = 0; i < Actions.Length; i++)
         {
             // A taken gesture is tried again on every change: the other program may have let it go.
@@ -300,6 +302,9 @@ internal sealed class HotkeyCoordinator : IDisposable
                 break;
             case HotkeyAction.ShowApp:
                 _showApp();
+                break;
+            case HotkeyAction.TogglePause:
+                _ = _shell.TogglePauseFromHotkeyAsync();
                 break;
         }
     }

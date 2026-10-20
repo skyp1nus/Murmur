@@ -292,6 +292,10 @@ public sealed partial class ShellViewModel : ObservableObject
     internal Task ToggleScreenFromHotkeyAsync() =>
         CurrentPage is OnboardingViewModel ? Task.CompletedTask : Recording.ToggleScreenFromHotkeyAsync();
 
+    /// <summary>The pause hotkey: pauses the running recording or resumes the paused one; nothing otherwise (not during the onboarding's trial).</summary>
+    internal Task TogglePauseFromHotkeyAsync() =>
+        CurrentPage is OnboardingViewModel ? Task.CompletedTask : Recording.TogglePauseFromHotkeyAsync();
+
     public void ShowRecording()
     {
         CloseSession();
