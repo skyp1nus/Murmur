@@ -50,6 +50,12 @@ internal sealed class FakeStorage : IStorage
     public ValueTask<Transcript?> GetTranscriptAsync(SessionId id, CancellationToken cancellationToken) =>
         ValueTask.FromResult(Transcripts.GetValueOrDefault(id));
 
+    public ValueTask<IReadOnlyList<TranscriptSummary>> GetTranscriptSummariesAsync(IReadOnlyList<SessionId> sessions, CancellationToken cancellationToken) =>
+        ValueTask.FromResult<IReadOnlyList<TranscriptSummary>>(
+        [
+            .. sessions.Where(Transcripts.ContainsKey).Select(id => new TranscriptSummary(id, Transcripts[id].Language, Transcripts[id].Segments.Count > 0 ? Transcripts[id].Segments[0].Text : null)),
+        ]);
+
     public ValueTask<SessionRecord?> GetSessionAsync(SessionId id, CancellationToken cancellationToken)
     {
         SessionLookups++;

@@ -26,7 +26,16 @@ public interface ITranscriptStore
     ValueTask SaveTranscriptAsync(Transcript transcript, CancellationToken cancellationToken);
 
     ValueTask<Transcript?> GetTranscriptAsync(SessionId id, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// What a list row needs of the transcripts of <paramref name="sessions"/>: the language and the first segment's text, without the
+    /// words. One entry per session that has a transcript (the others are absent); order is not specified.
+    /// </summary>
+    ValueTask<IReadOnlyList<TranscriptSummary>> GetTranscriptSummariesAsync(IReadOnlyList<SessionId> sessions, CancellationToken cancellationToken);
 }
+
+/// <summary>The language the transcript was recognised in (<c>null</c> when unknown) and the text of its first segment (<c>null</c> when it has none).</summary>
+public sealed record TranscriptSummary(SessionId Session, string? Language, string? FirstLine);
 
 /// <summary>A piece of transcript text positioned on a session timeline.</summary>
 public sealed record TextChunk(SessionId Session, TimeSpan Start, TimeSpan End, string Text);
