@@ -35,7 +35,7 @@ public readonly record struct RecordingSources(bool Microphone, bool SystemAudio
 /// through <see cref="IAssistant.SearchAsync"/> (which itself drops to BM25 when the embedding model is missing or AI
 /// is paused); when the assistant is missing or throws, <see cref="ISearchIndex.SearchKeywordAsync"/> answers.</para>
 /// </remarks>
-public sealed partial class LibraryViewModel : ObservableObject, IDisposable
+public sealed partial class LibraryViewModel : ObservableObject, IDisposable, IFillsFrame
 {
     /// <summary>Quiet time after the last keystroke before the transcript search runs.</summary>
     public static readonly TimeSpan SearchDebounce = TimeSpan.FromMilliseconds(300);
@@ -55,6 +55,7 @@ public sealed partial class LibraryViewModel : ObservableObject, IDisposable
     private readonly IRecorder? _recorder;
     private readonly ITranscriptStore? _transcripts;
     private readonly SettingsWriter? _settings;
+    private readonly ISettingsStore? _settingsStore;
     private readonly Dictionary<SessionId, (string? Language, string? FirstLine)> _details = [];
     private CancellationTokenSource? _detailsCts;
     private readonly Dictionary<SessionId, SessionItemViewModel> _rows = [];
@@ -96,14 +97,24 @@ public sealed partial class LibraryViewModel : ObservableObject, IDisposable
         _assistant = assistant;
         _recorder = recorder;
         _transcripts = transcripts;
-        _settings = settings is null ? null : new SettingsWriter(settings);
+        _settings = settings is null ? null : SettingsWriter.For(settings);
+        _settingsStore = settings;
         _post = post ?? (action => Avalonia.Threading.Dispatcher.UIThread.Post(action));
         if (processing is not null)
         {
             processing.ProgressChanged += OnProcessingChanged;
         }
 
-        Screen = settings?.Current.ScreenByDefault ?? false;
+        if (recorder is not null)
+        {
+            recorder.StateChanged += OnRecorderStateChanged;
+        }
+
+        if (settings is not null)
+        {
+            ApplySavedSwitches(settings.Current);
+        }
+
         Suggestions = [Strings.Library_Suggestion1, Strings.Library_Suggestion2, Strings.Library_Suggestion3];
         Entries.SetHead(new LibraryHeroEntry(this), new LibraryHeaderEntry(this), new LibraryFiltersEntry(this));
     }
@@ -375,6 +386,11 @@ public sealed partial class LibraryViewModel : ObservableObject, IDisposable
     public void Dispose()
     {
         _disposed = true;
+        if (_recorder is not null)
+        {
+            _recorder.StateChanged -= OnRecorderStateChanged;
+        }
+
         StopStaleTimer();
         _search?.Cancel();
         _search?.Dispose();
@@ -486,29 +502,63 @@ public sealed partial class LibraryViewModel : ObservableObject, IDisposable
         ScreenAvailable = screenAvailable;
     }
 
-    /// <summary>Re-reads the "screen by default" setting into the Screen switch.</summary>
+    /// <summary>Re-reads the saved switches (microphone, system audio, screen by default) into the New recording card.</summary>
     internal void RefreshDefaults(ISettingsStore? settings)
     {
-        if (settings is not null && Screen != settings.Current.ScreenByDefault)
+        if (settings is not null)
         {
-            _suppressScreenSave = true;
-            Screen = settings.Current.ScreenByDefault;
-            _suppressScreenSave = false;
+            ApplySavedSwitches(settings.Current);
         }
     }
 
-    partial void OnScreenChanged(bool value)
+    private void ApplySavedSwitches(AppSettings settings)
     {
-        if (!_suppressScreenSave && _settings is not null)
-        {
-            _ = _settings.UpdateAsync(s => s with { ScreenByDefault = value });
-        }
+        _applyingSwitches = true;
+        Microphone = settings.RecordMicrophoneByDefault;
+        SystemAudio = settings.RecordSystemAudioByDefault;
+        Screen = settings.ScreenByDefault;
+        _applyingSwitches = false;
     }
 
-    private bool _suppressScreenSave;
+    partial void OnMicrophoneChanged(bool value) => SaveSwitch(s => s with { RecordMicrophoneByDefault = value });
+
+    partial void OnSystemAudioChanged(bool value) => SaveSwitch(s => s with { RecordSystemAudioByDefault = value });
+
+    partial void OnScreenChanged(bool value) => SaveSwitch(s => s with { ScreenByDefault = value });
+
+    /// <summary>The last save of a switch of the card (for tests that need to await it).</summary>
+    internal Task SwitchSaveTask { get; private set; } = Task.CompletedTask;
+
+    private bool _applyingSwitches;
+
+    /// <summary>A switch of the card is kept as a recording default, through the writer the Settings screen shares (edits never overwrite each other); a failure shows inline.</summary>
+    private void SaveSwitch(Func<AppSettings, AppSettings> edit)
+    {
+        if (_applyingSwitches || _settings is null)
+        {
+            return;
+        }
+
+        SwitchSaveTask = SaveSwitchAsync(edit);
+    }
+
+    private async Task SaveSwitchAsync(Func<AppSettings, AppSettings> edit)
+    {
+        if (await _settings!.UpdateAsync(edit).ConfigureAwait(true) is { } error)
+        {
+            Error = error;
+        }
+    }
 
     partial void OnFilterChanged(LibraryFilter value)
     {
+        if (value != LibraryFilter.Range)
+        {
+            // The picked days only mean something while they filter: the calendar clears its selection.
+            RangeStart = null;
+            RangeEnd = null;
+        }
+
         OnPropertyChanged(nameof(IsTodayFilter));
         OnPropertyChanged(nameof(IsWeekFilter));
         OnPropertyChanged(nameof(IsAllFilter));
@@ -555,6 +605,17 @@ public sealed partial class LibraryViewModel : ObservableObject, IDisposable
         if (_rows.TryGetValue(status.Session, out var row))
         {
             row.ApplyProcessing(status);
+
+            // A transcript was just written (or the work failed): what the row knows of it is stale, read it again.
+            if (status.Stage is SessionProcessingStage.Completed or SessionProcessingStage.Failed)
+            {
+                _details.Remove(status.Session);
+                ApplyDetails(Sessions);
+            }
+        }
+        else if (status.Stage is SessionProcessingStage.Completed or SessionProcessingStage.Failed)
+        {
+            _details.Remove(status.Session);
         }
 
         UpdateRecent();
@@ -624,7 +685,8 @@ public sealed partial class LibraryViewModel : ObservableObject, IDisposable
             case LibraryFilter.Month:
                 return new SessionQuery(From: StartOfLocalDay(new DateTime(now.Year, now.Month, 1)));
             case LibraryFilter.Range when RangeStart is { } start && RangeEnd is { } end:
-                return new SessionQuery(From: StartOfLocalDay(start.Date), To: StartOfLocalDay(end.Date.AddDays(1)));
+                // The store compares with <= : the last tick of the last day, so a recording at midnight of the next day is not in.
+                return new SessionQuery(From: StartOfLocalDay(start.Date), To: StartOfLocalDay(end.Date.AddDays(1)).AddTicks(-1));
             default:
                 return new SessionQuery();
         }
@@ -636,9 +698,20 @@ public sealed partial class LibraryViewModel : ObservableObject, IDisposable
         return new DateTimeOffset(unspecified, _time.LocalTimeZone.GetUtcOffset(unspecified));
     }
 
+    private string? _appliedNeedle;
+    private IReadOnlyList<SessionRecord>? _appliedLoaded;
+
     private void ApplySearch()
     {
-        var needle = SearchText.Trim();
+        // With a transcript search the list is not on screen (the results are): the rows stay the full list and are not rebuilt per keystroke.
+        var needle = HasTranscriptSearch ? string.Empty : SearchText.Trim();
+        if (needle == _appliedNeedle && ReferenceEquals(_loaded, _appliedLoaded))
+        {
+            return;
+        }
+
+        _appliedNeedle = needle;
+        _appliedLoaded = _loaded;
         var rows = new List<SessionItemViewModel>(_loaded.Count);
         _rows.Clear();
 
@@ -680,6 +753,11 @@ public sealed partial class LibraryViewModel : ObservableObject, IDisposable
         var recent = new List<SessionRecord>(SidebarViewModel.RecentCount);
         foreach (var record in _recentPool)
         {
+            if (_recorder?.Current is { } current && current.Id == record.Id && _recorder.State != RecorderState.Idle)
+            {
+                continue;
+            }
+
             var live = _processing?.GetStatus(record.Id);
             var busy = live is { Stage: SessionProcessingStage.Queued or SessionProcessingStage.BuildingPeaks or SessionProcessingStage.Transcribing or SessionProcessingStage.Saving };
             if (!busy)
@@ -815,15 +893,15 @@ public sealed partial class LibraryViewModel : ObservableObject, IDisposable
                 return Strings.Library_FilterWeek;
             default:
                 key = local.Date;
-                return UiFormat.DayHeading(local);
+                return UiFormat.DayHeading(local, _time);
         }
     }
 
     // The language and first line of each row's transcript ---------------------------------------------------------------
 
     /// <summary>
-    /// Shows what is known of the rows' transcripts now and reads the rest in the background, newest first, one at a time (a long
-    /// library does not stall the UI, and a newer load or search cancels the older one).
+    /// Shows what is known of the rows' transcripts now and reads the rest in one batch in the background (language and first line only,
+    /// one query in the store, off the UI thread). Nothing is read while a recording runs; the read is retried when it ends. A newer load or search cancels the older read.
     /// </summary>
     private void ApplyDetails(IReadOnlyList<SessionItemViewModel> rows)
     {
@@ -848,7 +926,7 @@ public sealed partial class LibraryViewModel : ObservableObject, IDisposable
             }
         }
 
-        if (pending is null)
+        if (pending is null || RecorderIsBusy)
         {
             DetailsTask = Task.CompletedTask;
             return;
@@ -859,39 +937,50 @@ public sealed partial class LibraryViewModel : ObservableObject, IDisposable
         DetailsTask = ReadDetailsAsync(pending, cts.Token);
     }
 
+    private bool RecorderIsBusy => _recorder is { State: not RecorderState.Idle };
+
+    private void OnRecorderStateChanged(RecorderState state) => _post(() =>
+    {
+        UpdateRecent();
+        if (state == RecorderState.Idle && !_disposed)
+        {
+            ApplyDetails(Sessions);
+        }
+    });
+
     private async Task ReadDetailsAsync(List<SessionItemViewModel> rows, CancellationToken cancellationToken)
     {
         var transcripts = _transcripts!;
+        IReadOnlyList<SessionId> ids = [.. rows.Select(r => r.Id)];
+        IReadOnlyList<TranscriptSummary> summaries;
+        try
+        {
+            summaries = await Task.Run(async () => await transcripts.GetTranscriptSummariesAsync(ids, cancellationToken), cancellationToken).ConfigureAwait(true);
+        }
+        catch (Exception)
+        {
+            // Cancelled, or the store failed: the rows simply have no language and text line (the page reports its own load errors).
+            return;
+        }
+
+        if (cancellationToken.IsCancellationRequested)
+        {
+            return;
+        }
+
+        var byId = new Dictionary<SessionId, TranscriptSummary>(summaries.Count);
+        foreach (var summary in summaries)
+        {
+            byId[summary.Session] = summary;
+        }
+
         foreach (var row in rows)
         {
-            if (cancellationToken.IsCancellationRequested)
+            if (byId.TryGetValue(row.Id, out var summary))
             {
-                return;
+                _details[row.Id] = (summary.Language, summary.FirstLine);
+                row.ApplyTranscript(summary.Language, summary.FirstLine);
             }
-
-            Murmur.Core.Transcription.Transcript? transcript;
-            try
-            {
-                var id = row.Id;
-                transcript = await Task.Run(async () => await transcripts.GetTranscriptAsync(id, cancellationToken), cancellationToken).ConfigureAwait(true);
-            }
-            catch (OperationCanceledException)
-            {
-                return;
-            }
-            catch (Exception)
-            {
-                continue;
-            }
-
-            if (transcript is null || cancellationToken.IsCancellationRequested)
-            {
-                continue;
-            }
-
-            var line = transcript.Segments.Count > 0 ? transcript.Segments[0].Text : null;
-            _details[row.Id] = (transcript.Language, line);
-            row.ApplyTranscript(transcript.Language, line);
         }
     }
 
@@ -1135,7 +1224,7 @@ public sealed partial class LibraryViewModel : ObservableObject, IDisposable
                 known[id] = record;
             }
 
-            if (record is null || (from is { } start && record.StartedAt < start) || (to is { } stop && record.StartedAt >= stop))
+            if (record is null || (from is { } start && record.StartedAt < start) || (to is { } stop && record.StartedAt > stop))
             {
                 continue;
             }

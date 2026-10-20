@@ -399,7 +399,9 @@ public sealed partial class RecordingViewModel : ObservableObject, ILevelSource
         SelectedMicrophone = Saved(MicrophoneDevices, settings.MicrophoneDeviceId) ?? Saved(MicrophoneDevices, null);
         SelectedSystemDevice = Saved(SystemDevices, settings.SystemAudioDeviceId) ?? Saved(SystemDevices, null);
 
-        // The recorder is idle here, so the toggle only changes the pill, not a running recording.
+        // The recorder is idle here, so the toggles only change the pills, not a running recording.
+        Microphone = settings.RecordMicrophoneByDefault && MicrophoneAvailable;
+        SystemAudio = settings.RecordSystemAudioByDefault && SystemAudioAvailable;
         Screen = settings.ScreenByDefault && ScreenAvailable;
     }
 

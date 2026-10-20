@@ -65,7 +65,7 @@ public sealed class MainWindowTests
                 using var scope = UiCulture.Override("uk");
                 var window = UiHarness.Show(shell);
                 var texts = window.GetVisualDescendants().OfType<TextBlock>().ToArray();
-                var list = window.GetVisualDescendants().OfType<ListBox>().Where(l => l.IsEffectivelyVisible).ToArray();
+                var list = window.GetVisualDescendants().OfType<ItemsControl>().Where(l => l.IsEffectivelyVisible && l.Classes.Contains("library")).ToArray();
                 var panel = window.GetVisualDescendants().OfType<VirtualizingStackPanel>().Any();
                 var empty = texts.Any(t => t.Text == "Ще немає записів" && t.IsEffectivelyVisible);
                 var result = (
@@ -251,7 +251,7 @@ public sealed class MainWindowTests
             () =>
             {
                 var window = UiHarness.Show(shell);
-                var heading = window.GetVisualDescendants().OfType<TextBlock>().First(t => t.Classes.Contains("heading"));
+                var heading = window.GetVisualDescendants().OfType<TextBlock>().First(t => t.Classes.Contains("pageTitle"));
                 var timer = window.GetVisualDescendants().OfType<TextBlock>().First(t => t.Classes.Contains("monoMeta"));
                 var primary = window.GetVisualDescendants().OfType<Button>().First(b => b.Classes.Contains("start"));
                 var card = window.GetVisualDescendants().OfType<Border>().First(b => b.Classes.Contains("heroCard"));

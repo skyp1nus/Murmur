@@ -1187,4 +1187,8 @@
   <data name="Lang_uk" xml:space="preserve">
     <value>Ukrainian</value>
   </data>
+  <data name="Library_DayHeadingYear" xml:space="preserve">
+    <value>{0}, {1} {2}, {3}</value>
+    <comment>{0} = weekday, {1} = month, {2} = day, {3} = year</comment>
+  </data>
 </root>

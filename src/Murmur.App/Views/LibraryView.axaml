@@ -7,15 +7,28 @@
              x:DataType="vm:LibraryViewModel">
 
   <!--
-    The Library page of the canvas (Main.dc.html) as one virtualised list, so the whole page scrolls like the canvas does and a long
+    The Library page of the canvas (Main.dc.html) as one virtualised list (an items control in a scroll viewer), so the whole page scrolls like the canvas does and a long
     library only builds the rows on screen: the fixed blocks first (heading with the two cards, Recordings with its search box, the
     filters), then the day headings with their rows, the search results, or the empty card.
   -->
-  <ListBox x:Name="Page"
-           Classes="library"
-           ItemsSource="{Binding Entries}"
-           ScrollViewer.HorizontalScrollBarVisibility="Disabled">
-    <ListBox.DataTemplates>
+  <ItemsControl x:Name="Page"
+                Classes="library"
+                ItemsSource="{Binding Entries}">
+    <ItemsControl.Template>
+      <ControlTemplate>
+        <ScrollViewer HorizontalScrollBarVisibility="Disabled"
+                      VerticalScrollBarVisibility="Auto">
+          <ItemsPresenter ItemsPanel="{TemplateBinding ItemsPanel}"
+                          Margin="{TemplateBinding Padding}" />
+        </ScrollViewer>
+      </ControlTemplate>
+    </ItemsControl.Template>
+    <ItemsControl.ItemsPanel>
+      <ItemsPanelTemplate>
+        <VirtualizingStackPanel />
+      </ItemsPanelTemplate>
+    </ItemsControl.ItemsPanel>
+    <ItemsControl.DataTemplates>
 
       <!-- What are we recording today? + the two cards -->
       <DataTemplate DataType="vm:LibraryHeroEntry">
@@ -23,7 +36,7 @@
                     x:DataType="vm:LibraryViewModel"
                     Margin="{StaticResource Margin.HeroTop}"
                     Spacing="{StaticResource Space.24}">
-          <TextBlock Classes="heading page"
+          <TextBlock Classes="pageTitle"
                      TextWrapping="Wrap"
                      Text="{x:Static res:Strings.Library_Heading}" />
 
@@ -33,7 +46,7 @@
             <!-- New recording -->
             <Border Classes="heroCard">
               <Grid ColumnDefinitions="Auto,*"
-                    ColumnSpacing="28">
+                    ColumnSpacing="{StaticResource Space.28}">
                 <Panel Grid.Column="0"
                        Width="{StaticResource Size.HeroOrb}"
                        Height="{StaticResource Size.HeroOrb}"
@@ -53,7 +66,7 @@
                 <StackPanel Grid.Column="1"
                             VerticalAlignment="Center"
                             Spacing="{StaticResource Space.16}">
-                  <StackPanel Spacing="6">
+                  <StackPanel Spacing="{StaticResource Space.6}">
                     <TextBlock Classes="cardTitle"
                                Text="{x:Static res:Strings.Library_NewRecording}" />
                     <TextBlock Classes="paragraph"
@@ -91,15 +104,21 @@
                     <ToggleButton Classes="source"
                                   IsChecked="{Binding Screen, Mode=TwoWay}"
                                   IsEnabled="{Binding ScreenAvailable}">
-                      <StackPanel Orientation="Horizontal"
-                                  Spacing="{StaticResource Space.8}">
-                        <controls:IconControl Width="{StaticResource Size.ToggleIcon}"
-                                              Height="{StaticResource Size.ToggleIcon}"
-                                              Data="{StaticResource Icon.Screen}" />
-                        <TextBlock Classes="t13 plain"
-                                   Foreground="{Binding $parent[ContentPresenter].Foreground}"
-                                   Text="{x:Static res:Strings.Common_Screen}" />
-                      </StackPanel>
+                      <Panel>
+                        <!-- Off: the canvas draws a dashed outline (a border cannot dash); it covers the whole button, padding included. -->
+                        <Rectangle Classes="dashedOutline"
+                                   IsVisible="{Binding !$parent[ToggleButton].IsChecked}" />
+                        <StackPanel Orientation="Horizontal"
+                                    VerticalAlignment="Center"
+                                    Spacing="{StaticResource Space.8}">
+                          <controls:IconControl Width="{StaticResource Size.ToggleIcon}"
+                                                Height="{StaticResource Size.ToggleIcon}"
+                                                Data="{StaticResource Icon.Screen}" />
+                          <TextBlock Classes="t13 plain"
+                                     Foreground="{Binding $parent[ContentPresenter].Foreground}"
+                                     Text="{x:Static res:Strings.Common_Screen}" />
+                        </StackPanel>
+                      </Panel>
                     </ToggleButton>
                   </WrapPanel>
 
@@ -122,7 +141,7 @@
                     IsVisible="{Binding CanAskAll}">
               <Grid RowDefinitions="Auto,*,Auto,*,Auto">
                 <StackPanel Grid.Row="0"
-                            Spacing="6">
+                            Spacing="{StaticResource Space.6}">
                   <TextBlock Classes="cardTitle"
                              Text="{x:Static res:Strings.Library_AskAll}" />
                   <TextBlock Classes="paragraph"
@@ -131,7 +150,7 @@
 
                 <Border Grid.Row="2"
                         Classes="askBox"
-                        Margin="0,20">
+                        Margin="{StaticResource Margin.AskBox}">
                   <Grid ColumnDefinitions="*,Auto"
                         ColumnSpacing="{StaticResource Space.8}">
                     <TextBox Grid.Column="0"
@@ -196,7 +215,7 @@
                   Classes="searchBox"
                   Width="{StaticResource Size.SearchBoxWidth}">
             <Grid ColumnDefinitions="Auto,*"
-                  ColumnSpacing="10">
+                  ColumnSpacing="{StaticResource Space.10}">
               <controls:IconControl Grid.Column="0"
                                     Width="{StaticResource Size.SearchIcon}"
                                     Height="{StaticResource Size.SearchIcon}"
@@ -217,8 +236,8 @@
         <WrapPanel DataContext="{Binding Library}"
                    x:DataType="vm:LibraryViewModel"
                    Margin="{StaticResource Margin.FiltersTop}"
-                   ItemSpacing="6"
-                   LineSpacing="6"
+                   ItemSpacing="{StaticResource Space.6}"
+                   LineSpacing="{StaticResource Space.6}"
                    AutomationProperties.Name="{x:Static res:Strings.Library_FilterLabel}">
           <Button Classes="filter"
                   Classes.on="{Binding IsAllFilter}"
@@ -276,9 +295,12 @@
                   Classes="filter"
                   Classes.on="{Binding IsRangeFilter}">
             <Button.Flyout>
-              <Flyout Placement="BottomEdgeAlignedLeft">
+              <Flyout Placement="BottomEdgeAlignedLeft"
+                      FlyoutPresenterClasses="rangeFlyout">
                 <StackPanel Spacing="{StaticResource Space.12}">
-                  <controls:DateRangeCalendar RangeCommand="{Binding PickRangeCommand}" />
+                  <controls:DateRangeCalendar RangeCommand="{Binding PickRangeCommand}"
+                                              RangeStart="{Binding RangeStart}"
+                                              RangeEnd="{Binding RangeEnd}" />
                   <Button Classes="outline compact"
                           HorizontalAlignment="Right"
                           Command="{Binding ClearRangeCommand}"
@@ -287,7 +309,7 @@
               </Flyout>
             </Button.Flyout>
             <StackPanel Orientation="Horizontal"
-                        Spacing="6">
+                        Spacing="{StaticResource Space.6}">
               <Ellipse Classes="chipDot"
                        IsVisible="{Binding IsRangeFilter}" />
               <controls:IconControl Width="{StaticResource Size.FilterIcon}"
@@ -372,7 +394,7 @@
 
               <StackPanel Grid.Column="1"
                           VerticalAlignment="Center"
-                          Spacing="3">
+                          Spacing="{StaticResource Space.3}">
                 <TextBlock Classes="t15 medium"
                            TextTrimming="CharacterEllipsis"
                            Text="{Binding Title}" />
@@ -384,8 +406,8 @@
                            IsVisible="{Binding ShowSnippet}"
                            Text="{Binding Snippet}" />
                 <StackPanel Orientation="Horizontal"
-                            Spacing="10"
-                            Margin="0,4,0,0"
+                            Spacing="{StaticResource Space.10}"
+                            Margin="{StaticResource Margin.RowBar}"
                             IsVisible="{Binding ShowProgress}">
                   <ProgressBar Classes="rowBar"
                                Value="{Binding ProgressPercent}" />
@@ -420,7 +442,7 @@
                   ColumnSpacing="{StaticResource Space.16}">
               <StackPanel Grid.Column="0"
                           VerticalAlignment="Center"
-                          Spacing="3">
+                          Spacing="{StaticResource Space.3}">
                 <TextBlock Classes="t15 medium"
                            TextTrimming="CharacterEllipsis"
                            Text="{Binding Title}" />
@@ -444,6 +466,6 @@
           </Button>
         </Border>
       </DataTemplate>
-    </ListBox.DataTemplates>
-  </ListBox>
+    </ItemsControl.DataTemplates>
+  </ItemsControl>
 </UserControl>

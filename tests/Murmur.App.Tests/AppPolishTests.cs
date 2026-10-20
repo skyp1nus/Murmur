@@ -382,7 +382,9 @@ public sealed class AppPolishTests
 
         shell.OnWindowClosed();
 
-        Assert.Equal(before - 1, store.SubscriberCount);
+        // The Settings screen's own handler, and the shell's (the record-hotkey hint) go with the window.
+        Assert.True(before >= 2);
+        Assert.Equal(0, store.SubscriberCount);
     }
 
     // 3. Devices ------------------------------------------------------------------------------------------------------

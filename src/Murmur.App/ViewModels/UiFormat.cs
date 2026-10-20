@@ -95,10 +95,15 @@ internal static class UiFormat
         return string.Join(Strings.Library_ListSeparator, parts);
     }
 
-    /// <summary>The heading of a day older than the last week: "Mon, Oct 5".</summary>
-    public static string DayHeading(DateTimeOffset day)
+    /// <summary>The heading of a day older than the last week: "Mon, Oct 5", with the year ("Mon, Oct 5, 2025") when it is not the current one.</summary>
+    public static string DayHeading(DateTimeOffset day, TimeProvider time)
     {
-        return UiText.Format(Strings.Library_DayHeading, WeekdayName(day.DayOfWeek), TitleMonthName(day.Month), day.Day.ToString(CultureInfo.InvariantCulture));
+        var weekday = WeekdayName(day.DayOfWeek);
+        var month = TitleMonthName(day.Month);
+        var number = day.Day.ToString(CultureInfo.InvariantCulture);
+        return day.Year == time.GetLocalNow().Year
+            ? UiText.Format(Strings.Library_DayHeading, weekday, month, number)
+            : UiText.Format(Strings.Library_DayHeadingYear, weekday, month, number, day.Year.ToString(CultureInfo.InvariantCulture));
     }
 
     /// <summary>"Oct 5": a day without the weekday (the range of the date filter).</summary>

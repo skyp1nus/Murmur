@@ -1,5 +1,8 @@
+using Avalonia;
+using Avalonia.Input;
 using Avalonia.Controls;
 using Avalonia.Controls.Presenters;
+using Avalonia.Controls.Primitives;
 using Avalonia.Headless;
 using Avalonia.VisualTree;
 using Murmur.App.Controls;
@@ -369,7 +372,7 @@ public sealed class ShellLibraryTests
 
         var query = rig.SessionStore.Queries[^1];
         Assert.Equal(new DateTimeOffset(2026, 10, 17, 0, 0, 0, TimeSpan.Zero), query.From);
-        Assert.Equal(new DateTimeOffset(2026, 10, 19, 0, 0, 0, TimeSpan.Zero), query.To);
+        Assert.Equal(new DateTimeOffset(2026, 10, 19, 0, 0, 0, TimeSpan.Zero).AddTicks(-1), query.To);
         Assert.True(rig.Library.IsRangeFilter);
         Assert.Equal("Oct 17 – Oct 18", rig.Library.RangeText);
         Assert.Equal(5, rig.Library.Sessions.Count);
@@ -415,6 +418,83 @@ public sealed class ShellLibraryTests
 
         Assert.Equal(new DateRange(new DateTime(2026, 10, 5), new DateTime(2026, 10, 5)), result[0]);
         Assert.Contains(new DateRange(new DateTime(2026, 10, 7), new DateTime(2026, 10, 9)), result);
+    }
+
+    [Fact]
+    public async Task PickDates_TwoTapsChooseARange_TheSameDayTwiceOneDay_AndClearEmptiesIt_EachClosingTheFlyout()
+    {
+        using var rig = await LoadedRigAsync();
+
+        var steps = await Session.Dispatch(
+            () =>
+            {
+                using var scope = UiCulture.Override("en");
+                var window = new MainWindow { DataContext = rig.Shell, Width = 1440, Height = 1400 };
+                window.Show();
+                UiHarness.Pump(6);
+                var pick = window.GetVisualDescendants().OfType<Button>().First(b => b.Classes.Contains("filter") && b.Flyout is not null);
+                var flyout = (Flyout)pick.Flyout!;
+
+                (DateTime? Start, DateTime? End, LibraryFilter Filter, bool Open, int Selected) State() =>
+                    (rig.Library.RangeStart, rig.Library.RangeEnd, rig.Library.Filter, flyout.IsOpen, Calendar().SelectedDates.Count);
+
+                DateRangeCalendar Calendar() => (DateRangeCalendar)((Panel)flyout.Content!).Children[0];
+
+                void Open()
+                {
+                    flyout.ShowAt(pick);
+                    UiHarness.Pump(6);
+                    Calendar().DisplayDate = new DateTime(2026, 10, 1);
+                    UiHarness.Pump(6);
+                }
+
+                void Tap(int day)
+                {
+                    var calendar = Calendar();
+                    var button = calendar.GetVisualDescendants().OfType<CalendarDayButton>().Single(b => !b.Classes.Contains(":inactive") && !b.Classes.Contains("inactive") && Equals(b.Content, day.ToString(System.Globalization.CultureInfo.InvariantCulture)));
+                    var top = TopLevel.GetTopLevel(calendar)!;
+                    var point = button.TranslatePoint(new Point(button.Bounds.Width / 2, button.Bounds.Height / 2), top)!.Value;
+                    top.MouseDown(point, Avalonia.Input.MouseButton.Left);
+                    top.MouseUp(point, Avalonia.Input.MouseButton.Left);
+                    UiHarness.Pump(4);
+                }
+
+                var result = new List<(DateTime? Start, DateTime? End, LibraryFilter Filter, bool Open, int Selected)>();
+                Open();
+                Tap(5);
+                result.Add(State());
+                Tap(9);
+                var chosen = State();
+                Open();
+                var shownAgain = Calendar().SelectedDates.Count;
+                flyout.Hide();
+                UiHarness.Pump(4);
+                result.Add((chosen.Start, chosen.End, chosen.Filter, chosen.Open, shownAgain));
+
+                Open();
+                Tap(12);
+                Tap(12);
+                result.Add((rig.Library.RangeStart, rig.Library.RangeEnd, rig.Library.Filter, flyout.IsOpen, 1));
+
+                Open();
+                var clear = ((Panel)flyout.Content!).Children.OfType<Button>().Single();
+                clear.Command!.Execute(null);
+                UiHarness.Pump(4);
+                var closedByClear = !flyout.IsOpen;
+                Open();
+                result.Add((rig.Library.RangeStart, rig.Library.RangeEnd, rig.Library.Filter, !closedByClear, Calendar().SelectedDates.Count));
+                window.Close();
+                return result;
+            },
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal((new DateTime(2026, 10, 5), new DateTime(2026, 10, 5), LibraryFilter.Range, true, 1), steps[0]);
+        // The range is chosen and the flyout closed; opened again it shows the five days.
+        Assert.Equal((new DateTime(2026, 10, 5), new DateTime(2026, 10, 9), LibraryFilter.Range, false, 5), steps[1]);
+        Assert.Equal((new DateTime(2026, 10, 12), new DateTime(2026, 10, 12), LibraryFilter.Range, false, 1), steps[2]);
+
+        // "Clear dates" closed the flyout and emptied the selection.
+        Assert.Equal((null, null, LibraryFilter.All, false, 0), steps[3]);
     }
 
     // ---- library: the cards -------------------------------------------------------------------------------------------------------
@@ -494,6 +574,245 @@ public sealed class ShellLibraryTests
 
         Assert.Equal("Summarize yesterday", rig.Shell.LibraryChat!.Chat.Messages[0].Text);
         Assert.Same(rig.Shell.LibraryChat, rig.Shell.CurrentPage);
+    }
+
+    // ---- library: details, settings, focus ---------------------------------------------------------------------------------------
+
+    [Fact]
+    public async Task Library_ReadsTheTranscriptSummariesOfAllRowsInOneBatch()
+    {
+        using var rig = await LoadedRigAsync();
+
+        var request = Assert.Single(rig.Transcripts.SummaryRequests);
+        Assert.Equal(rig.Records.Select(r => r.Id.Value).Order(), request.Select(i => i.Value).Order());
+        Assert.Equal(0, rig.Transcripts.Reads);
+
+        // Everything known is shown without asking the store again (a search or a re-filter rebuilds nothing it already read).
+        rig.Library.SearchText = "x";
+        rig.Library.SearchText = string.Empty;
+        await rig.Library.DetailsTask;
+        Assert.Single(rig.Transcripts.SummaryRequests);
+    }
+
+    [Fact]
+    public async Task Library_ReadsNothingWhileRecording_AndCatchesUpWhenTheRecordingEnds()
+    {
+        using var rig = new DesignRig();
+        rig.Shell.ShowRecording();
+        await rig.Recording.StartStopAsync();
+
+        await rig.Library.LoadAsync();
+        await rig.Library.DetailsTask;
+        Assert.Empty(rig.Transcripts.SummaryRequests);
+        Assert.Null(rig.Library.Sessions[0].Language);
+
+        await rig.Recording.StopAsync();
+        await rig.Library.DetailsTask;
+        for (var i = 0; i < 100 && rig.Library.Sessions[0].Language is null; i++)
+        {
+            await Task.Delay(10, TestContext.Current.CancellationToken);
+        }
+
+        Assert.NotEmpty(rig.Transcripts.SummaryRequests);
+        Assert.Equal("English", rig.Library.Sessions[0].Language);
+    }
+
+    [Fact]
+    public async Task Library_WhenProcessingCompletesOrFails_TheRowReadsItsTranscriptAgain()
+    {
+        using var scope = UiCulture.Override("en");
+        using var rig = await LoadedRigAsync();
+        var weekly = rig.Library.Sessions[2];
+        Assert.Null(weekly.Snippet);
+        var before = rig.Transcripts.SummaryRequests.Count;
+
+        // The transcript was written by the processing that just finished.
+        rig.Transcripts.PerSession[weekly.Id] = new Transcript(weekly.Id, [new TranscriptSegment(Speaker.Me, TimeSpan.Zero, TimeSpan.FromSeconds(2), "Done at last.", [])], "design", "uk");
+        rig.Processing.Raise(new SessionProcessingStatus(weekly.Id, SessionProcessingStage.Completed, 1));
+        await rig.Library.DetailsTask;
+
+        Assert.Equal(before + 1, rig.Transcripts.SummaryRequests.Count);
+        Assert.Equal(new[] { weekly.Id }, rig.Transcripts.SummaryRequests[^1]);
+        Assert.Equal("Done at last.", weekly.Snippet);
+        Assert.Equal("Ukrainian", weekly.Language);
+
+        rig.Processing.Raise(new SessionProcessingStatus(weekly.Id, SessionProcessingStage.Failed, 0));
+        await rig.Library.DetailsTask;
+        Assert.Equal(before + 2, rig.Transcripts.SummaryRequests.Count);
+    }
+
+    [Fact]
+    public async Task Library_ATranscriptSearch_DoesNotRebuildTheRowsPerKeystroke()
+    {
+        using var rig = await LoadedRigAsync();
+        var rows = rig.Library.Sessions;
+
+        rig.Library.SearchText = "a";
+        rig.Library.SearchText = "ab";
+        rig.Library.SearchText = "abc";
+
+        Assert.Same(rows, rig.Library.Sessions);
+    }
+
+    [Fact]
+    public async Task Library_RangeEnd_ExcludesARecordingAtMidnightOfTheNextDay()
+    {
+        using var rig = await LoadedRigAsync();
+        var midnight = new DateTimeOffset(2026, 10, 13, 0, 0, 0, TimeSpan.Zero);
+        rig.SessionStore.Add(Fakes.Sessions.Make("Late", midnight.AddTicks(-TimeSpan.TicksPerSecond), TimeSpan.FromMinutes(1)));
+        rig.SessionStore.Add(Fakes.Sessions.Make("Midnight", midnight, TimeSpan.FromMinutes(1)));
+
+        rig.Library.ApplyRange(new DateTime(2026, 10, 12), new DateTime(2026, 10, 12));
+        await rig.Library.LoadTask;
+
+        Assert.Equal(["Late", "Sprint retro"], rig.Library.Sessions.Select(r => r.Title).Order());
+    }
+
+    [Fact]
+    public async Task Library_RangeEnd_AlsoHoldsForTheTranscriptSearch()
+    {
+        using var rig = await LoadedRigAsync();
+        var midnight = new DateTimeOffset(2026, 10, 13, 0, 0, 0, TimeSpan.Zero);
+        var late = Fakes.Sessions.Make("Late", midnight.AddMinutes(-5), TimeSpan.FromMinutes(1));
+        var next = Fakes.Sessions.Make("Next", midnight, TimeSpan.FromMinutes(1));
+        rig.SessionStore.Add(late);
+        rig.SessionStore.Add(next);
+        rig.Assistant.SearchResult = [Hits.Make(late.Id, 5, "budget"), Hits.Make(next.Id, 5, "budget")];
+        rig.Library.ApplyRange(new DateTime(2026, 10, 12), new DateTime(2026, 10, 12));
+        await rig.Library.LoadTask;
+
+        rig.Library.SearchText = "budget";
+        rig.Time.Advance(LibraryViewModel.SearchDebounce);
+        await rig.Library.SearchTask;
+
+        Assert.Equal(["Late"], rig.Library.SearchResults.Select(r => r.Title));
+    }
+
+    [Fact]
+    public async Task Library_Switches_AreKeptAsRecordingDefaults_ThroughTheSharedWriter()
+    {
+        using var rig = await LoadedRigAsync();
+        var writer = SettingsWriter.For(rig.Store);
+        Assert.Same(writer, SettingsWriter.For(rig.Store));
+
+        rig.Library.Microphone = false;
+        rig.Library.SystemAudio = false;
+        rig.Library.Screen = true;
+        await rig.Library.SwitchSaveTask;
+        await writer.LastSave;
+
+        Assert.False(rig.Store.Current.RecordMicrophoneByDefault);
+        Assert.False(rig.Store.Current.RecordSystemAudioByDefault);
+        Assert.True(rig.Store.Current.ScreenByDefault);
+
+        // The recording screen starts with them, and so does the library the next time.
+        rig.Shell.ShowRecording();
+        Assert.False(rig.Recording.Microphone);
+        Assert.False(rig.Recording.SystemAudio);
+        Assert.True(rig.Recording.Screen);
+        rig.Shell.ShowLibrary();
+        Assert.False(rig.Library.Microphone);
+        Assert.True(rig.Library.Screen);
+    }
+
+    [Fact]
+    public async Task Library_ASwitchThatCannotBeSaved_ShowsTheError()
+    {
+        using var scope = UiCulture.Override("en");
+        using var rig = await LoadedRigAsync();
+        rig.Store.SaveFailure = new IOException("disk full");
+
+        rig.Library.Microphone = false;
+        await rig.Library.SwitchSaveTask;
+
+        Assert.Contains("disk full", rig.Library.Error);
+        Assert.Contains(rig.Library.Entries, e => e is LibraryNoticeEntry notice && notice.Text.Contains("disk full", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task Recent_LeavesOutTheRecordingThatRuns()
+    {
+        using var rig = new DesignRig();
+        rig.Shell.ShowRecording();
+        await rig.Recording.StartStopAsync();
+        var running = rig.Recorder.Current!;
+        rig.SessionStore.Add(running);
+
+        await rig.Library.LoadAsync();
+
+        Assert.DoesNotContain(rig.Library.Recent, r => r.Id == running.Id);
+        Assert.Equal(3, rig.Library.Recent.Count);
+    }
+
+    [Fact]
+    public void FramePages_AreTheOnesThatSayTheyFillTheFrame()
+    {
+        using var rig = new DesignRig();
+
+        Assert.False(rig.Shell.PageUsesFrameInset);
+        rig.Shell.ShowRecording();
+        Assert.True(rig.Shell.PageUsesFrameInset);
+        Assert.IsAssignableFrom<IFillsFrame>(rig.Library);
+        Assert.False(typeof(IFillsFrame).IsAssignableFrom(typeof(RecordingViewModel)));
+    }
+
+    [Fact]
+    public void DayHeading_ShowsTheYearOnlyWhenItIsNotTheCurrentOne()
+    {
+        using var scope = UiCulture.Override("en");
+        var time = new TestTime(UiHarness.Now);
+
+        Assert.Equal("Tue, Oct 6", UiFormat.DayHeading(new DateTimeOffset(2026, 10, 6, 12, 0, 0, TimeSpan.Zero), time));
+        Assert.Equal("Mon, Oct 6, 2025", UiFormat.DayHeading(new DateTimeOffset(2025, 10, 6, 12, 0, 0, TimeSpan.Zero), time));
+        using var uk = UiCulture.Override("uk");
+        Assert.Equal("пн, 6 " + Strings.TitleMonth_10 + " 2025", UiFormat.DayHeading(new DateTimeOffset(2025, 10, 6, 12, 0, 0, TimeSpan.Zero), time));
+    }
+
+    [Fact]
+    public async Task Library_TheSearchBoxKeepsItsFocusWhileTyping_AndTabReachesTheFiftiethRowOfThreeHundred()
+    {
+        using var rig = new DesignRig();
+        for (var i = 0; i < 300; i++)
+        {
+            rig.SessionStore.Add(Fakes.Sessions.Make("Recording " + i, UiHarness.Now.AddDays(-20).AddMinutes(-i), TimeSpan.FromMinutes(5)));
+        }
+
+        await rig.Library.LoadAsync();
+
+        var (stillFocused, focusedRow) = await Session.Dispatch(
+            () =>
+            {
+                using var scope = UiCulture.Override("en");
+                var window = new MainWindow { DataContext = rig.Shell, Width = 1440, Height = 900 };
+                window.Show();
+                UiHarness.Pump(6);
+                var search = window.GetVisualDescendants().OfType<TextBox>().First(t => t.IsEffectivelyVisible && t.Classes.Contains("bare") && !t.Classes.Contains("ask"));
+                search.Focus();
+                UiHarness.Pump(2);
+                window.KeyTextInput("rec");
+                UiHarness.Pump(4);
+                var focused = ReferenceEquals(window.FocusManager!.GetFocusedElement(), search) && search.Text == "rec";
+
+                rig.Library.SearchText = string.Empty;
+                UiHarness.Pump(4);
+                var first = window.GetVisualDescendants().OfType<Button>().First(b => b.Classes.Contains("libraryRow"));
+                first.Focus();
+                UiHarness.Pump(2);
+                for (var i = 0; i < 49; i++)
+                {
+                    window.KeyPressQwerty(PhysicalKey.Tab, RawInputModifiers.None);
+                    window.KeyReleaseQwerty(PhysicalKey.Tab, RawInputModifiers.None);
+                    UiHarness.Pump(2);
+                }
+
+                var row = (window.FocusManager!.GetFocusedElement() as Control)?.DataContext as SessionItemViewModel;
+                window.Close();
+                return (focused, row?.Title);
+            },
+            TestContext.Current.CancellationToken);
+
+        Assert.True(stillFocused, "the search box lost the focus while typing");
+        Assert.Equal(rig.Library.Sessions[49].Title, focusedRow);
     }
 
     // ---- formatting -----------------------------------------------------------------------------------------------------------------

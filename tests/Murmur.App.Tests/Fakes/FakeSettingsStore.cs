@@ -11,8 +11,16 @@ internal sealed class FakeSettingsStore(AppSettings? initial = null) : ISettings
 
     public int SaveCount { get; private set; }
 
+    /// <summary>When set, <see cref="SaveAsync"/> throws it (nothing is stored).</summary>
+    public Exception? SaveFailure { get; set; }
+
     public ValueTask SaveAsync(AppSettings settings, CancellationToken cancellationToken)
     {
+        if (SaveFailure is { } failure)
+        {
+            throw failure;
+        }
+
         Current = settings;
         SaveCount++;
         Changed?.Invoke(settings);

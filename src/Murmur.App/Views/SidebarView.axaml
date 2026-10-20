@@ -15,7 +15,7 @@
               Classes="offline"
               VerticalAlignment="Bottom"
               IsVisible="{Binding ShowOffline}">
-        <StackPanel Spacing="{StaticResource Space.8}">
+        <StackPanel Spacing="{StaticResource Space.6}">
           <StackPanel Orientation="Horizontal"
                       Spacing="{StaticResource Space.8}">
             <controls:IconControl Width="{StaticResource Size.OfflineIcon}"
@@ -26,16 +26,16 @@
                        Text="{x:Static res:Strings.Nav_OfflineTitle}" />
           </StackPanel>
           <TextBlock Classes="note12"
-                     Margin="0,-2,0,0"
                      Text="{Binding OfflineText}" />
         </StackPanel>
       </Border>
 
-      <StackPanel Spacing="{StaticResource Space.24}">
+      <StackPanel DockPanel.Dock="Top"
+                  Spacing="{StaticResource Space.24}">
 
         <!-- Wordmark -->
         <StackPanel Orientation="Horizontal"
-                    Spacing="10"
+                    Spacing="{StaticResource Space.10}"
                     Margin="{StaticResource Inset.Wordmark}">
           <controls:OrbDisc Width="{StaticResource Size.WordmarkOrb}"
                             Height="{StaticResource Size.WordmarkOrb}"
@@ -51,7 +51,7 @@
                   IsVisible="{Binding ShowNewRecording}"
                   Command="{Binding NewRecordingCommand}">
             <StackPanel Orientation="Horizontal"
-                        Spacing="10">
+                        Spacing="{StaticResource Space.10}">
               <Ellipse Width="{StaticResource Space.8}"
                        Height="{StaticResource Space.8}"
                        VerticalAlignment="Center"
@@ -65,7 +65,7 @@
                   IsVisible="{Binding IsRecordingActive}"
                   Command="{Binding ShowRecordingCommand}">
             <StackPanel Orientation="Horizontal"
-                        Spacing="10">
+                        Spacing="{StaticResource Space.10}">
               <controls:OrbDisc Width="{StaticResource Size.PillOrb}"
                                 Height="{StaticResource Size.PillOrb}"
                                 VerticalAlignment="Center" />
@@ -77,12 +77,12 @@
         </Panel>
 
         <!-- Pages -->
-        <StackPanel Spacing="2">
+        <StackPanel Spacing="{StaticResource Space.2}">
           <Button Classes="nav"
                   Classes.on="{Binding IsLibrary}"
                   Command="{Binding ShowLibraryCommand}">
             <StackPanel Orientation="Horizontal"
-                        Spacing="10">
+                        Spacing="{StaticResource Space.10}">
               <controls:IconControl Width="{StaticResource Size.NavIcon}"
                                     Height="{StaticResource Size.NavIcon}"
                                     Data="{StaticResource Icon.Library}" />
@@ -96,7 +96,7 @@
                   IsVisible="{Binding CanAskAi}"
                   Command="{Binding ShowChatCommand}">
             <StackPanel Orientation="Horizontal"
-                        Spacing="10">
+                        Spacing="{StaticResource Space.10}">
               <controls:IconControl Width="{StaticResource Size.NavIcon}"
                                     Height="{StaticResource Size.NavIcon}"
                                     Data="{StaticResource Icon.Ai}" />
@@ -109,7 +109,7 @@
                   Classes.on="{Binding IsSettings}"
                   Command="{Binding ShowSettingsCommand}">
             <StackPanel Orientation="Horizontal"
-                        Spacing="10">
+                        Spacing="{StaticResource Space.10}">
               <controls:IconControl Width="{StaticResource Size.NavIcon}"
                                     Height="{StaticResource Size.NavIcon}"
                                     Data="{StaticResource Icon.Settings}" />
@@ -119,17 +119,21 @@
             </StackPanel>
           </Button>
         </StackPanel>
+      </StackPanel>
 
-        <!-- Recent recordings / chats / sections of the settings -->
-        <StackPanel Spacing="2"
+      <!-- Recent recordings / chats / sections of the settings: takes the room between the pages and the offline note and scrolls when it has more rows than room. -->
+      <ScrollViewer Margin="{StaticResource Margin.SidebarList}"
+                    HorizontalScrollBarVisibility="Disabled"
+                    VerticalScrollBarVisibility="Auto"
                     IsVisible="{Binding HasEntries}">
+        <StackPanel Spacing="{StaticResource Space.2}">
           <TextBlock Classes="t12 muted"
-                     Margin="{StaticResource Inset.NavTitle}"
+                     Margin="{StaticResource Margin.NavTitle}"
                      Text="{Binding ContextTitle}" />
           <ItemsControl ItemsSource="{Binding Entries}">
             <ItemsControl.ItemsPanel>
               <ItemsPanelTemplate>
-                <StackPanel Spacing="2" />
+                <StackPanel Spacing="{StaticResource Space.2}" />
               </ItemsPanelTemplate>
             </ItemsControl.ItemsPanel>
             <ItemsControl.ItemTemplate>
@@ -146,7 +150,7 @@
             </ItemsControl.ItemTemplate>
           </ItemsControl>
         </StackPanel>
-      </StackPanel>
+      </ScrollViewer>
     </DockPanel>
   </Border>
 </UserControl>
