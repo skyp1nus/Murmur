@@ -64,6 +64,28 @@ public class AudioPipelineBenchmarks
         return _track.Read(_drain);
     }
 
+    /// <summary>
+    /// What a paused recording costs per 10 ms buffer: the capture thread's write, then the writer thread reads the ring empty and
+    /// drops the audio (it only takes the peak so the first level after the resume is fresh).
+    /// </summary>
+    [Benchmark]
+    public float PausedDiscard10ms()
+    {
+        _track.Write(_stereo10ms);
+        _track.Read(_drain);
+        return _track.TakePeak();
+    }
+
+    /// <summary>The seam of a pause: flush the resampler's pending tail, then restart it (once per pause, not per buffer).</summary>
+    [Benchmark]
+    public int PauseSeamFlushAndReset()
+    {
+        _resampler48k.Process(_stereo10ms, _resampled);
+        var tail = _resampler48k.Flush(_resampled);
+        _resampler48k.Reset();
+        return tail;
+    }
+
     [Benchmark]
     public int Resample48kStereoTo16kMono10ms() => _resampler48k.Process(_stereo10ms, _resampled);
 

@@ -8,6 +8,9 @@ public enum RecorderState
     Idle,
     Starting,
     Recording,
+
+    /// <summary>Recording is paused: nothing is written, the timeline and <see cref="IRecorder.Elapsed"/> stand still.</summary>
+    Paused,
     Stopping,
 }
 
@@ -84,6 +87,7 @@ public interface IRecorder
     /// <summary>The session being recorded, or <c>null</c> when idle.</summary>
     SessionRecord? Current { get; }
 
+    /// <summary>Recorded time on the session timeline: the paused time is not counted and it stands still while paused.</summary>
     TimeSpan Elapsed { get; }
 
     /// <summary>Lock-free snapshot; safe to poll every frame.</summary>
@@ -93,13 +97,31 @@ public interface IRecorder
 
     ValueTask<SessionRecord> StartAsync(RecordingOptions options, CancellationToken cancellationToken);
 
-    /// <summary>A screen segment is being recorded now. Turns false when the screen is switched off or fails.</summary>
+    /// <summary>A screen segment is being recorded now. Turns false when the screen is switched off or fails, and while paused.</summary>
     bool IsScreenRecording { get; }
 
-    /// <summary>Turns screen recording on or off while recording; each "on" starts a new screen segment.</summary>
+    /// <summary>
+    /// Turns screen recording on or off while recording; each "on" starts a new screen segment. While paused it only chooses
+    /// whether a segment starts on <see cref="ResumeAsync"/>.
+    /// </summary>
     ValueTask SetScreenEnabledAsync(bool enabled, CancellationToken cancellationToken);
 
-    /// <summary>Stops, flushes every file and returns the finished session in <see cref="SessionState.Recorded"/> state.</summary>
+    /// <summary>
+    /// Pauses a running recording. Nothing is written while paused, <see cref="Elapsed"/> stops, <see cref="Levels"/> fall to
+    /// zero and the screen segment in progress ends at the pause (like a stop of that segment). The capture sources keep
+    /// running (no device is re-opened); their audio is discarded. A call in any state but <see cref="RecorderState.Recording"/>
+    /// is a no-op (it never throws for the state, so a double-pressed hotkey is harmless).
+    /// </summary>
+    ValueTask PauseAsync(CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Resumes a paused recording into the same files, with no gap and no silence: the paused time is left out of the session
+    /// timeline. If the screen was on when the recording was paused (or was switched on while paused), a new screen segment
+    /// starts, with its offset on that timeline. A call in any state but <see cref="RecorderState.Paused"/> is a no-op.
+    /// </summary>
+    ValueTask ResumeAsync(CancellationToken cancellationToken);
+
+    /// <summary>Stops (also while paused), flushes every file and returns the finished session in <see cref="SessionState.Recorded"/> state.</summary>
     ValueTask<SessionRecord> StopAsync(CancellationToken cancellationToken);
 
     event Action<RecorderState>? StateChanged;

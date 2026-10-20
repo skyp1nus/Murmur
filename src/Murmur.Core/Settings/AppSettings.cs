@@ -50,6 +50,9 @@ public sealed record AppSettings
     /// <summary>Global hotkey that brings the Murmur window to the front; <c>null</c> = none.</summary>
     public string? ShowAppHotkey { get; init; } = "Ctrl+Shift+M";
 
+    /// <summary>Global hotkey that pauses and resumes the running recording; <c>null</c> = none.</summary>
+    public string? PauseHotkey { get; init; } = "Ctrl+Shift+P";
+
     /// <summary>Display recorded when the screen is on; <c>null</c> = the primary display.</summary>
     public string? ScreenDisplayId { get; init; }
 
