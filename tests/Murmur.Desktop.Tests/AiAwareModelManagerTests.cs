@@ -16,6 +16,7 @@ public sealed class AiAwareModelManagerTests
 
     [Theory]
     [InlineData("runtime", true)]  // the executable: always released
+    [InlineData("runtime-vulkan", true)] // a GPU build is not listed in the catalog but holds its executable the same way
     [InlineData("chat", true)]     // loaded
     [InlineData("chat-big", false)] // not loaded
     [InlineData("embed", true)]    // loaded
@@ -113,7 +114,16 @@ public sealed class AiAwareModelManagerTests
 
         public event Action<ModelStatus>? StatusChanged;
 
-        public ModelStatus GetStatus(string id) => new(Catalog.Single(m => m.Id == id), ModelInstallState.Installed, 1, 1, null);
+        /// <summary>Installable by id but not listed (<c>ModelCatalogItem.Listed = false</c>): the GPU builds of the runtime.</summary>
+        private static ModelInfo Unlisted { get; } = new("runtime-vulkan", ModelKind.LlmRuntime, "Runtime (Vulkan)", 1, false);
+
+        public ModelStatus GetStatus(string id) =>
+            new(
+                Catalog.FirstOrDefault(m => m.Id == id) ?? (id == Unlisted.Id ? Unlisted : throw new ArgumentException($"Unknown model id '{id}'", nameof(id))),
+                ModelInstallState.Installed,
+                1,
+                1,
+                null);
 
         public Task InstallAsync(string id, CancellationToken cancellationToken) => Task.CompletedTask;
 

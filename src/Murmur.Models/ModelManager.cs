@@ -62,7 +62,7 @@ public sealed class ModelManager : IModelManager, IDisposable
         }
 
         _catalogItems = [.. catalog];
-        _infos = [.. catalog.Select(item => item.Info)];
+        _infos = [.. catalog.Where(item => item.Listed).Select(item => item.Info)];
 
         var http = options.HttpClient;
         if (http is null)
@@ -95,9 +95,13 @@ public sealed class ModelManager : IModelManager, IDisposable
 
     public string ModelsDirectory { get; }
 
+    /// <summary>
+    /// The items the UI lists. Unlisted items (<see cref="ModelCatalogItem.Listed"/>, the GPU builds of the runtime) are
+    /// left out, but <see cref="GetStatus"/>, <see cref="InstallAsync"/> and <see cref="RemoveAsync"/> accept their ids.
+    /// </summary>
     public IReadOnlyList<ModelInfo> Catalog => _infos;
 
-    /// <summary>The catalog entries with their sources, for tools.</summary>
+    /// <summary>All catalog entries (listed or not) with their sources, for tools.</summary>
     public IReadOnlyList<ModelCatalogItem> Items => _catalogItems;
 
     /// <summary>The big Gemma (26B) from 32 GB of physical memory, else the small one (E4B).</summary>
@@ -684,7 +688,10 @@ public sealed class ModelManager : IModelManager, IDisposable
         }
         else if (item.Packaging != ModelPackaging.Files)
         {
-            archiveBytes = operation.TotalOf(0);
+            for (var i = 0; i < complete.Length; i++)
+            {
+                archiveBytes += operation.TotalOf(i); // every archive of the item is extracted
+            }
         }
 
         remaining += 4 * archiveBytes; // extracted copy plus the staged folder
@@ -760,6 +767,28 @@ public sealed class ModelManager : IModelManager, IDisposable
             }
 
             throw;
+        }
+
+        // Companion archives (the CUDA runtime DLLs) go next to the executable, wherever the first archive put it.
+        for (var i = 1; i < item.Files.Count; i++)
+        {
+            try
+            {
+                await ArchiveExtractor.ExtractIntoAsync(Path.Combine(dl, item.Files[i].RelativePath), item.Packaging, serverDirectory, cancellationToken).ConfigureAwait(false);
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                try
+                {
+                    DiscardFile(Path.Combine(dl, item.Files[i].RelativePath));
+                    Directory.Delete(extract, recursive: true);
+                }
+                catch (Exception cleanup) when (cleanup is IOException or UnauthorizedAccessException)
+                {
+                }
+
+                throw;
+            }
         }
 
         ArchiveExtractor.MakeExecutable(Path.Combine(serverDirectory, item.ExecutableName!));

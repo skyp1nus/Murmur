@@ -3,6 +3,7 @@ using Murmur.App.Services;
 using Murmur.Core.Capture;
 using Murmur.Core.Capture.Synthetic;
 using Murmur.Core.Input;
+using Murmur.Core.Intelligence;
 using Murmur.Core.Jobs;
 using Murmur.Core.Models;
 using Murmur.Core.Processing;
@@ -34,6 +35,7 @@ internal sealed class CompositionRoot : IDisposable
     private ModelManager? _modelManager;
     private AiAwareModelManager? _aiModels;
     private AiReindexScheduler? _reindex;
+    private IAccelerationProbe? _acceleration;
     private CancellationTokenSource? _recoveryRetry;
     private IGlobalHotkeys? _hotkeys;
     private readonly SingleInstance? _instance;
@@ -45,6 +47,15 @@ internal sealed class CompositionRoot : IDisposable
         Args = args;
         _instance = instance;
     }
+
+    /// <summary>
+    /// What AI acceleration this PC supports (the Windows probe: DXGI adapters and the Vulkan loader; CPU only elsewhere).
+    /// Detected on the first read and cached.
+    /// </summary>
+    public IAccelerationProbe AccelerationProbe => _acceleration ??= CreateAccelerationProbe();
+
+    /// <summary>The local AI after <see cref="CreateServices"/> ran (its <c>Acceleration</c> tells whether the GPU build runs or why not); <c>null</c> before.</summary>
+    internal LocalLlm? Llm => _llm;
 
     /// <summary>Command-line arguments the process was started with.</summary>
     public IReadOnlyList<string> Args { get; }
@@ -86,7 +97,7 @@ internal sealed class CompositionRoot : IDisposable
         // Recording guard: the models are never loaded while recording. LocalLlm refuses new requests while the
         // recorder is busy, and the moment a recording starts its llama-server processes are killed.
         var activity = _activity ??= new RecordingActivity(recorder);
-        var llm = _llm ??= CreateLlm(models.ModelsDirectory, activity);
+        var llm = _llm ??= CreateLlm(models.ModelsDirectory, activity, settings);
         var assistant = _assistant ??= new Assistant(llm, storage);
 
         // The model manager installs into the same folder the ASR and the AI read from. Its active-model lookup is handed
@@ -191,12 +202,24 @@ internal sealed class CompositionRoot : IDisposable
         _storage?.Dispose();
     }
 
-    private static LocalLlm CreateLlm(string modelsDirectory, RecordingActivity activity)
+    private static LocalLlm CreateLlm(string modelsDirectory, RecordingActivity activity, ISettingsStore settings)
     {
-        // Paths are resolved again on demand (environment, manifest, defaults), so models installed, switched or removed
-        // in the app are noticed without a restart.
-        var llm = new LocalLlm(() => AiModelPaths.Resolve(modelsDirectory, Environment.GetEnvironmentVariable), () => activity.IsRecording);
+        // Paths are resolved again on demand (environment, manifest, defaults, the chosen acceleration), so models
+        // installed, switched or removed and an acceleration change in Settings are noticed without a restart.
+        var llm = new LocalLlm(
+            () => AiModelPaths.Resolve(modelsDirectory, Environment.GetEnvironmentVariable, settings.Current.Acceleration),
+            () => activity.IsRecording);
         activity.RecordingStarted += llm.NotifyRecordingStarted;
+
+        // A new acceleration applies to the next model load; idle servers of the old one stop now (frees the VRAM).
+        var acceleration = settings.Current.Acceleration;
+        settings.Changed += changed =>
+        {
+            if (changed.Acceleration != Interlocked.Exchange(ref acceleration, changed.Acceleration))
+            {
+                llm.RetireStaleServers();
+            }
+        };
         return llm;
     }
 
@@ -224,6 +247,15 @@ internal sealed class CompositionRoot : IDisposable
         }
 
         return false;
+    }
+
+    private static IAccelerationProbe CreateAccelerationProbe()
+    {
+#if WINDOWS
+        return new Murmur.Capture.Windows.Ai.WindowsAccelerationProbe();
+#else
+        return new CpuOnlyAccelerationProbe();
+#endif
     }
 
     private static ICapture CreateCapture()

@@ -93,7 +93,11 @@ public sealed class ResolvePinsTests
                     """
                     {"assets":[
                       {"name":"llama-b11716-bin-ubuntu-x64.tar.gz","size":17968449,"digest":"sha256:8c08b19bee40d118b803d58fd8f6633ba311ce3c7f1f0138262e636f02aa11f0"},
-                      {"name":"llama-b11716-bin-win-cpu-x64.zip","size":19662702,"digest":"sha256:79B143075AB87FB5AFF6F8F8CA80500A984F4120B5199FA9F9B70B284F17428E"}
+                      {"name":"llama-b11716-bin-win-cpu-x64.zip","size":19662702,"digest":"sha256:79B143075AB87FB5AFF6F8F8CA80500A984F4120B5199FA9F9B70B284F17428E"},
+                      {"name":"llama-b11716-bin-ubuntu-vulkan-x64.tar.gz","size":41000000,"digest":"sha256:1111111111111111111111111111111111111111111111111111111111111111"},
+                      {"name":"llama-b11716-bin-win-vulkan-x64.zip","size":45000000,"digest":"sha256:2222222222222222222222222222222222222222222222222222222222222222"},
+                      {"name":"llama-b11716-bin-win-cuda-12.4-x64.zip","size":230000000,"digest":"sha256:3333333333333333333333333333333333333333333333333333333333333333"},
+                      {"name":"cudart-llama-bin-win-cuda-12.4-x64.zip","size":390000000,"digest":"sha256:4444444444444444444444444444444444444444444444444444444444444444"}
                     ]}
                     """),
             _ => null,
@@ -145,6 +149,30 @@ public sealed class ResolvePinsTests
         Assert.Contains($"new GgufSource(\"ggml-org/embeddinggemma-300M-GGUF\", \"embeddinggemma-300M-Q8_0.gguf\", \"{Sha("embeddinggemma-300M-Q8_0.gguf")}\", 1_000)", output);
         Assert.Contains("\"joiner.int8.onnx\" => (\"3164c13fc2821009440d20fcb5fdc78bff28b4db2f8d0f0b329101719c0948b3\", 6_355_277),", output);
         Assert.Contains("(\"9e2449e1087496d8d4caba907f23e0bd3f78d91fa552479bb9c23ac09cbb1fd6\", 643_854) // silero_vad.onnx", output);
+    }
+
+    [Fact]
+    public async Task ResolvePins_ListsTheGpuRuntimeAssets_SoTheirPinsCanBeCopiedFromTheJobSummary()
+    {
+        var (code, output, _, _) = await RunAsync();
+
+        Assert.Equal(0, code);
+        Assert.Contains($"| `llama-cpp-vulkan-b11716` | ggml-org/llama.cpp | `b11716` | `llama-b11716-bin-win-vulkan-x64.zip` | 45000000 | `{new string('2', 64)}` |", output);
+        Assert.Contains($"| `llama-cpp-vulkan-b11716` | ggml-org/llama.cpp | `b11716` | `llama-b11716-bin-ubuntu-vulkan-x64.tar.gz` | 41000000 | `{new string('1', 64)}` |", output);
+        Assert.Contains($"| `llama-cpp-cuda-b11716` | ggml-org/llama.cpp | `b11716` | `llama-b11716-bin-win-cuda-12.4-x64.zip` | 230000000 | `{new string('3', 64)}` |", output);
+        Assert.Contains($"| `llama-cpp-cuda-b11716` | ggml-org/llama.cpp | `b11716` | `cudart-llama-bin-win-cuda-12.4-x64.zip` | 390000000 | `{new string('4', 64)}` |", output);
+    }
+
+    [Fact]
+    public async Task ResolvePins_FailsWhenAGpuRuntimeAssetIsMissingFromTheRelease()
+    {
+        var (code, output, _, _) = await RunAsync(answer: (method, url, body) =>
+            url.EndsWith("/releases/tags/b11716", StringComparison.Ordinal)
+                ? Json("""{"assets":[{"name":"llama-b11716-bin-ubuntu-x64.tar.gz","size":17968449,"digest":"sha256:8c08b19bee40d118b803d58fd8f6633ba311ce3c7f1f0138262e636f02aa11f0"},{"name":"llama-b11716-bin-win-cpu-x64.zip","size":19662702,"digest":"sha256:79b143075ab87fb5aff6f8f8ca80500a984f4120b5199fa9f9b70b284f17428e"}]}""")
+                : Answer(method, url, body));
+
+        Assert.Equal(1, code);
+        Assert.Contains("release b11716 has no asset cudart-llama-bin-win-cuda-12.4-x64.zip", output);
     }
 
     [Fact]

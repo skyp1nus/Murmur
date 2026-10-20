@@ -64,19 +64,33 @@ internal sealed class AiAwareModelManager : IModelManager
 
     private bool IsAiItem(string id)
     {
+        var model = Find(id);
+        return model?.Kind switch
+        {
+            ModelKind.LlmRuntime => true,
+            ModelKind.Chat or ModelKind.Embedding => _itemPath(id) is { } path && _isModelInUse(path),
+            _ => false,
+        };
+    }
+
+    /// <summary>The listed item, else an unlisted one (a GPU build of the runtime) that the inner manager still knows by id.</summary>
+    private ModelInfo? Find(string id)
+    {
         foreach (var model in _inner.Catalog)
         {
             if (string.Equals(model.Id, id, StringComparison.Ordinal))
             {
-                return model.Kind switch
-                {
-                    ModelKind.LlmRuntime => true,
-                    ModelKind.Chat or ModelKind.Embedding => _itemPath(id) is { } path && _isModelInUse(path),
-                    _ => false,
-                };
+                return model;
             }
         }
 
-        return false;
+        try
+        {
+            return _inner.GetStatus(id).Model;
+        }
+        catch (ArgumentException)
+        {
+            return null;
+        }
     }
 }

@@ -8,7 +8,10 @@ public enum ModelPackaging
     /// <summary>Every file is installed as is, at its <see cref="ModelFileSpec.RelativePath"/> below the item's target.</summary>
     Files,
 
-    /// <summary>A single .zip archive; the folder that contains <see cref="ModelCatalogItem.ExecutableName"/> becomes the target.</summary>
+    /// <summary>
+    /// A .zip archive; the folder that contains <see cref="ModelCatalogItem.ExecutableName"/> becomes the target. Further files
+    /// of the item are archives of the same kind extracted into that folder (companion libraries such as the CUDA runtime).
+    /// </summary>
     Zip,
 
     /// <summary>A single .tar.gz archive; the folder that contains <see cref="ModelCatalogItem.ExecutableName"/> becomes the target.</summary>
@@ -66,6 +69,10 @@ public sealed record ModelFileSpec(
 /// <param name="Packaging">What to do with the downloads.</param>
 /// <param name="ExecutableName">For archives: the file whose folder is installed (<c>llama-server</c>).</param>
 /// <param name="Repo">Hugging Face repository, recorded in <c>gguf/models.json</c> for chat and embedding models.</param>
+/// <param name="Listed">
+/// <c>false</c>: not part of <see cref="ModelManager.Catalog"/> (so the model list and the AI bundle do not offer it) but
+/// installable by id. The GPU builds of the runtime are unlisted: the Settings acceleration control installs them on demand.
+/// </param>
 public sealed record ModelCatalogItem(
     ModelInfo Info,
     string TargetPath,
@@ -73,7 +80,8 @@ public sealed record ModelCatalogItem(
     IReadOnlyList<ModelFileSpec> Files,
     ModelPackaging Packaging = ModelPackaging.Files,
     string? ExecutableName = null,
-    string? Repo = null)
+    string? Repo = null,
+    bool Listed = true)
 {
     public string Id => Info.Id;
 }

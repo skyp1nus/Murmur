@@ -79,13 +79,16 @@ jobs:
             --ids silero-vad,parakeet-tdt-0.6b-v3-int8,llama-cpp-b11716,embeddinggemma-300m-q8 \
             --summary "$GITHUB_STEP_SUMMARY"
 
-      # Runs even when the install failed, so one red item does not hide the state of the others.
-      - name: Probe the chat models (no download)
+      # Runs even when the install failed, so one red item does not hide the state of the others. Also probes the
+      # Vulkan build of llama-server (D-042): the Windows Vulkan/CUDA assets and their SHA-256 are checked by the
+      # "Resolve upstream pins" step above (an asset missing from the release is an ERROR row there); this proves the
+      # Linux one is downloadable.
+      - name: Probe the chat models and the Vulkan runtime (no download)
         if: ${{ !cancelled() }}
         run: |
           dotnet run -c Release --no-build --project tools/Murmur.ModelFetch -- \
             --dir "$MURMUR_MODELS_DIR" \
-            --head-only gemma-4-e4b-q4,gemma-4-26b-a4b-q4 \
+            --head-only gemma-4-e4b-q4,gemma-4-26b-a4b-q4,llama-cpp-vulkan-b11716 \
             --summary "$GITHUB_STEP_SUMMARY"
 
       # The checks below need the install; they run even when the (guessed) 26B probe above is red.
