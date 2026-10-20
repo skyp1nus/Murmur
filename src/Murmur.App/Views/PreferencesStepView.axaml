@@ -2,23 +2,19 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="using:Murmur.App.ViewModels"
              xmlns:res="using:Murmur.App.Resources"
+             ClipToBounds="False"
              x:Class="Murmur.App.Views.PreferencesStepView"
              x:DataType="vm:PreferencesStepViewModel">
 
   <!-- Step 4: one card with four rows; every change is saved at once, like in the Settings. -->
   <StackPanel HorizontalAlignment="Stretch"
-              Spacing="{StaticResource Space.32}">
+              Spacing="{StaticResource Space.OnbModels}">
 
     <StackPanel Spacing="{StaticResource Space.12}"
                 HorizontalAlignment="Center">
-      <TextBlock Classes="heading onbHeadline"
-                 TextAlignment="Center"
-                 TextWrapping="Wrap"
+      <TextBlock Classes="onbH1"
                  Text="{Binding Title}" />
-      <TextBlock Classes="body"
-                 TextAlignment="Center"
-                 TextWrapping="Wrap"
-                 Foreground="{DynamicResource Brush.Smoke}"
+      <TextBlock Classes="onbSub"
                  Text="{Binding Subtitle}" />
     </StackPanel>
 
@@ -33,16 +29,15 @@
               ColumnSpacing="{StaticResource Space.24}"
               Margin="{StaticResource Inset.Row}">
           <StackPanel VerticalAlignment="Center"
-                      Spacing="{StaticResource Space.4}">
-            <TextBlock Classes="body"
-                       FontWeight="{StaticResource FontWeight.BodyMedium}"
+                      Spacing="{StaticResource Space.OnbTight}">
+            <TextBlock Classes="onbTitle"
                        Text="{x:Static res:Strings.Onb4_Language}" />
-            <TextBlock Classes="bodySm"
-                       Foreground="{DynamicResource Brush.Smoke}"
+            <TextBlock Classes="onbNote"
                        Text="{x:Static res:Strings.Onb4_LanguageText}" />
           </StackPanel>
           <ComboBox x:Name="LanguageBox"
                     Grid.Column="1"
+                    Classes="onb"
                     Width="{StaticResource Size.OnbPickerWidth}"
                     VerticalAlignment="Center"
                     ItemsSource="{Binding Languages}"
@@ -57,16 +52,15 @@
               ColumnSpacing="{StaticResource Space.24}"
               Margin="{StaticResource Inset.Row}">
           <StackPanel VerticalAlignment="Center"
-                      Spacing="{StaticResource Space.4}">
-            <TextBlock Classes="body"
-                       FontWeight="{StaticResource FontWeight.BodyMedium}"
+                      Spacing="{StaticResource Space.OnbTight}">
+            <TextBlock Classes="onbTitle"
                        Text="{x:Static res:Strings.Onb4_Folder}" />
             <TextBlock x:Name="FolderPath"
-                       Classes="mono"
+                       Classes="onbMono"
                        Foreground="{DynamicResource Brush.Graphite}"
                        TextTrimming="CharacterEllipsis"
                        Text="{Binding Storage.EffectivePath}" />
-            <TextBlock Classes="note"
+            <TextBlock Classes="onbNote"
                        Foreground="{DynamicResource Brush.Graphite}"
                        IsVisible="{Binding Storage.HasError}"
                        Text="{Binding Storage.Error}" />
@@ -76,13 +70,13 @@
                       Spacing="{StaticResource Space.12}"
                       VerticalAlignment="Center">
             <TextBlock x:Name="FolderFreeSpace"
-                       Classes="mono"
+                       Classes="onbMono"
                        VerticalAlignment="Center"
                        Foreground="{DynamicResource Brush.Smoke}"
                        IsVisible="{Binding HasFreeSpace}"
                        Text="{Binding FreeSpaceText}" />
             <Button x:Name="ChangeFolderButton"
-                    Classes="outline compact"
+                    Classes="outline onbChange"
                     Content="{x:Static res:Strings.Storage_Change}"
                     Command="{Binding Storage.ChangeCommand}" />
           </StackPanel>
@@ -98,18 +92,16 @@
                 ColumnSpacing="{StaticResource Space.24}"
                 Margin="{StaticResource Inset.Row}">
             <StackPanel VerticalAlignment="Center"
-                        Spacing="{StaticResource Space.4}">
-              <TextBlock Classes="body"
-                         FontWeight="{StaticResource FontWeight.BodyMedium}"
+                        Spacing="{StaticResource Space.OnbTight}">
+              <TextBlock Classes="onbTitle"
                          Text="{x:Static res:Strings.Onb4_Hotkey}" />
-              <TextBlock Classes="bodySm"
-                         Foreground="{DynamicResource Brush.Smoke}"
+              <TextBlock Classes="onbNote"
                          Text="{x:Static res:Strings.Onb4_HotkeyText}" />
-              <TextBlock Classes="note"
+              <TextBlock Classes="onbNote"
                          Foreground="{DynamicResource Brush.Graphite}"
                          IsVisible="{Binding HotkeyRow.HasError}"
                          Text="{Binding HotkeyRow.Error}" />
-              <TextBlock Classes="note"
+              <TextBlock Classes="onbNote"
                          IsVisible="{Binding HotkeyRow.ShowRegistrationNote}"
                          Text="{Binding HotkeyRow.RegistrationNote}" />
             </StackPanel>
@@ -126,18 +118,20 @@
                   <ItemsControl.ItemsPanel>
                     <ItemsPanelTemplate>
                       <StackPanel Orientation="Horizontal"
-                                  Spacing="{StaticResource Space.8}" />
+                                  Spacing="{StaticResource Space.OnbIcon}" />
                     </ItemsPanelTemplate>
                   </ItemsControl.ItemsPanel>
                   <ItemsControl.ItemTemplate>
                     <DataTemplate x:DataType="vm:HotkeyCap">
                       <StackPanel Orientation="Horizontal"
-                                  Spacing="{StaticResource Space.8}">
+                                  Spacing="{StaticResource Space.OnbIcon}">
                         <Border Classes="cap">
-                          <TextBlock Classes="mono"
+                          <TextBlock Classes="onbMono"
+                                     LetterSpacing="0"
                                      Text="{Binding Text}" />
                         </Border>
-                        <TextBlock Classes="mono"
+                        <TextBlock Classes="onbMono"
+                                   LetterSpacing="0"
                                    VerticalAlignment="Center"
                                    Foreground="{DynamicResource Brush.Smoke}"
                                    IsVisible="{Binding HasPlus}"
@@ -146,7 +140,7 @@
                     </DataTemplate>
                   </ItemsControl.ItemTemplate>
                 </ItemsControl>
-                <TextBlock Classes="bodySm"
+                <TextBlock Classes="onbBody"
                            Margin="{StaticResource Inset.HotkeyText}"
                            VerticalAlignment="Center"
                            Foreground="{DynamicResource Brush.Smoke}"
@@ -155,12 +149,12 @@
                 <Grid ColumnDefinitions="*,Auto"
                       Margin="{StaticResource Inset.HotkeyText}"
                       IsVisible="{Binding HotkeyRow.IsCapturing}">
-                  <TextBlock Classes="bodySm"
+                  <TextBlock Classes="onbBody"
                              VerticalAlignment="Center"
                              Foreground="{DynamicResource Brush.Smoke}"
                              Text="{x:Static res:Strings.Onb4_PressShortcut}" />
                   <TextBlock Grid.Column="1"
-                             Classes="mono"
+                             Classes="onbMono"
                              VerticalAlignment="Center"
                              Foreground="{DynamicResource Brush.Smoke}"
                              Text="{x:Static res:Strings.Onb4_EscToCancel}" />
@@ -178,14 +172,12 @@
               ColumnSpacing="{StaticResource Space.24}"
               Margin="{StaticResource Inset.Row}">
           <StackPanel VerticalAlignment="Center"
-                      Spacing="{StaticResource Space.4}">
-            <TextBlock Classes="body"
-                       FontWeight="{StaticResource FontWeight.BodyMedium}"
+                      Spacing="{StaticResource Space.OnbTight}">
+            <TextBlock Classes="onbTitle"
                        Text="{x:Static res:Strings.Onb4_Screen}" />
-            <TextBlock Classes="bodySm"
-                       Foreground="{DynamicResource Brush.Smoke}"
+            <TextBlock Classes="onbNote"
                        Text="{x:Static res:Strings.Onb4_ScreenText}" />
-            <TextBlock Classes="note"
+            <TextBlock Classes="onbNote"
                        IsVisible="{Binding Devices.ScreenUnavailable}"
                        Text="{x:Static res:Strings.Devices_ScreenUnavailable}" />
           </StackPanel>

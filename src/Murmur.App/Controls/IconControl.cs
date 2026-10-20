@@ -15,16 +15,27 @@ public sealed class IconControl : Control
     public static readonly StyledProperty<Geometry?> DataProperty =
         AvaloniaProperty.Register<IconControl, Geometry?>(nameof(Data));
 
+    /// <summary>Width of the line in the 24 x 24 grid; the mockups use 1.6 for most icons and 2 to 2.2 for check marks.</summary>
+    public static readonly StyledProperty<double> StrokeProperty =
+        AvaloniaProperty.Register<IconControl, double>(nameof(Stroke), DefaultStroke);
+
     private const double Grid = 24;
-    private const double StrokeWidth = 1.6;
+    private const double DefaultStroke = 1.6;
 
     private Pen? _pen;
     private IBrush? _penBrush;
 
     static IconControl()
     {
-        AffectsRender<IconControl>(DataProperty, TextElement.ForegroundProperty);
+        AffectsRender<IconControl>(DataProperty, TextElement.ForegroundProperty, StrokeProperty);
         AffectsMeasure<IconControl>(DataProperty);
+    }
+
+    /// <summary>The line width in the 24 x 24 grid (default 1.6).</summary>
+    public double Stroke
+    {
+        get => GetValue(StrokeProperty);
+        set => SetValue(StrokeProperty, value);
     }
 
     /// <summary>The outline, in a 24 x 24 coordinate space.</summary>
@@ -46,10 +57,10 @@ public sealed class IconControl : Control
             return;
         }
 
-        if (_pen is null || !ReferenceEquals(_penBrush, brush))
+        if (_pen is null || !ReferenceEquals(_penBrush, brush) || _pen.Thickness != Stroke)
         {
             _penBrush = brush;
-            _pen = new Pen(brush, StrokeWidth, lineCap: PenLineCap.Round, lineJoin: PenLineJoin.Round);
+            _pen = new Pen(brush, Stroke, lineCap: PenLineCap.Round, lineJoin: PenLineJoin.Round);
         }
 
         var scale = Math.Min(Bounds.Width, Bounds.Height) / Grid;

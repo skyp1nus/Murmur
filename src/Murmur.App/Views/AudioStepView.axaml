@@ -3,6 +3,7 @@
              xmlns:vm="using:Murmur.App.ViewModels"
              xmlns:res="using:Murmur.App.Resources"
              xmlns:controls="using:Murmur.App.Controls"
+             ClipToBounds="False"
              x:Class="Murmur.App.Views.AudioStepView"
              x:DataType="vm:AudioStepViewModel">
 
@@ -12,14 +13,9 @@
 
     <StackPanel Spacing="{StaticResource Space.12}"
                 HorizontalAlignment="Center">
-      <TextBlock Classes="heading onbHeadline"
-                 TextAlignment="Center"
-                 TextWrapping="Wrap"
+      <TextBlock Classes="onbH1"
                  Text="{Binding Title}" />
-      <TextBlock Classes="body"
-                 TextAlignment="Center"
-                 TextWrapping="Wrap"
-                 Foreground="{DynamicResource Brush.Smoke}"
+      <TextBlock Classes="onbSub"
                  Text="{Binding Subtitle}" />
     </StackPanel>
 
@@ -37,29 +33,27 @@
           <StackPanel Spacing="{StaticResource Space.16}">
             <Grid ColumnDefinitions="*,Auto">
               <StackPanel Orientation="Horizontal"
-                          Spacing="{StaticResource Space.12}">
+                          Spacing="{StaticResource Space.OnbBadge}">
                 <Border Classes="iconBadge">
                   <controls:IconControl Width="{StaticResource Size.SmallIcon}"
                                         Height="{StaticResource Size.SmallIcon}"
                                         HorizontalAlignment="Center"
                                         Data="{StaticResource Icon.Microphone}" />
                 </Border>
-                <TextBlock Classes="body"
-                           FontWeight="{StaticResource FontWeight.BodyMedium}"
+                <TextBlock Classes="onbCardTitle"
                            VerticalAlignment="Center"
                            Text="{x:Static res:Strings.Common_Microphone}" />
               </StackPanel>
               <TextBlock Grid.Column="1"
-                         Classes="bodySm"
+                         Classes="onbNote"
                          VerticalAlignment="Center"
-                         Foreground="{DynamicResource Brush.Smoke}"
                          Text="{x:Static res:Strings.Onb2_TrackYou}" />
             </Grid>
-            <StackPanel Spacing="{StaticResource Space.4}">
-              <TextBlock Classes="bodySm"
-                         Foreground="{DynamicResource Brush.Smoke}"
+            <StackPanel Spacing="{StaticResource Space.OnbIcon}">
+              <TextBlock Classes="onbLabel"
                          Text="{x:Static res:Strings.Onb2_InputDevice}" />
               <ComboBox x:Name="MicrophoneBox"
+                        Classes="onb"
                         ItemsSource="{Binding Devices.Microphones}"
                         SelectedItem="{Binding Devices.SelectedMicrophone, Mode=TwoWay}"
                         IsEnabled="{Binding Devices.MicrophoneAvailable}">
@@ -84,29 +78,27 @@
           <StackPanel Spacing="{StaticResource Space.16}">
             <Grid ColumnDefinitions="*,Auto">
               <StackPanel Orientation="Horizontal"
-                          Spacing="{StaticResource Space.12}">
+                          Spacing="{StaticResource Space.OnbBadge}">
                 <Border Classes="iconBadge">
                   <controls:IconControl Width="{StaticResource Size.SmallIcon}"
                                         Height="{StaticResource Size.SmallIcon}"
                                         HorizontalAlignment="Center"
                                         Data="{StaticResource Icon.Speaker}" />
                 </Border>
-                <TextBlock Classes="body"
-                           FontWeight="{StaticResource FontWeight.BodyMedium}"
+                <TextBlock Classes="onbCardTitle"
                            VerticalAlignment="Center"
                            Text="{x:Static res:Strings.Recording_SystemAudio}" />
               </StackPanel>
               <TextBlock Grid.Column="1"
-                         Classes="bodySm"
+                         Classes="onbNote"
                          VerticalAlignment="Center"
-                         Foreground="{DynamicResource Brush.Smoke}"
                          Text="{x:Static res:Strings.Onb2_TrackOthers}" />
             </Grid>
-            <StackPanel Spacing="{StaticResource Space.4}">
-              <TextBlock Classes="bodySm"
-                         Foreground="{DynamicResource Brush.Smoke}"
+            <StackPanel Spacing="{StaticResource Space.OnbIcon}">
+              <TextBlock Classes="onbLabel"
                          Text="{x:Static res:Strings.Onb2_OutputDevice}" />
               <ComboBox x:Name="SystemAudioBox"
+                        Classes="onb"
                         ItemsSource="{Binding Devices.SystemDevices}"
                         SelectedItem="{Binding Devices.SelectedSystemDevice, Mode=TwoWay}"
                         IsEnabled="{Binding Devices.SystemAudioAvailable}">
@@ -121,7 +113,7 @@
             <controls:LevelMeterControl x:Name="SystemAudioMeter"
                                         LevelSource="{Binding SystemAudio.Meter}"
                                         IsActive="{Binding SystemAudio.IsLive}" />
-            <TextBlock Classes="note"
+            <TextBlock Classes="onbNote"
                        IsVisible="{Binding ShowSystemUnavailable}"
                        Text="{Binding SystemUnavailableText}" />
           </StackPanel>
@@ -144,10 +136,10 @@
           </Border>
           <StackPanel Grid.Column="1"
                       VerticalAlignment="Center"
-                      Spacing="{StaticResource Space.4}">
-            <TextBlock Classes="label"
+                      Spacing="{StaticResource Space.OnbHair}">
+            <TextBlock Classes="onbTitle"
                        Text="{x:Static res:Strings.Onb2_GrantedTitle}" />
-            <TextBlock Classes="note"
+            <TextBlock Classes="onbNote"
                        Text="{x:Static res:Strings.Onb2_GrantedText}" />
           </StackPanel>
         </Grid>
@@ -168,12 +160,12 @@
           </Border>
           <StackPanel Grid.Column="1"
                       VerticalAlignment="Center"
-                      Spacing="{StaticResource Space.4}">
-            <TextBlock Classes="label"
+                      Spacing="{StaticResource Space.OnbHair}">
+            <TextBlock Classes="onbTitle"
                        Text="{x:Static res:Strings.Onb2_DeniedTitle}" />
-            <TextBlock Classes="note"
+            <TextBlock Classes="onbNote"
                        Text="{x:Static res:Strings.Onb2_DeniedText}" />
-            <TextBlock Classes="note"
+            <TextBlock Classes="onbNote"
                        Foreground="{DynamicResource Brush.Graphite}"
                        IsVisible="{Binding HasLauncherError}"
                        Text="{Binding LauncherError}" />
@@ -183,12 +175,12 @@
                       VerticalAlignment="Center"
                       Spacing="{StaticResource Space.12}">
             <Button x:Name="OpenSettingsButton"
-                    Classes="primary compact"
+                    Classes="primary onbBanner"
                     IsVisible="{Binding CanOpenSettings}"
                     Content="{x:Static res:Strings.Onb2_OpenSettings}"
                     Command="{Binding OpenSettingsCommand}" />
             <Button x:Name="TryAgainButton"
-                    Classes="outline compact"
+                    Classes="outline onbBanner"
                     Content="{x:Static res:Strings.Onb2_TryAgain}"
                     Command="{Binding TryAgainCommand}" />
           </StackPanel>
@@ -210,14 +202,14 @@
           </Border>
           <StackPanel Grid.Column="1"
                       VerticalAlignment="Center"
-                      Spacing="{StaticResource Space.4}">
-            <TextBlock Classes="label"
+                      Spacing="{StaticResource Space.OnbHair}">
+            <TextBlock Classes="onbTitle"
                        Text="{x:Static res:Strings.Onb2_NoMicTitle}" />
-            <TextBlock Classes="note"
+            <TextBlock Classes="onbNote"
                        Text="{x:Static res:Strings.Onb2_NoMicText}" />
           </StackPanel>
           <Button Grid.Column="2"
-                  Classes="outline compact"
+                  Classes="outline onbBanner"
                   VerticalAlignment="Center"
                   Content="{x:Static res:Strings.Onb2_TryAgain}"
                   Command="{Binding TryAgainCommand}" />
@@ -239,14 +231,14 @@
           </Border>
           <StackPanel Grid.Column="1"
                       VerticalAlignment="Center"
-                      Spacing="{StaticResource Space.4}">
-            <TextBlock Classes="label"
+                      Spacing="{StaticResource Space.OnbHair}">
+            <TextBlock Classes="onbTitle"
                        Text="{x:Static res:Strings.Onb2_MicFailedTitle}" />
-            <TextBlock Classes="note"
+            <TextBlock Classes="onbNote"
                        Text="{Binding MicrophoneFailedText}" />
           </StackPanel>
           <Button Grid.Column="2"
-                  Classes="outline compact"
+                  Classes="outline onbBanner"
                   VerticalAlignment="Center"
                   Content="{x:Static res:Strings.Onb2_TryAgain}"
                   Command="{Binding TryAgainCommand}" />

@@ -780,7 +780,7 @@
     <value>Murmur потребує доступу до мікрофона</value>
   </data>
   <data name="Onb2_DeniedText" xml:space="preserve">
-    <value>Дозволь класичним програмам доступ до мікрофона в параметрах конфіденційності Windows. Звук обробляється лише на цьому ПК.</value>
+    <value>Дозволь класичним програмам доступ до мікрофона.</value>
   </data>
   <data name="Onb2_OpenSettings" xml:space="preserve">
     <value>Відкрити параметри Windows</value>

@@ -31,31 +31,26 @@
 
     <!-- Top bar: wordmark, step indicator (1 / 5 and five segments) -->
     <Grid Grid.Row="0"
+          Height="{StaticResource Size.OnbBar}"
           ColumnDefinitions="*,Auto,*">
       <StackPanel Grid.Column="0"
                   Orientation="Horizontal"
-                  Spacing="{StaticResource Space.12}"
+                  Spacing="{StaticResource Space.8}"
                   VerticalAlignment="Center">
-        <Grid Width="{StaticResource Size.OrbSlot}"
-              Height="{StaticResource Size.OrbSlot}"
-              VerticalAlignment="Center">
-          <controls:OrbControl Width="{StaticResource Size.SidebarOrb}"
-                               Height="{StaticResource Size.SidebarOrb}"
-                               HorizontalAlignment="Center"
-                               VerticalAlignment="Center" />
-        </Grid>
-        <TextBlock Classes="subheading"
-                   FontWeight="{StaticResource FontWeight.BodyMedium}"
+        <controls:GlassOrbControl Width="{StaticResource Size.WordmarkOrb}"
+                                  Height="{StaticResource Size.WordmarkOrb}"
+                                  VerticalAlignment="Center" />
+        <TextBlock Classes="onbWordmark"
                    VerticalAlignment="Center"
                    Text="Murmur" />
       </StackPanel>
 
       <StackPanel Grid.Column="1"
                   Orientation="Horizontal"
-                  Spacing="{StaticResource Space.16}"
+                  Spacing="{StaticResource Space.OnbStep}"
                   VerticalAlignment="Center"
                   AutomationProperties.Name="{Binding StepAutomationName}">
-        <TextBlock Classes="mono"
+        <TextBlock Classes="onbMono"
                    VerticalAlignment="Center"
                    Foreground="{DynamicResource Brush.Smoke}"
                    Text="{Binding StepLabel}" />
@@ -64,7 +59,7 @@
           <ItemsControl.ItemsPanel>
             <ItemsPanelTemplate>
               <StackPanel Orientation="Horizontal"
-                          Spacing="{StaticResource Space.8}" />
+                          Spacing="{StaticResource Space.OnbSegment}" />
             </ItemsPanelTemplate>
           </ItemsControl.ItemsPanel>
           <ItemsControl.ItemTemplate>
@@ -81,7 +76,8 @@
     <ScrollViewer Grid.Row="1"
                   HorizontalScrollBarVisibility="Disabled"
                   VerticalScrollBarVisibility="Auto">
-      <ContentControl HorizontalAlignment="Stretch"
+      <ContentControl ClipToBounds="False"
+                      HorizontalAlignment="Stretch"
                       VerticalAlignment="Center"
                       HorizontalContentAlignment="Stretch"
                       Content="{Binding CurrentStep}" />
@@ -89,30 +85,33 @@
 
     <!-- Bottom bar: Back and Skip on the left, Continue on the right -->
     <Grid Grid.Row="2"
+          Height="{StaticResource Size.OnbFooter}"
           ColumnDefinitions="Auto,*,Auto">
       <StackPanel Grid.Column="0"
                   Orientation="Horizontal"
+                  VerticalAlignment="Center"
                   Spacing="{StaticResource Space.4}">
         <Button x:Name="BackButton"
-                Classes="text"
+                Classes="text onbFoot"
                 IsVisible="{Binding CurrentStep.ShowBack}"
                 Command="{Binding BackCommand}">
           <StackPanel Orientation="Horizontal"
-                      Spacing="{StaticResource Space.8}">
-            <controls:IconControl Width="{StaticResource Size.NavIcon}"
-                                  Height="{StaticResource Size.NavIcon}"
+                      Spacing="{StaticResource Space.OnbIcon}">
+            <controls:IconControl Width="{StaticResource Size.OnbChevron}"
+                                  Height="{StaticResource Size.OnbChevron}"
                                   Data="{StaticResource Icon.ChevronLeft}" />
             <TextBlock Text="{x:Static res:Strings.Common_Back}" />
           </StackPanel>
         </Button>
         <Button x:Name="SkipButton"
-                Classes="text muted"
+                Classes="text muted onbFoot"
                 IsVisible="{Binding CurrentStep.ShowSkip}"
                 Content="{x:Static res:Strings.Onb_Skip}"
                 Command="{Binding SkipCommand}" />
       </StackPanel>
       <StackPanel Grid.Column="2"
                   Orientation="Horizontal"
+                  VerticalAlignment="Center"
                   Spacing="{StaticResource Space.12}">
         <Button x:Name="SecondaryButton"
                 Classes="outline onb"

@@ -772,7 +772,7 @@
     <value>Murmur needs access to your microphone</value>
   </data>
   <data name="Onb2_DeniedText" xml:space="preserve">
-    <value>Allow microphone access for desktop apps in the Windows privacy settings. Audio is processed on this PC only.</value>
+    <value>Allow microphone access for desktop apps.</value>
   </data>
   <data name="Onb2_OpenSettings" xml:space="preserve">
     <value>Open Windows settings</value>

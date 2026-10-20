@@ -104,6 +104,14 @@ internal sealed class DesignScene : IDisposable
             orb.Tick();
         }
 
+        foreach (var orb in Window.GetVisualDescendants().OfType<GlassOrbControl>().ToArray())
+        {
+            // The canvas orbs at rest: scale 1, the halo at full strength (the reference is drawn with animations off).
+            orb.LevelSource = null;
+            orb.Clock = new TestTime(UiHarness.Now);
+            orb.Tick();
+        }
+
         // A live meter reads a constant level, so the timer ticks that run while the frame is taken do not change the bars.
         foreach (var meter in Window.GetVisualDescendants().OfType<LevelMeterControl>().ToArray())
         {
@@ -380,6 +388,9 @@ internal sealed class DesignScene : IDisposable
                 await rig.GoToStepAsync(3);
                 await rig.Onboarding.Audio.Settled;
                 rig.Manager.Progress(DesignDemoData.Ids.Asr, DesignDemoData.OnboardingParakeetDone, 670_000_000);
+
+                // The board shows Gemma 4 E4B chosen but not started (the app starts its download the moment it is chosen).
+                rig.Onboarding.Models.Choices[0].IsSelected = true;
                 break;
 
             case BoardScreen.Onboarding3ModelsReady:

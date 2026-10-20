@@ -86,6 +86,23 @@ internal static class UiFormat
         };
     }
 
+    /// <summary>
+    /// "0.31 / 0.67 GB": two byte counts of the same unit written once, like the canvas. Counts in different units keep both
+    /// units ("900 MB / 1.20 GB").
+    /// </summary>
+    public static string SizeProgress(long done, long total)
+    {
+        var first = Size(done);
+        var second = Size(total);
+        var unit = second.LastIndexOf(' ') is var cut and > 0 ? second[cut..] : string.Empty;
+        if (unit.Length > 0 && first.EndsWith(unit, StringComparison.Ordinal))
+        {
+            first = first[..^unit.Length];
+        }
+
+        return UiText.Format(Strings.Onb3_Transfer, first, second);
+    }
+
     private static string TitleMonthName(int month) => month switch
     {
         1 => Strings.TitleMonth_01,

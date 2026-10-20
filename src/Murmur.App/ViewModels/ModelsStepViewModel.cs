@@ -303,7 +303,7 @@ public sealed partial class ModelsStepViewModel : OnboardingStepViewModel
             : RequiredModelsState.Waiting;
         RequiredPercent = total > 0 ? done * 100 / total : 100;
         RequiredTransferText = RequiredState == RequiredModelsState.Downloading
-            ? UiText.Format(Strings.Onb3_Transfer, UiFormat.Size((long)done), UiFormat.Size(total))
+            ? UiFormat.SizeProgress((long)done, total)
             : string.Empty;
 
         var chatBusy = Choices.Any(c => c.IsBusy);
