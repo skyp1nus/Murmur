@@ -196,7 +196,8 @@ public static class ModelCatalog
                     [new ModelFileSpec(ReleaseUrl(vulkan), vulkan)],
                     ModelPackaging.Zip,
                     "llama-server.exe",
-                    Listed: false);
+                    Listed: false,
+                    RequirePins: sources.PinHashes);
 
                 var cuda = $"llama-{LlamaCppTag}-bin-win-cuda-{LlamaCppCudaVersion}-x64.zip";
                 var cudart = $"cudart-llama-bin-win-cuda-{LlamaCppCudaVersion}-x64.zip";
@@ -207,7 +208,8 @@ public static class ModelCatalog
                     [new ModelFileSpec(ReleaseUrl(cuda), cuda), new ModelFileSpec(ReleaseUrl(cudart), cudart)],
                     ModelPackaging.Zip,
                     "llama-server.exe",
-                    Listed: false);
+                    Listed: false,
+                    RequirePins: sources.PinHashes);
                 break;
             }
 
@@ -221,7 +223,8 @@ public static class ModelCatalog
                     [new ModelFileSpec(ReleaseUrl(vulkan), vulkan)],
                     ModelPackaging.TarGz,
                     "llama-server",
-                    Listed: false);
+                    Listed: false,
+                    RequirePins: sources.PinHashes);
                 break;
             }
         }

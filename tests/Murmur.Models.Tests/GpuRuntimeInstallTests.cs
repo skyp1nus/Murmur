@@ -115,4 +115,71 @@ public sealed class GpuRuntimeInstallTests
         Assert.Equal(ModelInstallState.Installed, status.State);
         Assert.True(status.BytesDone > 2000);
     }
+
+    private static ModelCatalogItem WithPins(ModelCatalogItem item, params byte[][] archives) =>
+        item with
+        {
+            RequirePins = true,
+            Files = [.. item.Files.Select((f, i) => f with { Sha256 = Harness.Sha256(archives[i]), SizeBytes = archives[i].Length })],
+        };
+
+    [Fact]
+    public async Task AnItemThatRequiresPins_RefusesToDownloadWhileAFileIsUnpinned_AndTouchesNothing()
+    {
+        await using var h = new Harness();
+        var cuda = Item(h.Sources, ModelCatalog.LlamaCppCudaId) with { RequirePins = true };
+        var zips = new[] { Harness.Zip(("llama-server.exe", Harness.Bytes(2000, 1))), Harness.Zip(("cudart64_12.dll", Harness.Bytes(300, 3))) };
+        Serve(h, cuda, zips);
+        using var manager = h.Manager([cuda]);
+
+        var ex = await Assert.ThrowsAsync<ModelInstallException>(() => manager.InstallAsync(ModelCatalog.LlamaCppCudaId, TestContext.Current.CancellationToken));
+
+        Assert.Contains("not pinned yet", ex.Message, StringComparison.Ordinal);
+        Assert.Equal(ModelInstallState.Failed, manager.GetStatus(ModelCatalog.LlamaCppCudaId).State);
+        Assert.False(Directory.Exists(Path.Combine(h.Models, "llama.cpp-cuda")));
+        Assert.False(Directory.Exists(Path.Combine(h.Models, ".staging")));
+        Assert.Empty(h.Server.Requests);
+    }
+
+    [Fact]
+    public async Task AFullyPinnedItem_InstallsAndVerifiesEveryFile()
+    {
+        await using var h = new Harness();
+        var vulkan = Item(h.Sources, ModelCatalog.LlamaCppVulkanId);
+        var zip = Harness.Zip(("llama-server.exe", Harness.Bytes(2000, 1)));
+        Serve(h, vulkan, zip);
+        using var manager = h.Manager([WithPins(vulkan, zip)]);
+
+        await manager.InstallAsync(ModelCatalog.LlamaCppVulkanId, TestContext.Current.CancellationToken);
+
+        Assert.Equal(ModelInstallState.Installed, manager.GetStatus(ModelCatalog.LlamaCppVulkanId).State);
+    }
+
+    [Fact]
+    public async Task AFullyPinnedItem_WithATamperedDownload_IsRejected()
+    {
+        await using var h = new Harness();
+        var vulkan = Item(h.Sources, ModelCatalog.LlamaCppVulkanId);
+        var genuine = Harness.Zip(("llama-server.exe", Harness.Bytes(2000, 1)));
+        var tampered = Harness.Zip(("llama-server.exe", Harness.Bytes(2000, 2)));
+        Serve(h, vulkan, tampered);
+        using var manager = h.Manager([WithPins(vulkan, genuine)]);
+
+        await Assert.ThrowsAsync<ModelInstallException>(() => manager.InstallAsync(ModelCatalog.LlamaCppVulkanId, TestContext.Current.CancellationToken));
+
+        Assert.False(Directory.Exists(Path.Combine(h.Models, "llama.cpp-vulkan")));
+    }
+
+    [Fact]
+    public async Task AnUnpinnedItemThatIsAlreadyInstalled_StaysInstalled()
+    {
+        await using var h = new Harness();
+        var vulkan = Item(h.Sources, ModelCatalog.LlamaCppVulkanId) with { RequirePins = true };
+        Directory.CreateDirectory(Path.Combine(h.Models, "llama.cpp-vulkan"));
+        await File.WriteAllBytesAsync(Path.Combine(h.Models, "llama.cpp-vulkan", "llama-server.exe"), Harness.Bytes(100), TestContext.Current.CancellationToken);
+        using var manager = h.Manager([vulkan]);
+
+        Assert.Equal(ModelInstallState.Installed, manager.GetStatus(ModelCatalog.LlamaCppVulkanId).State);
+        await manager.InstallAsync(ModelCatalog.LlamaCppVulkanId, TestContext.Current.CancellationToken);
+    }
 }

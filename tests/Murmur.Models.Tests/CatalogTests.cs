@@ -247,17 +247,47 @@ public sealed class CatalogTests
         Assert.Equal(targets.Count, targets.Distinct().Count());
     }
 
-    [Fact]
-    public void GpuRuntimes_ArePinnedLikeEveryOtherItemOnceTheWorkflowResolvedThem()
+    [Theory]
+    [InlineData(ModelPlatform.Windows)]
+    [InlineData(ModelPlatform.Linux)]
+    public async Task GpuRuntimes_AreEitherFullyPinned_OrTheManagerRefusesToInstallThem(ModelPlatform platform)
     {
-        // The hashes come from `ModelFetch --resolve-pins` (GitHub publishes the digest of every release asset); until that
-        // run has been pasted into the catalog the GPU items are the only unpinned ones, and this test says so on purpose.
-        var gpu = ModelCatalog.Create(Hosts, ModelPlatform.Windows).Where(i => !i.Listed).SelectMany(i => i.Files).ToList();
-        Assert.NotEmpty(gpu);
+        // The hashes come from `ModelFetch --resolve-pins` (GitHub publishes the digest of every release asset). Until they are
+        // pasted into the catalog the items fail closed: a binary that will be run is never installed unverified.
+        var items = ModelCatalog.Create(Hosts, platform).Where(i => !i.Listed).ToList();
+        Assert.NotEmpty(items);
+        using var manager = new ModelManager(new ModelManagerOptions { ModelsDirectory = Path.Combine(Path.GetTempPath(), "murmur-pin-" + Guid.NewGuid().ToString("N")), Catalog = [.. items] });
 
-        var unpinned = gpu.Count(f => f.Sha256 is null);
-        Assert.True(unpinned == 0 || unpinned == gpu.Count, "pin all GPU assets from one --resolve-pins run, or none");
-        Assert.All(gpu.Where(f => f.Sha256 is not null), f => Assert.Matches("^[0-9a-f]{64}$", f.Sha256!));
+        foreach (var item in items)
+        {
+            Assert.True(item.RequirePins);
+            var sources = item.Files.SelectMany(f => f.Sources).ToList();
+            if (sources.All(m => m.Sha256 is not null && m.SizeBytes is not null))
+            {
+                Assert.Null(item.UnpinnedReason);
+                Assert.All(sources, m => Assert.Matches("^[0-9a-f]{64}$", m.Sha256!));
+            }
+            else
+            {
+                var ex = await Assert.ThrowsAsync<ModelInstallException>(() => manager.InstallAsync(item.Id, TestContext.Current.CancellationToken));
+                Assert.Contains("not pinned yet", ex.Message, StringComparison.Ordinal);
+                var status = manager.GetStatus(item.Id);
+                Assert.Equal(ModelInstallState.Failed, status.State);
+                Assert.Contains("not pinned yet", status.Error, StringComparison.Ordinal);
+            }
+        }
+    }
+
+    [Fact]
+    public void GpuRuntimes_BuiltWithoutPins_DoNotRequireThem()
+    {
+        var items = ModelCatalog.Create(Hosts with { PinHashes = false }, ModelPlatform.Windows).Where(i => !i.Listed);
+
+        Assert.All(items, i =>
+        {
+            Assert.False(i.RequirePins);
+            Assert.Null(i.UnpinnedReason);
+        });
     }
 
     [Fact]
@@ -271,7 +301,8 @@ public sealed class CatalogTests
 
         // Status, install and remove work by id for an unlisted item, so the Settings control can drive them.
         var status = manager.GetStatus(ModelCatalog.LlamaCppVulkanId);
-        Assert.Equal(ModelInstallState.NotInstalled, status.State);
+        Assert.Equal(ModelInstallState.Failed, status.State); // unavailable until the pins are in the catalog (fail closed)
+        Assert.Contains("not pinned yet", status.Error, StringComparison.Ordinal);
         Assert.Equal(ModelKind.LlmRuntime, status.Model.Kind);
         Assert.True(status.Model.SizeBytes > 0);
     }

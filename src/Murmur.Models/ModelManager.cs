@@ -201,6 +201,13 @@ public sealed class ModelManager : IModelManager, IDisposable
                 return Task.FromException(new InvalidOperationException($"Model '{id}' is being removed"));
             }
 
+            // Fail closed: an item whose pins are not in the catalog yet is not downloaded at all.
+            if (item.UnpinnedReason is { } unpinned && !IsInstalled(item))
+            {
+                _errors[id] = unpinned;
+                return Task.FromException(new ModelInstallException(unpinned));
+            }
+
             var operation = new Operation(item);
             _operations[id] = operation;
             _errors.Remove(id);
@@ -424,6 +431,11 @@ public sealed class ModelManager : IModelManager, IDisposable
         {
             var size = InstalledBytes(item);
             return new ModelStatus(item.Info, ModelInstallState.Installed, size, size, null);
+        }
+
+        if (item.UnpinnedReason is { } unpinned)
+        {
+            return new ModelStatus(item.Info, ModelInstallState.Failed, 0, null, unpinned);
         }
 
         var partial = PartialBytes(item);
