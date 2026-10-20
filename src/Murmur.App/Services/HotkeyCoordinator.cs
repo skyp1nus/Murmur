@@ -46,7 +46,7 @@ internal sealed class HotkeyCoordinator : IDisposable
     private readonly Lock _gate = new();
     private readonly string?[] _applied = new string?[Actions.Length];
     private readonly bool[] _known = new bool[Actions.Length];
-    private readonly HotkeyRegistration[] _registrations = [HotkeyRegistration.Cleared, HotkeyRegistration.Cleared, HotkeyRegistration.Cleared, HotkeyRegistration.Cleared];
+    private readonly HotkeyRegistration[] _registrations = new HotkeyRegistration[Actions.Length];
     private bool _suspended;
     private bool _started;
     private int _disposed;
@@ -78,6 +78,7 @@ internal sealed class HotkeyCoordinator : IDisposable
         _isClosing = isClosing ?? (() => false);
         _post = post ?? (action => Avalonia.Threading.Dispatcher.UIThread.Post(action));
         _runBackground = runBackground ?? (action => Task.Run(action));
+        Array.Fill(_registrations, HotkeyRegistration.Cleared);
     }
 
     private bool IsDisposed => Volatile.Read(ref _disposed) != 0;

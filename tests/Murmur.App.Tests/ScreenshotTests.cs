@@ -76,9 +76,8 @@ public sealed class ScreenshotTests
 
     /// <summary>
     /// The orb's own timer runs on real time and may tick while a slow (first) window is being shown. Whatever it did
-    /// before, the committed screenshot must come out the same, or every test run rewrites the tracked file. The orb itself
-    /// (its blurred halo is cached by the compositor at the scale it was last drawn at) is left out: its frames are checked on
-    /// a manual clock in <c>GlassOrbControlTests</c>; everything else on the page must be pixel-identical.
+    /// before, the committed screenshot must come out the same, or every test run rewrites the tracked file. Nothing is left out:
+    /// every pixel of the page must be identical.
     /// </summary>
     [Fact]
     public async Task RecordingActive_RendersTheSameFrame_WhateverTheOrbTimerDidBefore()
@@ -87,19 +86,17 @@ public sealed class ScreenshotTests
             () => (RenderActive(strayTicks: 0), RenderActive(strayTicks: 4)),
             TestContext.Current.CancellationToken);
 
-        Assert.Equal(clean.Pixels.Length, afterStrayTicks.Pixels.Length);
-        Assert.Equal(clean.Orb, afterStrayTicks.Orb);
+        Assert.Equal(clean.Length, afterStrayTicks.Length);
         var differing = 0;
-        for (var i = 0; i < clean.Pixels.Length; i++)
+        for (var i = 0; i < clean.Length; i++)
         {
-            var (x, y) = ((i / 4) % clean.Width, (i / 4) / clean.Width);
-            if (clean.Pixels[i] != afterStrayTicks.Pixels[i] && !clean.Orb.Contains(new Avalonia.Point(x, y)))
+            if (clean[i] != afterStrayTicks[i])
             {
                 differing++;
             }
         }
 
-        Assert.True(differing == 0, $"{differing} pixel bytes outside the orb differ between two renders of the same recording screen.");
+        Assert.True(differing == 0, $"{differing} pixel bytes differ between two renders of the same recording screen.");
     }
 
     private static ShellViewModel ActiveShell()
@@ -118,7 +115,7 @@ public sealed class ScreenshotTests
     /// Renders the active recording screen. <paramref name="strayTicks"/> ticks of the orb's real-time timer come first, at
     /// uneven moments, like the ones that can run while a slow first window is being shown.
     /// </summary>
-    private static (byte[] Pixels, int Width, Avalonia.Rect Orb) RenderActive(int strayTicks)
+    private static byte[] RenderActive(int strayTicks)
     {
         var shell = ActiveShell();
         var window = UiHarness.Show(shell);
@@ -136,6 +133,13 @@ public sealed class ScreenshotTests
 
         UiHarness.BreatheOrb(orb);
 
+        // The compositor caches the blurred halo at the scale it was last drawn at; whatever the stray ticks left behind is
+        // thrown away by drawing both layers of the orb afresh.
+        foreach (var layer in orb.Children)
+        {
+            layer.InvalidateVisual();
+        }
+
         // The page polls the levels on its own timer, and every poll moves the level strips on by one sample: fill them with the
         // levels the recorder reports (ActiveShell), so a poll that ran (or not) while the window was shown leaves the frame as it was.
         foreach (var (track, level) in new[] { (shell.Recording.MicrophoneTrack, 0.45f), (shell.Recording.SystemTrack, 0.7f) })
@@ -146,12 +150,9 @@ public sealed class ScreenshotTests
             }
         }
 
-        UiHarness.Pump();
+        UiHarness.Pump(8);
         var pixels = UiHarness.Pixels(window);
-        var origin = orb.TranslatePoint(default, window) ?? default;
-        var area = new Avalonia.Rect(origin, orb.Bounds.Size).Inflate(400); // the blurred halo reaches far beyond the control
-        var width = (int)window.Bounds.Width;
         window.Close();
-        return (pixels, width, area);
+        return pixels;
     }
 }

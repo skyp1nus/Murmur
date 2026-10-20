@@ -102,11 +102,14 @@ public partial class RecordingView : UserControl
 
     private void OnTitleLostFocus(object? sender, RoutedEventArgs e) => _ = _viewModel?.CommitTitleAsync();
 
-    private async Task WriteToClipboardAsync(string text)
+    private async Task<bool> WriteToClipboardAsync(string text)
     {
-        if (TopLevel.GetTopLevel(this)?.Clipboard is { } clipboard)
+        if (TopLevel.GetTopLevel(this)?.Clipboard is not { } clipboard)
         {
-            await clipboard.SetTextAsync(text);
+            return false;
         }
+
+        await clipboard.SetTextAsync(text);
+        return true;
     }
 }

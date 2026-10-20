@@ -125,8 +125,8 @@ public sealed class RecordingViewTests
         var harness = new UiHarness();
         var shell = harness.CreateShell();
         shell.ShowRecording();
-        var store = new RecordingPauseViewModelTests_TitleStoreAccess();
-        harness.Recorder.AfterStart = () => store.Seed(harness.Recorder.Current!);
+        var store = new FakeSessionStore();
+        harness.Recorder.AfterStart = () => store.Add(harness.Recorder.Current!);
         var recording = new RecordingViewModel(harness.Recorder, harness.Capture, store, action => action(), time: harness.Time);
         var page = new ShellViewModel(shell.Library, recording);
         page.ShowRecording();
@@ -209,17 +209,21 @@ public sealed class RecordingViewTests
                 using var scope = UiCulture.Override("en");
                 var window = UiHarness.Show(shell);
                 var chips = window.GetVisualDescendants().OfType<Avalonia.Controls.Primitives.ToggleButton>().Where(b => b.Classes.Contains("source")).ToArray();
-                var before = chips.Select(c => (c.IsChecked, c.IsHitTestVisible, c.Focusable)).ToArray();
+                var before = chips.Select(c => (c.IsChecked, c.IsEnabled, (c.Foreground as ISolidColorBrush)?.Color)).ToArray();
                 await shell.Recording.StartStopAsync();
                 UiHarness.Pump();
-                var during = chips.Select(c => (c.IsChecked, c.IsHitTestVisible, c.Focusable)).ToArray();
+                var during = chips.Select(c => (c.IsChecked, c.IsEnabled, (c.Foreground as ISolidColorBrush)?.Color)).ToArray();
                 window.Close();
                 return (before, during);
             },
             Ct);
 
-        Assert.Equal([(true, true, true), (true, true, true), (false, true, true)], idle);
-        Assert.Equal([(true, false, false), (true, false, false), (false, true, true)], running);
+        Assert.Equal([(true, true), (true, true), (false, true)], idle.Select(c => (c.IsChecked, c.IsEnabled)));
+        Assert.Equal([(true, false), (true, false), (false, true)], running.Select(c => (c.IsChecked, c.IsEnabled)));
+
+        // Disabled by the state, a chip still looks like its state: the same colours as before the start.
+        Assert.Equal(idle.Select(c => c.Item3), running.Select(c => c.Item3));
+        Assert.NotEqual(idle[0].Item3, idle[2].Item3); // on = Ink, off = Smoke
     }
 
     // ---- the controls ------------------------------------------------------------------------------------------------------
@@ -322,30 +326,4 @@ public sealed class RecordingViewTests
         Assert.Equal(3, changes);
         Assert.All(history.Values.ToArray(), v => Assert.Equal(0f, v));
     }
-}
-
-/// <summary>The rename needs a store that keeps rows (see <see cref="RecordingPauseViewModelTests"/>); this one is for the view tests.</summary>
-internal sealed class RecordingPauseViewModelTests_TitleStoreAccess : ISessionStore
-{
-    private readonly Dictionary<SessionId, SessionRecord> _rows = [];
-
-    public void Seed(SessionRecord record) => _rows[record.Id] = record;
-
-    public SessionRecord? Get(SessionId id) => _rows.GetValueOrDefault(id);
-
-    public ValueTask<SessionRecord> CreateSessionAsync(string title, DateTimeOffset startedAt, CancellationToken cancellationToken) => throw new NotSupportedException();
-
-    public ValueTask UpdateSessionAsync(SessionRecord session, CancellationToken cancellationToken)
-    {
-        _rows[session.Id] = session;
-        return ValueTask.CompletedTask;
-    }
-
-    public ValueTask<SessionRecord?> GetSessionAsync(SessionId id, CancellationToken cancellationToken) => ValueTask.FromResult(_rows.GetValueOrDefault(id));
-
-    public ValueTask<IReadOnlyList<SessionRecord>> ListSessionsAsync(SessionQuery query, CancellationToken cancellationToken) => ValueTask.FromResult<IReadOnlyList<SessionRecord>>([.. _rows.Values]);
-
-    public ValueTask DeleteSessionAsync(SessionId id, CancellationToken cancellationToken) => throw new NotSupportedException();
-
-    public SessionFiles GetFiles(SessionId id) => new(Path.Combine(Path.GetTempPath(), "murmur-title-store", id.ToString()));
 }

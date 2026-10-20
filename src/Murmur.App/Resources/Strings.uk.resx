@@ -1090,4 +1090,10 @@
   <data name="Hotkeys_Pause" xml:space="preserve">
     <value>Пауза</value>
   </data>
+  <data name="Recording_CopyFailed" xml:space="preserve">
+    <value>Не вдалося скопіювати повідомлення: {0}</value>
+  </data>
+  <data name="Recording_ClipboardUnavailable" xml:space="preserve">
+    <value>буфер обміну недоступний</value>
+  </data>
 </root>

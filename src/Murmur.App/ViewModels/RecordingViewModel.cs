@@ -38,6 +38,9 @@ public sealed partial class RecordingViewModel : ObservableObject, ILevelSource
     private string _systemAudioName = string.Empty;
     private CancellationTokenSource? _copiedReset;
 
+    /// <summary>The rename in flight (never faults: it reports its own failure); the stop waits for it.</summary>
+    private Task _renameTask = Task.CompletedTask;
+
     /// <summary>The stop in flight; meaningful only while it has not completed (a completed one is ignored).</summary>
     private Task? _stopTask;
     private bool _suppressScreenChange;
@@ -106,10 +109,10 @@ public sealed partial class RecordingViewModel : ObservableObject, ILevelSource
     public RecordingTrackViewModel SystemTrack { get; } = new(isMicrophone: false);
 
     /// <summary>
-    /// Writes text to the clipboard; set by the view (the clipboard belongs to the window). <c>null</c> = no clipboard, so
-    /// <see cref="CopyMessageCommand"/> does nothing.
+    /// Writes text to the clipboard and tells whether it did (<c>false</c>: the window has no clipboard); set by the view (the
+    /// clipboard belongs to the window). <c>null</c> = no clipboard at all, so <see cref="CopyMessageCommand"/> does nothing.
     /// </summary>
-    public Func<string, Task>? ClipboardWriter { get; set; }
+    public Func<string, Task<bool>>? ClipboardWriter { get; set; }
 
     /// <summary>How long "Copied" stays on the button.</summary>
     internal static readonly TimeSpan CopiedFor = TimeSpan.FromSeconds(2);
@@ -312,7 +315,15 @@ public sealed partial class RecordingViewModel : ObservableObject, ILevelSource
         _stopRequested = true;
         try
         {
+            // A rename that is still being written finishes first: the stop must not overtake it.
+            await _renameTask;
             var session = await _recorder.StopAsync(CancellationToken.None);
+            if (_committedTitle.Length > 0)
+            {
+                // The recorder's record still has the title the session started with; the user may have changed it since.
+                session = session with { Title = _committedTitle };
+            }
+
             _sessionId = null;
             ApplyState(_recorder.State);
             TimerText = UiFormat.Duration(TimeSpan.Zero);
@@ -468,13 +479,22 @@ public sealed partial class RecordingViewModel : ObservableObject, ILevelSource
             return Task.CompletedTask;
         }
 
-        if (_sessionId is not { } id)
+        // Only a running (or paused) session can be renamed: not one that is starting or stopping (the stop has the last word).
+        if (State is not (RecorderState.Recording or RecorderState.Paused) || _stopRequested || _sessionId is not { } id)
         {
             Title = _committedTitle;
             return Task.CompletedTask;
         }
 
-        return RenameAsync(id, text);
+        var previous = _renameTask;
+        _renameTask = RenameAfterAsync(previous, id, text);
+        return _renameTask;
+    }
+
+    private async Task RenameAfterAsync(Task previous, SessionId id, string title)
+    {
+        await previous;
+        await RenameAsync(id, title);
     }
 
     /// <summary>Esc in the title field: back to the title it had.</summary>
@@ -484,15 +504,22 @@ public sealed partial class RecordingViewModel : ObservableObject, ILevelSource
     {
         try
         {
-            var stored = await _store.GetSessionAsync(id, CancellationToken.None) ?? throw new InvalidOperationException("The session is gone.");
-            await _store.UpdateSessionAsync(stored with { Title = title }, CancellationToken.None);
-            _committedTitle = title;
-            Title = title;
+            // Only the title column is written: the recorder and the transcription pipeline own the rest of the row.
+            await _store.RenameSessionAsync(id, title, CancellationToken.None);
+            if (_sessionId == id)
+            {
+                _committedTitle = title;
+                Title = title;
+            }
         }
         catch (Exception ex)
         {
-            Error = UiText.Format(Strings.Recording_RenameFailed, ex.Message);
-            Title = _committedTitle;
+            // A late answer for a session that is over (or another one) is not this screen's business any more.
+            if (_sessionId == id)
+            {
+                Error = UiText.Format(Strings.Recording_RenameFailed, ex.Message);
+                Title = _committedTitle;
+            }
         }
     }
 
@@ -507,13 +534,19 @@ public sealed partial class RecordingViewModel : ObservableObject, ILevelSource
 
         try
         {
-            await write(Strings.Recording_MessageToCopy);
+            if (!await write(Strings.Recording_MessageToCopy))
+            {
+                Error = UiText.Format(Strings.Recording_CopyFailed, Strings.Recording_ClipboardUnavailable);
+                return;
+            }
         }
         catch (Exception ex)
         {
-            Error = ex.Message;
+            Error = UiText.Format(Strings.Recording_CopyFailed, ex.Message);
             return;
         }
+
+        Error = null;
 
         MessageCopied = true;
         _copiedReset?.Cancel();

@@ -1089,4 +1089,11 @@
   <data name="Hotkeys_Pause" xml:space="preserve">
     <value>Pause</value>
   </data>
+  <data name="Recording_CopyFailed" xml:space="preserve">
+    <value>Couldn’t copy the message: {0}</value>
+    <comment>{0} = reason</comment>
+  </data>
+  <data name="Recording_ClipboardUnavailable" xml:space="preserve">
+    <value>the clipboard is not available</value>
+  </data>
 </root>

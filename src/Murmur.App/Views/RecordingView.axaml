@@ -4,6 +4,7 @@
              xmlns:res="using:Murmur.App.Resources"
              xmlns:controls="using:Murmur.App.Controls"
              xmlns:cap="using:Murmur.Core.Capture"
+             xmlns:collections="using:Avalonia.Collections"
              x:Class="Murmur.App.Views.RecordingView"
              x:DataType="vm:RecordingViewModel">
 
@@ -50,6 +51,12 @@
       <x:Double x:Key="Rec.LineHeight.Title">36.16</x:Double>
       <x:Double x:Key="Rec.TitleHeight">36</x:Double>
       <x:Double x:Key="Rec.Gap">10</x:Double>
+      <x:Double x:Key="Rec.IconGrid">24</x:Double>
+      <Thickness x:Key="Rec.DashInset">0.5</Thickness>
+      <!-- The dashed chip of the canvas: 1 px dashes, 3 px long and 3 px apart. -->
+      <collections:AvaloniaList x:TypeArguments="x:Double" x:Key="Rec.Dash">3,3</collections:AvaloniaList>
+      <!-- Moves the timer text up by 6 px (and keeps its box): Geist Mono sits lower in a 48 px line in Avalonia than in Chromium. -->
+      <Thickness x:Key="Rec.TimerShift">0,-6,0,6</Thickness>
       <x:Double x:Key="Rec.PausedOrbOpacity">0.5</x:Double>
       <x:Double x:Key="Rec.LineHeight.Timer">48</x:Double>
       <x:Double x:Key="Rec.LetterSpacing">0.14</x:Double>
@@ -163,7 +170,7 @@
     <!-- The timer, Geist Mono at the display size; dimmed while paused. -->
     <Style Selector="TextBlock.recTimer">
       <Setter Property="FontFamily" Value="{StaticResource Font.Mono}" />
-      <Setter Property="FontWeight" Value="Light" />
+      <Setter Property="FontWeight" Value="{StaticResource FontWeight.Display}" />
       <Setter Property="FontSize" Value="{StaticResource FontSize.Display}" />
       <Setter Property="LineHeight" Value="{StaticResource Rec.LineHeight.Timer}" />
       <Setter Property="LetterSpacing" Value="{StaticResource Rec.LetterSpacing.Timer}" />
@@ -195,12 +202,12 @@
                     CornerRadius="{StaticResource Radius.Pill}" />
             <Rectangle x:Name="PART_Dashed"
                        IsVisible="False"
-                       Margin="0.5"
+                       Margin="{StaticResource Rec.DashInset}"
                        RadiusX="{StaticResource Rec.ChipRadius}"
                        RadiusY="{StaticResource Rec.ChipRadius}"
                        Stroke="{DynamicResource Brush.DashedBorder}"
-                       StrokeThickness="1"
-                       StrokeDashArray="3,3" />
+                       StrokeThickness="{StaticResource Hairline.Width}"
+                       StrokeDashArray="{StaticResource Rec.Dash}" />
             <ContentPresenter x:Name="ChipContent"
                               Padding="{TemplateBinding Padding}"
                               Content="{TemplateBinding Content}"
@@ -223,6 +230,14 @@
     </Style>
     <Style Selector="ToggleButton.source:unchecked /template/ Rectangle#PART_Dashed">
       <Setter Property="IsVisible" Value="True" />
+    </Style>
+    <!-- Switched off by the state (a running recording cannot change its sources): the chip keeps the look of its state. -->
+    <Style Selector="ToggleButton.source:disabled">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="Foreground" Value="{DynamicResource Brush.Ink}" />
+    </Style>
+    <Style Selector="ToggleButton.source:disabled:unchecked">
+      <Setter Property="Foreground" Value="{DynamicResource Brush.Smoke}" />
     </Style>
     <Style Selector="ToggleButton.source:pointerover /template/ Border#PART_Solid">
       <Setter Property="Background" Value="{DynamicResource Brush.FillHover}" />
@@ -357,7 +372,7 @@
           <TextBlock Classes="recTimer"
                      Classes.paused="{Binding IsPaused}"
                      HorizontalAlignment="Center"
-                     Margin="0,-6,0,6"
+                     Margin="{StaticResource Rec.TimerShift}"
                      Text="{Binding TimerText}" />
           <TextBlock Classes="recLabel"
                      HorizontalAlignment="Center"
@@ -371,8 +386,7 @@
                     HorizontalAlignment="Center"
                     Spacing="{StaticResource Space.8}">
           <ToggleButton Classes="source"
-                        Focusable="{Binding CanToggleMicrophone}"
-                        IsHitTestVisible="{Binding CanToggleMicrophone}"
+                        IsEnabled="{Binding CanToggleMicrophone}"
                         IsChecked="{Binding Microphone, Mode=TwoWay}">
             <StackPanel Orientation="Horizontal"
                         Spacing="{StaticResource Space.8}">
@@ -385,8 +399,7 @@
             </StackPanel>
           </ToggleButton>
           <ToggleButton Classes="source"
-                        Focusable="{Binding CanToggleSystemAudio}"
-                        IsHitTestVisible="{Binding CanToggleSystemAudio}"
+                        IsEnabled="{Binding CanToggleSystemAudio}"
                         IsChecked="{Binding SystemAudio, Mode=TwoWay}">
             <StackPanel Orientation="Horizontal"
                         Spacing="{StaticResource Space.8}">
@@ -468,8 +481,8 @@
                         Spacing="{StaticResource Space.8}">
               <Viewbox Width="{StaticResource Rec.Icon}"
                        Height="{StaticResource Rec.Icon}">
-                <Canvas Width="24"
-                        Height="24">
+                <Canvas Width="{StaticResource Rec.IconGrid}"
+                        Height="{StaticResource Rec.IconGrid}">
                   <Path Data="{StaticResource Rec.Pause}"
                         Fill="{DynamicResource Brush.Ink}"
                         IsVisible="{Binding !IsPaused}" />
@@ -491,8 +504,8 @@
               <Viewbox Width="{StaticResource Rec.SmallIcon}"
                        Height="{StaticResource Rec.SmallIcon}"
                        IsVisible="{Binding IsRunning}">
-                <Canvas Width="24"
-                        Height="24">
+                <Canvas Width="{StaticResource Rec.IconGrid}"
+                        Height="{StaticResource Rec.IconGrid}">
                   <Path Data="{StaticResource Rec.Stop}"
                         Fill="{DynamicResource Brush.Canvas}" />
                 </Canvas>

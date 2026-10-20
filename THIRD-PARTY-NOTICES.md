@@ -5,7 +5,7 @@ Murmur bundles or links the components below. Each is used under the license sho
 | Component | Version | License | Use |
 | --- | --- | --- | --- |
 | Inter | 4.x (via Avalonia.Fonts.Inter 12.1.4) | SIL OFL 1.1 | UI font, weights 300/400/500 |
-| Geist Mono | 1.8.1 (npm `geist`) | SIL OFL 1.1 | Timestamps and timers, embedded as `src/Murmur.App/Assets/Fonts/GeistMono-Regular.ttf` |
+| Geist Mono | 1.8.1 (npm `geist`) | SIL OFL 1.1 | Timestamps and timers, embedded as `src/Murmur.App/Assets/Fonts/GeistMono-Regular.ttf` and `GeistMono-Light.ttf` (the recording timer, weight 300) |
 | Avalonia (Avalonia, .Desktop, .Themes.Fluent, .Fonts.Inter, .Skia, .Headless) | 12.1.4 | MIT | UI framework |
 | CommunityToolkit.Mvvm | 8.4.2 | MIT | MVVM source generators |
 | Microsoft.Extensions.AI.Abstractions | 10.11.0 | MIT | `IChatClient` / `IEmbeddingGenerator` abstractions |

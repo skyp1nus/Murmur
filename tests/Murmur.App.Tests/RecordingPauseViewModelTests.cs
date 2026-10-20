@@ -15,7 +15,7 @@ public sealed class RecordingPauseViewModelTests : IDisposable
 
     private readonly FakeRecorder _recorder = new();
     private readonly FakeCapture _capture = new();
-    private readonly TitleStore _store = new();
+    private readonly FakeSessionStore _store = new();
     private readonly TestTime _time = new(UiHarness.Now);
 
     public void Dispose() => _english.Dispose();
@@ -23,39 +23,6 @@ public sealed class RecordingPauseViewModelTests : IDisposable
     private RecordingViewModel Create() => new(_recorder, _capture, _store, action => action(), time: _time);
 
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
-
-    /// <summary>A store that keeps the sessions the fake recorder starts, so a rename has a row to change.</summary>
-    private sealed class TitleStore : ISessionStore
-    {
-        private readonly Dictionary<SessionId, SessionRecord> _rows = [];
-
-        public Exception? UpdateFailure { get; set; }
-
-        public void Seed(SessionRecord record) => _rows[record.Id] = record;
-
-        public SessionRecord? Get(SessionId id) => _rows.GetValueOrDefault(id);
-
-        public ValueTask<SessionRecord> CreateSessionAsync(string title, DateTimeOffset startedAt, CancellationToken cancellationToken) => throw new NotSupportedException();
-
-        public ValueTask UpdateSessionAsync(SessionRecord session, CancellationToken cancellationToken)
-        {
-            if (UpdateFailure is { } failure)
-            {
-                throw failure;
-            }
-
-            _rows[session.Id] = session;
-            return ValueTask.CompletedTask;
-        }
-
-        public ValueTask<SessionRecord?> GetSessionAsync(SessionId id, CancellationToken cancellationToken) => ValueTask.FromResult(_rows.GetValueOrDefault(id));
-
-        public ValueTask<IReadOnlyList<SessionRecord>> ListSessionsAsync(SessionQuery query, CancellationToken cancellationToken) => ValueTask.FromResult<IReadOnlyList<SessionRecord>>([.. _rows.Values]);
-
-        public ValueTask DeleteSessionAsync(SessionId id, CancellationToken cancellationToken) => throw new NotSupportedException();
-
-        public SessionFiles GetFiles(SessionId id) => new(Path.Combine(Path.GetTempPath(), "murmur-title-store", id.ToString()));
-    }
 
     // ---- pause and resume -------------------------------------------------------------------------------------------
 
@@ -305,7 +272,7 @@ public sealed class RecordingPauseViewModelTests : IDisposable
     public async Task EditingTheTitleWhileRecording_RenamesTheSession()
     {
         var vm = Create();
-        _recorder.AfterStart = () => _store.Seed(_recorder.Current!);
+        _recorder.AfterStart = () => _store.Add(_recorder.Current!);
         await vm.StartStopAsync();
         var id = _recorder.Current!.Id;
 
@@ -321,7 +288,7 @@ public sealed class RecordingPauseViewModelTests : IDisposable
     public async Task TheTitle_CanBeRenamedWhilePausedToo()
     {
         var vm = Create();
-        _recorder.AfterStart = () => _store.Seed(_recorder.Current!);
+        _recorder.AfterStart = () => _store.Add(_recorder.Current!);
         await vm.StartStopAsync();
         await vm.PauseResumeCommand.ExecuteAsync(null);
         var id = _recorder.Current!.Id;
@@ -336,7 +303,7 @@ public sealed class RecordingPauseViewModelTests : IDisposable
     public async Task Esc_GivesBackTheTitle_AndAnEmptyTitleIsRefused()
     {
         var vm = Create();
-        _recorder.AfterStart = () => _store.Seed(_recorder.Current!);
+        _recorder.AfterStart = () => _store.Add(_recorder.Current!);
         await vm.StartStopAsync();
         var id = _recorder.Current!.Id;
         var original = vm.Title;
@@ -357,10 +324,10 @@ public sealed class RecordingPauseViewModelTests : IDisposable
     public async Task ARenameThatFails_ShowsTheErrorAndKeepsTheOldTitle()
     {
         var vm = Create();
-        _recorder.AfterStart = () => _store.Seed(_recorder.Current!);
+        _recorder.AfterStart = () => _store.Add(_recorder.Current!);
         await vm.StartStopAsync();
         var original = vm.Title;
-        _store.UpdateFailure = new IOException("disk is full");
+        _store.RenameFailure = new IOException("disk is full");
 
         vm.Title = "New name";
         await vm.CommitTitleAsync();
@@ -505,7 +472,7 @@ public sealed class RecordingPauseViewModelTests : IDisposable
         vm.ClipboardWriter = text =>
         {
             copied.Add(text);
-            return Task.CompletedTask;
+            return Task.FromResult(true);
         };
         Assert.Equal("Copy message", vm.CopyLabel);
 
@@ -528,7 +495,7 @@ public sealed class RecordingPauseViewModelTests : IDisposable
     public async Task CopyingAgainBeforeItIsOver_RestartsTheTwoSeconds()
     {
         var vm = Create();
-        vm.ClipboardWriter = _ => Task.CompletedTask;
+        vm.ClipboardWriter = _ => Task.FromResult(true);
 
         await vm.CopyMessageCommand.ExecuteAsync(null);
         _time.Advance(TimeSpan.FromMilliseconds(1_500));
@@ -553,7 +520,7 @@ public sealed class RecordingPauseViewModelTests : IDisposable
     }
 
     [Fact]
-    public async Task CopyMessage_WhenTheClipboardFails_ShowsTheErrorAndDoesNotSayCopied()
+    public async Task CopyMessage_WhenTheClipboardFails_ShowsTheLocalizedErrorAndDoesNotSayCopied()
     {
         var vm = Create();
         vm.ClipboardWriter = _ => throw new InvalidOperationException("clipboard is locked");
@@ -561,7 +528,128 @@ public sealed class RecordingPauseViewModelTests : IDisposable
         await vm.CopyMessageCommand.ExecuteAsync(null);
 
         Assert.False(vm.MessageCopied);
-        Assert.Equal("clipboard is locked", vm.Error);
+        Assert.Equal("Copy message", vm.CopyLabel);
+        Assert.Equal("Couldn’t copy the message: clipboard is locked", vm.Error);
+    }
+
+    [Fact]
+    public async Task CopyMessage_WhenTheWindowHasNoClipboard_SaysSoAndDoesNotSayCopied()
+    {
+        var vm = Create();
+        vm.ClipboardWriter = _ => Task.FromResult(false);
+
+        await vm.CopyMessageCommand.ExecuteAsync(null);
+
+        Assert.False(vm.MessageCopied);
+        Assert.Equal("Couldn’t copy the message: the clipboard is not available", vm.Error);
+    }
+
+    [Fact]
+    public async Task CopyMessage_AfterAFailure_ClearsTheErrorOnSuccess()
+    {
+        var vm = Create();
+        var ok = false;
+        vm.ClipboardWriter = _ => ok ? Task.FromResult(true) : throw new InvalidOperationException("busy");
+        await vm.CopyMessageCommand.ExecuteAsync(null);
+        Assert.NotNull(vm.Error);
+
+        ok = true;
+        await vm.CopyMessageCommand.ExecuteAsync(null);
+
+        Assert.Null(vm.Error);
+        Assert.True(vm.MessageCopied);
+    }
+
+    // ---- renaming races -----------------------------------------------------------------------------------------------------
+
+    [Fact]
+    public async Task ARenameStillBeingWritten_IsFinishedBeforeTheStop_AndTheStopDoesNotRollItBack()
+    {
+        var gate = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var vm = Create();
+        _recorder.AfterStart = () => _store.Add(_recorder.Current!);
+        await vm.StartStopAsync();
+        var id = _recorder.Current!.Id;
+        _store.RenameGate = gate.Task;
+
+        vm.Title = "Slow rename";
+        var rename = vm.CommitTitleAsync();
+        var stop = vm.StopAsync();
+
+        Assert.False(rename.IsCompleted);
+        Assert.Equal(0, _recorder.Stops); // the stop waits for the write
+        Assert.Equal(RecorderState.Recording, _recorder.State);
+
+        gate.SetResult();
+        await Task.WhenAll(rename, stop);
+
+        Assert.Equal(1, _recorder.Stops);
+        Assert.Equal("Slow rename", _store.Get(id)!.Title);
+        Assert.Equal([(id, "Slow rename")], _store.Renames);
+        Assert.Equal(RecorderState.Idle, vm.State);
+    }
+
+    [Fact]
+    public async Task TheStoppedEvent_CarriesTheTitleTheUserChose()
+    {
+        var vm = Create();
+        _recorder.AfterStart = () => _store.Add(_recorder.Current!);
+        SessionRecord? stopped = null;
+        vm.Stopped += s => stopped = s;
+        await vm.StartStopAsync();
+
+        vm.Title = "Chosen";
+        await vm.CommitTitleAsync();
+        await vm.StartStopAsync();
+
+        Assert.Equal("Chosen", stopped!.Title);
+    }
+
+    [Fact]
+    public async Task ARename_IsRefusedOnceTheStopHasBegun()
+    {
+        var gate = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var vm = Create();
+        _recorder.AfterStart = () => _store.Add(_recorder.Current!);
+        await vm.StartStopAsync();
+        var original = vm.Title;
+        _recorder.StopGate = gate.Task;
+        var stop = vm.StopAsync();
+
+        vm.Title = "Too late";
+        await vm.CommitTitleAsync();
+
+        Assert.Empty(_store.Renames);
+        Assert.Equal(original, vm.Title);
+        gate.SetResult();
+        await stop;
+    }
+
+    [Fact]
+    public async Task ALateAnswerForAnEarlierSession_DoesNotTouchTheNextOne()
+    {
+        var gate = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var vm = Create();
+        _recorder.AfterStart = () => _store.Add(_recorder.Current!);
+        await vm.StartStopAsync();
+        _store.RenameGate = gate.Task;
+        _store.RenameFailure = new IOException("disk is full");
+        vm.Title = "Slow and failing";
+        var rename = vm.CommitTitleAsync();
+
+        // The recorder ends the first session by itself while the write is pending; the next recording starts.
+        _recorder.FailBySelf();
+        await vm.AutoStopReport;
+        vm.Error = null;
+        await vm.StartStopAsync();
+        var second = vm.Title;
+        Assert.NotEqual("Slow and failing", second);
+
+        gate.SetResult();
+        await rename;
+
+        Assert.Null(vm.Error); // the failure belonged to the first session
+        Assert.Equal(second, vm.Title);
     }
 
     // ---- the screen chip ---------------------------------------------------------------------------------------------------
