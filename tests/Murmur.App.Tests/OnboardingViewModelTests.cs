@@ -1,4 +1,5 @@
 using Avalonia.Input;
+using Murmur.App.Localization;
 using Murmur.App.Services;
 using Murmur.App.Tests.Fakes;
 using Murmur.App.ViewModels;
@@ -10,8 +11,13 @@ using Murmur.Core.Settings;
 namespace Murmur.App.Tests;
 
 /// <summary>The onboarding without a window: when it shows, how the steps navigate and what each of them does with its services.</summary>
-public sealed class OnboardingViewModelTests
+public sealed class OnboardingViewModelTests : IDisposable
 {
+    // The texts asserted below are Ukrainian; English is the default language (D-039).
+    private readonly IDisposable _ukrainian = UiCulture.Override("uk");
+
+    public void Dispose() => _ukrainian.Dispose();
+
     // Start and finish -----------------------------------------------------------------------------------------------
 
     [Fact]

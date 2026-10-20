@@ -9,8 +9,8 @@ namespace Murmur.App.Localization;
 /// <para>Decision D-032: the language is read once, at start-up (<see cref="Apply(string?)"/>); changing it in the
 /// settings takes effect on the next start. Nothing re-reads the resources while the app runs.</para>
 /// <para>The language is explicit and never taken from the OS: until <see cref="Apply(string?)"/> is called it is
-/// <c>uk</c>, whatever <see cref="CultureInfo.CurrentUICulture"/> says. <c>uk</c> (the default, also for unknown values)
-/// is the neutral language of the resources; <c>en</c> is the embedded <c>Strings.en.resources</c> of Murmur.App.dll.
+/// <c>en</c>, whatever <see cref="CultureInfo.CurrentUICulture"/> says. <c>en</c> (the default, also for unknown or empty
+/// values, D-039) is the neutral language of the resources; <c>uk</c> is the embedded <c>Strings.uk.resources</c> of Murmur.App.dll.
 /// Under invariant globalization (no ICU) a specific culture cannot be created: texts still switch, number and date
 /// formatting uses the invariant culture.</para>
 /// </remarks>
@@ -22,17 +22,27 @@ public static class UiCulture
 
     private static readonly AsyncLocal<(string Language, CultureInfo Culture)?> Scoped = new();
 
-    private static (string Language, CultureInfo Culture) s_process = (Ukrainian, Resolve(Ukrainian));
+    private static (string Language, CultureInfo Culture) s_process = (English, Resolve(English));
 
-    /// <summary>The UI language in effect, <c>uk</c> or <c>en</c>.</summary>
+    /// <summary>The UI language in effect, <c>en</c> or <c>uk</c>.</summary>
     public static string Language => (Scoped.Value ?? s_process).Language;
 
     /// <summary>The culture for formatting numbers and dates in the UI language.</summary>
     public static CultureInfo Culture => (Scoped.Value ?? s_process).Culture;
 
-    /// <summary>The language for a settings value: <c>en</c> = English, anything else = Ukrainian.</summary>
-    public static string Normalize(string? language) =>
-        string.Equals(language?.Trim(), English, StringComparison.OrdinalIgnoreCase) ? English : Ukrainian;
+    /// <summary>
+    /// The language for a settings value: <c>uk</c> and any <c>uk-*</c> region variant (case-insensitive, surrounding spaces
+    /// ignored) = Ukrainian; anything else (<c>en</c>, <c>en-US</c>, unknown, empty, <c>null</c>) = English.
+    /// </summary>
+    public static string Normalize(string? language)
+    {
+        var value = language?.Trim();
+        return value is not null
+            && (string.Equals(value, Ukrainian, StringComparison.OrdinalIgnoreCase)
+                || value.StartsWith(Ukrainian + "-", StringComparison.OrdinalIgnoreCase))
+            ? Ukrainian
+            : English;
+    }
 
     /// <summary>The culture for a settings value (see <see cref="Normalize"/>).</summary>
     public static CultureInfo Resolve(string? language)

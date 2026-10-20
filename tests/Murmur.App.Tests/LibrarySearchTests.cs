@@ -1,3 +1,4 @@
+using Murmur.App.Localization;
 using Murmur.App.Tests.Fakes;
 using Murmur.App.ViewModels;
 using Murmur.Core.Capture;
@@ -7,6 +8,9 @@ namespace Murmur.App.Tests;
 
 public sealed class LibrarySearchTests : IDisposable
 {
+    // The texts asserted below are Ukrainian; English is the default language (D-039).
+    private readonly IDisposable _ukrainian = UiCulture.Override("uk");
+
     private static readonly TimeSpan Debounce = LibraryViewModel.SearchDebounce;
 
     private readonly FakeSessionStore _store = new();
@@ -15,7 +19,11 @@ public sealed class LibrarySearchTests : IDisposable
     private readonly FakeSearchIndex _keyword = new();
     private readonly SessionFixture _fixture = new();
 
-    public void Dispose() => _fixture.Dispose();
+    public void Dispose()
+    {
+        _ukrainian.Dispose();
+        _fixture.Dispose();
+    }
 
     private static TimeSpan S(double seconds) => TimeSpan.FromSeconds(seconds);
 

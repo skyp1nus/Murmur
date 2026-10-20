@@ -92,7 +92,7 @@
                     IsVisible="{Binding HasHotkey}">
           <Border Classes="divider" />
 
-          <!-- Start / stop hotkey: click, then press the new combination. -->
+          <!-- Start / stop hotkey: the row text is the canvas wording; clicking the field starts the capture of a new combination. -->
           <Grid x:Name="HotkeyRow"
                 ColumnDefinitions="*,Auto"
                 ColumnSpacing="{StaticResource Space.24}"

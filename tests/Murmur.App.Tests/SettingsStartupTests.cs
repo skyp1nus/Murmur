@@ -89,8 +89,10 @@ public sealed partial class SettingsStartupTests : IDisposable
     }
 
     [Theory]
-    [InlineData("""{ "theme": "Dark", "language": "en" }""", "Dark", "en")]
-    [InlineData("""{ "theme": "Light", "language": "uk" }""", "Light", "uk")]
+    [InlineData("""{ "settingsVersion": 2, "theme": "Dark", "language": "en" }""", "Dark", "en")]
+    [InlineData("""{ "settingsVersion": 2, "theme": "Light", "language": "uk" }""", "Light", "uk")]
+    // Written before D-039 (no settingsVersion): "uk" was only the old default, so the app starts in English once.
+    [InlineData("""{ "theme": "Light", "language": "uk" }""", "Light", "en")]
     public async Task SettingsFile_SetsLanguageAndTheme_BeforeTheFirstWindowRenders(string json, string theme, string language)
     {
         WriteSettings(json);
@@ -129,8 +131,58 @@ public sealed partial class SettingsStartupTests : IDisposable
         Assert.Contains(language == "en" ? "No recordings yet" : Uk("Library_EmptyTitle"), texts);
     }
 
+    [Fact]
+    public async Task CleanProfile_StartsInEnglish_AndUkrainianChosenInTheSettingsSurvivesARestart()
+    {
+        var firstRun = new JsonSettingsStore(SettingsFile);
+        Assert.False(File.Exists(SettingsFile));
+        Assert.Equal("en", firstRun.Current.Language);
+        var (firstCulture, firstTexts) = await RenderLibraryAsync(firstRun);
+
+        // What the Language toggle of the Settings screen does: the choice is written to settings.json ...
+        await firstRun.SaveAsync(firstRun.Current with { Language = "uk" }, TestContext.Current.CancellationToken);
+        // ... and the next start reads it.
+        var restarted = new JsonSettingsStore(SettingsFile);
+        var (restartCulture, restartTexts) = await RenderLibraryAsync(restarted);
+
+        Assert.Equal("en", firstCulture);
+        Assert.Contains("No recordings yet", firstTexts);
+        Assert.DoesNotContain(Uk("Library_EmptyTitle"), firstTexts);
+        Assert.Equal("uk", restarted.Current.Language);
+        Assert.Equal("uk", restartCulture);
+        Assert.Contains(Uk("Library_EmptyTitle"), restartTexts);
+        Assert.DoesNotContain("No recordings yet", restartTexts);
+    }
+
+    private async Task<(string Culture, string[] Texts)> RenderLibraryAsync(JsonSettingsStore store)
+    {
+        var shell = new UiHarness().CreateShell();
+        await shell.Library.LoadAsync();
+        return await Session.Dispatch(
+            () =>
+            {
+                var app = Application.Current!;
+                var before = app.RequestedThemeVariant;
+                try
+                {
+                    using var applier = StartUp(store);
+                    var window = new MainWindow { DataContext = shell };
+                    window.Show();
+                    UiHarness.Pump(6);
+                    var result = (UiCulture.Language, VisibleTexts(window));
+                    window.Close();
+                    return result;
+                }
+                finally
+                {
+                    app.RequestedThemeVariant = before;
+                }
+            },
+            TestContext.Current.CancellationToken);
+    }
+
     private static string Uk(string key) =>
-        System.Xml.Linq.XDocument.Load(Path.Combine(RepoPaths.ResourcesDirectory, "Strings.resx")).Root!.Elements("data")
+        System.Xml.Linq.XDocument.Load(Path.Combine(RepoPaths.ResourcesDirectory, "Strings.uk.resx")).Root!.Elements("data")
             .Single(e => (string)e.Attribute("name")! == key).Element("value")!.Value;
 
     [Fact]
@@ -222,8 +274,8 @@ public sealed partial class SettingsStartupTests : IDisposable
 
         Assert.Equal(new AppSettings(), store.Current);
         Assert.Equal(ThemeVariant.Default, variant);
-        Assert.Equal("uk", culture);
-        Assert.Contains(Uk("Library_EmptyTitle"), texts);
+        Assert.Equal("en", culture);
+        Assert.Contains("No recordings yet", texts);
         if (content.Length > 0)
         {
             Assert.True(File.Exists(SettingsFile + ".bad"));
@@ -310,9 +362,9 @@ public sealed partial class SettingsStartupTests : IDisposable
         Assert.NotEmpty(texts);
     }
 
-    private static Dictionary<string, string> UkResx() => Read("Strings.resx");
+    private static Dictionary<string, string> UkResx() => Read("Strings.uk.resx");
 
-    private static Dictionary<string, string> EnResx() => Read("Strings.en.resx");
+    private static Dictionary<string, string> EnResx() => Read("Strings.resx");
 
     private static Dictionary<string, string> Read(string name) =>
         System.Xml.Linq.XDocument.Load(Path.Combine(RepoPaths.ResourcesDirectory, name)).Root!.Elements("data")

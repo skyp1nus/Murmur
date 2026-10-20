@@ -1,3 +1,4 @@
+using Murmur.App.Localization;
 using Murmur.App.Resources;
 using Murmur.App.Services;
 using Murmur.App.Tests.Fakes;
@@ -10,8 +11,13 @@ using Avalonia.Controls;
 
 namespace Murmur.App.Tests;
 
-public sealed class HotkeyCoordinatorTests
+public sealed class HotkeyCoordinatorTests : IDisposable
 {
+    // The texts asserted below are Ukrainian; English is the default language (D-039).
+    private readonly IDisposable _ukrainian = UiCulture.Override("uk");
+
+    public void Dispose() => _ukrainian.Dispose();
+
     private static readonly AppSettings Completed = new() { OnboardingCompleted = true };
 
     /// <summary>A coordinator over the onboarding rig; the UI thread is a queue the test drains, the background runs inline.</summary>
