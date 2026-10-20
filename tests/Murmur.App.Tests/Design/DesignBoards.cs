@@ -50,6 +50,7 @@ internal enum BoardScreen
 /// </param>
 /// <param name="MaxShapeMismatchPercent">The shape-layer mismatch of drawn pixels (total) above which the test fails; <c>null</c> = report only. Screen tasks set it.</param>
 /// <param name="MinTextMatchedPercent">The share of reference texts the app must have (by text); <c>null</c> = report only.</param>
+/// <param name="MaxSidebarShapePercent">The shape-layer mismatch of the sidebar strip (x &lt; 241) above which the test fails; <c>null</c> = report only. The sidebar is the shell's, so every main board has it.</param>
 /// <param name="MaxTextGeometryErrors">The most matched texts allowed to be off in position, width, lines, size, weight or family; <c>null</c> = report only.</param>
 internal sealed record DesignBoard(
     string Name,
@@ -61,7 +62,8 @@ internal sealed record DesignBoard(
     double? MaxShapeMismatchPercent = null,
     double? MinTextMatchedPercent = null,
     int? MaxTextGeometryErrors = null,
-    IReadOnlyList<ExcludedText>? ExcludedTexts = null)
+    IReadOnlyList<ExcludedText>? ExcludedTexts = null,
+    double? MaxSidebarShapePercent = null)
 {
     /// <summary>The page colour of the theme (docs/design/tokens.json): what the comparison treats as background.</summary>
     public (byte R, byte G, byte B) Background => ImageComparer.CanvasColor(Dark);
@@ -123,7 +125,8 @@ internal static class DesignBoards
             var settingsHeight = dark ? 1821 : 1819;
             var shift = dark ? 2 : 0;
 
-            boards.Add(new("Main" + suffix, BoardScreen.Library, dark, 1440, 1406, []));
+            // Library: reached 0.8 % / 1.2 % shape mismatch, every text found, 2 geometry errors (x +2.3 / +2.1 px of two chips).
+            boards.Add(new("Main" + suffix, BoardScreen.Library, dark, 1440, 1406, [], MaxShapeMismatchPercent: dark ? 1.5 : 1.0, MinTextMatchedPercent: 100, MaxTextGeometryErrors: 2));
             boards.Add(new(
                 "Recording" + suffix,
                 BoardScreen.Recording,
@@ -198,6 +201,9 @@ internal static class DesignBoards
             boards.Add(new("Onb5FirstRecording" + suffix, BoardScreen.Onboarding5FirstRecording, dark, 1280, 800, []));
         }
 
-        return boards;
+        // The sidebar is the shell's: every main board has to match it (reached 0.84 % at most), whatever its content does.
+        return [.. boards.Select(b => b.HasSidebar ? b with { MaxSidebarShapePercent = SidebarShapeLimit } : b)];
     }
+
+    private const double SidebarShapeLimit = 1.0;
 }

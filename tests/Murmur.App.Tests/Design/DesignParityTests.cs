@@ -63,6 +63,11 @@ public sealed class DesignParityTests
             Assert.True(result.ShapeDrawn <= maxShape, $"{board.Name}: {result.ShapeDrawn:0.00} % of the drawn shape pixels differ, the limit is {maxShape:0.00} %.");
         }
 
+        if (board.MaxSidebarShapePercent is { } maxSidebar)
+        {
+            Assert.True(result.ShapeDrawnSidebar <= maxSidebar, $"{board.Name}: {result.ShapeDrawnSidebar:0.00} % of the drawn shape pixels of the sidebar differ, the limit is {maxSidebar:0.00} %.");
+        }
+
         if (board.MinTextMatchedPercent is { } minText)
         {
             Assert.True(result.TextMatchedPercent >= minText, $"{board.Name}: {result.TextMatchedPercent:0.0} % of the texts were found, at least {minText:0.0} % are required.");

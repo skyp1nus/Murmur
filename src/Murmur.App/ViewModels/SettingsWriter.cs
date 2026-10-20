@@ -13,6 +13,18 @@ internal sealed class SettingsWriter
     private readonly ISettingsStore _store;
     private readonly SemaphoreSlim _gate = new(1, 1);
 
+    private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<ISettingsStore, SettingsWriter> Shared = new();
+
+    /// <summary>
+    /// The one writer of a settings store: every screen that changes the settings goes through it, so two edits made by different
+    /// screens at nearly the same time are applied one after the other and never overwrite each other.
+    /// </summary>
+    public static SettingsWriter For(ISettingsStore store)
+    {
+        ArgumentNullException.ThrowIfNull(store);
+        return Shared.GetValue(store, static s => new SettingsWriter(s));
+    }
+
     public SettingsWriter(ISettingsStore store)
     {
         ArgumentNullException.ThrowIfNull(store);

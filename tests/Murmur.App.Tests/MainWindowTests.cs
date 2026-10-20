@@ -28,9 +28,9 @@ public sealed class MainWindowTests
                 using var scope = UiCulture.Override("en");
                 var window = UiHarness.Show(shell);
                 var texts = window.GetVisualDescendants().OfType<TextBlock>().Where(t => t.IsEffectivelyVisible).Select(t => t.Text).ToArray();
-                var buttons = window.GetVisualDescendants().OfType<Button>().Where(b => b is not ToggleButton && b.IsEffectivelyVisible).Select(b => b.Content as string).ToArray();
-                var search = window.GetVisualDescendants().OfType<TextBox>().Single();
-                var pills = window.GetVisualDescendants().OfType<ToggleButton>().Select(b => b.Content as string).ToArray();
+                var buttons = window.GetVisualDescendants().OfType<Button>().Where(b => b is not ToggleButton && b.IsEffectivelyVisible && b.Content is string).Select(b => (string)b.Content!).ToArray();
+                var search = window.GetVisualDescendants().OfType<TextBox>().Single(t => t.IsEffectivelyVisible);
+                var pills = window.GetVisualDescendants().OfType<Button>().Where(b => b.Classes.Contains("filter")).Select(b => b.GetVisualDescendants().OfType<TextBlock>().Single(t => t.IsEffectivelyVisible).Text).ToArray();
                 var result = (window.Title, window.Width, window.Height, window.MinWidth, window.MinHeight, texts, buttons, pills, search.PlaceholderText);
                 window.Close();
                 return result;
@@ -42,11 +42,11 @@ public sealed class MainWindowTests
         Assert.Equal(780, snapshot.Height);
         Assert.Equal(900, snapshot.MinWidth);
         Assert.Equal(600, snapshot.MinHeight);
-        Assert.Contains("Murmur", snapshot.texts);
+        Assert.Contains("What are we recording today?", snapshot.texts);
         Assert.Contains("No recordings yet", snapshot.texts);
         Assert.Contains("Click “New recording” to record your first meeting. Everything stays on your computer.", snapshot.texts);
-        Assert.Equal(["New recording", "New recording"], snapshot.buttons);
-        Assert.Equal(["Today", "This week", "All"], snapshot.pills);
+        Assert.Equal(["Start recording", "New recording"], snapshot.buttons);
+        Assert.Equal(["All", "Today", "This week", "This month", "Pick dates"], snapshot.pills);
         Assert.Equal("Search titles and text", snapshot.PlaceholderText);
     }
 
@@ -65,12 +65,12 @@ public sealed class MainWindowTests
                 using var scope = UiCulture.Override("uk");
                 var window = UiHarness.Show(shell);
                 var texts = window.GetVisualDescendants().OfType<TextBlock>().ToArray();
-                var list = window.GetVisualDescendants().OfType<ListBox>().Where(l => l.IsEffectivelyVisible).ToArray();
+                var list = window.GetVisualDescendants().OfType<ItemsControl>().Where(l => l.IsEffectivelyVisible && l.Classes.Contains("library")).ToArray();
                 var panel = window.GetVisualDescendants().OfType<VirtualizingStackPanel>().Any();
                 var empty = texts.Any(t => t.Text == "Ще немає записів" && t.IsEffectivelyVisible);
                 var result = (
                     texts.Select(t => t.Text).ToArray(),
-                    texts.Where(t => t.Classes.Contains("mono")).Select(t => t.Text).ToArray(),
+                    texts.Where(t => t.Classes.Contains("monoMeta")).Select(t => t.Text).ToArray(),
                     list.Length,
                     panel,
                     empty);
@@ -80,9 +80,9 @@ public sealed class MainWindowTests
             TestContext.Current.CancellationToken);
 
         Assert.Contains("Щотижневий стендап команди", titles);
-        Assert.Contains("Сьогодні, 14:00", titles);
-        Assert.Contains("00:23:41", durations);
-        Assert.Contains("Перервано", titles);
+        Assert.Contains("14:00 · мікрофон, системний звук, екран", titles);
+        Assert.Contains("23:41", durations);
+        Assert.Contains(shell.Library.Sessions, row => row.MetaText.EndsWith("Перервано", StringComparison.Ordinal));
         Assert.Equal(1, listBoxes);
         Assert.True(hasVirtualPanel);
         Assert.False(emptyVisible);
@@ -251,12 +251,12 @@ public sealed class MainWindowTests
             () =>
             {
                 var window = UiHarness.Show(shell);
-                var heading = window.GetVisualDescendants().OfType<TextBlock>().First(t => t.Classes.Contains("heading"));
-                var timer = window.GetVisualDescendants().OfType<TextBlock>().First(t => t.Classes.Contains("mono"));
-                var primary = window.GetVisualDescendants().OfType<Button>().First(b => b.Classes.Contains("primary"));
-                var card = window.GetVisualDescendants().OfType<Border>().First(b => b.Classes.Contains("card"));
+                var heading = window.GetVisualDescendants().OfType<TextBlock>().First(t => t.Classes.Contains("pageTitle"));
+                var timer = window.GetVisualDescendants().OfType<TextBlock>().First(t => t.Classes.Contains("monoMeta"));
+                var primary = window.GetVisualDescendants().OfType<Button>().First(b => b.Classes.Contains("start"));
+                var card = window.GetVisualDescendants().OfType<Border>().First(b => b.Classes.Contains("heroCard"));
                 var pill = window.GetVisualDescendants().OfType<ToggleButton>().First();
-                var badge = window.GetVisualDescendants().OfType<Border>().First(b => b.Classes.Contains("badge"));
+                var badge = window.GetVisualDescendants().OfType<Border>().First(b => b.Classes.Contains("rowTile"));
                 var result = (
                     (heading.FontWeight, heading.FontSize, heading.LetterSpacing),
                     (timer.FontFamily.Name, timer.FontSize, timer.LineHeight),
@@ -274,11 +274,11 @@ public sealed class MainWindowTests
         Assert.Equal(-0.72, display.LetterSpacing, 3);
         Assert.Equal("Geist Mono", mono.Name);
         Assert.Equal(13, mono.FontSize);
-        Assert.Equal(21.97, mono.LineHeight, 3);
+        Assert.Equal(17, mono.LineHeight, 3);
         Assert.Equal(new CornerRadius(9999), primaryRadius);
-        Assert.Equal(new CornerRadius(20), cardRadius);
+        Assert.Equal(new CornerRadius(24), cardRadius);
         Assert.Equal(new CornerRadius(9999), pillRadius);
-        Assert.Equal(new CornerRadius(9999), badgeRadius);
+        Assert.Equal(new CornerRadius(10), badgeRadius);
     }
 
     [Fact]

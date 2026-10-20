@@ -1,0 +1,28 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Murmur.App.ViewModels"
+             x:Class="Murmur.App.Views.BreadcrumbView"
+             x:DataType="vm:BreadcrumbViewModel">
+
+  <!-- "Library / Client demo": the root is a link back while there is a place below it, else plain dark text (Library, Settings). -->
+  <StackPanel Orientation="Horizontal"
+              Spacing="{StaticResource Space.8}">
+    <Button Classes="crumbLink"
+            IsVisible="{Binding IsLink}"
+            Command="{Binding RootCommand}">
+      <TextBlock Classes="t14"
+                 Foreground="{Binding $parent[ContentPresenter].Foreground}"
+                 Text="{Binding Root}" />
+    </Button>
+    <TextBlock Classes="t14 graphite"
+               IsVisible="{Binding IsPlain}"
+               Text="{Binding Root}" />
+    <TextBlock Classes="t14 muted"
+               IsVisible="{Binding HasCurrent}"
+               Text="/" />
+    <TextBlock Classes="t14"
+               IsVisible="{Binding HasCurrent}"
+               TextTrimming="CharacterEllipsis"
+               Text="{Binding Current}" />
+  </StackPanel>
+</UserControl>

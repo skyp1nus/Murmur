@@ -1,0 +1,19 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Murmur.App.ViewModels"
+             x:Class="Murmur.App.Views.HotkeyHintView"
+             x:DataType="vm:HotkeyHintViewModel">
+
+  <!-- "Record  Ctrl Shift R": what the record hotkey does now and its keys. Hidden while no hotkey is set. -->
+  <StackPanel Orientation="Horizontal"
+              Spacing="{StaticResource Space.8}"
+              IsVisible="{Binding HasGesture}">
+    <TextBlock Classes="t13 muted"
+               VerticalAlignment="Center"
+               Text="{Binding Label}" />
+    <Border Classes="keyCap"
+            VerticalAlignment="Center">
+      <TextBlock Text="{Binding Gesture}" />
+    </Border>
+  </StackPanel>
+</UserControl>

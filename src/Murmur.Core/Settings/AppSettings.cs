@@ -29,6 +29,12 @@ public sealed record AppSettings
     /// <summary>Set when the first-run onboarding has been finished or skipped.</summary>
     public bool OnboardingCompleted { get; init; }
 
+    /// <summary>The microphone is recorded by default when a new recording starts (the Microphone switch of the Library).</summary>
+    public bool RecordMicrophoneByDefault { get; init; } = true;
+
+    /// <summary>System audio is recorded by default when a new recording starts.</summary>
+    public bool RecordSystemAudioByDefault { get; init; } = true;
+
     /// <summary>Screen recording is on by default when a new recording starts.</summary>
     public bool ScreenByDefault { get; init; }
 

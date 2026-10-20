@@ -41,7 +41,7 @@ internal sealed class FakeSessionStore : ISessionStore
         IReadOnlyList<SessionRecord> result =
         [
             .. _sessions
-                .Where(s => (query.From is null || s.StartedAt >= query.From) && (query.To is null || s.StartedAt < query.To))
+                .Where(s => (query.From is null || s.StartedAt >= query.From) && (query.To is null || s.StartedAt <= query.To))
                 .OrderByDescending(s => s.StartedAt)
                 .Take(query.Limit),
         ];

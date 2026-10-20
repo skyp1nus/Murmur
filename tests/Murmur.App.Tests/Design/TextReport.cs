@@ -66,6 +66,22 @@ internal static class TextReport
             sb.Append('\n');
         }
 
+        sb.Append("## Compared by line centre (the reference has no baseline)\n\n");
+        var centred = comparison.Matches.Where(m => !m.Reference.Placeholder && double.IsNaN(m.Reference.First.Baseline)).ToArray();
+        if (centred.Length == 0)
+        {
+            sb.Append("None.\n\n");
+        }
+        else
+        {
+            foreach (var m in centred)
+            {
+                sb.Append("- ").Append(Cell(m.Reference.Text)).Append(" (").Append(N(m.Reference.First.X)).Append(", ").Append(N(m.Reference.First.CenterY)).Append(")\n");
+            }
+
+            sb.Append('\n');
+        }
+
         sb.Append("## Excluded placeholders (not in the gates)\n\n");
         if (comparison.Excluded.Count == 0)
         {

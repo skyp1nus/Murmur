@@ -1,4 +1,5 @@
 using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
 using Murmur.App.Resources;
 using Murmur.App.Services;
 using Murmur.Core.Intelligence;
@@ -21,6 +22,8 @@ public sealed partial class ShellViewModel : ObservableObject
     private readonly Func<OnboardingViewModel>? _onboardingFactory;
     private readonly TrialSessionCleaner? _trials;
     private readonly Action<Action> _post;
+    private readonly ISettingsStore? _settingsStore;
+    private readonly HotkeyHintViewModel _hint = new();
     private OnboardingViewModel? _onboarding;
     private bool _wasCompleted;
     private bool _sessionReturnsToChat;
@@ -61,11 +64,23 @@ public sealed partial class ShellViewModel : ObservableObject
 
         library.CanAskAll = chatFactory is not null;
         library.NewRecordingRequested += ShowRecording;
+        library.StartRecordingRequested += OnStartRecordingRequested;
         library.SessionOpened += OnSessionOpened;
         library.SearchResultOpened += OnSearchResultOpened;
         library.AskAllRequested += ShowLibraryChat;
+        library.AskRequested += AskLibrary;
+        library.PropertyChanged += OnLibraryPropertyChanged;
         recording.BackRequested += ShowLibrary;
         recording.Stopped += OnRecordingStopped;
+        recording.PropertyChanged += OnRecordingPropertyChanged;
+        _settingsStore = settingsStore;
+        if (settingsStore is not null)
+        {
+            settingsStore.Changed += OnHotkeySettingsChanged;
+        }
+
+        UpdateHint();
+        UpdateTopBar(library);
 
         _onboardingFactory = onboardingFactory;
         _trials = trials;
@@ -88,6 +103,18 @@ public sealed partial class ShellViewModel : ObservableObject
     /// <summary>The Settings screen, or <c>null</c> when none is configured.</summary>
     public SettingsViewModel? Settings { get; }
 
+    /// <summary>
+    /// The bar above every main screen: the breadcrumb and the record-hotkey hint by default. A screen puts its own content in
+    /// <see cref="TopBarViewModel.Leading"/> / <see cref="TopBarViewModel.Trailing"/> (see <see cref="UpdateTopBar"/>).
+    /// </summary>
+    public TopBarViewModel TopBar { get; } = new();
+
+    /// <summary>
+    /// The page still expects the 48 px margin of the old frame (its view draws its own header and spacing for it). A page that was
+    /// redrawn after the canvas fills the area under the top bar itself and says so by implementing <see cref="IFillsFrame"/>.
+    /// </summary>
+    public bool PageUsesFrameInset => CurrentPage is not (IFillsFrame or OnboardingViewModel);
+
     /// <summary>The first-run onboarding once it has been needed (it is built lazily), else <c>null</c>.</summary>
     public OnboardingViewModel? Onboarding => _onboarding;
 
@@ -95,8 +122,8 @@ public sealed partial class ShellViewModel : ObservableObject
     public bool IsOnboarding => CurrentPage is OnboardingViewModel;
 
     /// <summary>
-    /// The left navigation while a top-level page (Library, the library-wide chat, Settings) is shown, otherwise <c>null</c>:
-    /// the recording and session screens keep their own Back button and use the whole window.
+    /// The left navigation on every main screen (Library, recording, session, the library-wide chat, Settings); <c>null</c> during
+    /// the onboarding, which fills the whole window, and without a Settings screen.
     /// </summary>
     [ObservableProperty]
     public partial SidebarViewModel? Sidebar { get; set; }
@@ -163,7 +190,7 @@ public sealed partial class ShellViewModel : ObservableObject
             services.Time);
 
         return new ShellViewModel(
-            new LibraryViewModel(services.Sessions, services.Time, processing, keywordSearch: services.Search, assistant: ai?.Assistant, recorder: services.Recorder),
+            new LibraryViewModel(services.Sessions, services.Time, processing, keywordSearch: services.Search, assistant: ai?.Assistant, recorder: services.Recorder, transcripts: services.Transcripts, settings: store),
             new RecordingViewModel(services.Recorder, services.Capture, services.Sessions, settings: store),
             services.Startup,
             sessionFactory,
@@ -302,6 +329,7 @@ public sealed partial class ShellViewModel : ObservableObject
     public void ShowLibrary()
     {
         CloseSession();
+        OnLibraryActivated();
         CurrentPage = Library;
         _ = Library.LoadAsync();
     }
@@ -421,13 +449,120 @@ public sealed partial class ShellViewModel : ObservableObject
     partial void OnCurrentPageChanged(ObservableObject value)
     {
         OnPropertyChanged(nameof(IsOnboarding));
+        OnPropertyChanged(nameof(PageUsesFrameInset));
+        UpdateTopBar(value);
         if (_sidebar is null)
         {
             return;
         }
 
-        Sidebar = value is LibraryViewModel or LibraryChatViewModel or SettingsViewModel ? _sidebar : null;
+        Sidebar = value is OnboardingViewModel ? null : _sidebar;
         _sidebar.Update();
+    }
+
+    /// <summary>Puts the breadcrumb and the hint of the page on the top bar. Pages with their own header content replace the parts they own.</summary>
+    private void UpdateTopBar(ObservableObject page)
+    {
+        switch (page)
+        {
+            case RecordingViewModel:
+                TopBar.Leading = new BreadcrumbViewModel(Strings.Nav_Library, new RelayCommand(ShowLibrary), Strings.Library_NewRecording);
+                TopBar.Trailing = _hint;
+                break;
+            case SessionViewModel session:
+                TopBar.Leading = new BreadcrumbViewModel(Strings.Nav_Library, new RelayCommand(ShowLibrary), session.Title);
+                TopBar.Trailing = null;
+                break;
+            case LibraryChatViewModel:
+                TopBar.Leading = new BreadcrumbViewModel(Strings.Common_AskAi);
+                TopBar.Trailing = null;
+                break;
+            case SettingsViewModel:
+                TopBar.Leading = new BreadcrumbViewModel(Strings.Nav_Settings);
+                TopBar.Trailing = null;
+                break;
+            case OnboardingViewModel:
+                TopBar.Leading = null;
+                TopBar.Trailing = null;
+                break;
+            default:
+                TopBar.Leading = new BreadcrumbViewModel(Strings.Nav_Library);
+                TopBar.Trailing = _hint;
+                break;
+        }
+    }
+
+    private void UpdateHint()
+    {
+        _hint.Label = Recording.State == RecorderState.Recording ? Strings.Common_Stop : Strings.Hint_Record;
+        var gesture = _settingsStore?.Current.RecordHotkey;
+        _hint.Gesture = string.IsNullOrWhiteSpace(gesture) ? string.Empty : HotkeyGestures.Display(gesture);
+        Library.RecordHotkeyText = _hint.Gesture;
+    }
+
+    private void OnHotkeySettingsChanged(AppSettings settings) => _post(UpdateHint);
+
+    private void OnRecordingPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(RecordingViewModel.State))
+        {
+            UpdateHint();
+            _sidebar?.Update();
+        }
+    }
+
+    private void OnLibraryPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(LibraryViewModel.Recent))
+        {
+            _sidebar?.Update();
+        }
+    }
+
+    /// <summary>"Start recording" of the Library's card: the recording screen opens with the card's switches and starts at once, like the hotkey.</summary>
+    private void OnStartRecordingRequested(RecordingSources sources)
+    {
+        if (Recording.State != RecorderState.Idle)
+        {
+            ShowRecording();
+            return;
+        }
+
+        ShowRecording();
+        Recording.Microphone = sources.Microphone && Recording.MicrophoneAvailable;
+        Recording.SystemAudio = sources.SystemAudio && Recording.SystemAudioAvailable;
+        Recording.Screen = sources.Screen && Recording.ScreenAvailable;
+        if (Recording.StartStopCommand.CanExecute(null))
+        {
+            Recording.StartStopCommand.Execute(null);
+        }
+    }
+
+    /// <summary>
+    /// A question typed (or picked) in the Library's "Ask your library" card: Ask AI opens and asks it over the whole library.
+    /// Without a chat factory nothing happens.
+    /// </summary>
+    public void AskLibrary(string question)
+    {
+        ArgumentNullException.ThrowIfNull(question);
+        if (_chatFactory is null || string.IsNullOrWhiteSpace(question))
+        {
+            return;
+        }
+
+        ShowLibraryChat();
+        var chat = LibraryChat!.Chat;
+        chat.Question = question.Trim();
+        if (chat.AskCommand.CanExecute(null))
+        {
+            chat.AskCommand.Execute(null);
+        }
+    }
+
+    private void OnLibraryActivated()
+    {
+        Library.RefreshDefaults(_settingsStore);
+        Library.RefreshRecordingOptions(Recording.MicrophoneAvailable, Recording.SystemAudioAvailable, Recording.ScreenAvailable);
     }
 
     private void OnSessionOpened(SessionRecord record) => OpenSession(record);
@@ -482,6 +617,12 @@ public sealed partial class ShellViewModel : ObservableObject
     public void OnWindowClosed()
     {
         _closed = true;
+        if (_settingsStore is not null)
+        {
+            _settingsStore.Changed -= OnHotkeySettingsChanged;
+            _settingsStore.Changed -= OnSettingsChanged;
+        }
+
         _onboarding?.Suspend();
 
         // The app ends with its window: release what the screens subscribed to.

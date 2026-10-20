@@ -15,7 +15,11 @@ internal sealed record DemoRecording(
     bool SystemAudio,
     bool Screen,
     string? Snippet,
-    int? TranscribingPercent = null);
+    int? TranscribingPercent = null)
+{
+    /// <summary>The language code the transcript stores ("English" in the canvas is <c>en</c>).</summary>
+    public string LanguageCode => Language == "English" ? "en" : Language;
+}
 
 /// <summary>One line of the transcript of the Session artboard.</summary>
 internal sealed record DemoLine(Speaker Speaker, int StartSeconds, string Text);
@@ -183,9 +187,8 @@ internal static class DesignDemoData
     /// </summary>
     public static IReadOnlyList<(string Screen, string Feature)> NotRepresented { get; } =
     [
-        ("All main screens", "Sidebar 'Recent' list (Library/Session) and 'Chats' list (Ask AI): the sidebar has no recent entries or chat history"),
-        ("Recording, Session", "Sidebar on the recording and session screens: the app hides it there (Back button instead)"),
-        ("Library", "Language and snippet in the row meta, group headings (Today / Yesterday / This week), 'Mon, 14:00' weekday dates, Pick dates, 'Ask your library' card with question field and suggestions"),
+        ("Ask AI", "Sidebar 'Chats' list: provided by the chat screen through SidebarViewModel.SetChats (the harness fills it with the canvas chats until p41-chat does)"),
+        ("Library", "The two visually hidden form labels of the canvas ('Question for your library', 'Search recordings') are accessibility names in the app, not text; the language of a recording that is still transcribing comes from a transcript Core only stores when it is done"),
         ("Recording", "Editable title field ('Untitled — Oct 18, 01:12'), Pause, per-track cards with dB values and device names, 'Let people know' card with Copy message, the breadcrumb"),
         ("Session", "Summary tab content (Overview, Decisions, Action items), transcript search with the 'timestamps' hit, the video frame, Export menu, speaker avatars, the 1x speed and You/Others mute buttons"),
         ("Chat", "Scope chips (Whole library / Client demo), model badge ('Gemma 4 E4B · local'), inline timestamp chips inside the answer text, Sources cards with quotes, copy/retry actions, the chats list"),

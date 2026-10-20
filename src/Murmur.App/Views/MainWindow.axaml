@@ -34,28 +34,38 @@
     <DataTemplate DataType="vm:OnboardingViewModel">
       <views:OnboardingView />
     </DataTemplate>
+
+    <!-- The top bar's two sides: a screen puts any of these (or its own template, added here) in TopBar.Leading / TopBar.Trailing. -->
+    <DataTemplate DataType="vm:BreadcrumbViewModel">
+      <views:BreadcrumbView />
+    </DataTemplate>
+    <DataTemplate DataType="vm:HotkeyHintViewModel">
+      <views:HotkeyHintView />
+    </DataTemplate>
   </Window.DataTemplates>
 
-  <Window.Styles>
-    <!-- Pages sit in a 48 px margin; the onboarding has its own frame and fills the window. -->
-    <Style Selector="ContentControl.page">
-      <Setter Property="Margin" Value="{DynamicResource Inset.48}" />
-    </Style>
-    <Style Selector="ContentControl.page.fullWindow">
-      <Setter Property="Margin" Value="0" />
-    </Style>
-  </Window.Styles>
-
   <Grid ColumnDefinitions="Auto,*">
-    <!-- The left navigation; null (nothing shown) on the recording and session screens. -->
+    <!-- The left navigation on every main screen; null (nothing shown) during the onboarding. -->
     <ContentControl Grid.Column="0"
                     VerticalContentAlignment="Stretch"
                     Content="{Binding Sidebar}" />
-    <ContentControl Grid.Column="1"
-                    Classes="page"
-                    Classes.fullWindow="{Binding IsOnboarding}"
-                    HorizontalContentAlignment="Stretch"
-                    VerticalContentAlignment="Stretch"
-                    Content="{Binding CurrentPage}" />
+
+    <Grid Grid.Column="1"
+          RowDefinitions="Auto,*">
+      <!-- The 60 px top bar of the main screens -->
+      <Border Grid.Row="0"
+              IsVisible="{Binding !IsOnboarding}">
+        <views:TopBarView DataContext="{Binding TopBar}" />
+      </Border>
+
+      <!-- The page. Pages not yet redrawn after the canvas keep the 48 px inset of the old frame (PageUsesFrameInset). -->
+      <ContentControl Grid.Row="1"
+                      Classes="page"
+                      Classes.fullWindow="{Binding IsOnboarding}"
+                      Classes.inset="{Binding PageUsesFrameInset}"
+                      HorizontalContentAlignment="Stretch"
+                      VerticalContentAlignment="Stretch"
+                      Content="{Binding CurrentPage}" />
+    </Grid>
   </Grid>
 </Window>

@@ -30,7 +30,8 @@ internal sealed record BoardResult(
     double? MinText,
     int? MaxErrors,
     IReadOnlyList<string> Notes,
-    string RunId = "")
+    string RunId = "",
+    double? MaxSidebarShape = null)
 {
     public double TextMatchedPercent => TextReference == 0 ? 100 : 100.0 * TextMatched / TextReference;
 
@@ -64,6 +65,7 @@ internal sealed record BoardResult(
         Line("maxShape", MaxShape is { } a ? D(a) : string.Empty);
         Line("minText", MinText is { } b ? D(b) : string.Empty);
         Line("maxErrors", MaxErrors is { } c ? I(c) : string.Empty);
+        Line("maxSidebarShape", MaxSidebarShape is { } sidebar ? D(sidebar) : string.Empty);
         Line("runId", RunId);
         foreach (var note in Notes)
         {
@@ -120,7 +122,8 @@ internal sealed record BoardResult(
             values["minText"].Length == 0 ? null : D("minText"),
             values["maxErrors"].Length == 0 ? null : I("maxErrors"),
             notes,
-            values.GetValueOrDefault("runId") ?? string.Empty);
+            values.GetValueOrDefault("runId") ?? string.Empty,
+            values.GetValueOrDefault("maxSidebarShape") is { Length: > 0 } sidebar ? double.Parse(sidebar, CultureInfo.InvariantCulture) : null);
     }
 }
 
@@ -191,7 +194,8 @@ internal static class ParityReport
             board.MinTextMatchedPercent,
             board.MaxTextGeometryErrors,
             run.Notes,
-            RunId);
+            RunId,
+            board.MaxSidebarShapePercent);
         lock (Gate)
         {
             File.WriteAllText(Path.Combine(Directory, board.Name + ".result.txt"), result.Serialize());
@@ -270,9 +274,9 @@ internal static class ParityReport
                 continue;
             }
 
-            var gates = (r.MaxShape is null && r.MinText is null && r.MaxErrors is null)
+            var gates = (r.MaxShape is null && r.MinText is null && r.MaxErrors is null && r.MaxSidebarShape is null)
                 ? "not enforced"
-                : $"{(r.MaxShape is { } a ? P(a) : "—")} / {(r.MinText is { } b ? P1(b) : "—")} / {(r.MaxErrors is { } c ? c.ToString(CultureInfo.InvariantCulture) : "—")}";
+                : $"{(r.MaxShape is { } a ? P(a) : "—")} / {(r.MinText is { } b ? P1(b) : "—")} / {(r.MaxErrors is { } c ? c.ToString(CultureInfo.InvariantCulture) : "—")}{(r.MaxSidebarShape is { } d ? " / sidebar " + P(d) : string.Empty)}";
             var stale = r.RunId != newestRun ? "STALE: from an earlier run" : null;
             var notes = string.Join("; ", r.Notes.Append(r.SizeDiffers ? "render size differs from the reference" : null!).Prepend(stale!).Where(n => n is not null));
             sb.Append("| ").Append(r.Name)

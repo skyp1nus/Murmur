@@ -37,6 +37,18 @@ internal sealed class InMemoryTranscriptStore : ITranscriptStore
             return ValueTask.FromResult(_transcripts.GetValueOrDefault(id));
         }
     }
+
+    public ValueTask<IReadOnlyList<TranscriptSummary>> GetTranscriptSummariesAsync(IReadOnlyList<SessionId> sessions, CancellationToken cancellationToken)
+    {
+        lock (_transcripts)
+        {
+            IReadOnlyList<TranscriptSummary> result =
+            [
+                .. sessions.Where(_transcripts.ContainsKey).Select(id => new TranscriptSummary(id, _transcripts[id].Language, _transcripts[id].Segments.Count > 0 ? _transcripts[id].Segments[0].Text : null)),
+            ];
+            return ValueTask.FromResult(result);
+        }
+    }
 }
 
 /// <summary>
