@@ -1,0 +1,1265 @@
+{
+ "board": "OnbComponents",
+ "width": 1280,
+ "height": 1600,
+ "texts": [
+  {
+   "text": "Onboarding components",
+   "lines": [
+    {
+     "x": 56,
+     "y": 55,
+     "w": 400.03,
+     "h": 44
+    }
+   ],
+   "fontFamily": "Inter, ui-sans-serif, system-ui, \"Segoe UI\", sans-serif",
+   "fontSize": 36,
+   "fontWeight": 300,
+   "letterSpacing": "-0.72px",
+   "lineHeight": "42.12px",
+   "color": "rgb(0, 0, 0)"
+  },
+  {
+   "text": "States for the Avalonia controls used across the five onboarding steps.",
+   "lines": [
+    {
+     "x": 56,
+     "y": 106.11,
+     "w": 476.7,
+     "h": 17
+    }
+   ],
+   "fontFamily": "Inter, ui-sans-serif, system-ui, \"Segoe UI\", sans-serif",
+   "fontSize": 14,
+   "fontWeight": 400,
+   "letterSpacing": "0.14px",
+   "lineHeight": "normal",
+   "color": "rgb(119, 113, 105)"
+  },
+  {
+   "text": "Step indicator",
+   "lines": [
+    {
+     "x": 56,
+     "y": 196.11,
+     "w": 95.05,
+     "h": 17
+    }
+   ],
+   "fontFamily": "Inter, ui-sans-serif, system-ui, \"Segoe UI\", sans-serif",
+   "fontSize": 14,
+   "fontWeight": 500,
+   "letterSpacing": "0.14px",
+   "lineHeight": "normal",
+   "color": "rgb(0, 0, 0)"
+  },
+  {
+   "text": "+ progress segments",
+   "lines": [
+    {
+     "x": 56,
+     "y": 213.11,
+     "w": 143.05,
+     "h": 17
+    }
+   ],
+   "fontFamily": "Inter, ui-sans-serif, system-ui, \"Segoe UI\", sans-serif",
+   "fontSize": 14,
+   "fontWeight": 400,
+   "letterSpacing": "0.14px",
+   "lineHeight": "normal",
+   "color": "rgb(119, 113, 105)"
+  },
+  {
+   "text": "1 / 5",
+   "lines": [
+    {
+     "x": 296,
+     "y": 196.11,
+     "w": 39.7,
+     "h": 17
+    }
+   ],
+   "fontFamily": "\"Geist Mono\", ui-monospace, monospace",
+   "fontSize": 13,
+   "fontWeight": 400,
+   "letterSpacing": "0.14px",
+   "lineHeight": "normal",
+   "color": "rgb(119, 113, 105)"
+  },
+  {
+   "text": "Step 1",
+   "lines": [
+    {
+     "x": 296,
+     "y": 223.11,
+     "w": 34.95,
+     "h": 15
+    }
+   ],
+   "fontFamily": "Inter, ui-sans-serif, system-ui, \"Segoe UI\", sans-serif",
+   "fontSize": 12,
+   "fontWeight": 400,
+   "letterSpacing": "0.14px",
+   "lineHeight": "normal",
+   "color": "rgb(119, 113, 105)"
+  },
+  {
+   "text": "3 / 5",
+   "lines": [
+    {
+     "x": 589.7,
+     "y": 196.11,
+     "w": 39.7,
+     "h": 17
+    }
+   ],
+   "fontFamily": "\"Geist Mono\", ui-monospace, monospace",
+   "fontSize": 13,
+   "fontWeight": 400,
+   "letterSpacing": "0.14px",
+   "lineHeight": "normal",
+   "color": "rgb(119, 113, 105)"
+  },
+  {
+   "text": "Step 3",
+   "lines": [
+    {
+     "x": 589.7,
+     "y": 223.11,
+     "w": 37.48,
+     "h": 15
+    }
+   ],
+   "fontFamily": "Inter, ui-sans-serif, system-ui, \"Segoe UI\", sans-serif",
+   "fontSize": 12,
+   "fontWeight": 400,
+   "letterSpacing": "0.14px",
+   "lineHeight": "normal",
+   "color": "rgb(119, 113, 105)"
+  },
+  {
+   "text": "Done, current · #000000",
+   "lines": [
+    {
+     "x": 883.41,
+     "y": 217.11,
+     "w": 144.22,
+     "h": 15
+    }
+   ],
+   "fontFamily": "Inter, ui-sans-serif, system-ui, \"Segoe UI\", sans-serif",
+   "fontSize": 12,
+   "fontWeight": 400,
+   "letterSpacing": "0.14px",
+   "lineHeight": "normal",
+   "color": "rgb(119, 113, 105)"
+  },
+  {
+   "text": "Upcoming · #ebe8e4",
+   "lines": [
+    {
+     "x": 1051.63,
+     "y": 217.11,
+     "w": 122.05,
+     "h": 15
+    }
+   ],
+   "fontFamily": "Inter, ui-sans-serif, system-ui, \"Segoe UI\", sans-serif",
+   "fontSize": 12,
+   "fontWeight": 400,
+   "letterSpacing": "0.14px",
+   "lineHeight": "normal",
+   "color": "rgb(119, 113, 105)"
+  },
+  {
+   "text": "Buttons",
+   "lines": [
+    {
+     "x": 56,
+     "y": 311.11,
+     "w": 52.36,
+     "h": 17
+    }
+   ],
+   "fontFamily": "Inter, ui-sans-serif, system-ui, \"Segoe UI\", sans-serif",
+   "fontSize": 14,
+   "fontWeight": 500,
+   "letterSpacing": "0.14px",
+   "lineHeight": "normal",
+   "color": "rgb(0, 0, 0)"
+  },
+  {
+   "text": "Default",
+   "lines": [
+    {
+     "x": 440,
+     "y": 311.11,
+     "w": 41.73,
+     "h": 15
+    }
+   ],
+   "fontFamily": "Inter, ui-sans-serif, system-ui, \"Segoe UI\", sans-serif",
+   "fontSize": 12,
+   "fontWeight": 400,
+   "letterSpacing": "0.14px",
+   "lineHeight": "normal",
+   "color": "rgb(119, 113, 105)"
+  },
+  {
+   "text": "Hover",
+   "lines": [
+    {
+     "x": 709.33,
+     "y": 311.11,
+     "w": 34.61,
+     "h": 15
+    }
+   ],
+   "fontFamily": "Inter, ui-sans-serif, system-ui, \"Segoe UI\", sans-serif",
+   "fontSize": 12,
+   "fontWeight": 400,
+   "letterSpacing": "0.14px",
+   "lineHeight": "normal",
+   "color": "rgb(119, 113, 105)"
+  },
+  {
+   "text": "Disabled",
+   "lines": [
+    {
+     "x": 978.66,
+     "y": 311.11,
+     "w": 50.36,
+     "h": 15
+    }
+   ],
+   "fontFamily": "Inter, ui-sans-serif, system-ui, \"Segoe UI\", sans-serif",
+   "fontSize": 12,
+   "fontWeight": 400,
+   "letterSpacing": "0.14px",
+   "lineHeight": "normal",
+   "color": "rgb(119, 113, 105)"
+  },
+  {
+   "text": "Primary",
+   "lines": [
+    {
+     "x": 296,
+     "y": 360.11,
+     "w": 48.55,
+     "h": 16
+    }
+   ],
+   "fontFamily": "Inter, ui-sans-serif, system-ui, \"Segoe UI\", sans-serif",
+   "fontSize": 13,
+   "fontWeight": 400,
+   "letterSpacing": "0.14px",
+   "lineHeight": "normal",
+   "color": "rgb(68, 64, 59)"
+  },
+  {
+   "text": "Continue",
+   "lines": [
+    {
+     "x": 464,
+     "y": 359.61,
+     "w": 60.52,
+     "h": 17
+    }
+   ],
+   "fontFamily": "Inter, ui-sans-serif, system-ui, \"Segoe UI\", sans-serif",
+   "fontSize": 14,
+   "fontWeight": 500,
+   "letterSpacing": "normal",
+   "lineHeight": "normal",
+   "color": "rgb(255, 255, 255)"
+  },
+  {
+   "text": "Continue",
+   "lines": [
+    {
+     "x": 733.33,
+     "y": 359.61,
+     "w": 60.52,
+     "h": 17
+    }
+   ],
+   "fontFamily": "Inter, ui-sans-serif, system-ui, \"Segoe UI\", sans-serif",
+   "fontSize": 14,
+   "fontWeight": 500,
+   "letterSpacing": "normal",
+   "lineHeight": "normal",
+   "color": "rgb(255, 255, 255)"
+  },
+  {
+   "text": "Continue",
+   "lines": [
+    {
+     "x": 1002.66,
+     "y": 359.61,
+     "w": 60.52,
+     "h": 17
+    }
+   ],
+   "fontFamily": "Inter, ui-sans-serif, system-ui, \"Segoe UI\", sans-serif",
+   "fontSize": 14,
+   "fontWeight": 500,
+   "letterSpacing": "normal",
+   "lineHeight": "normal",
+   "color": "rgb(165, 159, 151)"
+  },
+  {
+   "text": "Secondary",
+   "lines": [
+    {
+     "x": 296,
+     "y": 424.11,
+     "w": 67.75,
+     "h": 16
+    }
+   ],
+   "fontFamily": "Inter, ui-sans-serif, system-ui, \"Segoe UI\", sans-serif",
+   "fontSize": 13,
+   "fontWeight": 400,
+   "letterSpacing": "0.14px",
+   "lineHeight": "normal",
+   "color": "rgb(68, 64, 59)"
+  },
+  {
+   "text": "Change",
+   "lines": [
+    {
+     "x": 461,
+     "y": 423.61,
+     "w": 51.97,
+     "h": 17
+    }
+   ],
+   "fontFamily": "Inter, ui-sans-serif, system-ui, \"Segoe UI\", sans-serif",
+   "fontSize": 14,
+   "fontWeight": 500,
+   "letterSpacing": "normal",
+   "lineHeight": "normal",
+   "color": "rgb(0, 0, 0)"
+  },
+  {
+   "text": "Change",
+   "lines": [
+    {
+     "x": 730.33,
+     "y": 423.61,
+     "w": 51.97,
+     "h": 17
+    }
+   ],
+   "fontFamily": "Inter, ui-sans-serif, system-ui, \"Segoe UI\", sans-serif",
+   "fontSize": 14,
+   "fontWeight": 500,
+   "letterSpacing": "normal",
+   "lineHeight": "normal",
+   "color": "rgb(0, 0, 0)"
+  },
+  {
+   "text": "Change",
+   "lines": [
+    {
+     "x": 999.66,
+     "y": 423.61,
+     "w": 51.97,
+     "h": 17
+    }
+   ],
+   "fontFamily": "Inter, ui-sans-serif, system-ui, \"Segoe UI\", sans-serif",
+   "fontSize": 14,
+   "fontWeight": 500,
+   "letterSpacing": "normal",
+   "lineHeight": "normal",
+   "color": "rgb(165, 159, 151)"
+  },
+  {
+   "text": "Text",
+   "lines": [
+    {
+     "x": 296,
+     "y": 488.11,
+     "w": 26.83,
+     "h": 16
+    }
+   ],
+   "fontFamily": "Inter, ui-sans-serif, system-ui, \"Segoe UI\", sans-serif",
+   "fontSize": 13,
+   "fontWeight": 400,
+   "letterSpacing": "0.14px",
+   "lineHeight": "normal",
+   "color": "rgb(68, 64, 59)"
+  },
+  {
+   "text": "Back",
+   "lines": [
+    {
+     "x": 456,
+     "y": 487.61,
+     "w": 33.06,
+     "h": 17
+    }
+   ],
+   "fontFamily": "Inter, ui-sans-serif, system-ui, \"Segoe UI\", sans-serif",
+   "fontSize": 14,
+   "fontWeight": 500,
+   "letterSpacing": "normal",
+   "lineHeight": "normal",
+   "color": "rgb(0, 0, 0)"
+  },
+  {
+   "text": "Back",
+   "lines": [
+    {
+     "x": 725.33,
+     "y": 487.61,
+     "w": 33.06,
+     "h": 17
+    }
+   ],
+   "fontFamily": "Inter, ui-sans-serif, system-ui, \"Segoe UI\", sans-serif",
+   "fontSize": 14,
+   "fontWeight": 500,
+   "letterSpacing": "normal",
+   "lineHeight": "normal",
+   "color": "rgb(0, 0, 0)"
+  },
+  {
+   "text": "Back",
+   "lines": [
+    {
+     "x": 994.66,
+     "y": 487.61,
+     "w": 33.06,
+     "h": 17
+    }
+   ],
+   "fontFamily": "Inter, ui-sans-serif, system-ui, \"Segoe UI\", sans-serif",
+   "fontSize": 14,
+   "fontWeight": 500,
+   "letterSpacing": "normal",
+   "lineHeight": "normal",
+   "color": "rgb(165, 159, 151)"
+  },
+  {
+   "text": "Device dropdown",
+   "lines": [
+    {
+     "x": 56,
+     "y": 591.11,
+     "w": 119.59,
+     "h": 17
+    }
+   ],
+   "fontFamily": "Inter, ui-sans-serif, system-ui, \"Segoe UI\", sans-serif",
+   "fontSize": 14,
+   "fontWeight": 500,
+   "letterSpacing": "0.14px",
+   "lineHeight": "normal",
+   "color": "rgb(0, 0, 0)"
+  },
+  {
+   "text": "+ level meter",
+   "lines": [
+    {
+     "x": 56,
+     "y": 608.11,
+     "w": 87.69,
+     "h": 17
+    }
+   ],
+   "fontFamily": "Inter, ui-sans-serif, system-ui, \"Segoe UI\", sans-serif",
+   "fontSize": 14,
+   "fontWeight": 400,
+   "letterSpacing": "0.14px",
+   "lineHeight": "normal",
+   "color": "rgb(119, 113, 105)"
+  },
+  {
+   "text": "Default",
+   "lines": [
+    {
+     "x": 296,
+     "y": 591.11,
+     "w": 41.73,
+     "h": 15
+    }
+   ],
+   "fontFamily": "Inter, ui-sans-serif, system-ui, \"Segoe UI\", sans-serif",
+   "fontSize": 12,
+   "fontWeight": 400,
+   "letterSpacing": "0.14px",
+   "lineHeight": "normal",
+   "color": "rgb(119, 113, 105)"
+  },
+  {
+   "text": "Microphone (USB Audio Device)",
+   "lines": [
+    {
+     "x": 309,
+     "y": 625.61,
+     "w": 213.28,
+     "h": 17
+    }
+   ],
+   "fontFamily": "Inter, ui-sans-serif, system-ui, \"Segoe UI\", sans-serif",
+   "fontSize": 14,
+   "fontWeight": 400,
+   "letterSpacing": "normal",
+   "lineHeight": "normal",
+   "color": "rgb(0, 0, 0)"
+  },
+  {
+   "text": "Open",
+   "lines": [
+    {
+     "x": 296,
+     "y": 674.11,
+     "w": 31.17,
+     "h": 15
+    }
+   ],
+   "fontFamily": "Inter, ui-sans-serif, system-ui, \"Segoe UI\", sans-serif",
+   "fontSize": 12,
+   "fontWeight": 400,
+   "letterSpacing": "0.14px",
+   "lineHeight": "normal",
+   "color": "rgb(119, 113, 105)"
+  },
+  {
+   "text": "Microphone (USB Audio Device)",
+   "lines": [
+    {
+     "x": 309,
+     "y": 708.61,
+     "w": 213.28,
+     "h": 17
+    }
+   ],
+   "fontFamily": "Inter, ui-sans-serif, system-ui, \"Segoe UI\", sans-serif",
+   "fontSize": 14,
+   "fontWeight": 400,
+   "letterSpacing": "normal",
+   "lineHeight": "normal",
+   "color": "rgb(0, 0, 0)"
+  },
+  {
+   "text": "Microphone (USB Audio Device)",
+   "lines": [
+    {
+     "x": 311,
+     "y": 757.61,
+     "w": 217.34,
+     "h": 17
+    }
+   ],
+   "fontFamily": "Inter, ui-sans-serif, system-ui, \"Segoe UI\", sans-serif",
+   "fontSize": 14,
+   "fontWeight": 400,
+   "letterSpacing": "0.14px",
+   "lineHeight": "normal",
+   "color": "rgb(0, 0, 0)"
+  },
+  {
+   "text": "Headset Microphone (Bluetooth)",
+   "lines": [
+    {
+     "x": 311,
+     "y": 793.61,
+     "w": 219.8,
+     "h": 17
+    }
+   ],
+   "fontFamily": "Inter, ui-sans-serif, system-ui, \"Segoe UI\", sans-serif",
+   "fontSize": 14,
+   "fontWeight": 400,
+   "letterSpacing": "0.14px",
+   "lineHeight": "normal",
+   "color": "rgb(0, 0, 0)"
+  },
+  {
+   "text": "Microphone Array (Realtek Audio)",
+   "lines": [
+    {
+     "x": 311,
+     "y": 829.61,
+     "w": 228.59,
+     "h": 17
+    }
+   ],
+   "fontFamily": "Inter, ui-sans-serif, system-ui, \"Segoe UI\", sans-serif",
+   "fontSize": 14,
+   "fontWeight": 400,
+   "letterSpacing": "0.14px",
+   "lineHeight": "normal",
+   "color": "rgb(0, 0, 0)"
+  },
+  {
+   "text": "Level meter – idle",
+   "lines": [
+    {
+     "x": 776,
+     "y": 591.11,
+     "w": 101.59,
+     "h": 15
+    }
+   ],
+   "fontFamily": "Inter, ui-sans-serif, system-ui, \"Segoe UI\", sans-serif",
+   "fontSize": 12,
+   "fontWeight": 400,
+   "letterSpacing": "0.14px",
+   "lineHeight": "normal",
+   "color": "rgb(119, 113, 105)"
+  },
+  {
+   "text": "Level meter – live",
+   "lines": [
+    {
+     "x": 776,
+     "y": 666.11,
+     "w": 100.77,
+     "h": 15
+    }
+   ],
+   "fontFamily": "Inter, ui-sans-serif, system-ui, \"Segoe UI\", sans-serif",
+   "fontSize": 12,
+   "fontWeight": 400,
+   "letterSpacing": "0.14px",
+   "lineHeight": "normal",
+   "color": "rgb(119, 113, 105)"
+  },
+  {
+   "text": "40 bars · 3 px gap · ink #000000 · idle bars #ebe8e4 at 3 px",
+   "lines": [
+    {
+     "x": 776,
+     "y": 743.11,
+     "w": 349.89,
+     "h": 15
+    }
+   ],
+   "fontFamily": "Inter, ui-sans-serif, system-ui, \"Segoe UI\", sans-serif",
+   "fontSize": 12,
+   "fontWeight": 400,
+   "letterSpacing": "0.14px",
+   "lineHeight": "19.2px",
+   "color": "rgb(119, 113, 105)"
+  },
+  {
+   "text": "Model card",
+   "lines": [
+    {
+     "x": 56,
+     "y": 934.11,
+     "w": 76.75,
+     "h": 17
+    }
+   ],
+   "fontFamily": "Inter, ui-sans-serif, system-ui, \"Segoe UI\", sans-serif",
+   "fontSize": 14,
+   "fontWeight": 500,
+   "letterSpacing": "0.14px",
+   "lineHeight": "normal",
+   "color": "rgb(0, 0, 0)"
+  },
+  {
+   "text": "Default",
+   "lines": [
+    {
+     "x": 296,
+     "y": 934.11,
+     "w": 41.73,
+     "h": 15
+    }
+   ],
+   "fontFamily": "Inter, ui-sans-serif, system-ui, \"Segoe UI\", sans-serif",
+   "fontSize": 12,
+   "fontWeight": 400,
+   "letterSpacing": "0.14px",
+   "lineHeight": "normal",
+   "color": "rgb(119, 113, 105)"
+  },
+  {
+   "text": "Gemma 4 26B",
+   "lines": [
+    {
+     "x": 351,
+     "y": 978.11,
+     "w": 101.58,
+     "h": 19
+    }
+   ],
+   "fontFamily": "Inter, ui-sans-serif, system-ui, \"Segoe UI\", sans-serif",
+   "fontSize": 15,
+   "fontWeight": 500,
+   "letterSpacing": "normal",
+   "lineHeight": "normal",
+   "color": "rgb(0, 0, 0)"
+  },
+  {
+   "text": "Best quality, needs GPU",
+   "lines": [
+    {
+     "x": 351,
+     "y": 1001.11,
+     "w": 147.75,
+     "h": 16
+    }
+   ],
+   "fontFamily": "Inter, ui-sans-serif, system-ui, \"Segoe UI\", sans-serif",
+   "fontSize": 13,
+   "fontWeight": 400,
+   "letterSpacing": "normal",
+   "lineHeight": "normal",
+   "color": "rgb(119, 113, 105)"
+  },
+  {
+   "text": "[XX] GB",
+   "lines": [
+    {
+     "x": 674.39,
+     "y": 978.11,
+     "w": 54.61,
+     "h": 17
+    }
+   ],
+   "fontFamily": "\"Geist Mono\", ui-monospace, monospace",
+   "fontSize": 13,
+   "fontWeight": 400,
+   "letterSpacing": "normal",
+   "lineHeight": "normal",
+   "color": "rgb(68, 64, 59)"
+  },
+  {
+   "text": "Selected",
+   "lines": [
+    {
+     "x": 768,
+     "y": 934.11,
+     "w": 50.73,
+     "h": 15
+    }
+   ],
+   "fontFamily": "Inter, ui-sans-serif, system-ui, \"Segoe UI\", sans-serif",
+   "fontSize": 12,
+   "fontWeight": 400,
+   "letterSpacing": "0.14px",
+   "lineHeight": "normal",
+   "color": "rgb(119, 113, 105)"
+  },
+  {
+   "text": "Gemma 4 E4B",
+   "lines": [
+    {
+     "x": 823,
+     "y": 978.11,
+     "w": 101.78,
+     "h": 19
+    }
+   ],
+   "fontFamily": "Inter, ui-sans-serif, system-ui, \"Segoe UI\", sans-serif",
+   "fontSize": 15,
+   "fontWeight": 500,
+   "letterSpacing": "normal",
+   "lineHeight": "normal",
+   "color": "rgb(0, 0, 0)"
+  },
+  {
+   "text": "Recommended for your PC",
+   "lines": [
+    {
+     "x": 823,
+     "y": 1001.11,
+     "w": 165.83,
+     "h": 16
+    }
+   ],
+   "fontFamily": "Inter, ui-sans-serif, system-ui, \"Segoe UI\", sans-serif",
+   "fontSize": 13,
+   "fontWeight": 400,
+   "letterSpacing": "normal",
+   "lineHeight": "normal",
+   "color": "rgb(119, 113, 105)"
+  },
+  {
+   "text": "[X.X] GB",
+   "lines": [
+    {
+     "x": 1138.59,
+     "y": 978.11,
+     "w": 62.41,
+     "h": 17
+    }
+   ],
+   "fontFamily": "\"Geist Mono\", ui-monospace, monospace",
+   "fontSize": 13,
+   "fontWeight": 400,
+   "letterSpacing": "normal",
+   "lineHeight": "normal",
+   "color": "rgb(68, 64, 59)"
+  },
+  {
+   "text": "Downloading",
+   "lines": [
+    {
+     "x": 296,
+     "y": 1054.11,
+     "w": 75.75,
+     "h": 15
+    }
+   ],
+   "fontFamily": "Inter, ui-sans-serif, system-ui, \"Segoe UI\", sans-serif",
+   "fontSize": 12,
+   "fontWeight": 400,
+   "letterSpacing": "0.14px",
+   "lineHeight": "normal",
+   "color": "rgb(119, 113, 105)"
+  },
+  {
+   "text": "Parakeet v3",
+   "lines": [
+    {
+     "x": 319,
+     "y": 1098.11,
+     "w": 86.67,
+     "h": 19
+    }
+   ],
+   "fontFamily": "Inter, ui-sans-serif, system-ui, \"Segoe UI\", sans-serif",
+   "fontSize": 15,
+   "fontWeight": 500,
+   "letterSpacing": "0.14px",
+   "lineHeight": "normal",
+   "color": "rgb(0, 0, 0)"
+  },
+  {
+   "text": "0.67 GB",
+   "lines": [
+    {
+     "x": 673.41,
+     "y": 1098.11,
+     "w": 55.59,
+     "h": 17
+    }
+   ],
+   "fontFamily": "\"Geist Mono\", ui-monospace, monospace",
+   "fontSize": 13,
+   "fontWeight": 400,
+   "letterSpacing": "0.14px",
+   "lineHeight": "normal",
+   "color": "rgb(68, 64, 59)"
+  },
+  {
+   "text": "Downloading…",
+   "lines": [
+    {
+     "x": 319,
+     "y": 1145.11,
+     "w": 93.31,
+     "h": 16
+    }
+   ],
+   "fontFamily": "Inter, ui-sans-serif, system-ui, \"Segoe UI\", sans-serif",
+   "fontSize": 13,
+   "fontWeight": 400,
+   "letterSpacing": "0.14px",
+   "lineHeight": "normal",
+   "color": "rgb(119, 113, 105)"
+  },
+  {
+   "text": "0.31 / 0.67 GB",
+   "lines": [
+    {
+     "x": 617.83,
+     "y": 1145.11,
+     "w": 111.17,
+     "h": 17
+    }
+   ],
+   "fontFamily": "\"Geist Mono\", ui-monospace, monospace",
+   "fontSize": 13,
+   "fontWeight": 400,
+   "letterSpacing": "0.14px",
+   "lineHeight": "normal",
+   "color": "rgb(119, 113, 105)"
+  },
+  {
+   "text": "Done",
+   "lines": [
+    {
+     "x": 768,
+     "y": 1054.11,
+     "w": 30.52,
+     "h": 15
+    }
+   ],
+   "fontFamily": "Inter, ui-sans-serif, system-ui, \"Segoe UI\", sans-serif",
+   "fontSize": 12,
+   "fontWeight": 400,
+   "letterSpacing": "0.14px",
+   "lineHeight": "normal",
+   "color": "rgb(119, 113, 105)"
+  },
+  {
+   "text": "Parakeet v3",
+   "lines": [
+    {
+     "x": 791,
+     "y": 1101.61,
+     "w": 86.67,
+     "h": 19
+    }
+   ],
+   "fontFamily": "Inter, ui-sans-serif, system-ui, \"Segoe UI\", sans-serif",
+   "fontSize": 15,
+   "fontWeight": 500,
+   "letterSpacing": "0.14px",
+   "lineHeight": "normal",
+   "color": "rgb(0, 0, 0)"
+  },
+  {
+   "text": "0.67 GB",
+   "lines": [
+    {
+     "x": 1059.7,
+     "y": 1102.61,
+     "w": 55.59,
+     "h": 17
+    }
+   ],
+   "fontFamily": "\"Geist Mono\", ui-monospace, monospace",
+   "fontSize": 13,
+   "fontWeight": 400,
+   "letterSpacing": "0.14px",
+   "lineHeight": "normal",
+   "color": "rgb(68, 64, 59)"
+  },
+  {
+   "text": "Ready",
+   "lines": [
+    {
+     "x": 1154.3,
+     "y": 1103.61,
+     "w": 36.7,
+     "h": 15
+    }
+   ],
+   "fontFamily": "Inter, ui-sans-serif, system-ui, \"Segoe UI\", sans-serif",
+   "fontSize": 12,
+   "fontWeight": 500,
+   "letterSpacing": "0.14px",
+   "lineHeight": "normal",
+   "color": "rgb(0, 0, 0)"
+  },
+  {
+   "text": "Toggle, hotkey field,",
+   "lines": [
+    {
+     "x": 56,
+     "y": 1256.11,
+     "w": 138.83,
+     "h": 17
+    }
+   ],
+   "fontFamily": "Inter, ui-sans-serif, system-ui, \"Segoe UI\", sans-serif",
+   "fontSize": 14,
+   "fontWeight": 500,
+   "letterSpacing": "0.14px",
+   "lineHeight": "normal",
+   "color": "rgb(0, 0, 0)"
+  },
+  {
+   "text": "timestamp chip",
+   "lines": [
+    {
+     "x": 56,
+     "y": 1273.11,
+     "w": 104.75,
+     "h": 17
+    }
+   ],
+   "fontFamily": "Inter, ui-sans-serif, system-ui, \"Segoe UI\", sans-serif",
+   "fontSize": 14,
+   "fontWeight": 500,
+   "letterSpacing": "0.14px",
+   "lineHeight": "normal",
+   "color": "rgb(0, 0, 0)"
+  },
+  {
+   "text": "Off",
+   "lines": [
+    {
+     "x": 352,
+     "y": 1261.61,
+     "w": 18.02,
+     "h": 15
+    }
+   ],
+   "fontFamily": "Inter, ui-sans-serif, system-ui, \"Segoe UI\", sans-serif",
+   "fontSize": 12,
+   "fontWeight": 400,
+   "letterSpacing": "0.14px",
+   "lineHeight": "normal",
+   "color": "rgb(119, 113, 105)"
+  },
+  {
+   "text": "On",
+   "lines": [
+    {
+     "x": 352,
+     "y": 1301.61,
+     "w": 16.55,
+     "h": 15
+    }
+   ],
+   "fontFamily": "Inter, ui-sans-serif, system-ui, \"Segoe UI\", sans-serif",
+   "fontSize": 12,
+   "fontWeight": 400,
+   "letterSpacing": "0.14px",
+   "lineHeight": "normal",
+   "color": "rgb(119, 113, 105)"
+  },
+  {
+   "text": "Disabled",
+   "lines": [
+    {
+     "x": 352,
+     "y": 1341.61,
+     "w": 50.36,
+     "h": 15
+    }
+   ],
+   "fontFamily": "Inter, ui-sans-serif, system-ui, \"Segoe UI\", sans-serif",
+   "fontSize": 12,
+   "fontWeight": 400,
+   "letterSpacing": "0.14px",
+   "lineHeight": "normal",
+   "color": "rgb(119, 113, 105)"
+  },
+  {
+   "text": "Default",
+   "lines": [
+    {
+     "x": 568,
+     "y": 1256.11,
+     "w": 41.73,
+     "h": 15
+    }
+   ],
+   "fontFamily": "Inter, ui-sans-serif, system-ui, \"Segoe UI\", sans-serif",
+   "fontSize": 12,
+   "fontWeight": 400,
+   "letterSpacing": "0.14px",
+   "lineHeight": "normal",
+   "color": "rgb(119, 113, 105)"
+  },
+  {
+   "text": "Ctrl",
+   "lines": [
+    {
+     "x": 585,
+     "y": 1288.61,
+     "w": 31.77,
+     "h": 17
+    }
+   ],
+   "fontFamily": "\"Geist Mono\", ui-monospace, monospace",
+   "fontSize": 13,
+   "fontWeight": 400,
+   "letterSpacing": "0.14px",
+   "lineHeight": "normal",
+   "color": "rgb(0, 0, 0)"
+  },
+  {
+   "text": "+",
+   "lines": [
+    {
+     "x": 630.77,
+     "y": 1288.61,
+     "w": 7.95,
+     "h": 17
+    }
+   ],
+   "fontFamily": "\"Geist Mono\", ui-monospace, monospace",
+   "fontSize": 13,
+   "fontWeight": 400,
+   "letterSpacing": "0.14px",
+   "lineHeight": "normal",
+   "color": "rgb(119, 113, 105)"
+  },
+  {
+   "text": "Shift",
+   "lines": [
+    {
+     "x": 652.72,
+     "y": 1288.61,
+     "w": 39.7,
+     "h": 17
+    }
+   ],
+   "fontFamily": "\"Geist Mono\", ui-monospace, monospace",
+   "fontSize": 13,
+   "fontWeight": 400,
+   "letterSpacing": "0.14px",
+   "lineHeight": "normal",
+   "color": "rgb(0, 0, 0)"
+  },
+  {
+   "text": "+",
+   "lines": [
+    {
+     "x": 706.42,
+     "y": 1288.61,
+     "w": 7.95,
+     "h": 17
+    }
+   ],
+   "fontFamily": "\"Geist Mono\", ui-monospace, monospace",
+   "fontSize": 13,
+   "fontWeight": 400,
+   "letterSpacing": "0.14px",
+   "lineHeight": "normal",
+   "color": "rgb(119, 113, 105)"
+  },
+  {
+   "text": "R",
+   "lines": [
+    {
+     "x": 728.38,
+     "y": 1288.61,
+     "w": 7.95,
+     "h": 17
+    }
+   ],
+   "fontFamily": "\"Geist Mono\", ui-monospace, monospace",
+   "fontSize": 13,
+   "fontWeight": 400,
+   "letterSpacing": "0.14px",
+   "lineHeight": "normal",
+   "color": "rgb(0, 0, 0)"
+  },
+  {
+   "text": "Capturing",
+   "lines": [
+    {
+     "x": 568,
+     "y": 1331.11,
+     "w": 57.13,
+     "h": 15
+    }
+   ],
+   "fontFamily": "Inter, ui-sans-serif, system-ui, \"Segoe UI\", sans-serif",
+   "fontSize": 12,
+   "fontWeight": 400,
+   "letterSpacing": "0.14px",
+   "lineHeight": "normal",
+   "color": "rgb(119, 113, 105)"
+  },
+  {
+   "text": "Press a new shortcut…",
+   "lines": [
+    {
+     "x": 581,
+     "y": 1363.61,
+     "w": 154.13,
+     "h": 17
+    }
+   ],
+   "fontFamily": "Inter, ui-sans-serif, system-ui, \"Segoe UI\", sans-serif",
+   "fontSize": 14,
+   "fontWeight": 400,
+   "letterSpacing": "0.14px",
+   "lineHeight": "normal",
+   "color": "rgb(119, 113, 105)"
+  },
+  {
+   "text": "Esc to cancel",
+   "lines": [
+    {
+     "x": 843.58,
+     "y": 1364.11,
+     "w": 95.42,
+     "h": 16
+    }
+   ],
+   "fontFamily": "\"Geist Mono\", ui-monospace, monospace",
+   "fontSize": 12,
+   "fontWeight": 400,
+   "letterSpacing": "0.14px",
+   "lineHeight": "normal",
+   "color": "rgb(119, 113, 105)"
+  },
+  {
+   "text": "00:03",
+   "lines": [
+    {
+     "x": 1004,
+     "y": 1259.11,
+     "w": 36.7,
+     "h": 16
+    }
+   ],
+   "fontFamily": "\"Geist Mono\", ui-monospace, monospace",
+   "fontSize": 12,
+   "fontWeight": 400,
+   "letterSpacing": "0.14px",
+   "lineHeight": "normal",
+   "color": "rgb(0, 0, 0)"
+  },
+  {
+   "text": "Default",
+   "lines": [
+    {
+     "x": 1060.7,
+     "y": 1259.61,
+     "w": 41.73,
+     "h": 15
+    }
+   ],
+   "fontFamily": "Inter, ui-sans-serif, system-ui, \"Segoe UI\", sans-serif",
+   "fontSize": 12,
+   "fontWeight": 400,
+   "letterSpacing": "0.14px",
+   "lineHeight": "normal",
+   "color": "rgb(119, 113, 105)"
+  },
+  {
+   "text": "00:03",
+   "lines": [
+    {
+     "x": 1004,
+     "y": 1295.11,
+     "w": 36.7,
+     "h": 16
+    }
+   ],
+   "fontFamily": "\"Geist Mono\", ui-monospace, monospace",
+   "fontSize": 12,
+   "fontWeight": 400,
+   "letterSpacing": "0.14px",
+   "lineHeight": "normal",
+   "color": "rgb(0, 0, 0)"
+  },
+  {
+   "text": "Hover",
+   "lines": [
+    {
+     "x": 1060.7,
+     "y": 1295.61,
+     "w": 34.61,
+     "h": 15
+    }
+   ],
+   "fontFamily": "Inter, ui-sans-serif, system-ui, \"Segoe UI\", sans-serif",
+   "fontSize": 12,
+   "fontWeight": 400,
+   "letterSpacing": "0.14px",
+   "lineHeight": "normal",
+   "color": "rgb(119, 113, 105)"
+  }
+ ]
+}
