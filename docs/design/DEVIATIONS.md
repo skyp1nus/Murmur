@@ -5,3 +5,4 @@
 | Артборд | Текст / елемент канвасу | Що показує застосунок | Чому |
 | --- | --- | --- | --- |
 | 5 · Налаштування (Storage) | «Audio, video and the search index live in one folder.» | «Audio and video of new recordings are saved in this folder.» (ключ `Settings_StorageText`) | Поле показує теку записів: індекс пошуку (`<корінь даних>/murmur.db`) лежить окремо, а нова тека діє лише для нових записів. |
+| 5 · Налаштування (Acceleration) | Перемикач «CPU / DirectML / CUDA» | «CPU / Vulkan / CUDA» | У llama.cpp, на якому працює Gemma, немає бекенда DirectML; Vulkan — його кросвендорний аналог (AMD, NVIDIA, Intel). Рішення власника D-042. |
