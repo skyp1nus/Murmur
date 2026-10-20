@@ -83,7 +83,7 @@ public static class TokenGenerator
         EmitRadii(sb, root.GetProperty("radius"));
         EmitHairline(sb, root.GetProperty("border").GetProperty("hairline"));
         EmitShadows(sb, root.GetProperty("shadow"));
-        EmitOrb(sb, root.GetProperty("orbGradient"), root.GetProperty("color"));
+        EmitOrb(sb, root.GetProperty("orbGradient"), root.GetProperty("color"), root.GetProperty("colorDark"));
 
         sb.Append("</ResourceDictionary>\n");
         return sb.ToString();
@@ -266,25 +266,40 @@ public static class TokenGenerator
     /// The orb as theme-independent resources: <c>Orb.Base</c>, and per layer <c>Orb.&lt;Layer&gt;</c> (colour) with <c>X</c>, <c>Y</c> (centre, as a
     /// fraction of the box) and <c>Stop</c> (where it fades out, as a fraction of the farthest-corner radius).
     /// </summary>
-    private static void EmitOrb(StringBuilder sb, JsonElement orb, JsonElement colors)
+    private static void EmitOrb(StringBuilder sb, JsonElement orb, JsonElement colors, JsonElement darkColors)
     {
         Section(sb, "Orb gradient (theme-independent; first layer paints on top)");
-        sb.Append("  <Color x:Key=\"Orb.Base\">").Append(OrbColour(orb.GetProperty("base").GetString()!, colors)).Append("</Color>\n");
+        sb.Append("  <Color x:Key=\"Orb.Base\">").Append(OrbColour(orb.GetProperty("base").GetString()!, colors, darkColors)).Append("</Color>\n");
         foreach (var layer in orb.GetProperty("layers").EnumerateArray())
         {
             var name = Pascal(layer.GetProperty("name").GetString()!);
-            sb.Append("  <Color x:Key=\"Orb.").Append(name).Append("\">").Append(OrbColour(layer.GetProperty("color").GetString()!, colors)).Append("</Color>\n");
+            sb.Append("  <Color x:Key=\"Orb.").Append(name).Append("\">").Append(OrbColour(layer.GetProperty("color").GetString()!, colors, darkColors)).Append("</Color>\n");
             sb.Append("  <x:Double x:Key=\"Orb.").Append(name).Append("X\">").Append(Num(layer.GetProperty("x").GetDouble())).Append("</x:Double>\n");
             sb.Append("  <x:Double x:Key=\"Orb.").Append(name).Append("Y\">").Append(Num(layer.GetProperty("y").GetDouble())).Append("</x:Double>\n");
             sb.Append("  <x:Double x:Key=\"Orb.").Append(name).Append("Stop\">").Append(Num(layer.GetProperty("stop").GetDouble())).Append("</x:Double>\n");
         }
     }
 
-    /// <summary>A hex colour as written, or the light value of a colour token.</summary>
-    private static string OrbColour(string value, JsonElement colors) =>
-        value.StartsWith('#') ? value : colors.TryGetProperty(value, out var token)
-            ? token.GetString()!
-            : throw new InvalidOperationException($"orbGradient: '{value}' is neither a hex colour nor a colour token.");
+    /// <summary>
+    /// A hex colour as written, or the value of a colour token. The orb is not themed, so a token it uses must have the same value in
+    /// both themes (the accents do).
+    /// </summary>
+    private static string OrbColour(string value, JsonElement colors, JsonElement darkColors)
+    {
+        if (value.StartsWith('#'))
+        {
+            return value;
+        }
+
+        if (!colors.TryGetProperty(value, out var light) || !darkColors.TryGetProperty(value, out var dark))
+        {
+            throw new InvalidOperationException($"orbGradient: '{value}' is neither a hex colour nor a colour token.");
+        }
+
+        return string.Equals(light.GetString(), dark.GetString(), StringComparison.OrdinalIgnoreCase)
+            ? light.GetString()!
+            : throw new InvalidOperationException($"orbGradient: colour token '{value}' differs between 'color' and 'colorDark'; the orb has no themes.");
+    }
 
     private static void EmitHairline(StringBuilder sb, JsonElement hairline)
     {

@@ -6,6 +6,20 @@ namespace Murmur.Storage.Tests;
 public sealed class JsonSettingsStoreTests
 {
     [Fact]
+    public void AFileFromBeforeTheAudioDefaults_ReadsBothSourcesOn()
+    {
+        using var root = new TempDataRoot();
+        Directory.CreateDirectory(root.Path);
+        File.WriteAllText(root.SettingsFile, """{ "settingsVersion": 2, "theme": "Dark", "screenByDefault": true }""");
+
+        var store = new JsonSettingsStore(new StoragePaths(root.Path));
+
+        Assert.True(store.Current.RecordMicrophoneByDefault);
+        Assert.True(store.Current.RecordSystemAudioByDefault);
+        Assert.True(store.Current.ScreenByDefault);
+    }
+
+    [Fact]
     public void NoFile_UsesTheDefaults()
     {
         using var root = new TempDataRoot();

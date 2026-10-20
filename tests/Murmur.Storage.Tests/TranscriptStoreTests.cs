@@ -92,6 +92,21 @@ public sealed class TranscriptStoreTests : IDisposable
     }
 
     [Fact]
+    public async Task Summaries_AnswerARepeatedIdOnce_AndStopWhenCancelled()
+    {
+        var storage = Open();
+        var id = await NewSession(storage);
+        await storage.SaveTranscriptAsync(new Transcript(id, [Segment(Speaker.Me, 0, 1000, "once")], "e", "en"), Ct);
+
+        var summaries = await storage.GetTranscriptSummariesAsync([id, id, id], Ct);
+        Assert.Single(summaries);
+
+        using var cancelled = new CancellationTokenSource();
+        await cancelled.CancelAsync();
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(async () => await storage.GetTranscriptSummariesAsync([id], cancelled.Token));
+    }
+
+    [Fact]
     public async Task Summaries_HandleMoreSessionsThanOneBatch()
     {
         var storage = Open();

@@ -696,23 +696,61 @@ public sealed class ShellLibraryTests
         Assert.Same(writer, SettingsWriter.For(rig.Store));
 
         rig.Library.Microphone = false;
-        rig.Library.SystemAudio = false;
         rig.Library.Screen = true;
         await rig.Library.SwitchSaveTask;
         await writer.LastSave;
 
         Assert.False(rig.Store.Current.RecordMicrophoneByDefault);
-        Assert.False(rig.Store.Current.RecordSystemAudioByDefault);
+        Assert.True(rig.Store.Current.RecordSystemAudioByDefault);
         Assert.True(rig.Store.Current.ScreenByDefault);
 
         // The recording screen starts with them, and so does the library the next time.
         rig.Shell.ShowRecording();
         Assert.False(rig.Recording.Microphone);
-        Assert.False(rig.Recording.SystemAudio);
+        Assert.True(rig.Recording.SystemAudio);
         Assert.True(rig.Recording.Screen);
         rig.Shell.ShowLibrary();
         Assert.False(rig.Library.Microphone);
         Assert.True(rig.Library.Screen);
+    }
+
+    [Fact]
+    public async Task Library_NeverSavesADefaultWithNeitherAudioSource()
+    {
+        using var rig = await LoadedRigAsync();
+        var writer = SettingsWriter.For(rig.Store);
+
+        rig.Library.Microphone = false;
+        await rig.Library.SwitchSaveTask;
+        rig.Library.SystemAudio = false;
+        await rig.Library.SwitchSaveTask;
+        await writer.LastSave;
+
+        // The card shows both off for now (Start recording is disabled), but the saved default keeps its last source.
+        Assert.False(rig.Library.Microphone);
+        Assert.False(rig.Library.SystemAudio);
+        Assert.False(rig.Library.StartRecordingCommand.CanExecute(null));
+        Assert.False(rig.Store.Current.RecordMicrophoneByDefault);
+        Assert.True(rig.Store.Current.RecordSystemAudioByDefault);
+
+        // The next time the library shows, it starts from the saved default, so the record hotkey never meets two empty switches.
+        rig.Shell.ShowRecording();
+        Assert.True(rig.Recording.SystemAudio);
+        Assert.True(rig.Recording.StartStopCommand.CanExecute(null));
+    }
+
+    [Fact]
+    public async Task Library_AfterItIsDisposed_LateEventsDoNothing()
+    {
+        using var rig = await LoadedRigAsync();
+        var weekly = rig.Library.Sessions[2];
+        var before = rig.Transcripts.SummaryRequests.Count;
+        rig.Library.Dispose();
+
+        rig.Processing.Raise(new SessionProcessingStatus(weekly.Id, SessionProcessingStage.Completed, 1));
+        await rig.Recording.StopAsync();
+
+        Assert.Equal(before, rig.Transcripts.SummaryRequests.Count);
     }
 
     [Fact]
@@ -813,6 +851,46 @@ public sealed class ShellLibraryTests
 
         Assert.True(stillFocused, "the search box lost the focus while typing");
         Assert.Equal(rig.Library.Sessions[49].Title, focusedRow);
+    }
+
+    [Fact]
+    public async Task Library_ShiftTabStepsBackThroughTheRows_AndFromTheFirstRowReachesTheLastFilter()
+    {
+        using var rig = await LoadedRigAsync();
+
+        var (second, firstThenBack, filter) = await Session.Dispatch(
+            () =>
+            {
+                using var scope = UiCulture.Override("en");
+                var window = new MainWindow { DataContext = rig.Shell, Width = 1440, Height = 1500 };
+                window.Show();
+                UiHarness.Pump(6);
+
+                void Press(RawInputModifiers modifiers)
+                {
+                    window.KeyPressQwerty(PhysicalKey.Tab, modifiers);
+                    window.KeyReleaseQwerty(PhysicalKey.Tab, modifiers);
+                    UiHarness.Pump(3);
+                }
+
+                var rows = window.GetVisualDescendants().OfType<Button>().Where(b => b.Classes.Contains("libraryRow")).ToArray();
+                rows[2].Focus();
+                UiHarness.Pump(2);
+                Press(RawInputModifiers.Shift);
+                var one = window.FocusManager!.GetFocusedElement() == rows[1];
+                Press(RawInputModifiers.Shift);
+                var two = window.FocusManager.GetFocusedElement() == rows[0];
+                Press(RawInputModifiers.Shift);
+                var last = window.FocusManager.GetFocusedElement() as Button;
+                var result = (one, two, last is not null && last.Classes.Contains("filter") && last.Flyout is not null);
+                window.Close();
+                return result;
+            },
+            TestContext.Current.CancellationToken);
+
+        Assert.True(second, "Shift+Tab goes to the row above");
+        Assert.True(firstThenBack, "and to the first row");
+        Assert.True(filter, "from the first row it reaches the last filter chip (Pick dates)");
     }
 
     // ---- formatting -----------------------------------------------------------------------------------------------------------------

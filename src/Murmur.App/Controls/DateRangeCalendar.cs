@@ -35,6 +35,7 @@ public sealed class DateRangeCalendar : Calendar
     {
         SelectionMode = CalendarSelectionMode.SingleRange;
         SelectedDatesChanged += OnSelectedDatesChanged;
+        AddHandler(PointerPressedEvent, OnPointerPressed, RoutingStrategies.Tunnel, handledEventsToo: true);
         AddHandler(PointerReleasedEvent, OnPointerReleased, RoutingStrategies.Bubble, handledEventsToo: true);
     }
 
@@ -124,6 +125,9 @@ public sealed class DateRangeCalendar : Calendar
             _firstDayPicked = true;
         }
     }
+
+    /// <summary>A new tap starts: whatever an earlier one left in the flag (a selection change without a release) is forgotten.</summary>
+    private void OnPointerPressed(object? sender, PointerPressedEventArgs e) => _selectionChangedInThisTap = false;
 
     /// <summary>
     /// A tap that changes nothing: the same day again after the first one is a range of that day, so the flyout closes. (A calendar

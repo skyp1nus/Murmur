@@ -520,9 +520,16 @@ public sealed partial class LibraryViewModel : ObservableObject, IDisposable, IF
         _applyingSwitches = false;
     }
 
-    partial void OnMicrophoneChanged(bool value) => SaveSwitch(s => s with { RecordMicrophoneByDefault = value });
+    partial void OnMicrophoneChanged(bool value) => SaveSwitch(s => KeepOneAudioSource(s, s with { RecordMicrophoneByDefault = value }));
 
-    partial void OnSystemAudioChanged(bool value) => SaveSwitch(s => s with { RecordSystemAudioByDefault = value });
+    partial void OnSystemAudioChanged(bool value) => SaveSwitch(s => KeepOneAudioSource(s, s with { RecordSystemAudioByDefault = value }));
+
+    /// <summary>
+    /// A default with neither the microphone nor the system audio would make the record hotkey refuse silently every time: the card may
+    /// show both switches off for now (Start recording is disabled then), but that state is not saved; the last default with a source stays.
+    /// </summary>
+    private static AppSettings KeepOneAudioSource(AppSettings current, AppSettings next) =>
+        next.RecordMicrophoneByDefault || next.RecordSystemAudioByDefault ? next : current;
 
     partial void OnScreenChanged(bool value) => SaveSwitch(s => s with { ScreenByDefault = value });
 
@@ -602,6 +609,11 @@ public sealed partial class LibraryViewModel : ObservableObject, IDisposable, IF
 
     private void OnProcessingChanged(SessionProcessingStatus status) => _post(() =>
     {
+        if (_disposed)
+        {
+            return;
+        }
+
         if (_rows.TryGetValue(status.Session, out var row))
         {
             row.ApplyProcessing(status);
@@ -941,8 +953,13 @@ public sealed partial class LibraryViewModel : ObservableObject, IDisposable, IF
 
     private void OnRecorderStateChanged(RecorderState state) => _post(() =>
     {
+        if (_disposed)
+        {
+            return;
+        }
+
         UpdateRecent();
-        if (state == RecorderState.Idle && !_disposed)
+        if (state == RecorderState.Idle)
         {
             ApplyDetails(Sessions);
         }

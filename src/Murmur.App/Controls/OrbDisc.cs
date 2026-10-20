@@ -18,7 +18,7 @@ public sealed class OrbDisc : Control
         AvaloniaProperty.Register<OrbDisc, bool>(nameof(Glow));
 
     /// <summary>Painted bottom to top (CSS lists the top layer first): the order of the layers in tokens.json, reversed.</summary>
-    private static readonly string[] LayersTopFirst = ["Cream", "Violet", "Ember", "Pink"];
+    internal static readonly string[] LayersTopFirst = ["Cream", "Violet", "Ember", "Pink"];
 
     private const double GlowBlur = 60;
     private const byte GlowAlpha = 64;

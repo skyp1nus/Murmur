@@ -21,13 +21,13 @@ public sealed partial class SqliteStorage
         Run(() => GetTranscript(id), cancellationToken);
 
     /// <summary>
-    /// Language and first segment text of the transcripts of the given sessions in one query per 500 ids (the words are never read).
+    /// Language and first segment text of the transcripts of the given sessions in one query per 500 distinct ids (the words are never read; cancellation is checked between batches).
     /// Sessions without a transcript are absent from the result.
     /// </summary>
     public ValueTask<IReadOnlyList<TranscriptSummary>> GetTranscriptSummariesAsync(IReadOnlyList<SessionId> sessions, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(sessions);
-        return Run<IReadOnlyList<TranscriptSummary>>(() => GetTranscriptSummaries(sessions), cancellationToken);
+        return Run<IReadOnlyList<TranscriptSummary>>(() => GetTranscriptSummaries(sessions, cancellationToken), cancellationToken);
     }
 
     /// <summary>Phase 3 building block: runs an FTS5 MATCH query over segment text, best rank first.</summary>
@@ -155,9 +155,10 @@ public sealed partial class SqliteStorage
         return new Transcript(id, segments, engine, language);
     }
 
-    private List<TranscriptSummary> GetTranscriptSummaries(IReadOnlyList<SessionId> sessions)
+    private List<TranscriptSummary> GetTranscriptSummaries(IReadOnlyList<SessionId> requested, CancellationToken cancellationToken)
     {
         const int BatchSize = 500;
+        var sessions = requested.Distinct().ToList();
         var result = new List<TranscriptSummary>(sessions.Count);
         if (sessions.Count == 0)
         {
@@ -167,6 +168,7 @@ public sealed partial class SqliteStorage
         using var connection = OpenConnection();
         for (var offset = 0; offset < sessions.Count; offset += BatchSize)
         {
+            cancellationToken.ThrowIfCancellationRequested();
             var count = Math.Min(BatchSize, sessions.Count - offset);
             using var command = connection.CreateCommand();
             var names = new string[count];

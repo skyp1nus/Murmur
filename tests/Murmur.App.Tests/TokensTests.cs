@@ -75,16 +75,20 @@ public sealed partial class TokensTests
     }
 
     [Fact]
-    public void ShellStyles_DoNotDefineKeysThatLookLikeTokens()
+    public void StylesAndViews_DoNotDefineKeysThatLookLikeTokens()
     {
-        // D-044: the values of the canvas live in tokens.json; the shell's style file only names the sizes of its own components (Size.*, Margin.*).
-        var generated = new[] { "FontSize.", "LineHeight.", "LetterSpacing.", "Radius.", "Space.", "Inset.", "Orb.", "Font.", "FontWeight.", "Shadow.", "Hairline.Width", "Hairline.Thickness" };
+        // D-044: the values of the canvas live in tokens.json and are generated; a style or view file only names the sizes of its own
+        // components (Size.*, Margin.*, ...). The few older insets below predate the decision and move to tokens with their screens.
+        var generated = new[] { "FontSize.", "LineHeight.", "LetterSpacing.", "Radius.", "Space.", "Inset.", "Orb.", "Font.", "FontWeight.", "Shadow.", "Hairline." };
         var offenders = new List<string>();
-        foreach (var path in new[] { Path.Combine(RepoPaths.AppDirectory, "Styles", "Shell.axaml") })
+        var files = Directory.EnumerateFiles(Path.Combine(RepoPaths.AppDirectory, "Styles"), "*.axaml")
+            .Concat(Directory.EnumerateFiles(Path.Combine(RepoPaths.AppDirectory, "Views"), "*.axaml"))
+            .Where(f => !f.EndsWith("Tokens.axaml", StringComparison.Ordinal));
+        foreach (var path in files)
         {
             foreach (var key in XDocument.Load(path).Descendants().Select(e => (string?)e.Attribute(Xaml + "Key")).Where(k => k is not null))
             {
-                if (generated.Any(prefix => key!.StartsWith(prefix, StringComparison.Ordinal)) && !AllowedHandWritten.Contains(key!))
+                if (generated.Any(prefix => key!.StartsWith(prefix, StringComparison.Ordinal)) && !AllowedHandWritten.Contains(Path.GetFileName(path) + ": " + key))
                 {
                     offenders.Add(Path.GetFileName(path) + ": " + key);
                 }
@@ -94,7 +98,73 @@ public sealed partial class TokensTests
         Assert.Empty(offenders);
     }
 
-    private static readonly HashSet<string> AllowedHandWritten = [];
+    /// <summary>File: key of hand-written resources that look like tokens (D-044: they move into tokens.json with the screen that owns them).</summary>
+    private static readonly HashSet<string> AllowedHandWritten =
+    [
+        "Controls.axaml: Inset.Badge",
+        "Controls.axaml: Hairline.Top",
+        "Controls.axaml: Hairline.End",
+        "Onboarding.axaml: Inset.Onboarding",
+        "Onboarding.axaml: Inset.TextButton",
+        "Onboarding.axaml: Inset.Choice",
+        "Onboarding.axaml: Inset.Banner",
+        "Onboarding.axaml: Inset.CardLabel",
+        "Onboarding.axaml: Inset.Hotkey",
+        "Onboarding.axaml: Inset.HotkeyText",
+        "Onboarding.axaml: Inset.Row",
+        "Onboarding.axaml: Inset.Descender",
+        "Onboarding.axaml: Inset.Cap",
+    ];
+
+    [Fact]
+    public void OrbResources_AreOnlyReadByTheOrbAndIconFiles()
+    {
+        // Orb.Violet / Orb.Ember are accent colours under another name: like the accents they belong to the orb and the icons only.
+        var offenders = new List<string>();
+        var references = new Regex(@"(?:(?:Static|Dynamic)Resource\s+Orb\.|x:Key=""Orb\.|""Orb\.[A-Z])");
+        var files = Directory.EnumerateFiles(RepoPaths.AppDirectory, "*.*", SearchOption.AllDirectories)
+            .Where(f => f.EndsWith(".axaml", StringComparison.Ordinal) || f.EndsWith(".cs", StringComparison.Ordinal))
+            .Where(f => !Path.GetRelativePath(RepoPaths.AppDirectory, f).Replace('\\', '/').StartsWith("obj/", StringComparison.Ordinal)
+                && !Path.GetRelativePath(RepoPaths.AppDirectory, f).Replace('\\', '/').StartsWith("bin/", StringComparison.Ordinal))
+            .Where(f => !IsAccentAllowed(f) && !Path.GetFileName(f).StartsWith("Orb", StringComparison.Ordinal));
+        foreach (var path in files)
+        {
+            if (references.IsMatch(File.ReadAllText(path)))
+            {
+                offenders.Add(Path.GetRelativePath(RepoPaths.AppDirectory, path));
+            }
+        }
+
+        Assert.Empty(offenders);
+    }
+
+    [Fact]
+    public void OrbDisc_PaintsExactlyTheLayersOfTheTokens_InTheirOrder()
+    {
+        using var document = JsonDocument.Parse(File.ReadAllText(RepoPaths.TokensJson));
+        var names = document.RootElement.GetProperty("orbGradient").GetProperty("layers").EnumerateArray()
+            .Select(l => TokenGenerator.Pascal(l.GetProperty("name").GetString()!))
+            .ToArray();
+
+        Assert.Equal(names, Murmur.App.Controls.OrbDisc.LayersTopFirst);
+    }
+
+    [Fact]
+    public void TheGenerator_RefusesAnOrbColourThatDiffersBetweenTheThemes()
+    {
+        var json = File.ReadAllText(RepoPaths.TokensJson);
+        var broken = json.Replace("\"accentViolet\": \"#0447ff\"\n  }", "\"accentViolet\": \"#0447fe\"\n  }", StringComparison.Ordinal);
+        if (broken == json)
+        {
+            // The dark section has the accents last; tolerate a reordered file by changing the dark value wherever it is.
+            var at = json.IndexOf("\"colorDark\"", StringComparison.Ordinal);
+            broken = json[..at] + json[at..].Replace("\"accentViolet\": \"#0447ff\"", "\"accentViolet\": \"#0447fe\"", StringComparison.Ordinal);
+        }
+
+        Assert.NotEqual(json, broken);
+        var error = Assert.Throws<InvalidOperationException>(() => TokenGenerator.Generate(broken));
+        Assert.Contains("accentViolet", error.Message, StringComparison.Ordinal);
+    }
 
     private static readonly XNamespace Xaml = "http://schemas.microsoft.com/winfx/2006/xaml";
 
