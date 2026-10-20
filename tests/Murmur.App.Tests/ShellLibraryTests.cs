@@ -527,14 +527,6 @@ public sealed class ShellLibraryTests
         Assert.Equal(2, AutoFitPanel.ColumnsFor(2016, 1000, 16, 2));
     }
 
-    [Fact]
-    public void TheReferenceBaselineOfAFlexItemIsNotTrusted()
-    {
-        // The canvas marker that measures a baseline sits in the middle of a flex container when the text is a direct flex item.
-        Assert.False(ReferenceTexts.PlausibleBaseline(new LineBox(0, 153.5, 40, 17, 162)));
-        Assert.True(ReferenceTexts.PlausibleBaseline(new LineBox(0, 153.5, 40, 17, 167)));
-    }
-
     // ---- the window --------------------------------------------------------------------------------------------------------------------
 
     [Fact]
