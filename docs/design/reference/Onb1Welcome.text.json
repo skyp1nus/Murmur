@@ -1,0 +1,109 @@
+{
+ "board": "Onb1Welcome",
+ "width": 1280,
+ "height": 800,
+ "texts": [
+  {
+   "text": "Murmur",
+   "lines": [
+    {
+     "x": 74,
+     "y": 42.5,
+     "w": 56.88,
+     "h": 19
+    }
+   ],
+   "fontFamily": "Inter, ui-sans-serif, system-ui, \"Segoe UI\", sans-serif",
+   "fontSize": 15,
+   "fontWeight": 600,
+   "letterSpacing": "-0.15px",
+   "lineHeight": "normal",
+   "color": "rgb(0, 0, 0)"
+  },
+  {
+   "text": "1 / 5",
+   "lines": [
+    {
+     "x": 521.14,
+     "y": 43.5,
+     "w": 39.7,
+     "h": 17
+    }
+   ],
+   "fontFamily": "\"Geist Mono\", ui-monospace, monospace",
+   "fontSize": 13,
+   "fontWeight": 400,
+   "letterSpacing": "0.14px",
+   "lineHeight": "normal",
+   "color": "rgb(119, 113, 105)"
+  },
+  {
+   "text": "Record and transcribe your meetings.",
+   "lines": [
+    {
+     "x": 238.61,
+     "y": 517.08,
+     "w": 802.77,
+     "h": 59
+    }
+   ],
+   "fontFamily": "Inter, ui-sans-serif, system-ui, \"Segoe UI\", sans-serif",
+   "fontSize": 48,
+   "fontWeight": 300,
+   "letterSpacing": "-0.96px",
+   "lineHeight": "51.84px",
+   "color": "rgb(0, 0, 0)"
+  },
+  {
+   "text": "Everything stays on your computer.",
+   "lines": [
+    {
+     "x": 503.72,
+     "y": 588.91,
+     "w": 272.53,
+     "h": 20
+    }
+   ],
+   "fontFamily": "Inter, ui-sans-serif, system-ui, \"Segoe UI\", sans-serif",
+   "fontSize": 16,
+   "fontWeight": 400,
+   "letterSpacing": "0.14px",
+   "lineHeight": "24px",
+   "color": "rgb(119, 113, 105)"
+  },
+  {
+   "text": "Skip",
+   "lines": [
+    {
+     "x": 64,
+     "y": 727.5,
+     "w": 29.63,
+     "h": 17
+    }
+   ],
+   "fontFamily": "Inter, ui-sans-serif, system-ui, \"Segoe UI\", sans-serif",
+   "fontSize": 14,
+   "fontWeight": 500,
+   "letterSpacing": "0.14px",
+   "lineHeight": "normal",
+   "color": "rgb(119, 113, 105)"
+  },
+  {
+   "text": "Get started",
+   "lines": [
+    {
+     "x": 1131.78,
+     "y": 727.5,
+     "w": 76.22,
+     "h": 17
+    }
+   ],
+   "fontFamily": "Inter, ui-sans-serif, system-ui, \"Segoe UI\", sans-serif",
+   "fontSize": 14,
+   "fontWeight": 500,
+   "letterSpacing": "0.14px",
+   "lineHeight": "normal",
+   "color": "rgb(255, 255, 255)"
+  }
+ ]
+}

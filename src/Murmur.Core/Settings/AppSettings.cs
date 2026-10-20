@@ -58,6 +58,9 @@ public sealed record AppSettings
 
     /// <summary>The active chat model id from the model catalog; <c>null</c> = none chosen (AI skipped).</summary>
     public string? ChatModelId { get; init; }
+
+    /// <summary>Which <c>llama-server</c> build runs the chat model; the CPU build is the default and the fallback.</summary>
+    public AiAcceleration Acceleration { get; init; } = AiAcceleration.Cpu;
 }
 
 /// <summary>Loads and saves <see cref="AppSettings"/>. Thread-safe; <see cref="Changed"/> may be raised off the UI thread.</summary>

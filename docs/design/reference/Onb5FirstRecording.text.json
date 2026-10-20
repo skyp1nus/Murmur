@@ -1,0 +1,194 @@
+{
+ "board": "Onb5FirstRecording",
+ "width": 1280,
+ "height": 800,
+ "texts": [
+  {
+   "text": "Murmur",
+   "lines": [
+    {
+     "x": 74,
+     "y": 42.5,
+     "w": 56.88,
+     "h": 19
+    }
+   ],
+   "fontFamily": "Inter, ui-sans-serif, system-ui, \"Segoe UI\", sans-serif",
+   "fontSize": 15,
+   "fontWeight": 600,
+   "letterSpacing": "-0.15px",
+   "lineHeight": "normal",
+   "color": "rgb(0, 0, 0)"
+  },
+  {
+   "text": "5 / 5",
+   "lines": [
+    {
+     "x": 521.14,
+     "y": 43.5,
+     "w": 39.7,
+     "h": 17
+    }
+   ],
+   "fontFamily": "\"Geist Mono\", ui-monospace, monospace",
+   "fontSize": 13,
+   "fontWeight": 400,
+   "letterSpacing": "0.14px",
+   "lineHeight": "normal",
+   "color": "rgb(119, 113, 105)"
+  },
+  {
+   "text": "Try it: say something.",
+   "lines": [
+    {
+     "x": 431.25,
+     "y": 135.8,
+     "w": 417.48,
+     "h": 54
+    }
+   ],
+   "fontFamily": "Inter, ui-sans-serif, system-ui, \"Segoe UI\", sans-serif",
+   "fontSize": 44,
+   "fontWeight": 300,
+   "letterSpacing": "-0.88px",
+   "lineHeight": "48.4px",
+   "color": "rgb(0, 0, 0)"
+  },
+  {
+   "text": "Speak for a few seconds — we’ll transcribe it right here, offline.",
+   "lines": [
+    {
+     "x": 395.92,
+     "y": 201.19,
+     "w": 488.14,
+     "h": 20
+    }
+   ],
+   "fontFamily": "Inter, ui-sans-serif, system-ui, \"Segoe UI\", sans-serif",
+   "fontSize": 16,
+   "fontWeight": 400,
+   "letterSpacing": "0.14px",
+   "lineHeight": "24px",
+   "color": "rgb(119, 113, 105)"
+  },
+  {
+   "text": "Listening",
+   "lines": [
+    {
+     "x": 586.73,
+     "y": 449.19,
+     "w": 56.81,
+     "h": 16
+    }
+   ],
+   "fontFamily": "Inter, ui-sans-serif, system-ui, \"Segoe UI\", sans-serif",
+   "fontSize": 13,
+   "fontWeight": 400,
+   "letterSpacing": "0.14px",
+   "lineHeight": "normal",
+   "color": "rgb(68, 64, 59)"
+  },
+  {
+   "text": "00:10",
+   "lines": [
+    {
+     "x": 653.55,
+     "y": 448.69,
+     "w": 39.7,
+     "h": 17
+    }
+   ],
+   "fontFamily": "\"Geist Mono\", ui-monospace, monospace",
+   "fontSize": 13,
+   "fontWeight": 400,
+   "letterSpacing": "0.14px",
+   "lineHeight": "normal",
+   "color": "rgb(0, 0, 0)"
+  },
+  {
+   "text": "Your words will appear here.",
+   "lines": [
+    {
+     "x": 543.8,
+     "y": 542.69,
+     "w": 192.39,
+     "h": 17
+    }
+   ],
+   "fontFamily": "Inter, ui-sans-serif, system-ui, \"Segoe UI\", sans-serif",
+   "fontSize": 14,
+   "fontWeight": 400,
+   "letterSpacing": "0.14px",
+   "lineHeight": "normal",
+   "color": "rgb(119, 113, 105)"
+  },
+  {
+   "text": "Always tell people when you’re recording a meeting.",
+   "lines": [
+    {
+     "x": 487.47,
+     "y": 629.19,
+     "w": 328.05,
+     "h": 16
+    }
+   ],
+   "fontFamily": "Inter, ui-sans-serif, system-ui, \"Segoe UI\", sans-serif",
+   "fontSize": 13,
+   "fontWeight": 400,
+   "letterSpacing": "0.14px",
+   "lineHeight": "normal",
+   "color": "rgb(119, 113, 105)"
+  },
+  {
+   "text": "Back",
+   "lines": [
+    {
+     "x": 86,
+     "y": 727.5,
+     "w": 33.63,
+     "h": 17
+    }
+   ],
+   "fontFamily": "Inter, ui-sans-serif, system-ui, \"Segoe UI\", sans-serif",
+   "fontSize": 14,
+   "fontWeight": 500,
+   "letterSpacing": "0.14px",
+   "lineHeight": "normal",
+   "color": "rgb(0, 0, 0)"
+  },
+  {
+   "text": "Skip",
+   "lines": [
+    {
+     "x": 155.63,
+     "y": 727.5,
+     "w": 29.63,
+     "h": 17
+    }
+   ],
+   "fontFamily": "Inter, ui-sans-serif, system-ui, \"Segoe UI\", sans-serif",
+   "fontSize": 14,
+   "fontWeight": 500,
+   "letterSpacing": "0.14px",
+   "lineHeight": "normal",
+   "color": "rgb(119, 113, 105)"
+  },
+  {
+   "text": "Open Murmur",
+   "lines": [
+    {
+     "x": 1113.63,
+     "y": 727.5,
+     "w": 94.38,
+     "h": 17
+    }
+   ],
+   "fontFamily": "Inter, ui-sans-serif, system-ui, \"Segoe UI\", sans-serif",
+   "fontSize": 14,
+   "fontWeight": 500,
+   "letterSpacing": "0.14px",
+   "lineHeight": "normal",
+   "color": "rgb(255, 255, 255)"
+  }
+ ]
+}

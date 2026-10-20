@@ -13,19 +13,40 @@ internal static class ArchiveExtractor
     /// <exception cref="ModelInstallException">The archive is unreadable, unsafe or does not contain the executable.</exception>
     public static async Task<string> ExtractAsync(string archivePath, ModelPackaging packaging, string executableName, string extractDirectory, CancellationToken cancellationToken)
     {
-        Directory.CreateDirectory(extractDirectory);
+        await ExtractIntoAsync(archivePath, packaging, extractDirectory, cancellationToken).ConfigureAwait(false);
+
+        var server = Directory.EnumerateFiles(extractDirectory, executableName, SearchOption.AllDirectories)
+            .OrderBy(path => path.Count(c => c is '/' or '\\'))
+            .ThenBy(path => path, StringComparer.Ordinal)
+            .FirstOrDefault();
+        if (server is null)
+        {
+            throw new ModelInstallException($"{Path.GetFileName(archivePath)} does not contain {executableName}");
+        }
+
+        return Path.GetDirectoryName(server)!;
+    }
+
+    /// <summary>
+    /// Extracts an archive into <paramref name="directory"/> as is, overwriting existing files. Used for the companion
+    /// archives of a runtime (the CUDA runtime DLLs next to <c>llama-server.exe</c>).
+    /// </summary>
+    /// <exception cref="ModelInstallException">The archive is unreadable or unsafe.</exception>
+    public static async Task ExtractIntoAsync(string archivePath, ModelPackaging packaging, string directory, CancellationToken cancellationToken)
+    {
+        Directory.CreateDirectory(directory);
         try
         {
             switch (packaging)
             {
                 case ModelPackaging.Zip:
-                    await ZipFile.ExtractToDirectoryAsync(archivePath, extractDirectory, overwriteFiles: true, cancellationToken).ConfigureAwait(false);
+                    await ZipFile.ExtractToDirectoryAsync(archivePath, directory, overwriteFiles: true, cancellationToken).ConfigureAwait(false);
                     break;
                 case ModelPackaging.TarGz:
                     await using (var file = new FileStream(archivePath, FileMode.Open, FileAccess.Read, FileShare.Read, 1, FileOptions.Asynchronous | FileOptions.SequentialScan))
                     await using (var gzip = new GZipStream(file, CompressionMode.Decompress))
                     {
-                        await TarFile.ExtractToDirectoryAsync(gzip, extractDirectory, overwriteFiles: true, cancellationToken).ConfigureAwait(false);
+                        await TarFile.ExtractToDirectoryAsync(gzip, directory, overwriteFiles: true, cancellationToken).ConfigureAwait(false);
                     }
 
                     break;
@@ -38,17 +59,6 @@ internal static class ArchiveExtractor
             // Includes entries that would escape the target folder (zip slip): both extractors refuse them.
             throw new ModelInstallException($"Extracting {Path.GetFileName(archivePath)} failed: {ex.Message}", ex);
         }
-
-        var server = Directory.EnumerateFiles(extractDirectory, executableName, SearchOption.AllDirectories)
-            .OrderBy(path => path.Count(c => c is '/' or '\\'))
-            .ThenBy(path => path, StringComparer.Ordinal)
-            .FirstOrDefault();
-        if (server is null)
-        {
-            throw new ModelInstallException($"{Path.GetFileName(archivePath)} does not contain {executableName}");
-        }
-
-        return Path.GetDirectoryName(server)!;
     }
 
     /// <summary>Marks the file executable for its owner, group and others (no-op on Windows).</summary>

@@ -30,9 +30,19 @@ public static class UiCulture
     /// <summary>The culture for formatting numbers and dates in the UI language.</summary>
     public static CultureInfo Culture => (Scoped.Value ?? s_process).Culture;
 
-    /// <summary>The language for a settings value: <c>uk</c> = Ukrainian, anything else (unknown, empty, <c>null</c>) = English.</summary>
-    public static string Normalize(string? language) =>
-        string.Equals(language?.Trim(), Ukrainian, StringComparison.OrdinalIgnoreCase) ? Ukrainian : English;
+    /// <summary>
+    /// The language for a settings value: <c>uk</c> and any <c>uk-*</c> region variant (case-insensitive, surrounding spaces
+    /// ignored) = Ukrainian; anything else (<c>en</c>, <c>en-US</c>, unknown, empty, <c>null</c>) = English.
+    /// </summary>
+    public static string Normalize(string? language)
+    {
+        var value = language?.Trim();
+        return value is not null
+            && (string.Equals(value, Ukrainian, StringComparison.OrdinalIgnoreCase)
+                || value.StartsWith(Ukrainian + "-", StringComparison.OrdinalIgnoreCase))
+            ? Ukrainian
+            : English;
+    }
 
     /// <summary>The culture for a settings value (see <see cref="Normalize"/>).</summary>
     public static CultureInfo Resolve(string? language)
