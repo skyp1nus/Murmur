@@ -1,0 +1,171 @@
+namespace Murmur.App.Tests.Design;
+
+/// <summary>The screen (and the state of it) an artboard shows.</summary>
+internal enum BoardScreen
+{
+    /// <summary>1 · Library, with the demo recordings.</summary>
+    Library,
+
+    /// <summary>2 · An active recording at 00:24:13.</summary>
+    Recording,
+
+    /// <summary>3 · "Client demo — Q4 roadmap" at 12:21.</summary>
+    Session,
+
+    /// <summary>4 · Ask AI with the two exchanges.</summary>
+    Chat,
+
+    /// <summary>5 · Settings, top of the page, full height.</summary>
+    Settings,
+
+    Onboarding1Welcome,
+
+    /// <summary>The microphone is refused (the "allow" card), the system meter shows sound.</summary>
+    Onboarding2Audio,
+
+    /// <summary>Parakeet downloading, 0.31 of 0.67 GB.</summary>
+    Onboarding3Models,
+
+    /// <summary>Everything downloaded.</summary>
+    Onboarding3ModelsReady,
+
+    Onboarding4Preferences,
+
+    /// <summary>Listening, 00:10, nothing transcribed yet.</summary>
+    Onboarding5FirstRecording,
+}
+
+/// <summary>
+/// One artboard: how to put the app into its state (screen, theme, size) and what the comparison leaves out. The size is the
+/// size of <c>docs/design/reference/&lt;Name&gt;.png</c> (a test checks that).
+/// </summary>
+/// <param name="Name">The file name of the artboard and of its reference render, without the extension.</param>
+/// <param name="Ignored">
+/// Rectangles of the reference that are not compared, only for content the app cannot reproduce: the video frame
+/// placeholder, waveform bars the canvas draws from a formula, and the [VERSION] / [LICENSE] / [X.X] GB placeholders.
+/// </param>
+/// <param name="MaxMismatchPercent">The mismatch (whole board) above which the test fails; <c>null</c> = report only. Screen tasks set it.</param>
+internal sealed record DesignBoard(
+    string Name,
+    BoardScreen Screen,
+    bool Dark,
+    int Width,
+    int Height,
+    IReadOnlyList<IgnoreRect> Ignored,
+    double? MaxMismatchPercent = null)
+{
+    /// <summary>The main screens have the 240 px sidebar of the canvas; the onboarding fills the window.</summary>
+    public bool HasSidebar => Screen is BoardScreen.Library or BoardScreen.Recording or BoardScreen.Session or BoardScreen.Chat or BoardScreen.Settings;
+
+    public bool IsOnboarding => !HasSidebar;
+
+    public string ReferencePath => Path.Combine(RepoPaths.Root, "docs", "design", "reference", Name + ".png");
+
+    public override string ToString() => Name;
+}
+
+/// <summary>The table of the 22 screen artboards. <c>OnbComponents</c> and <c>OnbComponentsDark</c> are component sheets and are not rendered.</summary>
+internal static class DesignBoards
+{
+    private const string WaveformReason = "waveform bars the canvas draws from a formula";
+
+    public static IReadOnlyList<string> Excluded { get; } = ["OnbComponents", "OnbComponentsDark"];
+
+    public static IReadOnlyList<DesignBoard> All { get; } = Build();
+
+    public static DesignBoard Get(string name) => All.Single(b => b.Name == name);
+
+    /// <summary>Theory data: the board names.</summary>
+    public static TheoryData<string> Names()
+    {
+        var data = new TheoryData<string>();
+        foreach (var board in All)
+        {
+            data.Add(board.Name);
+        }
+
+        return data;
+    }
+
+    private static IReadOnlyList<DesignBoard> Build()
+    {
+        var boards = new List<DesignBoard>();
+        foreach (var dark in new[] { false, true })
+        {
+            var suffix = dark ? "Dark" : string.Empty;
+            var settingsHeight = dark ? 1821 : 1819;
+            var shift = dark ? 2 : 0;
+
+            boards.Add(new("Main" + suffix, BoardScreen.Library, dark, 1440, 1406, []));
+            boards.Add(new(
+                "Recording" + suffix,
+                BoardScreen.Recording,
+                dark,
+                1440,
+                1000,
+                [
+                    new IgnoreRect(1100, 173, 276, 36, "Recording: microphone " + WaveformReason),
+                    new IgnoreRect(1100, 301, 276, 36, "Recording: system audio " + WaveformReason),
+                ]));
+            boards.Add(new(
+                "Session" + suffix,
+                BoardScreen.Session,
+                dark,
+                1440,
+                1100,
+                [
+                    new IgnoreRect(273, 165, 535, 301, "Session: screen-recording frame placeholder (the app shows the video, not a placeholder)"),
+                    new IgnoreRect(292, 497, 498, 66, "Session: " + WaveformReason),
+                ]));
+            boards.Add(new("Chat" + suffix, BoardScreen.Chat, dark, 1440, 1080, []));
+            boards.Add(new(
+                "Settings" + suffix,
+                BoardScreen.Settings,
+                dark,
+                1440,
+                settingsHeight,
+                [
+                    new IgnoreRect(822, 1611 + shift, 70, 17, "Settings: [VERSION] placeholder"),
+                    new IgnoreRect(853, 1638 + shift, 70, 18, "Settings: [LICENSE] placeholder"),
+                ]));
+            boards.Add(new("Onb1Welcome" + suffix, BoardScreen.Onboarding1Welcome, dark, 1280, 800, []));
+            boards.Add(new(
+                "Onb2Audio" + suffix,
+                BoardScreen.Onboarding2Audio,
+                dark,
+                1280,
+                800,
+                [new IgnoreRect(671, 456, 366, 26, "Onboarding 2: system audio " + WaveformReason)]));
+            boards.Add(new(
+                "Onb3Models" + suffix,
+                BoardScreen.Onboarding3Models,
+                dark,
+                1280,
+                800,
+                [
+                    new IgnoreRect(547, 497, 65, 16, "Onboarding 3: [X.X] GB placeholder"),
+                    new IgnoreRect(942, 497, 57, 16, "Onboarding 3: [XX] GB placeholder"),
+                ]));
+            boards.Add(new(
+                "Onb3ModelsReady" + suffix,
+                BoardScreen.Onboarding3ModelsReady,
+                dark,
+                1280,
+                800,
+                [
+                    new IgnoreRect(547, 462, 65, 16, "Onboarding 3 ready: [X.X] GB placeholder"),
+                    new IgnoreRect(942, 462, 57, 16, "Onboarding 3 ready: [XX] GB placeholder"),
+                ]));
+            boards.Add(new(
+                "Onb4Preferences" + suffix,
+                BoardScreen.Onboarding4Preferences,
+                dark,
+                1280,
+                800,
+                [new IgnoreRect(792, 404, 92, 18, "Onboarding 4: [N] GB free placeholder")]));
+            boards.Add(new("Onb5FirstRecording" + suffix, BoardScreen.Onboarding5FirstRecording, dark, 1280, 800, []));
+        }
+
+        return boards;
+    }
+}
