@@ -6,6 +6,7 @@
     no literal colours: the chip fill is a palette brush that differs between the themes, the orb numbers are the canvas's.
   -->
 
+  <!-- TODO(D-044): the orb's halo radius and glow strength are canvas values (fitted, per theme); they move to the generated tokens once D-044 has landed. -->
   <Styles.Resources>
     <ResourceDictionary>
       <ResourceDictionary.MergedDictionaries>
