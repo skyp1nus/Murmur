@@ -391,7 +391,7 @@
      "h": 16
     }
    ],
-   "baseline": 371.11,
+   "baseline": 327.11,
    "blockId": 18,
    "blockText": "System audio",
    "fontFamily": "Inter, ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
@@ -508,44 +508,6 @@
    "color": "rgb(165, 159, 151)"
   },
   {
-   "text": "Question for your library",
-   "lines": [
-    {
-     "x": 901.31,
-     "y": 319.11,
-     "w": 60.3,
-     "h": 17
-    },
-    {
-     "x": 901.31,
-     "y": 336.11,
-     "w": 18.86,
-     "h": 17
-    },
-    {
-     "x": 901.31,
-     "y": 353.11,
-     "w": 30.11,
-     "h": 17
-    },
-    {
-     "x": 901.31,
-     "y": 370.11,
-     "w": 42.83,
-     "h": 17
-    }
-   ],
-   "baseline": 333.11,
-   "blockId": 24,
-   "blockText": "Question for your library",
-   "fontFamily": "Inter, ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
-   "fontSize": 14,
-   "fontWeight": 400,
-   "letterSpacing": "0.14px",
-   "lineHeight": "normal",
-   "color": "rgb(245, 243, 241)"
-  },
-  {
    "text": "My action items this week",
    "lines": [
     {
@@ -556,7 +518,7 @@
     }
    ],
    "baseline": 393.11,
-   "blockId": 25,
+   "blockId": 24,
    "blockText": "My action items this week",
    "fontFamily": "Inter, ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
    "fontSize": 13,
@@ -576,7 +538,7 @@
     }
    ],
    "baseline": 393.11,
-   "blockId": 26,
+   "blockId": 25,
    "blockText": "Who mentioned the budget?",
    "fontFamily": "Inter, ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
    "fontSize": 13,
@@ -596,7 +558,7 @@
     }
    ],
    "baseline": 433.11,
-   "blockId": 27,
+   "blockId": 26,
    "blockText": "Summarize yesterday",
    "fontFamily": "Inter, ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
    "fontSize": 13,
@@ -616,7 +578,7 @@
     }
    ],
    "baseline": 560.61,
-   "blockId": 28,
+   "blockId": 27,
    "blockText": "Recordings",
    "fontFamily": "Inter, ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
    "fontSize": 24,
@@ -624,32 +586,6 @@
    "letterSpacing": "-0.48px",
    "lineHeight": "normal",
    "color": "rgb(245, 243, 241)"
-  },
-  {
-   "text": "Search recordings",
-   "lines": [
-    {
-     "x": 1005.31,
-     "y": 551.61,
-     "w": 47.31,
-     "h": 17
-    },
-    {
-     "x": 1005.31,
-     "y": 568.61,
-     "w": 72.25,
-     "h": 17
-    }
-   ],
-   "baseline": 565.61,
-   "blockId": 29,
-   "blockText": "Search recordings",
-   "fontFamily": "Inter, ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
-   "fontSize": 14,
-   "fontWeight": 400,
-   "letterSpacing": "0.14px",
-   "lineHeight": "normal",
-   "color": "rgb(165, 159, 151)"
   },
   {
    "text": "All",
@@ -662,7 +598,7 @@
     }
    ],
    "baseline": 614.11,
-   "blockId": 30,
+   "blockId": 28,
    "blockText": "All",
    "fontFamily": "Inter, ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
    "fontSize": 13,
@@ -682,7 +618,7 @@
     }
    ],
    "baseline": 614.11,
-   "blockId": 31,
+   "blockId": 29,
    "blockText": "Today",
    "fontFamily": "Inter, ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
    "fontSize": 13,
@@ -702,7 +638,7 @@
     }
    ],
    "baseline": 614.11,
-   "blockId": 32,
+   "blockId": 30,
    "blockText": "This week",
    "fontFamily": "Inter, ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
    "fontSize": 13,
@@ -722,7 +658,7 @@
     }
    ],
    "baseline": 614.11,
-   "blockId": 33,
+   "blockId": 31,
    "blockText": "This month",
    "fontFamily": "Inter, ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
    "fontSize": 13,
@@ -742,7 +678,7 @@
     }
    ],
    "baseline": 614.11,
-   "blockId": 34,
+   "blockId": 32,
    "blockText": "Pick dates",
    "fontFamily": "Inter, ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
    "fontSize": 13,
@@ -762,7 +698,7 @@
     }
    ],
    "baseline": 659.11,
-   "blockId": 35,
+   "blockId": 33,
    "blockText": "Today",
    "fontFamily": "Inter, ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
    "fontSize": 13,
@@ -782,7 +718,7 @@
     }
    ],
    "baseline": 704.11,
-   "blockId": 36,
+   "blockId": 34,
    "blockText": "Client demo — Q4 roadmap",
    "fontFamily": "Inter, ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
    "fontSize": 15,
@@ -802,7 +738,7 @@
     }
    ],
    "baseline": 724.11,
-   "blockId": 37,
+   "blockId": 35,
    "blockText": "10:30 · English · Mic, system audio, screen",
    "fontFamily": "Inter, ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
    "fontSize": 13,
@@ -822,7 +758,7 @@
     }
    ],
    "baseline": 743.11,
-   "blockId": 38,
+   "blockId": 36,
    "blockText": "…PDF export moves to next sprint: first we finish meeting summaries and action items.",
    "fontFamily": "Inter, ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
    "fontSize": 13,
@@ -842,7 +778,7 @@
     }
    ],
    "baseline": 722.11,
-   "blockId": 39,
+   "blockId": 37,
    "blockText": "47:12",
    "fontFamily": "\"Geist Mono\", ui-monospace, monospace",
    "fontSize": 13,
@@ -862,7 +798,7 @@
     }
    ],
    "baseline": 794.11,
-   "blockId": 40,
+   "blockId": 38,
    "blockText": "Voice note",
    "fontFamily": "Inter, ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
    "fontSize": 15,
@@ -882,7 +818,7 @@
     }
    ],
    "baseline": 814.11,
-   "blockId": 41,
+   "blockId": 39,
    "blockText": "09:05 · English · Mic",
    "fontFamily": "Inter, ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
    "fontSize": 13,
@@ -902,7 +838,7 @@
     }
    ],
    "baseline": 833.11,
-   "blockId": 42,
+   "blockId": 40,
    "blockText": "Idea: draw the waveform from cached peaks instead of computing it on every open.",
    "fontFamily": "Inter, ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
    "fontSize": 13,
@@ -922,7 +858,7 @@
     }
    ],
    "baseline": 812.11,
-   "blockId": 43,
+   "blockId": 41,
    "blockText": "03:18",
    "fontFamily": "\"Geist Mono\", ui-monospace, monospace",
    "fontSize": 13,
@@ -942,7 +878,7 @@
     }
    ],
    "baseline": 884.11,
-   "blockId": 44,
+   "blockId": 42,
    "blockText": "Weekly team sync",
    "fontFamily": "Inter, ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
    "fontSize": 15,
@@ -962,7 +898,7 @@
     }
    ],
    "baseline": 904.11,
-   "blockId": 45,
+   "blockId": 43,
    "blockText": "08:00 · English · Mic, system audio",
    "fontFamily": "Inter, ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
    "fontSize": 13,
@@ -982,7 +918,7 @@
     }
    ],
    "baseline": 926.11,
-   "blockId": 46,
+   "blockId": 44,
    "blockText": "Transcribing · 64%",
    "fontFamily": "Inter, ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
    "fontSize": 12,
@@ -1002,7 +938,7 @@
     }
    ],
    "baseline": 903.61,
-   "blockId": 47,
+   "blockId": 45,
    "blockText": "58:40",
    "fontFamily": "\"Geist Mono\", ui-monospace, monospace",
    "fontSize": 13,
@@ -1022,7 +958,7 @@
     }
    ],
    "baseline": 979.11,
-   "blockId": 48,
+   "blockId": 46,
    "blockText": "Yesterday",
    "fontFamily": "Inter, ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
    "fontSize": 13,
@@ -1042,7 +978,7 @@
     }
    ],
    "baseline": 1024.11,
-   "blockId": 49,
+   "blockId": 47,
    "blockText": "Interview — Senior .NET",
    "fontFamily": "Inter, ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
    "fontSize": 15,
@@ -1062,7 +998,7 @@
     }
    ],
    "baseline": 1044.11,
-   "blockId": 50,
+   "blockId": 48,
    "blockText": "16:00 · English · Mic, system audio",
    "fontFamily": "Inter, ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
    "fontSize": 13,
@@ -1082,7 +1018,7 @@
     }
    ],
    "baseline": 1063.11,
-   "blockId": 51,
+   "blockId": 49,
    "blockText": "…I'd start with a lock-free ring buffer and keep the capture callback allocation-free.",
    "fontFamily": "Inter, ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
    "fontSize": 13,
@@ -1102,7 +1038,7 @@
     }
    ],
    "baseline": 1042.11,
-   "blockId": 52,
+   "blockId": 50,
    "blockText": "1:02:15",
    "fontFamily": "\"Geist Mono\", ui-monospace, monospace",
    "fontSize": 13,
@@ -1122,7 +1058,7 @@
     }
    ],
    "baseline": 1114.11,
-   "blockId": 53,
+   "blockId": 51,
    "blockText": "QA team sync",
    "fontFamily": "Inter, ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
    "fontSize": 15,
@@ -1142,7 +1078,7 @@
     }
    ],
    "baseline": 1134.11,
-   "blockId": 54,
+   "blockId": 52,
    "blockText": "11:00 · English · Mic, system audio, screen",
    "fontFamily": "Inter, ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
    "fontSize": 13,
@@ -1162,7 +1098,7 @@
     }
    ],
    "baseline": 1153.11,
-   "blockId": 55,
+   "blockId": 53,
    "blockText": "…we'll leave Windows 11 ARM testing for later and do x64 first.",
    "fontFamily": "Inter, ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
    "fontSize": 13,
@@ -1182,7 +1118,7 @@
     }
    ],
    "baseline": 1132.11,
-   "blockId": 56,
+   "blockId": 54,
    "blockText": "34:09",
    "fontFamily": "\"Geist Mono\", ui-monospace, monospace",
    "fontSize": 13,
@@ -1202,7 +1138,7 @@
     }
    ],
    "baseline": 1206.11,
-   "blockId": 57,
+   "blockId": 55,
    "blockText": "This week",
    "fontFamily": "Inter, ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
    "fontSize": 13,
@@ -1222,7 +1158,7 @@
     }
    ],
    "baseline": 1251.11,
-   "blockId": 58,
+   "blockId": 56,
    "blockText": "Sprint retro",
    "fontFamily": "Inter, ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
    "fontSize": 15,
@@ -1242,7 +1178,7 @@
     }
    ],
    "baseline": 1271.11,
-   "blockId": 59,
+   "blockId": 57,
    "blockText": "Mon, 14:00 · English · Mic, system audio",
    "fontFamily": "Inter, ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
    "fontSize": 13,
@@ -1262,7 +1198,7 @@
     }
    ],
    "baseline": 1290.11,
-   "blockId": 60,
+   "blockId": 58,
    "blockText": "…what went well: the AOT build in CI no longer breaks after dependency updates.",
    "fontFamily": "Inter, ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
    "fontSize": 13,
@@ -1282,7 +1218,7 @@
     }
    ],
    "baseline": 1269.11,
-   "blockId": 61,
+   "blockId": 59,
    "blockText": "41:27",
    "fontFamily": "\"Geist Mono\", ui-monospace, monospace",
    "fontSize": 13,

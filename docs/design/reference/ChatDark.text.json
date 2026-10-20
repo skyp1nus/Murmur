@@ -800,26 +800,6 @@
    "color": "rgb(245, 243, 241)"
   },
   {
-   "text": "Question",
-   "lines": [
-    {
-     "x": 483.31,
-     "y": 1011,
-     "w": 60.3,
-     "h": 17
-    }
-   ],
-   "baseline": 1025,
-   "blockId": 30,
-   "blockText": "Question",
-   "fontFamily": "Inter, ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
-   "fontSize": 14,
-   "fontWeight": 400,
-   "letterSpacing": "0.14px",
-   "lineHeight": "normal",
-   "color": "rgb(245, 243, 241)"
-  },
-  {
    "text": "Answers are based only on your transcripts. Check them against the timestamps.",
    "lines": [
     {
@@ -830,7 +810,7 @@
     }
    ],
    "baseline": 1045,
-   "blockId": 31,
+   "blockId": 30,
    "blockText": "Answers are based only on your transcripts. Check them against the timestamps.",
    "fontFamily": "Inter, ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
    "fontSize": 12,
