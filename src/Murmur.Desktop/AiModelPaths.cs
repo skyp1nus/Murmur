@@ -1,5 +1,6 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using Murmur.Core.Settings;
 using Murmur.Intelligence;
 
 namespace Murmur.Desktop;
@@ -23,7 +24,15 @@ internal static class AiModelPaths
 
     /// <param name="modelsDirectory">The models folder (the same one the ASR uses).</param>
     /// <param name="getVariable">Environment lookup.</param>
-    public static LocalLlmOptions Resolve(string modelsDirectory, Func<string, string?> getVariable)
+    public static LocalLlmOptions Resolve(string modelsDirectory, Func<string, string?> getVariable) =>
+        Resolve(modelsDirectory, getVariable, AiAcceleration.Cpu);
+
+    /// <param name="acceleration">
+    /// The chosen build (<c>AppSettings.Acceleration</c>, read by the caller at every call, so a change applies to the next
+    /// model load). A GPU build adds its own server path (<c>&lt;models&gt;/llama.cpp-vulkan|llama.cpp-cuda/…</c>); the CPU
+    /// path stays in <see cref="LocalLlmOptions.LlamaServerPath"/> as the fallback.
+    /// </param>
+    public static LocalLlmOptions Resolve(string modelsDirectory, Func<string, string?> getVariable, AiAcceleration acceleration)
     {
         ArgumentException.ThrowIfNullOrEmpty(modelsDirectory);
         ArgumentNullException.ThrowIfNull(getVariable);
@@ -35,6 +44,8 @@ internal static class AiModelPaths
 
         return options with
         {
+            Acceleration = acceleration,
+            AcceleratedServerPath = acceleration == AiAcceleration.Cpu ? null : LocalLlmOptions.DefaultServerPath(modelsDirectory, acceleration),
             ChatModelPath = Pick(getVariable("MURMUR_LLM_MODEL"), manifest?.Chat, Path.Combine(gguf, LocalLlmOptions.DefaultChatModelFileName), options.ChatModelPath),
             EmbeddingModelPath = Pick(getVariable("MURMUR_EMBED_MODEL"), manifest?.Embed, Path.Combine(gguf, LocalLlmOptions.DefaultEmbeddingModelFileName), options.EmbeddingModelPath),
         };

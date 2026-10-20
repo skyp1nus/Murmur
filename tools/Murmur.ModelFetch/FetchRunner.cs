@@ -107,7 +107,7 @@ internal static class FetchRunner
             ReportHashes = true,
         });
 
-        var known = manager.Catalog.Select(m => m.Id).ToHashSet(StringComparer.Ordinal);
+        var known = manager.Items.Select(m => m.Id).ToHashSet(StringComparer.Ordinal);
         var unknown = options.Install.Concat(options.HeadOnly).Where(id => !known.Contains(id)).ToList();
         if (unknown.Count > 0)
         {

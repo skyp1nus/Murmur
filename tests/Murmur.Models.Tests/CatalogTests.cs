@@ -11,7 +11,8 @@ public sealed class CatalogTests
     [Fact]
     public void Catalog_ListsTheSixItemsRequiredFirst()
     {
-        var items = ModelCatalog.Create(Hosts, ModelPlatform.Linux);
+        // The GPU builds of the runtime are installable but unlisted: the UI list and the AI bundle stay as they were.
+        var items = ModelCatalog.Create(Hosts, ModelPlatform.Linux).Where(i => i.Listed).ToList();
 
         Assert.Equal(
             ["parakeet-tdt-0.6b-v3-int8", "silero-vad", "llama-cpp-b11716", "embeddinggemma-300m-q8", "gemma-4-e4b-q4", "gemma-4-26b-a4b-q4"],
@@ -82,8 +83,8 @@ public sealed class CatalogTests
     [Fact]
     public void LlamaRuntime_IsAZipOnWindowsAndATarballOnLinux()
     {
-        var windows = ModelCatalog.Create(Hosts, ModelPlatform.Windows).Single(i => i.Info.Kind == ModelKind.LlmRuntime);
-        var linux = ModelCatalog.Create(Hosts, ModelPlatform.Linux).Single(i => i.Info.Kind == ModelKind.LlmRuntime);
+        var windows = ModelCatalog.Create(Hosts, ModelPlatform.Windows).Single(i => i.Info.Kind == ModelKind.LlmRuntime && i.Listed);
+        var linux = ModelCatalog.Create(Hosts, ModelPlatform.Linux).Single(i => i.Info.Kind == ModelKind.LlmRuntime && i.Listed);
 
         Assert.Equal(ModelPackaging.Zip, windows.Packaging);
         Assert.Equal("llama-server.exe", windows.ExecutableName);
@@ -185,9 +186,125 @@ public sealed class CatalogTests
     [Fact]
     public void TheWindowsRuntime_IsPinnedLikeTheLinuxOne()
     {
-        var windows = ModelCatalog.Create(Hosts, ModelPlatform.Windows).Single(i => i.Info.Kind == ModelKind.LlmRuntime).Files.Single();
+        var windows = ModelCatalog.Create(Hosts, ModelPlatform.Windows).Single(i => i.Id == ModelCatalog.LlamaCppId).Files.Single();
 
         Assert.Equal(("79b143075ab87fb5aff6f8f8ca80500a984f4120b5199fa9f9b70b284f17428e", 19_662_702L), (windows.Sha256, windows.SizeBytes));
+    }
+
+    [Fact]
+    public void GpuRuntimes_OnWindows_AreTheVulkanAndCudaBuildsOfTheSameRelease()
+    {
+        var items = ModelCatalog.Create(Hosts, ModelPlatform.Windows);
+        var release = $"http://gh.test/ggml-org/llama.cpp/releases/download/{ModelCatalog.LlamaCppTag}/";
+
+        var vulkan = items.Single(i => i.Id == ModelCatalog.LlamaCppVulkanId);
+        Assert.Equal("llama-cpp-vulkan-" + ModelCatalog.LlamaCppTag, vulkan.Id);
+        Assert.Equal(ModelKind.LlmRuntime, vulkan.Info.Kind);
+        Assert.False(vulkan.Info.Required);
+        Assert.False(vulkan.Listed);
+        Assert.Equal(ModelPackaging.Zip, vulkan.Packaging);
+        Assert.Equal("llama-server.exe", vulkan.ExecutableName);
+        Assert.Equal("llama.cpp-vulkan", vulkan.TargetPath);
+        Assert.True(vulkan.IsDirectory);
+        Assert.Equal([release + "llama-b11716-bin-win-vulkan-x64.zip"], vulkan.Files.Select(f => f.Url));
+
+        var cuda = items.Single(i => i.Id == ModelCatalog.LlamaCppCudaId);
+        Assert.False(cuda.Listed);
+        Assert.Equal(ModelPackaging.Zip, cuda.Packaging);
+        Assert.Equal("llama.cpp-cuda", cuda.TargetPath);
+
+        // The CUDA runtime DLLs are a second archive of the same item, extracted next to the server.
+        Assert.Equal(
+            [release + "llama-b11716-bin-win-cuda-12.4-x64.zip", release + "cudart-llama-bin-win-cuda-12.4-x64.zip"],
+            cuda.Files.Select(f => f.Url));
+        Assert.Equal(
+            ["llama-b11716-bin-win-cuda-12.4-x64.zip", "cudart-llama-bin-win-cuda-12.4-x64.zip"],
+            cuda.Files.Select(f => f.RelativePath));
+    }
+
+    [Fact]
+    public void GpuRuntimes_OnLinux_AreVulkanOnly()
+    {
+        var items = ModelCatalog.Create(Hosts, ModelPlatform.Linux);
+
+        var vulkan = items.Single(i => i.Id == ModelCatalog.LlamaCppVulkanId);
+        Assert.Equal(ModelPackaging.TarGz, vulkan.Packaging);
+        Assert.Equal("llama-server", vulkan.ExecutableName);
+        Assert.Equal("llama.cpp-vulkan", vulkan.TargetPath);
+        Assert.Equal(
+            "http://gh.test/ggml-org/llama.cpp/releases/download/b11716/llama-b11716-bin-ubuntu-vulkan-x64.tar.gz",
+            vulkan.Files.Single().Url);
+        Assert.DoesNotContain(items, i => i.Id == ModelCatalog.LlamaCppCudaId);
+        Assert.DoesNotContain(ModelCatalog.Create(Hosts, ModelPlatform.Other), i => i.Info.Kind == ModelKind.LlmRuntime);
+    }
+
+    [Fact]
+    public void GpuRuntimes_HaveTheirOwnFolderSoTheCpuBuildStaysIntact()
+    {
+        var targets = ModelCatalog.Create(Hosts, ModelPlatform.Windows).Where(i => i.Info.Kind == ModelKind.LlmRuntime).Select(i => i.TargetPath).ToList();
+
+        Assert.Equal(["llama.cpp", "llama.cpp-vulkan", "llama.cpp-cuda"], targets);
+        Assert.Equal(targets.Count, targets.Distinct().Count());
+    }
+
+    [Theory]
+    [InlineData(ModelPlatform.Windows)]
+    [InlineData(ModelPlatform.Linux)]
+    public async Task GpuRuntimes_AreEitherFullyPinned_OrTheManagerRefusesToInstallThem(ModelPlatform platform)
+    {
+        // The hashes come from `ModelFetch --resolve-pins` (GitHub publishes the digest of every release asset). Until they are
+        // pasted into the catalog the items fail closed: a binary that will be run is never installed unverified.
+        var items = ModelCatalog.Create(Hosts, platform).Where(i => !i.Listed).ToList();
+        Assert.NotEmpty(items);
+        using var manager = new ModelManager(new ModelManagerOptions { ModelsDirectory = Path.Combine(Path.GetTempPath(), "murmur-pin-" + Guid.NewGuid().ToString("N")), Catalog = [.. items] });
+
+        foreach (var item in items)
+        {
+            Assert.True(item.RequirePins);
+            var sources = item.Files.SelectMany(f => f.Sources).ToList();
+            if (sources.All(m => m.Sha256 is not null && m.SizeBytes is not null))
+            {
+                Assert.Null(item.UnpinnedReason);
+                Assert.All(sources, m => Assert.Matches("^[0-9a-f]{64}$", m.Sha256!));
+            }
+            else
+            {
+                var ex = await Assert.ThrowsAsync<ModelInstallException>(() => manager.InstallAsync(item.Id, TestContext.Current.CancellationToken));
+                Assert.Contains("not pinned yet", ex.Message, StringComparison.Ordinal);
+                var status = manager.GetStatus(item.Id);
+                Assert.Equal(ModelInstallState.Failed, status.State);
+                Assert.Contains("not pinned yet", status.Error, StringComparison.Ordinal);
+            }
+        }
+    }
+
+    [Fact]
+    public void GpuRuntimes_BuiltWithoutPins_DoNotRequireThem()
+    {
+        var items = ModelCatalog.Create(Hosts with { PinHashes = false }, ModelPlatform.Windows).Where(i => !i.Listed);
+
+        Assert.All(items, i =>
+        {
+            Assert.False(i.RequirePins);
+            Assert.Null(i.UnpinnedReason);
+        });
+    }
+
+    [Fact]
+    public void ManagerCatalog_LeavesTheGpuRuntimesOut_ButKnowsTheirIds()
+    {
+        using var manager = new ModelManager(new ModelManagerOptions { ModelsDirectory = Path.Combine(Path.GetTempPath(), "murmur-cat-" + Guid.NewGuid().ToString("N")), Catalog = ModelCatalog.Create(Hosts, ModelPlatform.Windows) });
+
+        Assert.DoesNotContain(manager.Catalog, m => m.Id is ModelCatalog.LlamaCppVulkanId or ModelCatalog.LlamaCppCudaId);
+        Assert.Equal(1, manager.Catalog.Count(m => m.Kind == ModelKind.LlmRuntime));
+        Assert.Contains(manager.Items, i => i.Id == ModelCatalog.LlamaCppVulkanId);
+
+        // Status, install and remove work by id for an unlisted item, so the Settings control can drive them.
+        var status = manager.GetStatus(ModelCatalog.LlamaCppVulkanId);
+        Assert.Equal(ModelInstallState.Failed, status.State); // unavailable until the pins are in the catalog (fail closed)
+        Assert.Contains("not pinned yet", status.Error, StringComparison.Ordinal);
+        Assert.Equal(ModelKind.LlmRuntime, status.Model.Kind);
+        Assert.True(status.Model.SizeBytes > 0);
     }
 
     [Fact]
