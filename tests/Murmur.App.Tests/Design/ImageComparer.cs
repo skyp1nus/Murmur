@@ -16,6 +16,7 @@ internal readonly record struct MismatchCounts(long Compared, long Mismatched)
 
 internal sealed class ImageComparison
 {
+    /// <summary>Every compared pixel of the board.</summary>
     public required MismatchCounts Total { get; init; }
 
     /// <summary>The strip of the left navigation (x &lt; <see cref="ImageComparer.SidebarWidth"/>); empty when the board has none.</summary>
@@ -24,24 +25,32 @@ internal sealed class ImageComparison
     public required MismatchCounts Content { get; init; }
 
     /// <summary>
-    /// The mismatches against the pixels that are not page background in the reference or in the app (text, controls, cards). A
-    /// screen is mostly empty, so this tells better than <see cref="Total"/> how much of what is drawn is wrong.
+    /// Only the pixels that are not page background in the reference or in the app (the union): text, controls, cards,
+    /// hairlines. A screen is mostly empty, so this is the number to gate on.
     /// </summary>
-    public required MismatchCounts Ink { get; init; }
+    public required MismatchCounts Drawn { get; init; }
+
+    public required MismatchCounts DrawnSidebar { get; init; }
+
+    public required MismatchCounts DrawnContent { get; init; }
 
     /// <summary>Pixels of the reference inside the ignore rectangles (not part of any count).</summary>
     public required long IgnoredPixels { get; init; }
 
     public required bool SizeDiffers { get; init; }
 
-    /// <summary>The reference greyed out, mismatching pixels red, ignored rectangles tinted blue.</summary>
+    /// <summary>
+    /// The reference greyed out; red = only in the app (nothing like it in the reference), blue = only in the reference (missing
+    /// from the app), purple = both; ignored rectangles tinted yellow.
+    /// </summary>
     public required PixelImage Diff { get; init; }
 }
 
 /// <summary>
-/// Compares a render of the app with a reference image pixel by pixel. A pixel matches when some pixel of the reference's
-/// 3x3 neighbourhood is within <c>tolerance</c> on every channel: that forgives 1 px shifts, anti-aliasing and sub-pixel text
-/// differences, and still reports moved blocks, other colours and missing elements.
+/// Compares a render of the app with a reference image, symmetrically. A pixel is a mismatch when the app pixel has no pixel
+/// within <c>tolerance</c> (every channel) in the 3x3 neighbourhood of the reference, or the reference pixel has none in the
+/// 3x3 neighbourhood of the app. The neighbourhood forgives 1 px shifts and anti-aliasing; the low tolerance still reports a
+/// wrong fill or a missing hairline; the second direction reports content that the app does not draw at all.
 /// </summary>
 internal static class ImageComparer
 {
@@ -49,7 +58,10 @@ internal static class ImageComparer
     public const int SidebarWidth = 241;
 
     /// <summary>The largest per-channel difference (of 255) that still counts as the same colour.</summary>
-    public const int DefaultTolerance = 24;
+    public const int DefaultTolerance = 5;
+
+    /// <summary>The tolerance that forgives the lighter text of Skia against Chromium (see <c>ParityCalibrationTests</c>); it also forgives fills and hairlines.</summary>
+    public const int LenientTolerance = 24;
 
     public static ImageComparison Compare(
         PixelImage reference,
@@ -63,10 +75,10 @@ internal static class ImageComparer
         ignored ??= [];
         var diff = new PixelImage(reference.Width, reference.Height);
         long sidebarCompared = 0, sidebarMismatched = 0, contentCompared = 0, contentMismatched = 0, ignoredPixels = 0;
-        long inkCompared = 0, inkMismatched = 0;
+        long drawnSidebarCompared = 0, drawnSidebarMismatched = 0, drawnContentCompared = 0, drawnContentMismatched = 0;
 
         // The page background: the bottom right pixel of the reference (every artboard leaves it empty).
-        var corner = ((reference.Height - 1) * reference.Width + (reference.Width - 1)) * 4;
+        var corner = (((reference.Height - 1) * reference.Width) + (reference.Width - 1)) * 4;
         byte bgR = reference.Rgba[corner], bgG = reference.Rgba[corner + 1], bgB = reference.Rgba[corner + 2];
 
         for (var y = 0; y < reference.Height; y++)
@@ -89,54 +101,74 @@ internal static class ImageComparer
                 if (inIgnored)
                 {
                     ignoredPixels++;
-                    diff.Set(x, y, (byte)(grey * 80 / 100), (byte)(grey * 90 / 100), 255);
+                    diff.Set(x, y, 255, (byte)Math.Min(255, grey + 10), (byte)(grey * 80 / 100));
                     continue;
                 }
 
-                var mismatch = !Matches(reference, actual, x, y, tolerance);
-                if (IsInk(reference, x, y, bgR, bgG, bgB, tolerance) || IsInk(actual, x, y, bgR, bgG, bgB, tolerance))
+                var onlyApp = x < actual.Width && y < actual.Height && !HasMatch(actual, reference, x, y, tolerance);
+                var onlyReference = !(x < actual.Width && y < actual.Height) || !HasMatch(reference, actual, x, y, tolerance);
+                var mismatch = onlyApp || onlyReference;
+                if (onlyApp && onlyReference)
                 {
-                    inkCompared++;
-                    inkMismatched += mismatch ? 1 : 0;
+                    diff.Set(x, y, 170, 30, 170);
                 }
-
-                if (mismatch)
+                else if (onlyApp)
                 {
                     diff.Set(x, y, 230, 30, 30);
+                }
+                else if (onlyReference)
+                {
+                    diff.Set(x, y, 30, 90, 230);
                 }
                 else
                 {
                     diff.Set(x, y, grey, grey, grey);
                 }
 
-                if (hasSidebar && x < SidebarWidth)
+                var sidebar = hasSidebar && x < SidebarWidth;
+                var drawn = IsDrawn(reference, x, y, bgR, bgG, bgB, tolerance) || IsDrawn(actual, x, y, bgR, bgG, bgB, tolerance);
+                if (sidebar)
                 {
                     sidebarCompared++;
                     sidebarMismatched += mismatch ? 1 : 0;
+                    if (drawn)
+                    {
+                        drawnSidebarCompared++;
+                        drawnSidebarMismatched += mismatch ? 1 : 0;
+                    }
                 }
                 else
                 {
                     contentCompared++;
                     contentMismatched += mismatch ? 1 : 0;
+                    if (drawn)
+                    {
+                        drawnContentCompared++;
+                        drawnContentMismatched += mismatch ? 1 : 0;
+                    }
                 }
             }
         }
 
-        var sidebar = new MismatchCounts(sidebarCompared, sidebarMismatched);
-        var content = new MismatchCounts(contentCompared, contentMismatched);
+        var sidebarCounts = new MismatchCounts(sidebarCompared, sidebarMismatched);
+        var contentCounts = new MismatchCounts(contentCompared, contentMismatched);
+        var drawnSidebar = new MismatchCounts(drawnSidebarCompared, drawnSidebarMismatched);
+        var drawnContent = new MismatchCounts(drawnContentCompared, drawnContentMismatched);
         return new ImageComparison
         {
-            Total = sidebar + content,
-            Sidebar = sidebar,
-            Content = content,
-            Ink = new MismatchCounts(inkCompared, inkMismatched),
+            Total = sidebarCounts + contentCounts,
+            Sidebar = sidebarCounts,
+            Content = contentCounts,
+            Drawn = drawnSidebar + drawnContent,
+            DrawnSidebar = drawnSidebar,
+            DrawnContent = drawnContent,
             IgnoredPixels = ignoredPixels,
             SizeDiffers = reference.Width != actual.Width || reference.Height != actual.Height,
             Diff = diff,
         };
     }
 
-    private static bool IsInk(PixelImage image, int x, int y, byte bgR, byte bgG, byte bgB, int tolerance)
+    private static bool IsDrawn(PixelImage image, int x, int y, byte bgR, byte bgG, byte bgB, int tolerance)
     {
         if (x >= image.Width || y >= image.Height)
         {
@@ -147,38 +179,33 @@ internal static class ImageComparer
         return Math.Abs(image.Rgba[o] - bgR) > tolerance || Math.Abs(image.Rgba[o + 1] - bgG) > tolerance || Math.Abs(image.Rgba[o + 2] - bgB) > tolerance;
     }
 
-    /// <summary>The app pixel at (x, y) against the reference pixels around it; a pixel the app image does not have never matches.</summary>
-    private static bool Matches(PixelImage reference, PixelImage actual, int x, int y, int tolerance)
+    /// <summary>The pixel of <paramref name="source"/> at (x, y) against the pixels of <paramref name="target"/> around it.</summary>
+    private static bool HasMatch(PixelImage source, PixelImage target, int x, int y, int tolerance)
     {
-        if (x >= actual.Width || y >= actual.Height)
-        {
-            return false;
-        }
-
-        var a = ((y * actual.Width) + x) * 4;
-        var ar = actual.Rgba[a];
-        var ag = actual.Rgba[a + 1];
-        var ab = actual.Rgba[a + 2];
+        var s = ((y * source.Width) + x) * 4;
+        var sr = source.Rgba[s];
+        var sg = source.Rgba[s + 1];
+        var sb = source.Rgba[s + 2];
         for (var dy = -1; dy <= 1; dy++)
         {
-            var ry = y + dy;
-            if (ry < 0 || ry >= reference.Height)
+            var ty = y + dy;
+            if (ty < 0 || ty >= target.Height)
             {
                 continue;
             }
 
             for (var dx = -1; dx <= 1; dx++)
             {
-                var rx = x + dx;
-                if (rx < 0 || rx >= reference.Width)
+                var tx = x + dx;
+                if (tx < 0 || tx >= target.Width)
                 {
                     continue;
                 }
 
-                var r = ((ry * reference.Width) + rx) * 4;
-                if (Math.Abs(reference.Rgba[r] - ar) <= tolerance
-                    && Math.Abs(reference.Rgba[r + 1] - ag) <= tolerance
-                    && Math.Abs(reference.Rgba[r + 2] - ab) <= tolerance)
+                var t = ((ty * target.Width) + tx) * 4;
+                if (Math.Abs(target.Rgba[t] - sr) <= tolerance
+                    && Math.Abs(target.Rgba[t + 1] - sg) <= tolerance
+                    && Math.Abs(target.Rgba[t + 2] - sb) <= tolerance)
                 {
                     return true;
                 }

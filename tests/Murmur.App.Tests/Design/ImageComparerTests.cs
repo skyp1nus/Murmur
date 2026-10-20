@@ -46,7 +46,7 @@ public sealed class ImageComparerTests
     public void ASmallColourDifference_IsForgiven_ALargeOneIsNot()
     {
         var slightly = Page();
-        slightly.Fill(280, 40, 80, 30, 10, 10, 10);
+        slightly.Fill(280, 40, 80, 30, 4, 4, 4);
         var strongly = Page();
         strongly.Fill(280, 40, 80, 30, 120, 120, 120);
 
@@ -64,9 +64,9 @@ public sealed class ImageComparerTests
 
         var result = ImageComparer.Compare(Page(), moved, hasSidebar: true);
 
-        // The new place is white in the reference and black in the app (all of it differs); the old place is black in the
-        // reference and white in the app, except its rim, which has a white pixel in its 3x3 neighbourhood.
-        const long Expected = (80 * 30) + (78 * 28);
+        // The new place is white in the reference and black in the app, the old place the other way round: both count in full
+        // (the app has nothing like the old block, the reference has nothing like the new one).
+        const long Expected = 2 * 80 * 30;
         Assert.Equal(0, result.Sidebar.Mismatched);
         Assert.Equal(Expected, result.Content.Mismatched);
         Assert.InRange(result.Total.Percent, 100.0 * Expected / 120_000 - 0.01, 100.0 * Expected / 120_000 + 0.01);
@@ -80,7 +80,7 @@ public sealed class ImageComparerTests
 
         var result = ImageComparer.Compare(Page(), changed, hasSidebar: true);
 
-        Assert.Equal(148 * 38, result.Sidebar.Mismatched);
+        Assert.Equal(150 * 40, result.Sidebar.Mismatched);
         Assert.Equal(0, result.Content.Mismatched);
         Assert.Equal(241L * 300, result.Sidebar.Compared);
         Assert.Equal((400L - 241) * 300, result.Content.Compared);
@@ -121,7 +121,7 @@ public sealed class ImageComparerTests
     }
 
     [Fact]
-    public void TheDiffImage_IsGreyWhereTheImagesAgreeAndRedWhereTheyDiffer()
+    public void TheDiffImage_IsGreyWhereTheImagesAgree_PurpleWhereBothDiffer()
     {
         var changed = Page();
         changed.Fill(290, 45, 10, 10, 252, 252, 252);
@@ -129,11 +129,57 @@ public sealed class ImageComparerTests
         var result = ImageComparer.Compare(Page(), changed);
 
         var diff = result.Diff;
-        var red = ((50 * diff.Width) + 295) * 4;
-        Assert.True(diff.Rgba[red] > 200 && diff.Rgba[red + 1] < 60);
+        var purple = ((50 * diff.Width) + 295) * 4;
+        Assert.True(diff.Rgba[purple] > 150 && diff.Rgba[purple + 1] < 60 && diff.Rgba[purple + 2] > 150);
         var grey = ((250 * diff.Width) + 300) * 4;
         Assert.Equal(diff.Rgba[grey], diff.Rgba[grey + 1]);
         Assert.Equal(diff.Rgba[grey], diff.Rgba[grey + 2]);
+    }
+
+    [Fact]
+    public void AThinLineOnlyInTheApp_IsRed_AndOnlyInTheReference_IsBlue()
+    {
+        var withLine = Page();
+        withLine.Fill(300, 200, 60, 1, 0, 0, 0);
+
+        var extra = ImageComparer.Compare(Page(), withLine);
+        var missing = ImageComparer.Compare(withLine, Page());
+
+        var o = ((200 * 400) + 330) * 4;
+        Assert.Equal(60, extra.Total.Mismatched);
+        Assert.True(extra.Diff.Rgba[o] > 200 && extra.Diff.Rgba[o + 2] < 60, "only in the app: red");
+        Assert.Equal(60, missing.Total.Mismatched);
+        Assert.True(missing.Diff.Rgba[o + 2] > 200 && missing.Diff.Rgba[o] < 60, "only in the reference: blue");
+    }
+
+    [Fact]
+    public void AWrongFillAndAMissingHairline_AreReported_ByTheLowTolerance()
+    {
+        // A card (#f5f3f1) on the page (#fdfcfc) and a hairline (#ebe8e4): token-level differences of 8 and 18.
+        var reference = PixelImage.Filled(200, 100, 253, 252, 252);
+        reference.Fill(20, 20, 100, 50, 245, 243, 241);
+        reference.Fill(0, 90, 200, 1, 235, 232, 228);
+        var flat = PixelImage.Filled(200, 100, 253, 252, 252);
+
+        var result = ImageComparer.Compare(reference, flat);
+
+        Assert.Equal((100 * 50) + 200, result.Total.Mismatched);
+        Assert.Equal(0, ImageComparer.Compare(reference, reference).Total.Mismatched);
+    }
+
+    [Fact]
+    public void TheDrawnMetric_CountsOnlyPixelsThatAreNotBackground_InEitherImage()
+    {
+        var changed = Page();
+        changed.Fill(280, 40, 80, 30, 252, 252, 252);
+
+        var result = ImageComparer.Compare(Page(), changed, hasSidebar: true);
+
+        // The sidebar's grey fill and the blocks are drawn; the white page is not.
+        Assert.True(result.Drawn.Compared < result.Total.Compared);
+        Assert.True(result.Drawn.Percent > result.Total.Percent);
+        Assert.Equal(result.Total.Mismatched, result.Drawn.Mismatched);
+        Assert.Equal(result.Drawn.Compared, result.DrawnSidebar.Compared + result.DrawnContent.Compared);
     }
 
     [Fact]

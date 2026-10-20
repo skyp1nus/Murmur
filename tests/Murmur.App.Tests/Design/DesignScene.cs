@@ -1,6 +1,7 @@
 using Avalonia.Controls;
 using Avalonia.Headless;
 using Avalonia.Input;
+using Avalonia.Media;
 using Avalonia.Styling;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
@@ -68,8 +69,9 @@ internal sealed class DesignScene : IDisposable
     }
 
     /// <summary>The window at the size of the reference and in the theme, before its first frame; scale 1.</summary>
-    private static MainWindow CreateWindow(DesignBoard board, DesignRig rig) =>
-        new()
+    private static MainWindow CreateWindow(DesignBoard board, DesignRig rig)
+    {
+        var window = new MainWindow
         {
             DataContext = rig.Shell,
             Width = board.Width,
@@ -79,6 +81,11 @@ internal sealed class DesignScene : IDisposable
             CanResize = false,
             RequestedThemeVariant = board.Dark ? ThemeVariant.Dark : ThemeVariant.Light,
         };
+
+        // Chromium draws the reference with grey-scale anti-aliasing; sub-pixel (LCD) text would colour every glyph edge.
+        TextOptions.SetTextRenderingMode(window, TextRenderingMode.Antialias);
+        return window;
+    }
 
     /// <summary>Runs the pending work, lets transitions finish, freezes the orbs and takes the focus away (no caret, no focus ring).</summary>
     public void Settle()

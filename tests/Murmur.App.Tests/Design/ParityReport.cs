@@ -11,7 +11,10 @@ internal sealed record BoardResult(
     double Total,
     double Sidebar,
     double Content,
-    double Ink,
+    double Drawn,
+    double DrawnSidebar,
+    double DrawnContent,
+    double DrawnLenient,
     bool HasSidebar,
     long IgnoredPixels,
     bool SizeDiffers,
@@ -29,7 +32,10 @@ internal sealed record BoardResult(
         Line("total", D(Total));
         Line("sidebar", D(Sidebar));
         Line("content", D(Content));
-        Line("ink", D(Ink));
+        Line("drawn", D(Drawn));
+        Line("drawnSidebar", D(DrawnSidebar));
+        Line("drawnContent", D(DrawnContent));
+        Line("drawnLenient", D(DrawnLenient));
         Line("hasSidebar", HasSidebar ? "1" : "0");
         Line("ignored", IgnoredPixels.ToString(CultureInfo.InvariantCulture));
         Line("sizeDiffers", SizeDiffers ? "1" : "0");
@@ -69,7 +75,10 @@ internal sealed record BoardResult(
             D("total"),
             D("sidebar"),
             D("content"),
-            D("ink"),
+            D("drawn"),
+            D("drawnSidebar"),
+            D("drawnContent"),
+            D("drawnLenient"),
             values["hasSidebar"] == "1",
             long.Parse(values["ignored"], CultureInfo.InvariantCulture),
             values["sizeDiffers"] == "1",
@@ -90,7 +99,7 @@ internal static class ParityReport
             : Path.Combine(RepoPaths.Root, "artifacts", "design-parity");
 
     /// <summary>Saves the app render, the diff and the side-by-side of a board, and its result; then rebuilds <c>report.md</c>.</summary>
-    public static BoardResult Write(DesignBoard board, PixelImage reference, PixelImage actual, ImageComparison comparison, IReadOnlyList<string> notes)
+    public static BoardResult Write(DesignBoard board, PixelImage reference, PixelImage actual, ImageComparison comparison, ImageComparison lenient, IReadOnlyList<string> notes)
     {
         System.IO.Directory.CreateDirectory(Directory);
         actual.SavePng(Path.Combine(Directory, board.Name + ".app.png"));
@@ -104,7 +113,10 @@ internal static class ParityReport
             comparison.Total.Percent,
             comparison.Sidebar.Percent,
             comparison.Content.Percent,
-            comparison.Ink.Percent,
+            comparison.Drawn.Percent,
+            comparison.DrawnSidebar.Percent,
+            comparison.DrawnContent.Percent,
+            lenient.Drawn.Percent,
             board.HasSidebar,
             comparison.IgnoredPixels,
             comparison.SizeDiffers,
@@ -162,19 +174,20 @@ internal static class ParityReport
         sb.Append("# Design parity: the app against the canvas\n\n");
         sb.Append("Every artboard of `docs/design/source` is rendered by the app headlessly (Avalonia.Headless + Skia, English, scale 1, the size and theme of the board) ")
           .Append("with the artboard's demo data (`DesignDemoData`) and compared with `docs/design/reference/<Board>.png`.\n\n");
-        sb.Append("A pixel is a mismatch when no pixel of the reference's 3x3 neighbourhood is within ")
+        sb.Append("The comparison is symmetric. A pixel is a mismatch when the app pixel has no pixel within ")
           .Append(ImageComparer.DefaultTolerance.ToString(CultureInfo.InvariantCulture))
-          .Append(" per channel (of 255) of the app pixel, so 1 px shifts and anti-aliasing do not count. ")
-          .Append("The sidebar is the strip x < ").Append(ImageComparer.SidebarWidth.ToString(CultureInfo.InvariantCulture))
-          .Append(" of the five main screens; the onboarding has none (content only). Ignored rectangles are neither compared nor counted. ")
-          .Append("\"Of drawn pixels\" counts only the pixels that are not page background in the reference or in the app (a screen is mostly empty, so the total is small even for a screen that is wrong).\n\n");
-        sb.Append("| Board | Size | Mismatch total % | Sidebar % | Content % | Of drawn pixels % | Ignored | Limit | Notes |\n");
-        sb.Append("| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | --- |\n");
+          .Append("/255 per channel in the 3x3 neighbourhood of the reference, **or** the reference pixel has none in the 3x3 neighbourhood of the app ")
+          .Append("(so 1 px shifts and anti-aliasing do not count, but a wrong fill, a missing hairline or missing content does). ")
+          .Append("**Mismatch of drawn %** is the number to gate on: the share of mismatching pixels among the pixels that are not page background in the reference or in the app (the union), ")
+          .Append("so empty page area does not dilute it. **Drawn % at tol 24** is the same metric with a text-tolerant tolerance (see `calibration.md`: Skia draws text about 10 % lighter than Chromium, so text lines never match at 5/255 even when the layout is exact). The sidebar is the strip x < ").Append(ImageComparer.SidebarWidth.ToString(CultureInfo.InvariantCulture))
+          .Append(" of the five main screens; the onboarding has none (content only). The plain total / sidebar / content columns count every pixel. Ignored rectangles are neither compared nor counted.\n\n");
+        sb.Append("| Board | Size | Mismatch of drawn % | Drawn sidebar % | Drawn content % | Drawn % at tol 24 | Total % | Sidebar % | Content % | Ignored | Limit | Notes |\n");
+        sb.Append("| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- |\n");
         foreach (var board in DesignBoards.All)
         {
             if (!results.TryGetValue(board.Name, out var r))
             {
-                sb.Append("| ").Append(board.Name).Append(" | ").Append(board.Width).Append('x').Append(board.Height).Append(" | not rendered | | | | | | |\n");
+                sb.Append("| ").Append(board.Name).Append(" | ").Append(board.Width).Append('x').Append(board.Height).Append(" | not rendered | | | | | | | | | |\n");
                 continue;
             }
 
@@ -182,17 +195,20 @@ internal static class ParityReport
             var notes = string.Join("; ", r.Notes.Append(r.SizeDiffers ? "render size differs from the reference" : null!).Where(n => n is not null));
             sb.Append("| ").Append(r.Name)
               .Append(" | ").Append(r.Width).Append('x').Append(r.Height)
+              .Append(" | ").Append(P(r.Drawn))
+              .Append(" | ").Append(r.HasSidebar ? P(r.DrawnSidebar) : "—")
+              .Append(" | ").Append(P(r.DrawnContent))
+              .Append(" | ").Append(P(r.DrawnLenient))
               .Append(" | ").Append(P(r.Total))
               .Append(" | ").Append(r.HasSidebar ? P(r.Sidebar) : "—")
               .Append(" | ").Append(P(r.Content))
-              .Append(" | ").Append(P(r.Ink))
               .Append(" | ").Append(ignored)
               .Append(" | ").Append(r.Max is { } max ? P(max) : "not enforced")
               .Append(" | ").Append(notes)
               .Append(" |\n");
         }
 
-        sb.Append("\nFiles per board: `<Board>.app.png` (the app), `<Board>.diff.png` (reference greyed, mismatches red, ignored rectangles blue), `<Board>.side.png` (reference | app | diff).\n");
+        sb.Append("\nFiles per board: `<Board>.app.png` (the app), `<Board>.diff.png` (reference greyed; red = only in the app, blue = only in the reference, purple = both; ignored rectangles yellow), `<Board>.side.png` (reference | app | diff).\n");
 
         sb.Append("\n## Ignored rectangles\n\n");
         sb.Append("Only content the app cannot reproduce (coordinates in the reference image).\n\n");

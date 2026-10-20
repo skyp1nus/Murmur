@@ -36,7 +36,8 @@ public sealed class DesignParityTests
             TestContext.Current.CancellationToken);
 
         var comparison = ImageComparer.Compare(reference, actual, board.Ignored, board.HasSidebar);
-        var result = ParityReport.Write(board, reference, actual, comparison, notes);
+        var lenient = ImageComparer.Compare(reference, actual, board.Ignored, board.HasSidebar, ImageComparer.LenientTolerance);
+        var result = ParityReport.Write(board, reference, actual, comparison, lenient, notes);
 
         Assert.Equal((board.Width, board.Height), (actual.Width, actual.Height));
         if (board.MaxMismatchPercent is { } max)
