@@ -108,6 +108,17 @@ public sealed record LocalLlmOptions
     public static string DefaultServerPath(string modelsDirectory, AiAcceleration acceleration) =>
         Path.Combine(modelsDirectory, ServerDirectoryName(acceleration), OperatingSystem.IsWindows() ? "llama-server.exe" : "llama-server");
 
+    /// <summary>
+    /// The <c>--device</c> name of the first device of a GPU build (<c>Vulkan0</c>, <c>CUDA0</c>). Pinning the device makes
+    /// a missing GPU fail the start; without it the server would quietly run on the CPU.
+    /// </summary>
+    public static string DeviceName(AiAcceleration acceleration) => acceleration switch
+    {
+        AiAcceleration.Vulkan => "Vulkan0",
+        AiAcceleration.Cuda => "CUDA0",
+        _ => throw new ArgumentOutOfRangeException(nameof(acceleration), acceleration, "The CPU build has no GPU device."),
+    };
+
     /// <summary>Folder (below the models folder) holding the build: <c>llama.cpp</c>, <c>llama.cpp-vulkan</c> or <c>llama.cpp-cuda</c>.</summary>
     public static string ServerDirectoryName(AiAcceleration acceleration) => acceleration switch
     {

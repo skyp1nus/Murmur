@@ -50,7 +50,16 @@ internal sealed class AiAwareModelManager : IModelManager
 
     public ModelStatus GetStatus(string id) => _inner.GetStatus(id);
 
-    public Task InstallAsync(string id, CancellationToken cancellationToken) => _inner.InstallAsync(id, cancellationToken);
+    public async Task InstallAsync(string id, CancellationToken cancellationToken)
+    {
+        // A runtime that is installed already may be replaced by a reinstall; Windows refuses to overwrite a running server.
+        if (Find(id) is { Kind: ModelKind.LlmRuntime } && _inner.GetStatus(id).State == ModelInstallState.Installed)
+        {
+            await _llm.UnloadAsync(cancellationToken).ConfigureAwait(false);
+        }
+
+        await _inner.InstallAsync(id, cancellationToken).ConfigureAwait(false);
+    }
 
     public async Task RemoveAsync(string id, CancellationToken cancellationToken)
     {

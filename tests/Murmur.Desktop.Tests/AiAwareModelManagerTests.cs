@@ -34,6 +34,34 @@ public sealed class AiAwareModelManagerTests
         Assert.Equal(unloads ? ["unload", "remove " + id] : ["remove " + id], log);
     }
 
+    [Theory]
+    [InlineData("runtime", true)]
+    [InlineData("runtime-vulkan", true)]
+    [InlineData("chat", false)]
+    [InlineData("embed", false)]
+    [InlineData("asr", false)]
+    public async Task Install_OfAnInstalledRuntime_UnloadsTheAiFirst(string id, bool unloads)
+    {
+        var log = new List<string>();
+        var manager = Create(log, Path("chat"));
+
+        await manager.InstallAsync(id, Ct);
+
+        Assert.Equal(unloads ? ["unload", "install " + id] : ["install " + id], log);
+    }
+
+    [Fact]
+    public async Task Install_OfARuntimeThatIsNotInstalled_DoesNotUnload()
+    {
+        var log = new List<string>();
+        var inner = new FakeManager(log) { State = ModelInstallState.NotInstalled };
+        var manager = new AiAwareModelManager(inner, new FakeLlm(log), _ => null, _ => false);
+
+        await manager.InstallAsync("runtime-vulkan", Ct);
+
+        Assert.Equal(["install runtime-vulkan"], log);
+    }
+
     [Fact]
     public async Task Remove_OfAModelNoLongerActiveButStillLoaded_Unloads()
     {
@@ -120,12 +148,18 @@ public sealed class AiAwareModelManagerTests
         public ModelStatus GetStatus(string id) =>
             new(
                 Catalog.FirstOrDefault(m => m.Id == id) ?? (id == Unlisted.Id ? Unlisted : throw new ArgumentException($"Unknown model id '{id}'", nameof(id))),
-                ModelInstallState.Installed,
+                State,
                 1,
                 1,
                 null);
 
-        public Task InstallAsync(string id, CancellationToken cancellationToken) => Task.CompletedTask;
+        public ModelInstallState State { get; set; } = ModelInstallState.Installed;
+
+        public Task InstallAsync(string id, CancellationToken cancellationToken)
+        {
+            log.Add("install " + id);
+            return Task.CompletedTask;
+        }
 
         public Task RemoveAsync(string id, CancellationToken cancellationToken)
         {

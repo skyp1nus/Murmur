@@ -126,7 +126,8 @@ public sealed class LocalLlmAccelerationTests : IAsyncLifetime
         Assert.Equal("pong", answer.Text);
         var started = Assert.Single(_started);
         Assert.Equal(acceleration == AiAcceleration.Vulkan ? VulkanServer : CudaServer, started.ServerPath);
-        Assert.Equal(["-ngl", "99"], started.ExtraArguments);
+        Assert.Equal(["--device", acceleration == AiAcceleration.Vulkan ? "Vulkan0" : "CUDA0", "-ngl", "99"], started.ExtraArguments);
+        Assert.True(started.RequireGpu);
         Assert.False(started.Embedding);
         Assert.Equal(new AccelerationStatus(acceleration, acceleration, AccelerationFallback.None), llm.Current);
     }
@@ -138,7 +139,7 @@ public sealed class LocalLlmAccelerationTests : IAsyncLifetime
 
         await llm.GetChatClientAsync(Ct);
 
-        Assert.Equal(["-ngl", "99", "-ngl", "20", "--no-mmap"], Assert.Single(_started).ExtraArguments);
+        Assert.Equal(["--device", "Vulkan0", "-ngl", "99", "-ngl", "20", "--no-mmap"], Assert.Single(_started).ExtraArguments);
     }
 
     [Fact]
@@ -152,6 +153,7 @@ public sealed class LocalLlmAccelerationTests : IAsyncLifetime
         Assert.True(started.Embedding);
         Assert.Equal(CpuServer, started.ServerPath);
         Assert.Equal(["-b", "2048", "-ub", "2048"], started.ExtraArguments);
+        Assert.False(started.RequireGpu);
     }
 
     [Fact]
@@ -163,7 +165,7 @@ public sealed class LocalLlmAccelerationTests : IAsyncLifetime
 
         var started = Assert.Single(_started);
         Assert.Equal(VulkanServer, started.ServerPath);
-        Assert.Equal(["-ngl", "99", "-b", "2048", "-ub", "2048"], started.ExtraArguments);
+        Assert.Equal(["--device", "Vulkan0", "-ngl", "99", "-b", "2048", "-ub", "2048"], started.ExtraArguments);
     }
 
     [Fact]
@@ -210,8 +212,9 @@ public sealed class LocalLlmAccelerationTests : IAsyncLifetime
 
         Assert.Equal("pong", answer.Text);
         Assert.Equal([VulkanServer, CpuServer], _started.Select(s => s.ServerPath));
-        Assert.Equal(["-ngl", "99"], _started.First().ExtraArguments);
+        Assert.Equal(["--device", "Vulkan0", "-ngl", "99"], _started.First().ExtraArguments);
         Assert.Empty(_started.Last().ExtraArguments);
+        Assert.False(_started.Last().RequireGpu);
         var expected = new AccelerationStatus(AiAcceleration.Vulkan, AiAcceleration.Cpu, AccelerationFallback.StartFailed, "llama_model_load: error loading model");
         Assert.Equal(expected, llm.Current);
         Assert.Equal([expected], raised);
@@ -219,7 +222,7 @@ public sealed class LocalLlmAccelerationTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task IsTheAccelerationStatusSource_AndRaisesChangedWhenTheStatusChanges()
+    public async Task IsTheAccelerationStatusSource_AndRaisesChangedFromTheStateChangingPaths_NeverFromTheGetter()
     {
         var choice = AiAcceleration.Cpu;
         File.Delete(CudaServer);
@@ -227,15 +230,17 @@ public sealed class LocalLlmAccelerationTests : IAsyncLifetime
         IAccelerationStatusSource source = llm;
         var raised = new List<AccelerationStatus>();
         source.Changed += raised.Add;
-        Assert.Equal(AccelerationFallback.None, source.Current.Fallback); // the first read is the baseline: no event
+        llm.Refresh(); // the first status is only the baseline: no event
+        Assert.Equal(AccelerationFallback.None, source.Current.Fallback);
 
         choice = AiAcceleration.Cuda;
         _time.Advance(LocalLlm.OptionsRefreshInterval);
-        Assert.True(source.Current.NeedsDownload);
-        Assert.True(source.Current.NeedsDownload); // reading again is not a change
+        Assert.True(source.Current.NeedsDownload); // the getter always shows the latest options ...
+        Assert.Empty(raised); // ... but raises nothing
 
+        llm.Refresh();
+        llm.Refresh(); // an unchanged status is not published twice
         File.WriteAllText(CudaServer, ""); // the runtime was installed
-        _time.Advance(LocalLlm.OptionsRefreshInterval);
         llm.Refresh();
 
         Assert.Equal(
@@ -244,6 +249,54 @@ public sealed class LocalLlmAccelerationTests : IAsyncLifetime
                 new AccelerationStatus(AiAcceleration.Cuda, AiAcceleration.Cuda, AccelerationFallback.None),
             ],
             raised);
+    }
+
+    [Fact]
+    public async Task Gpu_AFailureBelongsToTheChatModel_AnotherModelTriesTheGpuAgain()
+    {
+        var chat = ChatModel;
+        var other = Path.Combine(_directory, "small.gguf");
+        File.WriteAllText(other, "");
+        _failure = o => o.ServerPath == VulkanServer && o.ModelPath == ChatModel ? new LlamaServerException("exit", "CUDA error: out of memory", 1) : null;
+        await using var llm = Create(() => Options(AiAcceleration.Vulkan) with { ChatModelPath = chat });
+        await llm.GetChatClientAsync(Ct);
+        Assert.Equal(AccelerationFallback.StartFailed, llm.Current.Fallback);
+
+        chat = other; // the user picked a smaller model: it may fit
+        _time.Advance(LocalLlm.OptionsRefreshInterval);
+        Assert.Equal(AccelerationFallback.None, llm.Current.Fallback);
+        await llm.GetChatClientAsync(Ct);
+
+        Assert.Equal([VulkanServer, CpuServer, VulkanServer], _started.Select(s => s.ServerPath));
+        Assert.Equal(other, _started.Last().ModelPath);
+
+        chat = ChatModel; // back to the model that failed: still the CPU build
+        _time.Advance(LocalLlm.OptionsRefreshInterval);
+        Assert.Equal(AccelerationFallback.StartFailed, llm.Current.Fallback);
+    }
+
+    [Fact]
+    public async Task Gpu_WhenTheCpuFallbackFailsToo_TheGpuIsNotBlamed()
+    {
+        _failure = o => o.ServerPath == VulkanServer
+            ? new LlamaServerException("exit", "ggml_vulkan: no device", 1)
+            : new LlamaServerException("exit", "corrupt gguf", 2);
+        await using var llm = Create(Options(AiAcceleration.Vulkan));
+        var raised = new List<AccelerationStatus>();
+        llm.Changed += raised.Add;
+
+        var ex = await Assert.ThrowsAsync<LlamaServerException>(() => llm.GetChatClientAsync(Ct).AsTask());
+
+        Assert.Equal(2, ex.ExitCode);
+        Assert.Equal(AccelerationFallback.None, llm.Current.Fallback); // taken back
+        Assert.Equal(
+            [AccelerationFallback.StartFailed, AccelerationFallback.None],
+            raised.Select(r => r.Fallback));
+
+        // The next request tries the GPU again.
+        _failure = _ => null;
+        await llm.GetChatClientAsync(Ct);
+        Assert.Equal(VulkanServer, _started.Last().ServerPath);
     }
 
     [Fact]
@@ -302,7 +355,7 @@ public sealed class LocalLlmAccelerationTests : IAsyncLifetime
         await llm.GetChatClientAsync(Ct);
 
         Assert.Equal(VulkanServer, _started.Last().ServerPath);
-        Assert.Equal(["-ngl", "99"], _started.Last().ExtraArguments);
+        Assert.Equal(["--device", "Vulkan0", "-ngl", "99"], _started.Last().ExtraArguments);
     }
 
     [Fact]
@@ -403,16 +456,32 @@ public sealed class LocalLlmAccelerationTests : IAsyncLifetime
     }
 
     [Fact]
-    public void DescribeFailure_PrefersTheLastLineOfTheServerOutput_AndStaysShort()
+    public void DescribeFailure_PrefersTheLastErrorLookingLine_ElseTheLastLine_AndStaysShort()
     {
-        var withTail = new LlamaServerException("exited", "first\n\n  CUDA error: out of memory  \n", 1);
+        var withError = new LlamaServerException("exited", "load_tensors: offloading 33 layers\nggml_vulkan: ErrorOutOfDeviceMemory\nsrv  main: exiting\n", 1);
+        var noMarker = new LlamaServerException("exited", "first\n\n  second line  \n", 1);
         var noTail = new LlamaServerException("Could not start 'x': The system cannot find the file.\nmore", string.Empty);
         var huge = new InvalidOperationException(new string('x', 500));
+        var crlf = new LlamaServerException("exited", "a\r\nllama_model_load: error loading model\r\nb\r\n", 1);
 
-        Assert.Equal("CUDA error: out of memory", LocalLlm.DescribeFailure(withTail));
+        Assert.Equal("ggml_vulkan: ErrorOutOfDeviceMemory", LocalLlm.DescribeFailure(withError));
+        Assert.Equal("second line", LocalLlm.DescribeFailure(noMarker));
+        Assert.Equal("llama_model_load: error loading model", LocalLlm.DescribeFailure(crlf));
         Assert.StartsWith("Could not start 'x'", LocalLlm.DescribeFailure(noTail), StringComparison.Ordinal);
         Assert.DoesNotContain("more", LocalLlm.DescribeFailure(noTail), StringComparison.Ordinal);
         Assert.Equal(203, LocalLlm.DescribeFailure(huge).Length);
+        Assert.Equal("llama-server did not become healthy in time.", LocalLlm.DescribeFailure(new TimeoutException("x")));
+    }
+
+    [Theory]
+    [InlineData("llama_model_loader: loaded\nno usable GPU found, --gpu-layers option will be ignored\n", true)]
+    [InlineData("load_tensors: offloaded 0/33 layers to GPU\n", true)]
+    [InlineData("load_tensors: offloaded 33/33 layers to GPU\n", false)]
+    [InlineData("load_tensors: offloaded 10/33 layers to GPU\n", false)]
+    [InlineData("", false)]
+    public void RunsWithoutGpu_RecognisesTheCpuOnlyStartUp(string tail, bool expected)
+    {
+        Assert.Equal(expected, LlamaServerProcess.RunsWithoutGpu(tail));
     }
 
     private static async Task WaitUntilAsync(Func<bool> condition)
@@ -484,5 +553,35 @@ public sealed class LocalLlmAccelerationProcessTests
         var status = llm.Current;
         Assert.Equal(AccelerationFallback.StartFailed, status.Fallback);
         Assert.Equal("llama_server: exiting due to model loading error", status.Detail);
+    }
+
+    [Fact]
+    public async Task GpuServerThatIsHealthyButFoundNoGpu_CountsAsAFailedStart_AndTheCpuBuildTakesOver()
+    {
+        Assert.SkipUnless(FakeLlamaServerScript.IsSupported, "Needs python3 on a Unix OS.");
+        var ct = TestContext.Current.CancellationToken;
+
+        // What a GPU build does on a PC without a usable device when --device does not stop it: it serves from the CPU.
+        using var gpu = new FakeLlamaServerScript(startupLine: "no usable GPU found, --gpu-layers option will be ignored");
+        using var cpu = new FakeLlamaServerScript();
+        var options = new LocalLlmOptions
+        {
+            LlamaServerPath = cpu.ServerPath,
+            Acceleration = AiAcceleration.Vulkan,
+            AcceleratedServerPath = gpu.ServerPath,
+            ChatModelPath = cpu.ModelPath,
+            EmbeddingModelPath = cpu.EmbeddingModelPath,
+            Threads = 1,
+        };
+        await using var llm = new LocalLlm(options, () => false);
+
+        var chat = await llm.GetChatClientAsync(ct);
+        var answer = await chat.GetResponseAsync([new ChatMessage(ChatRole.User, "x")], cancellationToken: ct);
+
+        Assert.Equal("echo: x", answer.Text);
+        Assert.Contains("Vulkan0", gpu.ReadArguments());
+        Assert.True(gpu.WaitForProcessGone(TimeSpan.FromSeconds(10))); // the CPU-only "GPU" server was stopped
+        Assert.Equal(AccelerationFallback.StartFailed, llm.Current.Fallback);
+        Assert.Equal("no usable GPU found, --gpu-layers option will be ignored", llm.Current.Detail);
     }
 }

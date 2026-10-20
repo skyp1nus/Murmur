@@ -76,6 +76,7 @@ internal static unsafe partial class DxgiAdapters
     }
 
     /// <summary><c>HRESULT CreateDXGIFactory1(REFIID riid, void **ppFactory)</c>.</summary>
+    [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
     [LibraryImport("dxgi.dll")]
     private static partial int CreateDXGIFactory1(Guid* riid, nint* factory);
 }
