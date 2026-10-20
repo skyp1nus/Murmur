@@ -113,4 +113,4 @@ jobs:
           dotnet run -c Release --no-build --project tools/Murmur.ModelFetch -- \
             --dir "$MURMUR_MODELS_DIR" \
             --ids silero-vad,parakeet-tdt-0.6b-v3-int8,llama-cpp-b11716,llama-cpp-vulkan-b11716,embeddinggemma-300m-q8 | tee second-run.log
-          test "$(grep -c 'already installed, nothing downloaded' second-run.log)" = 4
+          test "$(grep -c 'already installed, nothing downloaded' second-run.log)" = 5
