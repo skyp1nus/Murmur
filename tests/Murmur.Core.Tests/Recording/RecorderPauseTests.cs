@@ -1,4 +1,6 @@
+using System.Diagnostics;
 using Murmur.Core.Audio;
+using Murmur.Core.Capture;
 using Murmur.Core.Capture.Synthetic;
 using Murmur.Core.Recording;
 using Murmur.Core.Sessions;
@@ -274,24 +276,33 @@ public sealed class RecorderPauseTests : IDisposable
     public async Task ManyPauses_KeepTheFilesAndTheTimelineInStep()
     {
         var capture = new SyntheticCapture();
-        var recorder = new Recorder(capture, _store, TimeProvider.System, RecorderSettings.Default);
+        var settings = RecorderSettings.Default;
+        var recorder = new Recorder(capture, _store, TimeProvider.System, settings);
+        var wall = Stopwatch.StartNew();
+        var paused = TimeSpan.Zero;
 
         var started = await recorder.StartAsync(new RecordingOptions(), Ct);
         for (var i = 0; i < 6; i++)
         {
             await Task.Delay(80, Ct);
+            var pauseAt = wall.Elapsed;
             await recorder.PauseAsync(Ct);
             await Task.Delay(40, Ct);
             await recorder.ResumeAsync(Ct);
+            paused += wall.Elapsed - pauseAt;
         }
 
         await Task.Delay(80, Ct);
         var elapsed = recorder.Elapsed;
         var finished = await recorder.StopAsync(Ct);
+        var total = wall.Elapsed;
 
-        // 7 x 80 ms recorded (and 6 x 40 ms paused, which must not be in the files); the writer period (20 ms) makes each of the
-        // twelve switches up to a period late, and a loaded machine more, so the bounds are wide and the timeline is the reference.
-        Assert.InRange(finished.Duration, TimeSpan.FromMilliseconds(380), TimeSpan.FromMilliseconds(560) + Slack + Slack);
+        // The files hold the wall time without the pauses (each pause call is measured from its call to the end of the resume, so
+        // the handshakes are inside "paused"): every one of the twelve switches may be up to one writer period late, and the
+        // measuring itself has a few milliseconds of slack per step.
+        var expected = total - paused;
+        var tolerance = TimeSpan.FromTicks(settings.WriterPeriod.Ticks * 12) + Slack;
+        Assert.InRange(finished.Duration, expected - tolerance, expected + tolerance);
         Assert.Equal(elapsed.TotalSeconds, finished.Duration.TotalSeconds, 0.15);
         var files = _store.GetFiles(started.Id);
         Assert.Equal(AudioLength(files.MicrophoneAudio).TotalSeconds, AudioLength(files.SystemAudio).TotalSeconds, 0.03);
@@ -324,18 +335,198 @@ public sealed class RecorderPauseTests : IDisposable
     }
 
     [Fact]
-    public async Task RenamingTheSessionWhileRecording_SurvivesTheStop()
+    public async Task RenamingTheSessionWhileRecording_SurvivesTheStop_AndTheStopStillStoresTheRest()
     {
         var capture = new SyntheticCapture();
         var recorder = new Recorder(capture, _store, TimeProvider.System, RecorderSettings.Default);
 
         var started = await recorder.StartAsync(new RecordingOptions(Title: "Before"), Ct);
-        var stored = await _store.GetSessionAsync(started.Id, Ct);
-        await _store.UpdateSessionAsync(stored! with { Title = "After" }, Ct);
+        await _store.RenameSessionAsync(started.Id, "After", Ct);
+        await Task.Delay(150, Ct);
         await recorder.PauseAsync(Ct);
         var finished = await recorder.StopAsync(Ct);
 
-        Assert.Equal("After", finished.Title);
-        Assert.Equal("After", (await _store.GetSessionAsync(started.Id, Ct))!.Title);
+        var stored = await _store.GetSessionAsync(started.Id, Ct);
+        Assert.Equal("After", stored!.Title);
+        Assert.Equal(SessionState.Recorded, stored.State);
+        Assert.Equal(finished.Duration, stored.Duration);
+        Assert.True(stored.Duration > TimeSpan.Zero);
+    }
+
+    [Fact]
+    public async Task TheRecorder_NeverWritesTheTitleAfterTheCreate()
+    {
+        var recorder = new Recorder(new SyntheticCapture(new SyntheticCaptureOptions(Screen: true)), _store, TimeProvider.System, RecorderSettings.Default);
+
+        var started = await recorder.StartAsync(new RecordingOptions(Title: "Original", Screen: true), Ct);
+        await _store.RenameSessionAsync(started.Id, "Renamed", Ct);
+        await recorder.SetScreenEnabledAsync(false, Ct);
+        await recorder.StopAsync(Ct);
+
+        // Every later write carries the old title in its record, but the store keeps the one the user chose.
+        Assert.Equal("Renamed", (await _store.GetSessionAsync(started.Id, Ct))!.Title);
+        Assert.All(_store.Updates, u => Assert.Equal("Original", u.Title));
+    }
+
+    [Fact]
+    public async Task Elapsed_NeverStepsBack_WhileAThreadPollsItAcrossPausesAndResumes()
+    {
+        var recorder = new Recorder(new SyntheticCapture(), _store, TimeProvider.System, RecorderSettings.Default);
+        await recorder.StartAsync(new RecordingOptions(), Ct);
+        using var stop = new CancellationTokenSource();
+        var steps = new List<TimeSpan>();
+        var poller = Task.Run(
+            () =>
+            {
+                var last = TimeSpan.Zero;
+                var worst = TimeSpan.Zero;
+                while (!stop.IsCancellationRequested)
+                {
+                    var now = recorder.Elapsed;
+                    if (now < last && last - now > worst)
+                    {
+                        worst = last - now;
+                    }
+
+                    last = now > last ? now : last;
+                }
+
+                steps.Add(worst);
+            },
+            Ct);
+
+        for (var i = 0; i < 8; i++)
+        {
+            await Task.Delay(30, Ct);
+            await recorder.PauseAsync(Ct);
+            await Task.Delay(30, Ct);
+            await recorder.ResumeAsync(Ct);
+        }
+
+        await stop.CancelAsync();
+        await poller;
+        await recorder.StopAsync(Ct);
+
+        Assert.Equal(TimeSpan.Zero, Assert.Single(steps)); // the largest step back the poller ever saw
+    }
+
+    [Fact]
+    public async Task ThePausedTimeline_IsExactlyWhatAFaultedTrackIsPaddedTo()
+    {
+        // The microphone dies after 0.2 s: its file is filled with silence up to the timeline, which stops at the pause.
+        var capture = new SyntheticCapture(new SyntheticCaptureOptions(MicrophoneFaultAfter: TimeSpan.FromMilliseconds(200)));
+        var recorder = new Recorder(capture, _store, TimeProvider.System, RecorderSettings.Default);
+
+        var started = await recorder.StartAsync(new RecordingOptions(), Ct);
+        await Task.Delay(700, Ct);
+        await recorder.PauseAsync(Ct);
+        var frozen = recorder.Elapsed;
+        await Task.Delay(300, Ct);
+        Assert.Equal(frozen, recorder.Elapsed);
+        var finished = await recorder.StopAsync(Ct);
+
+        var files = _store.GetFiles(started.Id);
+        var mic = AudioLength(files.MicrophoneAudio).TotalSeconds;
+        var system = AudioLength(files.SystemAudio).TotalSeconds;
+        Assert.Equal(system, mic, 0.01);
+        Assert.Equal(frozen.TotalSeconds, mic, 0.06);
+        Assert.Equal(frozen.TotalSeconds, finished.Duration.TotalSeconds, 0.06);
+    }
+
+    [Fact]
+    public async Task AScreenSegmentThatCannotBeFinalizedAtThePause_IsFailedAtThePauseMark_AndTheResumeStartsANewOne()
+    {
+        var screen = new StubbornScreenRecorder();
+        var capture = new ScreenCapture(new SyntheticCapture(new SyntheticCaptureOptions(Screen: true)), screen);
+        var recorder = new Recorder(capture, _store, TimeProvider.System, RecorderSettings.Default);
+        var warnings = new List<RecorderWarning>();
+        recorder.Warning += warnings.Add;
+
+        await recorder.StartAsync(new RecordingOptions(Screen: true), Ct);
+        await Task.Delay(300, Ct);
+        screen.FailNextStop = true;
+        await recorder.PauseAsync(Ct);
+        var pauseMark = recorder.Elapsed;
+
+        Assert.Equal(RecorderState.Paused, recorder.State);
+        Assert.False(recorder.IsScreenRecording); // the segment is marked failed
+        Assert.Contains(warnings, w => w.Code == RecorderWarningCode.ScreenStopped);
+
+        await Task.Delay(500, Ct);
+        await recorder.ResumeAsync(Ct);
+        Assert.True(recorder.IsScreenRecording); // the failed one was finished, a new one runs
+        Assert.Equal(2, screen.Starts);
+        await Task.Delay(200, Ct);
+        var finished = await recorder.StopAsync(Ct);
+
+        Assert.Equal(2, finished.ScreenSegments.Count);
+        var (first, second) = (finished.ScreenSegments[0], finished.ScreenSegments[1]);
+        Assert.InRange(first.Offset + first.Duration, pauseMark - Slack, pauseMark + Slack); // not the 500 ms later it was finished at
+        Assert.InRange(second.Offset, pauseMark - Slack, pauseMark + Slack);
+    }
+
+    private sealed class ScreenCapture(SyntheticCapture inner, IScreenRecorder screen) : ICapture
+    {
+        public CaptureCapabilities Capabilities => inner.Capabilities;
+
+        public IReadOnlyList<AudioDevice> GetAudioDevices(AudioDeviceKind kind) => inner.GetAudioDevices(kind);
+
+        public IAudioSource CreateAudioSource(AudioDeviceKind kind, string? deviceId) => inner.CreateAudioSource(kind, deviceId);
+
+        public IReadOnlyList<DisplayInfo> GetDisplays() => inner.GetDisplays();
+
+        public IScreenRecorder CreateScreenRecorder(ScreenCaptureOptions options) => screen;
+    }
+
+    /// <summary>A screen recorder whose next stop fails without leaving the segment (it keeps recording), then works again.</summary>
+    private sealed class StubbornScreenRecorder : IScreenRecorder
+    {
+        private volatile bool _recording;
+        private int _starts;
+
+        public volatile bool FailNextStop;
+
+        public int Starts => Volatile.Read(ref _starts);
+
+        public bool IsRecording => _recording;
+
+        public ScreenRecorderStats Stats => new(0, 0, 0, "stubborn");
+
+        public event Action<CaptureFault>? Faulted
+        {
+            add { }
+            remove { }
+        }
+
+        public ValueTask StartSegmentAsync(string filePath, CancellationToken cancellationToken)
+        {
+            if (_recording)
+            {
+                throw new InvalidOperationException("A segment is already being recorded.");
+            }
+
+            File.Create(filePath).Dispose();
+            Interlocked.Increment(ref _starts);
+            _recording = true;
+            return ValueTask.CompletedTask;
+        }
+
+        public ValueTask StopSegmentAsync(CancellationToken cancellationToken)
+        {
+            if (FailNextStop)
+            {
+                FailNextStop = false;
+                throw new InvalidOperationException("finalize failed");
+            }
+
+            _recording = false;
+            return ValueTask.CompletedTask;
+        }
+
+        public ValueTask DisposeAsync()
+        {
+            _recording = false;
+            return ValueTask.CompletedTask;
+        }
     }
 }

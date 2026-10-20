@@ -108,6 +108,13 @@ public sealed class WindowsRecorderPauseTests(ITestOutputHelper output)
             {
                 Assert.True(File.Exists(store.GetFiles(started.Id).ScreenSegment(segment.Index)), $"segment {segment.Index} has no file");
             }
+
+            // The first video ends where the pause began: its media duration is the segment's duration on the timeline (D-033), not
+            // the second of the pause longer.
+            var scan = MurmurMp4Scan.Scan(store.GetFiles(started.Id).ScreenSegment(first.Index));
+            output.WriteLine($"first segment: {scan.DurationS:F3} s of media ({scan.DurationSource}), {first.Duration.TotalSeconds:F3} s on the timeline");
+            Assert.Null(scan.Error);
+            Assert.InRange(scan.DurationS, first.Duration.TotalSeconds - 0.4, first.Duration.TotalSeconds + 0.4);
         }
         finally
         {
