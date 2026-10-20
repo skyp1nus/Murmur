@@ -1,6 +1,7 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="using:Murmur.App.ViewModels"
+             xmlns:res="using:Murmur.App.Resources"
              xmlns:controls="using:Murmur.App.Controls"
              xmlns:cap="using:Murmur.Core.Capture"
              x:Class="Murmur.App.Views.RecordingView"
@@ -17,7 +18,7 @@
     <Button Grid.Row="0"
             Classes="outline"
             HorizontalAlignment="Left"
-            Content="Назад"
+            Content="{x:Static res:Strings.Common_Back}"
             Command="{Binding BackCommand}" />
 
     <ScrollViewer Grid.Row="1"
@@ -44,15 +45,15 @@
                     HorizontalAlignment="Center"
                     Spacing="{StaticResource Space.12}">
           <ToggleButton Classes="pill"
-                        Content="Мікрофон"
+                        Content="{x:Static res:Strings.Common_Microphone}"
                         IsEnabled="{Binding CanToggleMicrophone}"
                         IsChecked="{Binding Microphone, Mode=TwoWay}" />
           <ToggleButton Classes="pill"
-                        Content="Системний звук"
+                        Content="{x:Static res:Strings.Recording_SystemAudio}"
                         IsEnabled="{Binding CanToggleSystemAudio}"
                         IsChecked="{Binding SystemAudio, Mode=TwoWay}" />
           <ToggleButton Classes="pill"
-                        Content="Екран"
+                        Content="{x:Static res:Strings.Common_Screen}"
                         IsEnabled="{Binding CanToggleScreen}"
                         IsChecked="{Binding Screen, Mode=TwoWay}" />
         </StackPanel>
@@ -61,7 +62,7 @@
                    HorizontalAlignment="Center"
                    TextAlignment="Center"
                    TextWrapping="Wrap"
-                   Foreground="{StaticResource Brush.Smoke}"
+                   Foreground="{DynamicResource Brush.Smoke}"
                    IsVisible="{Binding HasSourceHint}"
                    Text="{Binding SourceHint}" />
 
@@ -71,8 +72,8 @@
           <StackPanel Grid.Column="0"
                       Spacing="{StaticResource Space.4}">
             <TextBlock Classes="bodySm"
-                       Foreground="{StaticResource Brush.Smoke}"
-                       Text="Мікрофон" />
+                       Foreground="{DynamicResource Brush.Smoke}"
+                       Text="{x:Static res:Strings.Common_Microphone}" />
             <ComboBox ItemsSource="{Binding MicrophoneDevices}"
                       SelectedItem="{Binding SelectedMicrophone, Mode=TwoWay}"
                       IsEnabled="{Binding CanChangeDevices}">
@@ -87,8 +88,8 @@
           <StackPanel Grid.Column="1"
                       Spacing="{StaticResource Space.4}">
             <TextBlock Classes="bodySm"
-                       Foreground="{StaticResource Brush.Smoke}"
-                       Text="Вихід системного звуку" />
+                       Foreground="{DynamicResource Brush.Smoke}"
+                       Text="{x:Static res:Strings.Recording_SystemOutput}" />
             <ComboBox ItemsSource="{Binding SystemDevices}"
                       SelectedItem="{Binding SelectedSystemDevice, Mode=TwoWay}"
                       IsEnabled="{Binding CanChangeDevices}">
@@ -107,6 +108,15 @@
                 Content="{Binding StartStopLabel}"
                 Command="{Binding StartStopCommand}" />
 
+        <!-- Inline notice: a problem that did not stop the recording (e.g. the screen stopped, the audio goes on). -->
+        <Border Classes="card"
+                Padding="{StaticResource Inset.16}"
+                IsVisible="{Binding HasNotice}">
+          <TextBlock Classes="bodySm"
+                     TextWrapping="Wrap"
+                     Text="{Binding Notice}" />
+        </Border>
+
         <!-- Inline error -->
         <Border Classes="card"
                 Padding="{StaticResource Inset.16}"
@@ -120,8 +130,8 @@
                    HorizontalAlignment="Center"
                    TextAlignment="Center"
                    TextWrapping="Wrap"
-                   Foreground="{StaticResource Brush.Smoke}"
-                   Text="Попередь учасників мітингу, що йде запис." />
+                   Foreground="{DynamicResource Brush.Smoke}"
+                   Text="{x:Static res:Strings.Recording_Notice}" />
       </StackPanel>
     </ScrollViewer>
   </Grid>

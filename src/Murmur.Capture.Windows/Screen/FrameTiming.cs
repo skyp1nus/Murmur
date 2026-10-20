@@ -138,6 +138,16 @@ internal static class RepeatPolicy
     /// <summary>Fault time of a segment that has not faulted.</summary>
     public const long NoFault = long.MaxValue;
 
+    /// <summary>Stop time of a segment whose stop has not been requested.</summary>
+    public const long NoStop = long.MaxValue;
+
+    /// <summary>
+    /// True when something at <paramref name="ticks"/> (QPC, 100 ns) lies after the segment's end
+    /// (<paramref name="stopTicks"/>, <see cref="NoStop"/> while the segment runs): a frame captured, or a repeat due,
+    /// after the stop call is not part of the file.
+    /// </summary>
+    public static bool IsAfterEnd(long ticks, long stopTicks) => ticks > stopTicks;
+
     /// <summary>True when the last frame should be repeated at <paramref name="now"/> because nothing new arrived for <paramref name="interval"/>.</summary>
     public static bool ShouldRepeat(bool hasLastFrame, bool writerHealthy, bool accepting, long now, long lastWriteTicks, long faultTicks, long interval) =>
         hasLastFrame && writerHealthy && accepting && now < faultTicks && now - lastWriteTicks >= interval;
@@ -148,6 +158,22 @@ internal static class RepeatPolicy
     /// </summary>
     public static long EndTicks(bool stopRequested, long stopTicks, long faultTicks, long now) =>
         Math.Min(stopRequested ? stopTicks : now, faultTicks);
+}
+
+/// <summary>
+/// The published stop time of a segment (<see cref="RepeatPolicy.NoStop"/> until a stop is requested): a lock-free cell
+/// shared by the thread that requests the stop and the encoder thread. The earliest request wins; a request that did
+/// not lead to a stop (its wait for the recorder was cancelled) is retracted.
+/// </summary>
+internal static class StopRequest
+{
+    /// <summary>Publishes <paramref name="stopTicks"/> unless an earlier request already did. True when this call published.</summary>
+    public static bool Publish(ref long cell, long stopTicks) =>
+        Interlocked.CompareExchange(ref cell, stopTicks, RepeatPolicy.NoStop) == RepeatPolicy.NoStop;
+
+    /// <summary>Takes <paramref name="stopTicks"/> back, only if it is still the published value. True when it was retracted.</summary>
+    public static bool Retract(ref long cell, long stopTicks) =>
+        Interlocked.CompareExchange(ref cell, RepeatPolicy.NoStop, stopTicks) == stopTicks;
 }
 
 /// <summary>

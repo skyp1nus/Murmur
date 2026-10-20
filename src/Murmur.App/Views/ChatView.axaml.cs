@@ -6,7 +6,7 @@ using Murmur.App.ViewModels;
 
 namespace Murmur.App.Views;
 
-/// <summary>The "Запитати AI" chat: conversation list, input pill, Ask / Stop. Used by the recording view and the library-wide chat.</summary>
+/// <summary>The "Ask AI" chat: conversation list, input pill, Ask / Stop. Used by the recording view and the library-wide chat.</summary>
 public partial class ChatView : UserControl
 {
     private ChatViewModel? _viewModel;

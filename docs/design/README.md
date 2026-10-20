@@ -22,6 +22,8 @@
 - Макет HTML → Avalonia: відтворюй структуру, відступи й розміри; кольори й шрифти — лише через ресурси з `tokens.json` (`color` для світлої, `colorDark` для темної теми). Жодних hex у XAML-views.
 - Тема перемикається в рантаймі (світла / темна / системна) — одні й ті самі views, різні ресурси.
 - Мова UI: основні екрани намальовані українською, онбординг — англійською. Усі рядки — в ресурсах локалізації (`.resx`), стартова мова — українська, англійська — друга.
+- Теми: кольори й пензлі (`Color.*`, `Brush.*`) лежать у `ThemeDictionaries` (`Light` ← `color`, `Dark` ← `colorDark`), тож у views і стилях їх шукають лише через `{DynamicResource}` (тест `TokensTests` забороняє `{StaticResource Brush.*}`). Ключі `color` і `colorDark` однакові — додаючи колір, додай його в обидві теми. Семантичні відмінності темної теми (наведення = Stone замість Surface тощо) — `Brush.FillHover`/`Brush.FillPressed` у `Styles/Controls.axaml`.
+- Рядки UI: ключ у `src/Murmur.App/Resources/Strings.resx` (українська) і `Strings.en.resx` (англійська) з однаковими `{0}`-підстановками; у XAML — `{x:Static res:Strings.Ключ}`, у view model — `Strings.Ключ` (формат — через `UiText.Format`). Мова береться з `AppSettings.Language` один раз під час старту (D-032). Обидві мови вбудовані в `Murmur.App.dll`: Native AOT не вантажить satellite-збірки.
 - `data-name` в онбордингу = назви контролів/компонентів.
 - Розмітка, демо-дані й JS у `source/` — лише для прототипу, у код не переносяться.
 

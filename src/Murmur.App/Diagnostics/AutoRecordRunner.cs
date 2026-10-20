@@ -79,6 +79,19 @@ public sealed class AutoRecordRunner
         SessionRecord? stopped = null;
         void OnStopped(SessionRecord session) => stopped = session;
 
+        // Screen problems that did not stop the recording, in the order they were raised (any thread).
+        var faultWarnings = new List<string>();
+        void OnWarning(RecorderWarning warning)
+        {
+            lock (faultWarnings)
+            {
+                if (!faultWarnings.Contains(warning.Message))
+                {
+                    faultWarnings.Add(warning.Message);
+                }
+            }
+        }
+
         using var sampler = new ProcessSampler();
         var report = new PerfReport();
         _recording.Stopped += OnStopped;
@@ -93,10 +106,11 @@ public sealed class AutoRecordRunner
                 report = report with { IdleCpuPct = sampler.Sample().CpuMachinePct };
             }
 
-            var startError = await StartRecordingAsync();
-            if (startError is not null)
+            _recorder.Warning += OnWarning;
+            var started = await StartRecordingAsync();
+            if (started.Error is not null)
             {
-                return report with { Error = startError };
+                return report with { Error = started.Error };
             }
 
             // A track the recorder had to skip (e.g. the microphone denied by Windows privacy settings) is a warning:
@@ -152,22 +166,43 @@ public sealed class AutoRecordRunner
                 }
             }
 
-            var duration = Stopwatch.GetElapsedTime(startedAt).TotalSeconds;
             var allocated = (GC.GetTotalAllocatedBytes(precise: false) - allocatedAtStart) / BytesPerMb;
             var uiAllocated = (await UiThreadAllocatedBytesAsync() - uiAllocatedAtStart) / BytesPerMb;
 
-            await StopRecordingAsync();
+            // The length of the session timeline the files are on (the audio starts at session time 0), read as the stop
+            // is requested. Not the length of the sampling window above: that starts after StartAsync returns, which
+            // with the screen on includes the screen's start-up while the audio is already recording. A recorder that
+            // already ended the session by itself (every audio source failed) reports no elapsed time any more: the
+            // session's own duration stands in then.
+            var duration = TimeSpan.Zero;
+            await _runOnUi(async () =>
+            {
+                duration = _recorder.Elapsed;
+                await _recording.StopAsync();
+            });
 
             var session = stopped ?? throw new InvalidOperationException("The recording did not stop cleanly.");
+
+            // The start-up warning, then the screen problems in the order they were raised; whatever else the stop
+            // reported (e.g. a screen segment that could not be finalized) comes last.
+            lock (faultWarnings)
+            {
+                foreach (var problem in faultWarnings)
+                {
+                    AddWarning(warnings, problem);
+                }
+            }
+
             if (session.State != SessionState.Failed)
             {
-                AddWarning(warnings, session.Error);
+                AddStopError(warnings, session.Error);
             }
 
             report = report with
             {
                 Orb = _options.ShowOrb,
-                DurationS = Math.Round(duration, 3),
+                DurationS = Math.Round((duration > TimeSpan.Zero ? duration : session.Duration).TotalSeconds, 3),
+                ScreenStartMs = ScreenStartMs(session, started.Elapsed),
                 CpuAvgPct = Round(Average(machine)),
                 CpuP95Pct = Round(ProcessSampler.Percentile(machine, 95)),
                 CpuAvgPctOneCore = Round(Average(oneCore)),
@@ -193,6 +228,7 @@ public sealed class AutoRecordRunner
         finally
         {
             _recording.Stopped -= OnStopped;
+            _recorder.Warning -= OnWarning;
             if (_recorder.State == RecorderState.Recording)
             {
                 await StopRecordingAsync();
@@ -200,9 +236,13 @@ public sealed class AutoRecordRunner
         }
     }
 
-    private async Task<string?> StartRecordingAsync()
+    /// <summary>Outcome of starting the recording: the error (if any) and the session time when the start call returned.</summary>
+    private readonly record struct StartResult(string? Error, TimeSpan Elapsed);
+
+    private async Task<StartResult> StartRecordingAsync()
     {
         string? error = null;
+        var elapsed = TimeSpan.Zero;
         await _runOnUi(async () =>
         {
             // Mic only when one exists (and not left out with --no-mic); the system loopback unless --no-system.
@@ -223,13 +263,31 @@ public sealed class AutoRecordRunner
             }
 
             await _recording.StartStopAsync();
+            elapsed = _recorder.Elapsed;
             if (!_recording.IsRecording)
             {
                 error = _recording.Error ?? "The recording did not start.";
             }
         });
 
-        return error;
+        return new StartResult(error, elapsed);
+    }
+
+    /// <summary>
+    /// How long starting the screen took: the session time at which the start call returned minus the session time at
+    /// which the recorder called <see cref="Murmur.Core.Capture.IScreenRecorder.StartSegmentAsync"/> for the first
+    /// segment (its <see cref="ScreenSegment.Offset"/>). That is the screen recorder's start-up (device, encoder,
+    /// capture session) plus the recorder's own bookkeeping after it, without the audio start that precedes it.
+    /// <c>null</c> when the session has no screen segment.
+    /// </summary>
+    internal static double? ScreenStartMs(SessionRecord session, TimeSpan startReturnedAt)
+    {
+        if (session.ScreenSegments.Count == 0)
+        {
+            return null;
+        }
+
+        return Round(Math.Max(0, (startReturnedAt - session.ScreenSegments[0].Offset).TotalMilliseconds));
     }
 
     private Task StopRecordingAsync() => _runOnUi(_recording.StopAsync);
@@ -246,27 +304,37 @@ public sealed class AutoRecordRunner
         return bytes;
     }
 
-    /// <summary>
-    /// Adds a session warning once. The stop repeats the start's warning, possibly with a screen error in front: the
-    /// fuller text then replaces the one it contains.
-    /// </summary>
+    /// <summary>Adds a warning unless the list already says it (a text that contains it, e.g. a joined start warning).</summary>
     private static void AddWarning(List<string> warnings, string? warning)
     {
-        if (string.IsNullOrWhiteSpace(warning))
+        if (string.IsNullOrWhiteSpace(warning) || warnings.Exists(existing => existing.Contains(warning, StringComparison.Ordinal)))
         {
             return;
         }
 
-        foreach (var existing in warnings)
+        warnings.Add(warning);
+    }
+
+    /// <summary>
+    /// The session's error text is the recorder's own composition: a stop failure (if any) in front of the warnings it
+    /// kept. What the run already knows is not repeated; anything in front of it is the stop failure.
+    /// </summary>
+    private static void AddStopError(List<string> warnings, string? error)
+    {
+        if (string.IsNullOrWhiteSpace(error))
         {
-            if (existing.Contains(warning, StringComparison.Ordinal))
-            {
-                return;
-            }
+            return;
         }
 
-        warnings.RemoveAll(existing => warning.Contains(existing, StringComparison.Ordinal));
-        warnings.Add(warning);
+        var known = string.Join(' ', warnings);
+        if (known.Length > 0 && error.EndsWith(known, StringComparison.Ordinal))
+        {
+            AddWarning(warnings, error[..^known.Length].Trim());
+        }
+        else if (!error.Equals(known, StringComparison.Ordinal))
+        {
+            AddWarning(warnings, error);
+        }
     }
 
     private PerfSession DescribeSession(SessionRecord session)
@@ -279,6 +347,12 @@ public sealed class AutoRecordRunner
             MicSeconds = Round(WavSeconds(files.MicrophoneAudio)),
             SystemSeconds = Round(WavSeconds(files.SystemAudio)),
             ScreenSegments = session.ScreenSegments.Count,
+            ScreenSegmentTimes = [.. session.ScreenSegments.Select(s => new PerfScreenSegment
+            {
+                Index = s.Index,
+                OffsetS = Round(s.Offset.TotalSeconds),
+                DurationS = Round(s.Duration.TotalSeconds),
+            })],
         };
     }
 
@@ -306,6 +380,7 @@ public sealed class AutoRecordRunner
         SystemFrames = stats.SystemFrames,
         DroppedFrames = stats.DroppedFrames,
         ScreenFramesDropped = stats.ScreenFramesDropped,
+        ScreenFaults = stats.ScreenFaults,
     };
 
     private void Write(PerfReport report)

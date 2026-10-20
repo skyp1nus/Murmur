@@ -15,6 +15,13 @@ internal sealed class FakeSessionStore : ISessionStore
 
     public void Add(SessionRecord session) => _sessions.Add(session);
 
+    /// <summary>Replaces the stored session with the same id (what a background recovery does to a row).</summary>
+    public void Replace(SessionRecord session)
+    {
+        var index = _sessions.FindIndex(s => s.Id == session.Id);
+        _sessions[index] = session;
+    }
+
     public ValueTask<SessionRecord> CreateSessionAsync(string title, DateTimeOffset startedAt, CancellationToken cancellationToken) =>
         throw new NotSupportedException();
 
@@ -41,7 +48,15 @@ internal sealed class FakeSessionStore : ISessionStore
         return ValueTask.FromResult(result);
     }
 
-    public ValueTask DeleteSessionAsync(SessionId id, CancellationToken cancellationToken) => throw new NotSupportedException();
+    /// <summary>Ids passed to <see cref="DeleteSessionAsync"/>, in order.</summary>
+    public List<SessionId> Deleted { get; } = [];
+
+    public ValueTask DeleteSessionAsync(SessionId id, CancellationToken cancellationToken)
+    {
+        Deleted.Add(id);
+        _sessions.RemoveAll(s => s.Id == id);
+        return ValueTask.CompletedTask;
+    }
 
     public SessionFiles GetFiles(SessionId id) => new(Path.Combine(Root, id.ToString()));
 }

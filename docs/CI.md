@@ -7,9 +7,10 @@
 | Що | Автоматично | Вручну |
 |---|---|---|
 | `ci.yml`, джоб `linux` | кожен pull request (крім події «додали мітку») | Actions → ci → Run workflow |
-| `ci.yml`, джоби `windows`, `startup`, `capture-e2e` | лише PR з міткою `ci:windows` (додавання мітки теж запускає) | Run workflow, `windows` = true |
+| `ci.yml`, джоби `windows`, `startup`, `installer`, `capture-e2e` | лише PR з міткою `ci:windows` (додавання мітки теж запускає) | Run workflow, `windows` = true |
 | `ci.yml`, джоб `bench` | ніколи | Run workflow, `bench` = true |
-| `asr.yml`, `ai-eval.yml`, `perf-record.yml`, `models.yml` | ніколи | Run workflow |
+| `asr.yml`, `ai-eval.yml`, `perf-record.yml` | ніколи | Run workflow |
+| `models.yml` | PR, якому додали мітку `ci:models` (по запуску на кожне додавання) | Run workflow |
 | `tags.yml` | push у `master`, що змінює `.github/phase-tags.txt` | Run workflow |
 
 ### Локально: `scripts/verify-local.ps1`
@@ -18,6 +19,7 @@
 
 ```powershell
 pwsh scripts/verify-local.ps1                      # build + тести + AOT win-x64 + старт (≈ джоби windows і startup)
+pwsh scripts/verify-local.ps1 -Publish -Installer   # інсталятор: збірка, тихе встановлення в temp, старт, видалення (≈ джоб installer)
 pwsh scripts/verify-local.ps1 -Publish -Capture     # + запис 60 с зі звуком і екраном (≈ capture-e2e)
 pwsh scripts/verify-local.ps1 -Perf -PerfMinutes 20 # довгі записи з бюджетами PLAN.md (≈ perf-record)
 pwsh scripts/verify-local.ps1 -Asr                  # 1 год аудіо → текст, бюджет 180 с (≈ asr; потрібен fetch-models.ps1)
@@ -40,6 +42,7 @@ SDK береться з `global.json` (prerelease `11.0.100-rc.2.26504.105`, `ro
 | `linux` | ubuntu-latest, 30 хв | `dotnet build`, `dotnet test`, Native AOT publish `Murmur.Desktop` (`net11.0`) і `Murmur.Transcription` для linux-x64. Джоб іде в `bash` з `pipefail` (`defaults.run.shell: bash`), тож невдалий publish за `| tee` валить крок. Якщо в логу publish є рядок `: warning ` або `: error ` (зокрема IL2xxx/IL3xxx; через `TreatWarningsAsErrors` попередження стають помилками) - крок червоний. |
 | `windows` | windows-latest, 45 хв | `dotnet build`, `dotnet test`, Native AOT publish win-x64 (`Murmur.exe` і `Murmur.Transcription.exe` в одну теку), той самий gate на попередження й помилки, таблиця розмірів у Step Summary, артефакт `murmur-win-x64`. |
 | `startup` | windows-latest, після `windows` | Завантажує `murmur-win-x64`, запускає `scripts/measure-startup.ps1` (7 запусків, бюджет 400 мс за медіаною). Падає, якщо медіана більша за бюджет або хоч один запуск не вдався. |
+| `installer` | windows-latest, після `windows`, 20 хв | Завантажує `murmur-win-x64` (без другого publish), ставить Inno Setup (`choco install innosetup -y --no-progress`, якщо `ISCC.exe` немає), збирає інсталятор `scripts/build-installer.ps1 -SkipPublish`, потім `verify-local.ps1 -Installer -SetupExe ...`: тихе встановлення в temp-теку, перевірка файлів, старт встановленого `Murmur.exe` (бюджет 400 мс), тихе видалення, перевірка, що тека зникла, а дані користувача лишились. Артефакти `murmur-installer`, `installer-verify`. Деталі - у розділі «Інсталятор». |
 | `capture-e2e` | windows-latest, після `windows`, 30 хв | End-to-end запис на раннері без звукової карти: віртуальна карта VB-Audio Virtual Cable, зациклений тон 440 Гц, `Murmur.exe --autorecord 60 --screen`. Деталі - у розділі «Capture e2e» нижче. |
 | `bench` | windows-latest, 40 хв | BenchmarkDotNet (`--job short`), усі `*-report-github.md` додаються до Step Summary. |
 
@@ -71,6 +74,8 @@ UNVERIFIED-ON-ACTIONS: workflow не запускався на GitHub Actions (Y
 |---|---|
 | `test-results-linux`, `test-results-windows` | `.trx` звіти тестів |
 | `murmur-win-x64` | Publish-тека win-x64 (`Murmur.exe`, `Murmur.Transcription.exe`, нативні бібліотеки) |
+| `murmur-installer` | `Murmur-Setup-<версія>.exe` і `.sha256` (джоб `installer`) |
+| `installer-verify` | `report.md` і логи (`installer-install.log`, `installer-uninstall.log`, `installer-startup.*`) смоук-тесту інсталятора |
 | `perf-startup` | `startup.json` - усі запуски, статистика, інформація про машину |
 | `bench` | JSON і markdown звіти BenchmarkDotNet |
 | `capture-e2e` | `rec60.json`, `check.md`, тека сесії (`session/`: `mic.wav`, `system.wav`, `screen-NNN.mp4`), TRX тестів `Murmur.Capture.Windows.Tests`, логи програвача тону |
@@ -126,12 +131,15 @@ gh run download <run-id> --name murmur-win-x64 --dir murmur-win-x64
 `Murmur.exe --autorecord <seconds> [--screen] --perf-out <json>` записує вказаний час, пише JSON і завершується з кодом 0:
 
 ```json
-{ "durationS": 60.0, "idleCpuPct": 0.0, "cpuAvgPct": 0.0, "cpuP95Pct": 0.0, "cpuAvgPctOneCore": 0.0,
+{ "durationS": 60.0, "screenStartMs": 452.0, "idleCpuPct": 0.0, "cpuAvgPct": 0.0, "cpuP95Pct": 0.0, "cpuAvgPctOneCore": 0.0,
   "wsAvgMb": 0.0, "wsMaxMb": 0.0, "privateMaxMb": 0.0, "wsSlopeMbPerMin": 0.0,
   "memory": [ { "seconds": 0.0, "wsMb": 0.0, "privateMb": 0.0, "gcHeapMb": 0.0, "gcCommittedMb": 0.0, "gcAllocatedMb": 0.0, "gen0Collections": 0, "gen2Collections": 0 } ],
   "recorderStats": { "microphoneFrames": 0, "systemFrames": 0, "droppedFrames": 0, "screenFramesDropped": 0 },
-  "session": { "id": "", "folder": "", "micSeconds": 0.0, "systemSeconds": 0.0, "screenSegments": 0 } }
+  "session": { "id": "", "folder": "", "micSeconds": 0.0, "systemSeconds": 0.0, "screenSegments": 0,
+              "screenSegmentTimes": [ { "index": 0, "offsetS": 0.0, "durationS": 0.0 } ] } }
 ```
+
+`durationS` - довжина часової шкали сесії: `IRecorder.Elapsed` (час від старту аудіо), прочитаний у момент запиту зупинки; а не довжина вікна семплювання, що починається після повернення `StartAsync` (із екраном воно вже включає старт екрана, а аудіо вже пише). Файли (WAV і сегменти екрана) лежать на цій шкалі. `session.screenSegmentTimes` розкладає сегменти по ній: `offsetS` - час сесії, у який рекордер викликав `StartSegmentAsync` (медіа-час 0 файла), `durationS` - час від цього виклику до виклику `StopSegmentAsync` (рівно медіа-тривалість файла). `screenStartMs` (лише з екраном і лише якщо є сегмент) - скільки тривав старт екрана: час сесії, коли повернувся старт запису, мінус `offsetS` першого сегмента (старт екрана рекордера + його власна підготовка, без старту аудіо, що йде перед ним).
 
 `mic.wav` і `system.wav` у `session.folder` - 16 кГц mono PCM16, сегменти екрана - `screen-NNN.mp4`. Реалізація - окрема задача; поки її немає, `capture-e2e` червоний на кроці автозапису.
 
@@ -141,18 +149,38 @@ gh run download <run-id> --name murmur-win-x64 --dir murmur-win-x64
 |---|---|
 | `recorderStats.droppedFrames` | `== 0` |
 | `recorderStats.systemFrames` | `> 0` |
-| `system.wav` | 16 кГц, mono, 16 біт; тривалість у межах +/- 1 с від `durationS` |
+| `system.wav` | 16 кГц, mono, 16 біт; тривалість у межах +/- 1 с від `durationS`; рядок INFO зі знаковою різницею (щоб систематичний зсув було видно задовго до FAIL) |
 | `mic.wav` | якщо є дані: той самий формат і допуск за тривалістю (на CI мікрофона немає, порожній файл - лише INFO) |
 | Тиша (`-ExpectTone`) | жодної серії нульових семплів (`abs <= 1`) довше 100 мс у `system.wav`; перші 5 с і останні 2 с ігноруються (старт тону й запису не синхронні) |
 | Тон (`-ExpectTone`) | не менше 95% односекундних вікон містять 440 Гц (відношення енергії Goertzel >= 0.5), пік сигналу > 0 |
 | Екран (`-ExpectScreen`) | є хоча б один непорожній `screen-NNN.mp4`, `session.screenSegments` дорівнює кількості файлів |
 | Відео екрана (`-ExpectScreen`) | кожен сегмент розбирається як MP4 з відеосемплами; у звіті кадри, тривалість і fps сегмента; fps не нижче `-MinScreenFps` (0.5; `0` вимикає). Частота кадрів змінна: на статичному екрані рекордер раз на секунду повторює останній кадр (~1 fps), рухомий вміст іде до 60 fps на GPU-шляху і до 30 fps у CPU readback (WARP на раннері; програмний енкодер сам доповнює статичні проміжки до 30 fps). Сума тривалостей сегментів у межах +/- `-ScreenToleranceS` (2 с) від `durationS`: файл із 12 кадрів (0.4 с) для 10-хвилинного запису тепер дає FAIL |
+| Синхрон сегмента (`-ExpectScreen`) | для кожного `screen-NNN.mp4` медіа-тривалість у межах +/- `-SegmentToleranceS` (0.25 с) від `durationS` запису `session.screenSegmentTimes` з тим самим індексом NNN; рядок INFO зі знаковою різницею й `offsetS`. Контракт точний (файл починається у виклик `StartSegmentAsync` і закінчується у виклик `StopSegmentAsync`, обидва годинники - QPC), тож лишається кадр сінка (програмний енкодер вирівнює вивід до цілих кадрів: 33 мс на 30 fps), округлення JSON до мс і похибка таймерів навантаженого раннера (кілька десятків мс); 0.25 с це покриває і значно менше за 0.43-0.48 с, які втрачав старт енкодера до виправлення. JSON без `screenSegmentTimes` (старий збір) - SKIP, файл без запису - FAIL |
 | Бюджети (опційно) | `-IdleCpuBudgetPct` для `idleCpuPct`, `-CpuBudgetPct` для `cpuAvgPct` (відсоток від усієї машини), `-RamBudgetMb` для `wsMaxMb`; `0` вимикає перевірку |
 | Ріст памʼяті (опційно) | `-MaxWsSlopeMbPerMin`: нахил working set (МБ/хв, метод найменших квадратів по `memory[].seconds` / `memory[].wsMb`) лише по вибірках від `-WsSlopeSkipS` (60 с) - перша хвилина є прогрівом (JIT, Media Foundation, енкодер, пули семплів) і в підгонку не входить; `wsSlopeMbPerMin` самого застосунку рахується з початку запису, тому лише показується (INFO). Менше 3 вибірок після прогріву - FAIL (нема по чому рахувати); `0` вимикає перевірку |
 
-Тривалість відео - це сума тривалостей семплів відеотреку з `moof/traf/trun` (з типовими значеннями з `tfhd`/`trex`), поділена на timescale з `mdhd`; для нефрагментованого MP4 - таблиця `stts`; без семплів береться `mehd`/`mvhd`, але тоді кількість кадрів невідома і сегмент отримує FAIL. Файл, обірваний збоєм, читається до останнього повного боксу (у звіті `file truncated`). `screen-NNN.mp4` читає `scripts/MurmurMp4Scan.cs` (його ж `Add-Type -Path` компілює скрипт); JSON сесії не містить зсувів сегментів, тому порівнюється сума, а `--autorecord` не перемикає екран, отже сегмент покриває весь запис мінус затримка старту. Юніт-тести парсера і скрипту - `tests/Murmur.Scripts.Tests` (тести скрипту потребують `pwsh`, інакше скіпаються).
+Тривалість відео - це сума тривалостей семплів відеотреку з `moof/traf/trun` (з типовими значеннями з `tfhd`/`trex`), поділена на timescale з `mdhd`; для нефрагментованого MP4 - таблиця `stts`; без семплів береться `mehd`/`mvhd`, але тоді кількість кадрів невідома і сегмент отримує FAIL. Файл, обірваний збоєм, читається до останнього повного боксу (у звіті `file truncated`). `screen-NNN.mp4` читає `scripts/MurmurMp4Scan.cs` (його ж `Add-Type -Path` компілює скрипт); `--autorecord` не перемикає екран, отже сегмент покриває весь запис мінус проміжок між стартом аудіо й викликом старту екрана; сума тривалостей порівнюється з `durationS` грубо (+/- 2 с), а точна перевірка кожного сегмента - синхрон вище. Юніт-тести парсера і скрипту - `tests/Murmur.Scripts.Tests` (тести скрипту потребують `pwsh`, інакше скіпаються).
 
 WAV читається вбудованим C#-хелпером (`Add-Type`), тому години запису перевіряються за секунди. Заголовок із нульовим або завеликим розміром `data` (недофіналізований файл після збою) читається до кінця файлу, це лише INFO.
+
+## Інсталятор (`installer/`, `scripts/build-installer.ps1`)
+
+Рішення D-036: Inno Setup 6, встановлення на користувача без прав адміністратора в `%LOCALAPPDATA%\Programs\Murmur`, з деінсталятором. У інсталятор іде вся publish-тека `Murmur.Desktop` (Native AOT win-x64) разом із воркером `Murmur.Transcription.exe` та його нативними бібліотеками (onnxruntime, sherpa-onnx). Не йдуть: `*.pdb`, `*.dbg`, `*.exp`, `*.ilk`, `*.lib` (символи й залишки лінкера, у рантаймі не потрібні; список - `ExcludeMasks` на початку `installer/Murmur.iss`). Моделі й llama.cpp в інсталятор не входять: застосунок завантажує їх сам (D-031).
+
+Локально (Windows, PowerShell 7, потрібен Inno Setup 6: `winget install JRSoftware.InnoSetup`):
+
+```powershell
+pwsh scripts/build-installer.ps1                       # publish + інсталятор -> artifacts/installer/Murmur-Setup-<версія>.exe (+ .sha256, payload.md)
+pwsh scripts/build-installer.ps1 -SkipPublish          # з наявної artifacts/publish/win-x64 (або -PublishDir <тека>)
+pwsh scripts/build-installer.ps1 -Version 0.2.0        # інша версія; за замовчуванням <Version> із Directory.Build.props (одна версія для всіх збірок)
+pwsh scripts/verify-local.ps1 -Publish -Installer     # + смоук-тест: встановити, запустити, видалити
+```
+
+У CI інсталятор збирає джоб `installer` з артефакту `murmur-win-x64`; готовий `Murmur-Setup-<версія>.exe` лежить в артефакті `murmur-installer` (14 днів), таблиця вмісту - у Step Summary. Інсталятор не підписаний: SmartScreen може попередити.
+
+Поведінка: оновлення поверх старої версії - той самий `AppId` (у `Murmur.iss` його не змінювати) і тека; застосунок тримає іменований mutex `MurmurSingleInstance` (один Murmur на сеанс), тому з `AppMutex` встановлення й видалення не стартують, доки Murmur запущено, і просять його закрити (активний запис оновлення не обриває); завислий `Murmur.Transcription.exe` закриває Restart Manager (`CloseApplications=yes`). Діагностичні запуски (`--startup-probe`, `--autorecord`) mutex не беруть. Мова майстра - за мовою інтерфейсу ОС (українська або англійська). Видалення прибирає файли програми й ярлики; дані користувача (`%LOCALAPPDATA%\Murmur`: записи, база, налаштування, моделі) за замовчуванням лишаються, у звичайному видаленні є питання «Також видалити записи й завантажені моделі?» (за замовчуванням «Ні»), у тихому (`/VERYSILENT`) дані не видаляються ніколи. Теку записів, обрану поза `%LOCALAPPDATA%\Murmur`, видалення не чіпає.
+
+UNVERIFIED-ON-WINDOWS: інсталятор, смоук-тест і джоб `installer` ще не запускалися (Linux-перевірки: розбір PowerShell, `actionlint`, `build-installer.ps1 -DryRun` у тестах).
 
 ## Perf record (`.github/workflows/perf-record.yml`)
 
@@ -175,6 +203,37 @@ Workflow сам збирає Native AOT `Murmur.Desktop` win-x64 (без `Murmur
 Хмарний раннер (4 vCPU, без GPU) повільніший і шумніший за реальний ПК: промах бюджету - сигнал до уваги, а не вирок. Для перевірки на реальному залізі запускайте `Murmur.exe --autorecord` локально.
 
 Підтверджено запусками на `windows-latest` (2026-10-18): `LABSN/sound-ci-helpers@v1` ставить VB-Audio Virtual Cable, і він стає пристроєм за замовчуванням (loopback записує тон 440 Гц); `Server-Media-Foundation` відсутній в образі й ставиться кроком за ~1 хв; WGC віддає кадри без фізичного дисплея (WARP, тому CPU-readback, D-027: 1080p30, VBR 6 Мбіт/с; на ПК з апаратним H.264-енкодером - 1080p60, VBR 12 Мбіт/с, D-030); `SoundPlayer` у `pwsh` 7 грає тон увесь запуск. Мікрофон (`CABLE Output`) заборонений налаштуваннями конфіденційності раннера → `E_ACCESSDENIED`, запис іде без мікрофона (D-023).
+
+## Models (`.github/workflows/models.yml`)
+
+Реальні завантаження каталогу моделей (`src/Murmur.Models`, фаза 4 «моделі завантажуються при першому запуску») з Hugging Face і GitHub тим самим рушієм, що й застосунок. Юніт-тести `Murmur.Models.Tests` ходять лише до локального фейкового HTTP-сервера (вони в `ci.yml`), тож це єдине місце, де перевіряються справжні URL. Запускається лише вручну (`workflow_dispatch`, рішення власника: менше запусків Actions); `concurrency: models-<ref>`, права `contents: read`, `ubuntu-latest`, 45 хв. Той самий пін SDK і крок `Verify SDK matches global.json`, що в `ci.yml`.
+
+Кроки:
+
+1. `dotnet build tools/Murmur.ModelFetch -c Release`.
+1a. `Murmur.ModelFetch --resolve-pins --summary $GITHUB_STEP_SUMMARY` (`continue-on-error`, моделі не качає): для кожного джерела каталогу питає API. Hugging Face: `GET /api/models/{repo}/revision/main` (`sha` = коміт) і `POST /api/models/{repo}/paths-info/{revision}` (revision із `HuggingFaceRevisions`, а для репозиторію на `main` - head; якщо head відрізняється від закріпленого коміту, у Note буде `update available`; `lfs.oid` = SHA-256, `size`; малий файл поза LFS, напр. `tokens.txt`, хешується із завантаження). GitHub: `GET /repos/{owner}/{repo}/releases/tags/{tag}` (`digest` `sha256:...`, `size` ассета; якщо ассета немає у вбудованому списку - сторінки `releases/{id}/assets?per_page=100&page=N`). Друкує таблицю «Item / Source / Revision / File / Size / SHA-256 / Pin / Note», готові рядки для `ModelCatalog` (`HuggingFaceRevisions` і піни) та JSON; усе це також іде в Step Summary (або в `--summary`, якщо заданий). Колонка `Pin`: `match`, `unpinned`, `DRIFT` (закріплений хеш/розмір не збігається з upstream; ще й `::warning::`) або `ERROR` (джерело не вдалося розв'язати; код виходу 1). Хеш, закріплений на `resolve/main`, ламає всі інсталяції, коли upstream перезальє файл, тому репозиторій із записом у `ModelCatalog.HuggingFaceRevisions` качається з `resolve/<sha>`: власник переносить звідси `sha` і перепінює хеші того репозиторію з тієї ж таблиці. `GITHUB_TOKEN` (і необовʼязковий `HF_TOKEN`) іде лише на хост свого API (завантаження малого файла для хешу - теж лише якщо його хост збігається з хостом HF API). Для llama.cpp друкуються архіви Windows і Linux.
+2. Встановлення `silero-vad,parakeet-tdt-0.6b-v3-int8,llama-cpp-b11716,embeddinggemma-300m-q8` у `$MURMUR_MODELS_DIR` (`<workspace>/models`, без кешу: мета - реальне завантаження). `Murmur.ModelFetch --dir <тека> --ids ... --summary $GITHUB_STEP_SUMMARY` друкує для кожного файла розмір, SHA-256 і час; таблиця йде в Step Summary. SHA-256 і точні розміри Parakeet, `silero-vad`, llama.cpp (ubuntu tar.gz) і ggml-org EmbeddingGemma уже закріплені в каталозі (`ModelFileSpec.Sha256`/`SizeBytes`), тож цей крок їх перевіряє; чат-моделі й Windows zip закріплені за результатом `--resolve-pins` (моделі >1 ГБ цей крок не качає).
+3. `--head-only gemma-4-e4b-q4,gemma-4-26b-a4b-q4`: лише перевірка, що URL відповідають (запит `Range: bytes=0-0`), і `Content-Length` (5 і 17 ГБ не качаємо). Крок виконується навіть після збою кроку 2, а кроки 4-5 (розкладка, повторний запуск) виконуються після успішного кроку 2 незалежно від результату цього зонда. Для чат-моделей каталог має впорядкований список дзеркал (unsloth, bartowski для Gemma 4 E4B; 26B і EmbeddingGemma мають по одному джерелу: bartowski і ggml-org; неіснуючі дзеркала прибрано після `--resolve-pins`): береться перше, що відповіло (довжина відома), локальне імʼя файла завжди канонічне, а в `models.json` пишуться репозиторій і імʼя файла того дзеркала, що спрацювало. Крок друкує, яке дзеркало відповіло і які пропущено (з причиною, напр. 404). Імена 26B перевірено `--resolve-pins`; червоний крок означає, що жодне з дзеркал не відповіло (у помилці перелічено всі URL).
+4. Перевірка розкладки, яку читає застосунок (`ModelLocator`, `AiModelPaths`): чотири файли Parakeet, `silero_vad.onnx`, `llama.cpp/llama-server` (виконуваний, `--version` запускається), `gguf/embeddinggemma-300M-Q8_0.gguf`, `gguf/models.json`; тека `.staging` після встановлення порожня й видалена.
+5. Повторний запуск встановлення нічого не качає (4 рядки `already installed, nothing downloaded`).
+
+Тест ASR-воркера на справжній моделі до workflow не додано: `RealModelTests` беруть тестові WAV із `<parakeet>/test_wavs/`, а каталог ставить лише чотири файли моделі (без `test_wavs`), тож це не однорядкова команда.
+
+### Локальний запуск `Murmur.ModelFetch` (Windows і Linux)
+
+Той самий інструмент власник може запускати на своєму ПК, щоб перевірити каталог без CI (потрібен лише .NET SDK з `global.json`; доступ до Hugging Face і GitHub):
+
+```powershell
+# Перевірити, що URL відповідають, і побачити розміри (нічого не качає):
+dotnet run -c Release --project tools/Murmur.ModelFetch -- --dir "$env:TEMP\murmur-models" --head-only parakeet-tdt-0.6b-v3-int8,silero-vad,llama-cpp-b11716,embeddinggemma-300m-q8,gemma-4-e4b-q4,gemma-4-26b-a4b-q4
+
+# Встановити предмети й надрукувати розмір та SHA-256 кожного файла (Windows-збірка llama.cpp - zip):
+dotnet run -c Release --project tools/Murmur.ModelFetch -- --dir "$env:TEMP\murmur-models" --ids silero-vad,llama-cpp-b11716,embeddinggemma-300m-q8 --summary summary.md
+```
+
+Параметри: `--resolve-pins` (без `--dir`: лише метадані upstream, див. крок 1a), `--dir <тека>` (обов'язковий для `--ids`/`--head-only`; розкладка така, як читає застосунок: `silero_vad.onnx`, `llama.cpp\`, `gguf\` + `gguf\models.json`), `--ids a,b` (встановити), `--head-only a,b` (лише перевірити URL), `--summary <файл.md>` (дописати markdown-таблицю). Ідентифікатори: `parakeet-tdt-0.6b-v3-int8`, `silero-vad`, `llama-cpp-b11716`, `embeddinggemma-300m-q8`, `gemma-4-e4b-q4`, `gemma-4-26b-a4b-q4`. Перервану команду можна запустити знову: часткові файли (`.staging\<id>\`) докачуються. Код виходу 0 - усе гаразд, 1 - предмет не встановився або URL недоступний, 2 - помилка аргументів. Системний проксі враховується. На Windows `--head-only gemma-4-26b-a4b-q4` перевіряє припущення про ім'я файла 26B.
+
+UNVERIFIED-ON-ACTIONS: workflow не запускався на GitHub Actions (YAML розібрано `python yaml`); завантаження `silero-vad` і `llama-cpp-b11716` (tar.gz) із GitHub перевірено вручну на Linux-середовищі розробки, Hugging Face там недоступний. Windows-збірка llama.cpp (zip) і запуск інструмента на Windows перевірені лише на синтетичному архіві й тестами на Linux (UNVERIFIED-ON-WINDOWS).
 
 ## AI-eval: «відповідь AI веде на правильну хвилину» (`.github/workflows/ai-eval.yml`)
 

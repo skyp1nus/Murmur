@@ -1,17 +1,22 @@
 using Murmur.Capture.Windows.Audio;
+using Murmur.Capture.Windows.Input;
 using Murmur.Capture.Windows.Playback;
 using Murmur.Capture.Windows.Screen;
+using Murmur.Capture.Windows.Video;
 using Murmur.Core.Capture;
+using Murmur.Core.Input;
 
 namespace Murmur.Capture.Windows;
 
 /// <summary>
 /// Windows capture facade: WASAPI microphone and loopback, Windows.Graphics.Capture + Media Foundation screen recording,
-/// and WASAPI playback of a session's tracks (<see cref="IAudioPlayback"/>: the composition root can register this one
-/// instance for both interfaces).
+/// WASAPI playback of a session's tracks (<see cref="IAudioPlayback"/>) and Media Engine playback of its screen segments
+/// (<see cref="IVideoPlayback"/>): the composition root can register this one instance for all three interfaces.
 /// </summary>
-public sealed class WindowsCapture : ICapture, IAudioPlayback
+public sealed class WindowsCapture : ICapture, IAudioPlayback, IVideoPlayback
 {
+    private readonly WindowsVideoPlayback _video = new();
+
     /// <summary>
     /// Queried on every access (devices come and go): any active capture / render endpoint;
     /// <c>Screen</c> = <c>GraphicsCaptureSession.IsSupported()</c>.
@@ -58,4 +63,16 @@ public sealed class WindowsCapture : ICapture, IAudioPlayback
     /// <see cref="IAudioPlayer.OpenAsync"/>.
     /// </summary>
     public IAudioPlayer CreatePlayer() => new WasapiAudioPlayer();
+
+    /// <summary>
+    /// A <see cref="WindowsGlobalHotkeys"/> (RegisterHotKey on its own message-loop thread); nothing native is touched
+    /// until the first <see cref="IGlobalHotkeys.Register"/> with a gesture. The caller owns and disposes it.
+    /// </summary>
+    public IGlobalHotkeys CreateGlobalHotkeys() => new WindowsGlobalHotkeys();
+
+    /// <summary>Media Foundation and the Media Engine are available (checked once, see <see cref="WindowsVideoPlayback"/>).</summary>
+    bool IVideoPlayback.IsSupported => _video.IsSupported;
+
+    /// <summary>A closed <see cref="MediaEngineVideoPlayer"/>; nothing native is touched until <see cref="IVideoPlayer.OpenAsync"/>.</summary>
+    public IVideoPlayer CreateVideoPlayer() => _video.CreateVideoPlayer();
 }

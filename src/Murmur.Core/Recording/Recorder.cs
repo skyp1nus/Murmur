@@ -41,11 +41,23 @@ namespace Murmur.Core.Recording;
 /// <see cref="SessionState.Failed"/>.
 /// </para>
 /// <para>
+/// <b>Screen faults.</b> The recorder listens to <see cref="IScreenRecorder.Faulted"/> for the lifetime of each segment.
+/// Every fault is counted in <see cref="RecorderStats.ScreenFaults"/>. A non-fatal one is told apart by its
+/// <see cref="CaptureFault.Kind"/> (never by its message), raises <see cref="Warning"/> once per distinct user text and adds that text to the session's warnings (<see cref="SessionRecord.Error"/>). A fatal one
+/// marks the segment failed (<see cref="IsScreenRecording"/> turns false at once), raises <see cref="Warning"/> with
+/// <see cref="RecorderWarning.ScreenStopped"/> and ends the segment like "screen off" does (its file and real end stay
+/// on the timeline); the audio is never touched and the screen may be switched on again. Faults arrive on capture
+/// threads: the handler never blocks and holds no lock across a callback.
+/// </para>
+/// <para>
 /// <b>Stop.</b> Every step of a stop runs even if an earlier one threw: each source is stopped and released, every
 /// file closed, the open screen segment finalized (and kept on the timeline even if finalizing fails) and the screen
 /// recorder released; the recorder always returns to <see cref="RecorderState.Idle"/>. A failure is reported in
 /// <see cref="SessionRecord.Error"/> (audio before screen); an audio failure also makes the session
-/// <see cref="SessionState.Failed"/>, a screen failure alone does not.
+/// <see cref="SessionState.Failed"/>, a screen failure alone does not. The final stop asks the screen recorder to stop
+/// the open segment and stops the audio side by side, so both end where the user stopped; that relies on
+/// <see cref="IScreenRecorder.StopSegmentAsync"/> taking the stop time and returning from its synchronous part
+/// promptly (the audio stop is queued right after it).
 /// </para>
 /// <para>
 /// <b>Threads.</b> <see cref="StartAsync"/>, <see cref="StopAsync"/> and <see cref="SetScreenEnabledAsync"/> are
@@ -123,7 +135,11 @@ public sealed class Recorder : IRecorder
     /// <summary>Longest flush to disk of every track (flusher thread) of the last session (diagnostics).</summary>
     internal TimeSpan WriterMaxFlush { get; private set; }
 
+    public bool IsScreenRecording => _active?.Open is { Failed: false };
+
     public event Action<RecorderState>? StateChanged;
+
+    public event Action<RecorderWarning>? Warning;
 
     public async ValueTask<SessionRecord> StartAsync(RecordingOptions options, CancellationToken cancellationToken)
     {
@@ -173,7 +189,27 @@ public sealed class Recorder : IRecorder
 
             if (enabled)
             {
-                if (active.OpenSegment is null)
+                if (active.Open is { Failed: true })
+                {
+                    // The screen recorder reported a fatal fault and the cleanup queued behind this gate has not run yet:
+                    // finish the failed segment first, so "on" really starts a new one. A failed segment that cannot be
+                    // finalized (the fault was the reason) must not make "on" fail.
+                    try
+                    {
+                        await StopScreenSegmentAsync(active, CancellationToken.None).ConfigureAwait(false);
+                    }
+                    catch (Exception ex)
+                    {
+                        LogError("finalizing the failed screen segment failed", ex);
+                    }
+
+                    if (active.Open is not null)
+                    {
+                        throw new InvalidOperationException("The failed screen segment could not be finished; the screen cannot be switched on again.");
+                    }
+                }
+
+                if (active.Open is null)
                 {
                     if (!_capture.Capabilities.Screen)
                     {
@@ -183,10 +219,10 @@ public sealed class Recorder : IRecorder
                     await StartScreenSegmentAsync(active, cancellationToken).ConfigureAwait(false);
                 }
             }
-            else if (active.OpenSegment is not null)
+            else if (active.Open is not null)
             {
                 // The caller's token is honoured by the gate wait above; a half-cancelled finalize has no clean meaning.
-                await StopScreenSegmentAsync(active, end: null, CancellationToken.None).ConfigureAwait(false);
+                await StopScreenSegmentAsync(active, CancellationToken.None).ConfigureAwait(false);
             }
         }
         finally
@@ -308,7 +344,7 @@ public sealed class Recorder : IRecorder
                 State = SessionState.Recording,
                 HasMicrophone = active.Tracks.Exists(t => t.Kind == AudioDeviceKind.Microphone),
                 HasSystemAudio = active.Tracks.Exists(t => t.Kind == AudioDeviceKind.SystemOutput),
-                Error = active.Warning,
+                Error = active.WarningText,
             };
             await _store.UpdateSessionAsync(active.Record, cancellationToken).ConfigureAwait(false);
 
@@ -447,29 +483,54 @@ public sealed class Recorder : IRecorder
     private async ValueTask StartScreenSegmentAsync(ActiveRecording active, CancellationToken cancellationToken)
     {
         active.Screen ??= _capture.CreateScreenRecorder(new ScreenCaptureOptions(active.DisplayId));
+        var screen = active.Screen;
         var index = active.NextSegmentIndex;
-        var offset = _time.GetElapsedTime(active.StartTimestamp);
-        await active.Screen.StartSegmentAsync(active.Files.ScreenSegment(index), cancellationToken).ConfigureAwait(false);
+        var path = active.Files.ScreenSegment(index);
+
+        // Media time 0 of the segment file is the moment StartSegmentAsync is called (IScreenRecorder), so the offset is
+        // read on the session clock as the last step before the call: nothing awaitable sits in between, and however
+        // long the screen recorder takes to start, its first frame covers that time.
+        var run = new ScreenRun(index, _time.GetElapsedTime(active.StartTimestamp));
+
+        // Subscribed before the start: a fault raised while the segment starts belongs to this segment too.
+        run.Handler = fault => OnScreenFaulted(active, run, fault);
+        screen.Faulted += run.Handler;
+        try
+        {
+            await screen.StartSegmentAsync(path, cancellationToken).ConfigureAwait(false);
+        }
+        catch
+        {
+            Unsubscribe(screen, run);
+            throw;
+        }
+
         active.NextSegmentIndex = index + 1;
-        active.OpenSegment = (index, offset);
+        active.Open = run;
     }
 
-    /// <param name="end">Segment end on the session timeline; <c>null</c> = now.</param>
     /// <remarks>
+    /// The segment ends where the screen recorder is asked to stop: the session time is read as the last step before
+    /// <see cref="IScreenRecorder.StopSegmentAsync"/>, which ends the file at the moment it is called, so
+    /// <see cref="ScreenSegment.Duration"/> is the file's media duration however long finalizing takes.
     /// When finalizing throws after the screen recorder has left the segment, the segment is still recorded and closed:
     /// its file is already on disk (a fragmented MP4 stays playable without a clean finalize), so it belongs to the
     /// session, and the next "on" starts a new segment. When it throws while the recorder is still recording (the
     /// failure came before the sink stopped), the segment stays open: the file is still growing past any end we could
     /// write, so a later "off" or the final stop retries the finalize. The error reaches the caller either way.
     /// </remarks>
-    private async ValueTask StopScreenSegmentAsync(ActiveRecording active, TimeSpan? end, CancellationToken cancellationToken)
+    private async ValueTask StopScreenSegmentAsync(ActiveRecording active, CancellationToken cancellationToken)
     {
-        if (active.OpenSegment is not { } open || active.Screen is null)
+        if (active.Open is not { } open || active.Screen is null)
         {
             return;
         }
 
-        end ??= _time.GetElapsedTime(active.StartTimestamp);
+        // The end is read, and StopSegmentAsync called, on the calling thread as the last steps: the screen recorder
+        // takes the stop time and returns from its synchronous part promptly (IScreenRecorder.StopSegmentAsync), so the
+        // audio stop queued right after by StopCoreAsync runs next to the finalize instead of after it. Hopping to the
+        // thread pool here would not help: its work queue can run the audio stop first.
+        var end = _time.GetElapsedTime(active.StartTimestamp);
         try
         {
             await active.Screen.StopSegmentAsync(cancellationToken).ConfigureAwait(false);
@@ -478,15 +539,157 @@ public sealed class Recorder : IRecorder
         {
             if (!active.Screen.IsRecording)
             {
-                CloseScreenSegment(active, open, end.Value);
+                CloseScreenSegment(active, open, end);
             }
         }
     }
 
-    private static void CloseScreenSegment(ActiveRecording active, (int Index, TimeSpan Offset) open, TimeSpan end)
+    private static void CloseScreenSegment(ActiveRecording active, ScreenRun open, TimeSpan end)
     {
+        // A failed segment ends where it failed: the screen recorder stops writing frames at its fatal fault, so the file
+        // is no longer than that, however late the cleanup runs.
+        var faultTicks = Volatile.Read(ref open.FaultElapsedTicks);
+        if (faultTicks >= 0)
+        {
+            end = TimeSpan.FromTicks(Math.Max(Math.Min(end.Ticks, faultTicks), open.Offset.Ticks));
+        }
+
         active.Segments.Add(new ScreenSegment(open.Index, open.Offset, end - open.Offset));
-        active.OpenSegment = null;
+        active.Open = null;
+        Unsubscribe(active.Screen, open);
+    }
+
+    /// <summary>Stops listening to a segment; a fault it raises from now on (a late queued one) is ignored.</summary>
+    private static void Unsubscribe(IScreenRecorder? screen, ScreenRun run)
+    {
+        run.Closed = true;
+        try
+        {
+            if (screen is not null && run.Handler is not null)
+            {
+                screen.Faulted -= run.Handler;
+            }
+        }
+        catch (Exception)
+        {
+            // Closed already makes the handler a no-op.
+        }
+    }
+
+    /// <summary>
+    /// A fault of the screen recorder, on whatever thread it raises it. Never blocks and holds no lock across a
+    /// callback: a fatal fault only marks the segment failed (<see cref="IsScreenRecording"/> turns false at once) and
+    /// queues the cleanup behind the recorder's gate.
+    /// </summary>
+    private void OnScreenFaulted(ActiveRecording active, ScreenRun run, CaptureFault fault)
+    {
+        if (run.Closed)
+        {
+            return;
+        }
+
+        Interlocked.Increment(ref active.ScreenFaults);
+        try
+        {
+            // The technical detail is for the console; the user gets the short text.
+            Console.Error.WriteLine($"Murmur: {fault.Source} {(fault.IsFatal ? "fatal fault" : "warning")}: {fault.Message}");
+        }
+        catch (Exception)
+        {
+            // A broken console must not break the capture thread.
+        }
+
+        string text;
+        if (fault.IsFatal)
+        {
+            // The first fatal fault fixes where the segment ends on the session timeline.
+            Interlocked.CompareExchange(ref run.FaultElapsedTicks, _time.GetElapsedTime(active.StartTimestamp).Ticks, -1);
+            run.Failed = true;
+            text = ScreenFaultTexts.Stopped;
+        }
+        else
+        {
+            text = ScreenFaultTexts.Describe(fault.Kind);
+        }
+
+        // The session keeps each user text once, and so does the UI: a fault whose text is already known adds nothing.
+        // A fatal fault always reaches the UI (the pill must turn off).
+        var isNew = active.AddWarning(text);
+        if (fault.IsFatal || isNew)
+        {
+            RaiseWarning(new RecorderWarning(fault.Source, text, ScreenStopped: fault.IsFatal, fault.Kind));
+        }
+
+        if (fault.IsFatal && Interlocked.Exchange(ref run.StopScheduled, 1) == 0)
+        {
+            ScheduleScreenStop(active, run);
+        }
+    }
+
+    private void RaiseWarning(RecorderWarning warning)
+    {
+        try
+        {
+            Warning?.Invoke(warning);
+        }
+        catch (Exception)
+        {
+            // A subscriber's failure must not reach the capture thread.
+        }
+    }
+
+    /// <summary>
+    /// Ends the failed segment like "screen off" would, once the gate is free, and stores the session's warnings (a crash
+    /// later must not lose why the screen stopped). The audio is not touched.
+    /// </summary>
+    private void ScheduleScreenStop(ActiveRecording active, ScreenRun run)
+    {
+        _ = Task.Run(async () =>
+        {
+            await _gate.WaitAsync().ConfigureAwait(false);
+            try
+            {
+                if (ReferenceEquals(_active, active) && _state == RecorderState.Recording)
+                {
+                    if (ReferenceEquals(active.Open, run))
+                    {
+                        try
+                        {
+                            await StopScreenSegmentAsync(active, CancellationToken.None).ConfigureAwait(false);
+                        }
+                        catch (Exception ex)
+                        {
+                            // The segment stays open when the finalize failed before the recorder left it: the next "off"
+                            // or the final stop retries; the fault itself was reported already.
+                            LogError("finalizing the failed screen segment failed", ex);
+                        }
+                    }
+
+                    active.Record = active.Record with { Error = active.WarningText };
+                    await _store.UpdateSessionAsync(active.Record, CancellationToken.None).ConfigureAwait(false);
+                }
+            }
+            catch (Exception ex)
+            {
+                LogError("storing the screen warning failed", ex);
+            }
+            finally
+            {
+                _gate.Release();
+            }
+        });
+    }
+
+    private static void LogError(string what, Exception ex)
+    {
+        try
+        {
+            Console.Error.WriteLine($"Murmur: {what}: {ex.Message}");
+        }
+        catch (Exception)
+        {
+            // A broken console must not break the recorder.
+        }
     }
 
     private void OnSourceFaulted(ActiveRecording active, Track track, CaptureFault fault)
@@ -544,6 +747,14 @@ public sealed class Recorder : IRecorder
         var stopElapsed = _time.GetElapsedTime(active.StartTimestamp);
         try
         {
+            // The screen segment and the audio stop together: the segment's end is read as its stop is requested (see
+            // StopScreenSegmentAsync), so starting it after the audio had stopped would leave the video longer than the
+            // audio by the time the audio needs to stop. A failed finalize (an HRESULT from Media Foundation) is
+            // collected below and must not leak the capture session, device and encoder, which nothing references after
+            // this. If finalizing throws before the recorder left the segment, it stays open here and is closed once the
+            // recorder is released.
+            var screenStop = StopScreenSegmentAsync(active, CancellationToken.None).AsTask();
+
             string? audioError = null;
             try
             {
@@ -554,23 +765,19 @@ public sealed class Recorder : IRecorder
                 audioError = ex.Message;
             }
 
-            // The audio counters are final now. Take them with the screen counters while the screen recorder is still
-            // alive: once disposed, its Stats may throw or be reset.
-            FreezeStats(active);
-
-            // Finalizing and releasing the screen are independent steps: a failed finalize (an HRESULT from Media
-            // Foundation) must not leak the capture session, device and encoder, which nothing references after this.
             string? screenError = null;
             try
             {
-                // The last segment ends where the user stopped, like the audio. If finalizing throws before the
-                // recorder left the segment, it stays open here and is closed below once the recorder is released.
-                await StopScreenSegmentAsync(active, stopElapsed, CancellationToken.None).ConfigureAwait(false);
+                await screenStop.ConfigureAwait(false);
             }
             catch (Exception ex)
             {
                 screenError = ex.Message;
             }
+
+            // Both counters are final now. Take them while the screen recorder is still alive: once disposed, its Stats
+            // may throw or be reset.
+            FreezeStats(active);
 
             if (active.Screen is not null)
             {
@@ -585,7 +792,7 @@ public sealed class Recorder : IRecorder
                 finally
                 {
                     // Releasing the recorder ends the segment whatever finalize did; its file belongs to the session.
-                    if (active.OpenSegment is { } open)
+                    if (active.Open is { } open)
                     {
                         CloseScreenSegment(active, open, stopElapsed);
                     }
@@ -614,7 +821,7 @@ public sealed class Recorder : IRecorder
                 HasMicrophone = active.Tracks.Exists(t => t.Kind == AudioDeviceKind.Microphone),
                 HasSystemAudio = active.Tracks.Exists(t => t.Kind == AudioDeviceKind.SystemOutput),
                 ScreenSegments = [.. active.Segments],
-                Error = JoinMessages(error ?? screenError, active.Warning),
+                Error = JoinMessages(error ?? screenError, active.WarningText),
             };
 
             active.Record = record;
@@ -992,7 +1199,7 @@ public sealed class Recorder : IRecorder
             dropped += track.Capture.FramesDropped;
         }
 
-        return new RecorderStats(mic, system, dropped, ScreenFramesDropped(active.Screen));
+        return new RecorderStats(mic, system, dropped, ScreenFramesDropped(active.Screen), Volatile.Read(ref active.ScreenFaults));
     }
 
     /// <summary>
@@ -1043,7 +1250,9 @@ public sealed class Recorder : IRecorder
         /// <summary>Final once the start has succeeded; replaced (never mutated) when a source fails to start.</summary>
         public volatile List<Track> Tracks = [];
         public readonly List<ScreenSegment> Segments = [];
-        public readonly ManualResetEventSlim StopSignal = new(false);
+        // No spinning: the writer only sleeps out its period here, and spinning first can use up the whole period on a busy
+        // machine, which pushes the first blocking wait (and its one-time lazy allocation) past the allocation baseline.
+        public readonly ManualResetEventSlim StopSignal = new(false, spinCount: 0);
         public readonly AutoResetEvent FlushRequest = new(false);
         public int MicrophoneLevelBits;
         public int SystemLevelBits;
@@ -1073,15 +1282,68 @@ public sealed class Recorder : IRecorder
 
         public int NextSegmentIndex { get; set; }
 
-        public (int Index, TimeSpan Offset)? OpenSegment { get; set; }
+        /// <summary>The screen segment being recorded (or failed and not cleaned up yet); <c>null</c> when none.</summary>
+        public volatile ScreenRun? Open;
+
+        public int ScreenFaults;
+
+        private readonly Lock _warningLock = new();
+        private readonly HashSet<string> _raisedWarnings = [];
 
         public volatile string? WriterError;
 
         /// <summary>Requested tracks that could not start (see <see cref="DescribeSkippedTracks"/>); <c>null</c> if none.</summary>
         public string? Warning { get; set; }
 
+        /// <summary>The session's warnings: <see cref="Warning"/> followed by the screen problems reported since.</summary>
+        public string? WarningText
+        {
+            get
+            {
+                lock (_warningLock)
+                {
+                    return Warning;
+                }
+            }
+        }
+
+        /// <summary>Adds a warning text to the session; <c>false</c> when this exact text was already added.</summary>
+        public bool AddWarning(string text)
+        {
+            lock (_warningLock)
+            {
+                if (!_raisedWarnings.Add(text))
+                {
+                    return false;
+                }
+
+                Warning = JoinMessages(Warning, text);
+                return true;
+            }
+        }
+
         /// <summary>Final counters, set once by <see cref="FreezeStats"/> during the stop; <c>null</c> before.</summary>
         public volatile StrongBox<RecorderStats>? FinalStats;
+    }
+
+    private sealed class ScreenRun(int index, TimeSpan offset)
+    {
+        public int Index { get; } = index;
+
+        public TimeSpan Offset { get; } = offset;
+
+        public Action<CaptureFault>? Handler { get; set; }
+
+        /// <summary>A fatal fault ended the recording of this segment (the file may still need finalizing).</summary>
+        public volatile bool Failed;
+
+        /// <summary>The segment is over and unsubscribed; faults it still delivers are ignored.</summary>
+        public volatile bool Closed;
+
+        public int StopScheduled;
+
+        /// <summary>Session time (ticks) of the first fatal fault, or -1 (Interlocked).</summary>
+        public long FaultElapsedTicks = -1;
     }
 
     private sealed class Track(AudioDeviceKind kind, IAudioSource source, CaptureTrack capture, StreamingResampler resampler, WavPcm16Writer writer, int readFrames)

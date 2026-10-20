@@ -169,7 +169,7 @@ public sealed class WgcScreenRecorderTests(ITestOutputHelper output)
             Assert.True(length > 10 * 1024, $"segment is only {length} bytes");
             Assert.True(stats.FramesEncoded >= 1, stats.ToString());
             Assert.Equal(0, recorder.PlaceholderFrames);
-            AssertDuration(TimeSpan.FromSeconds(3), probe);
+            AssertDuration(TimeSpan.FromSeconds(3), probe, elapsed);
             AssertFrameRate(recorder, requested: 60);
             AssertTimeline(path, elapsed, recorder.EncoderFrameRate);
             AssertEncoderKeptUp(recorder, stats, probe.Frames);
@@ -222,7 +222,7 @@ public sealed class WgcScreenRecorderTests(ITestOutputHelper output)
             Assert.True(second.FramesEncoded > first.FramesEncoded, "the second segment encoded nothing");
             for (var i = 0; i < paths.Length; i++)
             {
-                AssertDuration(TimeSpan.FromSeconds(1.5), probes[i]);
+                AssertDuration(TimeSpan.FromSeconds(1.5), probes[i], elapsed[i]);
                 AssertTimeline(paths[i], elapsed[i], frameRate: 15);
             }
 
@@ -268,7 +268,7 @@ public sealed class WgcScreenRecorderTests(ITestOutputHelper output)
             Assert.Equal(recorder.LastEncoderSize, new PixelSize(probe.Width, probe.Height));
             Assert.True(stats.FramesEncoded >= 1, stats.ToString());
             Assert.Equal(0, recorder.PlaceholderFrames);
-            AssertDuration(TimeSpan.FromSeconds(2), probe);
+            AssertDuration(TimeSpan.FromSeconds(2), probe, elapsed);
             AssertTimeline(path, elapsed, frameRate: 15);
             AssertEncoderKeptUp(recorder, stats, probe.Frames);
         }
@@ -297,7 +297,18 @@ public sealed class WgcScreenRecorderTests(ITestOutputHelper output)
             output.WriteLine($"{recorder.Stats} framePath='{recorder.FramePath}'; faults: {Describe(faults)}");
             Assert.Equal(given, recorder.FramePath);
             Assert.Contains("CPU readback", recorder.Stats.Encoder, StringComparison.Ordinal);
-            Assert.Empty(faults);
+
+            // D-038: a segment that starts on CPU readback after the GPU path was given up says so once, as a non-fatal warning.
+            CaptureFault fault;
+            lock (faults)
+            {
+                fault = Assert.Single(faults);
+            }
+
+            Assert.False(fault.IsFatal);
+            Assert.Equal(CaptureFaultKind.CpuFallback, fault.Kind);
+            Assert.Equal("screen", fault.Source);
+            Assert.Equal(given, fault.Message);
         }
         finally
         {
@@ -339,7 +350,7 @@ public sealed class WgcScreenRecorderTests(ITestOutputHelper output)
             Assert.Equal(0, recorder.RepeatsSkipped);
             AssertFrameRate(recorder, fps);
             AssertTimeline(path, elapsed, recorder.EncoderFrameRate);
-            AssertDuration(TimeSpan.FromSeconds(5), Mp4Probe.Read(path));
+            AssertDuration(TimeSpan.FromSeconds(5), Mp4Probe.Read(path), elapsed);
         }
         finally
         {
@@ -489,10 +500,10 @@ public sealed class WgcScreenRecorderTests(ITestOutputHelper output)
     /// <summary>
     /// The file's own timeline (the sum of its trun sample durations: what spec-compliant players and
     /// scripts/check-recording.ps1 go by) and its header duration (mvhd) both match the wall-clock length of the segment.
-    /// The segment's timeline starts inside StartSegmentAsync and ends at the stop request inside StopSegmentAsync, so
-    /// the file lasts at least <see cref="SegmentClock.Inner"/> and at most <see cref="SegmentClock.Outer"/>, give or
-    /// take one frame interval plus <see cref="TimelineSlack"/>: a tight bound on an idle machine that only widens by
-    /// the time the start and stop calls really took under load.
+    /// The segment's timeline starts at the StartSegmentAsync call and ends at the StopSegmentAsync call (the exact
+    /// bound is ScreenSegmentClockTests), so the file lasts at least <see cref="SegmentClock.Inner"/> and at most
+    /// <see cref="SegmentClock.Outer"/>, give or take one frame interval plus <see cref="TimelineSlack"/>: a loose bound
+    /// that widens by the time the start and stop calls really took.
     /// </summary>
     private void AssertTimeline(string path, SegmentClock elapsed, int frameRate)
     {
@@ -518,10 +529,15 @@ public sealed class WgcScreenRecorderTests(ITestOutputHelper output)
         Assert.Equal(cpu ? Math.Min(requested, FramePathPolicy.CpuMaxFrameRate) : requested, recorder.EncoderFrameRate);
     }
 
-    private static void AssertDuration(TimeSpan expected, Mp4ProbeResult probe)
+    /// <summary>
+    /// The file is at least as long as the recording the test waited for. Its end is bounded by the measured start and
+    /// stop calls, not by <paramref name="expected"/>: since D-033 the file starts at the StartSegmentAsync call, so a
+    /// slow encoder start-up (up to ~2.4 s on WARP) is part of it. <see cref="AssertTimeline"/> checks that bound exactly.
+    /// </summary>
+    private static void AssertDuration(TimeSpan expected, Mp4ProbeResult probe, SegmentClock elapsed)
     {
         var actual = TimeSpan.FromTicks(probe.Duration);
-        Assert.InRange(actual, expected - DurationTolerance, expected + DurationTolerance);
+        Assert.InRange(actual, expected - DurationTolerance, elapsed.Outer + DurationTolerance);
     }
 
     private static string TempMp4() => Path.Combine(Path.GetTempPath(), $"murmur-screen-{Guid.NewGuid():N}.mp4");

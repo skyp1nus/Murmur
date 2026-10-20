@@ -8,8 +8,19 @@ public sealed record PerfReport
     /// <summary>False when the run used <c>--no-orb</c>: compare with an orb run to see the orb's share of the CPU.</summary>
     public bool Orb { get; init; } = true;
 
-    /// <summary>Wall-clock seconds of the sampled recording window.</summary>
+    /// <summary>
+    /// Length of the session timeline in seconds: <see cref="Murmur.Core.Recording.IRecorder.Elapsed"/> (session time
+    /// since the audio started) read as the stop is requested. The audio files, and every screen segment's
+    /// offset/duration, are on this timeline.
+    /// </summary>
     public double DurationS { get; init; }
+
+    /// <summary>
+    /// Milliseconds starting the screen took: session time when the recorder's start returned minus the first screen
+    /// segment's <see cref="PerfScreenSegment.OffsetS"/> (the moment the recorder asked the screen to start). Omitted
+    /// when the session has no screen segment.
+    /// </summary>
+    public double? ScreenStartMs { get; init; }
 
     /// <summary>Process CPU over the idle window, % of the whole machine.</summary>
     public double IdleCpuPct { get; init; }
@@ -60,8 +71,9 @@ public sealed record PerfReport
     public PerfSession Session { get; init; } = new();
 
     /// <summary>
-    /// Non-fatal problems of a run that still recorded (e.g. Windows denied the microphone, so only system audio was
-    /// recorded); omitted when there were none. The exit code stays 0.
+    /// Non-fatal problems of a run that still recorded, in the order they happened (e.g. Windows denied the microphone,
+    /// so only system audio was recorded; the screen skipped frames or stopped while the audio went on); omitted when
+    /// there were none. The exit code stays 0.
     /// </summary>
     public IReadOnlyList<string>? Warnings { get; init; }
 
@@ -78,6 +90,12 @@ public sealed record PerfRecorderStats
     public long DroppedFrames { get; init; }
 
     public long ScreenFramesDropped { get; init; }
+
+    /// <summary>
+    /// Faults the screen recorder reported during the run (fatal and non-fatal): pool exhaustion, the fall back to CPU
+    /// readback, a lost device, an encoder error. 0 on a clean run; the user texts are in <see cref="PerfReport.Warnings"/>.
+    /// </summary>
+    public int ScreenFaults { get; init; }
 }
 
 /// <summary>One memory reading of a recording (all sizes in MB).</summary>
@@ -114,7 +132,26 @@ public sealed record PerfSession
 
     public double SystemSeconds { get; init; }
 
+    /// <summary>Number of screen segments (and files) of the session.</summary>
     public int ScreenSegments { get; init; }
+
+    /// <summary>
+    /// The session's screen segments on the session timeline, to compare with the MP4 files: a file's media duration
+    /// must equal <see cref="PerfScreenSegment.DurationS"/> (scripts/check-recording.ps1 does).
+    /// </summary>
+    public IReadOnlyList<PerfScreenSegment> ScreenSegmentTimes { get; init; } = [];
+}
+
+/// <summary>One screen segment of the session: <c>screen-NNN.mp4</c> with <see cref="Index"/> NNN.</summary>
+public sealed record PerfScreenSegment
+{
+    public int Index { get; init; }
+
+    /// <summary>Session time of media time 0 of the file.</summary>
+    public double OffsetS { get; init; }
+
+    /// <summary>Session time the segment covers; equals the file's media duration.</summary>
+    public double DurationS { get; init; }
 }
 
 [JsonSourceGenerationOptions(

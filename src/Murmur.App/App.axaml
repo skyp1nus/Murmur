@@ -1,9 +1,9 @@
 <Application xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             x:Class="Murmur.App.App"
-             RequestedThemeVariant="Light">
+             x:Class="Murmur.App.App">
   <Application.Styles>
     <FluentTheme />
     <StyleInclude Source="/Styles/Controls.axaml" />
+    <StyleInclude Source="/Styles/Onboarding.axaml" />
   </Application.Styles>
 </Application>

@@ -26,6 +26,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\Murmur.App\Murmur.App.csproj" />
+    <ProjectReference Include="..\..\src\Murmur.Storage\Murmur.Storage.csproj" />
   </ItemGroup>
 
 </Project>

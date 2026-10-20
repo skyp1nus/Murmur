@@ -1,5 +1,7 @@
 using Murmur.App.Tests.Fakes;
 using Murmur.App.ViewModels;
+using Murmur.App.Localization;
+using Murmur.Core.Capture;
 using Murmur.Core.Recording;
 using Murmur.Core.Sessions;
 
@@ -280,6 +282,101 @@ public sealed class RecordingViewModelTests
         Assert.False(vm.Screen);
         Assert.Contains("encoder missing", vm.Error, StringComparison.Ordinal);
         Assert.True(vm.HasError);
+    }
+
+    [Fact]
+    public async Task AFatalScreenFault_TurnsThePillOffAndShowsANotice_WhileTheRecordingGoesOn()
+    {
+        var vm = Create();
+        vm.Screen = true;
+        await vm.StartStopAsync();
+        Assert.True(vm.Screen);
+        Assert.False(vm.HasNotice);
+
+        _recorder.FailScreen();
+
+        Assert.False(vm.Screen);
+        Assert.True(vm.IsRecording);
+        Assert.True(vm.HasNotice);
+        Assert.Equal(Resources.Strings.Recording_ScreenStopped, vm.Notice);
+        Assert.Empty(_recorder.ScreenCalls); // turning the pill off after the fault must not call the recorder
+        Assert.Null(vm.Error);
+
+        // The user can switch the screen on again.
+        vm.Screen = true;
+        await vm.PendingScreenChange;
+        Assert.Equal([true], _recorder.ScreenCalls);
+        Assert.True(_recorder.IsScreenRecording);
+    }
+
+    [Fact]
+    public async Task ThePill_FollowsTheRecorder_WhenTheScreenStopsWithoutAWarning()
+    {
+        var vm = Create();
+        vm.Screen = true;
+        await vm.StartStopAsync();
+
+        _recorder.IsScreenRecording = false;
+        vm.Refresh();
+
+        Assert.False(vm.Screen);
+        Assert.Empty(_recorder.ScreenCalls);
+    }
+
+    [Fact]
+    public async Task ANonFatalWarning_ShowsTheLocalizedTextOfItsKind_Once_AndKeepsThePill()
+    {
+        var vm = Create();
+        vm.Screen = true;
+        await vm.StartStopAsync();
+
+        // The Core texts are Ukrainian session texts: the notice never shows them, it shows the UI-language text of the kind.
+        _recorder.RaiseWarning("core text A", CaptureFaultKind.FramesDropped);
+        _recorder.RaiseWarning("core text B", CaptureFaultKind.FramesDropped);
+        _recorder.RaiseWarning("core text C", CaptureFaultKind.CpuFallback);
+        _recorder.RaiseWarning("core text D");
+
+        Assert.True(vm.Screen);
+        Assert.Equal(
+            string.Join('\n', Resources.Strings.Recording_ScreenFramesDropped, Resources.Strings.Recording_ScreenCpuFallback, Resources.Strings.Recording_ScreenProblems),
+            vm.Notice);
+        Assert.DoesNotContain("core text", vm.Notice);
+    }
+
+    [Fact]
+    public async Task TheNoticeTexts_FollowTheUiLanguage()
+    {
+        var vm = Create();
+        await vm.StartStopAsync();
+        using (UiCulture.Override(UiCulture.English))
+        {
+            _recorder.RaiseWarning("x", CaptureFaultKind.CpuFallback);
+            _recorder.FailScreen();
+        }
+
+        Assert.Equal(
+            "The screen is recorded without GPU acceleration, which uses more of the processor.\nScreen recording stopped because of an error; the audio keeps recording.",
+            vm.Notice);
+    }
+
+    [Fact]
+    public async Task TheNotice_IsClearedWhenARecordingStartsOrEnds()
+    {
+        var vm = Create();
+        vm.Screen = true;
+        await vm.StartStopAsync();
+        _recorder.RaiseWarning("Під час запису екрана були збої.");
+        Assert.True(vm.HasNotice);
+
+        await vm.StartStopAsync();
+
+        Assert.False(vm.HasNotice);
+        _recorder.RaiseWarning("late"); // the recording is over: not a notice any more
+        Assert.False(vm.HasNotice);
+
+        vm.Screen = true;
+        await vm.StartStopAsync();
+        Assert.False(vm.HasNotice);
     }
 
     [Fact]

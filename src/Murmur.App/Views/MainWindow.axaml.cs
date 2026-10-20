@@ -1,3 +1,4 @@
+using Avalonia;
 using Avalonia.Controls;
 using Murmur.App.ViewModels;
 using Murmur.Core.Recording;
@@ -8,14 +9,60 @@ public partial class MainWindow : Window
 {
     private bool _closeConfirmed;
     private Task? _stopping;
+    private WindowState _restoreState = WindowState.Normal;
+    private bool _closed;
 
     public MainWindow()
     {
         InitializeComponent();
+        Activated += (_, _) => (DataContext as ShellViewModel)?.OnWindowActivated();
     }
+
+    /// <summary>
+    /// A close was requested (the window is closing, or stopping a recording first): global hotkeys and "show the window" requests
+    /// from a second start are no longer served, so nothing can start a recording behind the closing window.
+    /// </summary>
+    public bool IsClosing { get; private set; }
+
+    /// <summary>The window has been closed: <see cref="BringToFront"/> does nothing any more.</summary>
+    public bool IsClosed => _closed;
 
     /// <summary>Completes when the stop-then-close sequence has finished (for tests); <c>null</c> if it never started.</summary>
     internal Task? StoppingTask => _stopping;
+
+    /// <summary>
+    /// Brings the window back: shows it when hidden, restores it when minimized (to Normal or Maximized, as it was before) and
+    /// activates it. Windows may refuse to move another program's window to the foreground while the user works elsewhere
+    /// (the foreground lock); then the taskbar button flashes, which is as far as <see cref="Window.Activate"/> goes.
+    /// </summary>
+    public void BringToFront()
+    {
+        if (_closed)
+        {
+            return;
+        }
+
+        if (!IsVisible)
+        {
+            Show();
+        }
+
+        if (WindowState == WindowState.Minimized)
+        {
+            WindowState = _restoreState;
+        }
+
+        Activate();
+    }
+
+    protected override void OnPropertyChanged(AvaloniaPropertyChangedEventArgs change)
+    {
+        base.OnPropertyChanged(change);
+        if (change.Property == WindowStateProperty && change.GetNewValue<WindowState>() != WindowState.Minimized)
+        {
+            _restoreState = change.GetNewValue<WindowState>();
+        }
+    }
 
     /// <summary>
     /// Closing the window never abandons a recording: while the recorder is not idle (starting, recording or stopping)
@@ -25,6 +72,7 @@ public partial class MainWindow : Window
     protected override void OnClosing(WindowClosingEventArgs e)
     {
         base.OnClosing(e);
+        IsClosing = true;
         if (_closeConfirmed || DataContext is not ShellViewModel shell)
         {
             return;
@@ -37,6 +85,15 @@ public partial class MainWindow : Window
 
         e.Cancel = true;
         _stopping ??= StopThenCloseAsync(shell);
+    }
+
+    protected override void OnClosed(EventArgs e)
+    {
+        base.OnClosed(e);
+        _closed = true;
+
+        // The audio meters and the trial recording of the onboarding never outlive the window.
+        (DataContext as ShellViewModel)?.OnWindowClosed();
     }
 
     private async Task StopThenCloseAsync(ShellViewModel shell)

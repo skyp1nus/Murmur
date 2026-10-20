@@ -14,7 +14,15 @@ internal static class Program
             return 2;
         }
 
-        using var root = new CompositionRoot(args);
+        // One Murmur per user session: a second start wakes the first and ends here, before any UI. The mutex is held until
+        // Main returns (declared first, so it is disposed last).
+        using var instance = SingleInstance.Enter(args, SingleInstance.OpenSystemChannel);
+        if (!instance.IsPrimary)
+        {
+            return 0;
+        }
+
+        using var root = new CompositionRoot(args, instance);
         return BuildAvaloniaApp(root).StartWithClassicDesktopLifetime(args);
     }
 

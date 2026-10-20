@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    CI helper for .github/workflows/models.yml: installs catalog items into a directory with the real Murmur.Models
+    engine and prints size, SHA-256 and elapsed time per item (the hashes are what the catalog pins later).
+  -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <IsPackable>false</IsPackable>
+    <AssemblyName>Murmur.ModelFetch</AssemblyName>
+    <RootNamespace>Murmur.ModelFetch</RootNamespace>
+    <!-- Not shipped, but kept reflection-free like the rest of the code base: trim/AOT analyzers on. -->
+    <IsAotCompatible>true</IsAotCompatible>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Murmur.Core\Murmur.Core.csproj" />
+    <ProjectReference Include="..\..\src\Murmur.Models\Murmur.Models.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Murmur.Models.Tests" />
+  </ItemGroup>
+
+</Project>

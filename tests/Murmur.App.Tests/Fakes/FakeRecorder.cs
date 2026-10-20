@@ -1,3 +1,4 @@
+using Murmur.Core.Capture;
 using Murmur.Core.Recording;
 using Murmur.Core.Sessions;
 
@@ -16,6 +17,9 @@ internal sealed class FakeRecorder : IRecorder
 
     public RecorderStats Stats { get; set; }
 
+    /// <summary>The <see cref="SessionRecord.Duration"/> of the finished session when set; <see cref="Elapsed"/> otherwise.</summary>
+    public TimeSpan? FinishedDuration { get; set; }
+
     public Exception? StartFailure { get; set; }
 
     public Exception? StopFailure { get; set; }
@@ -30,6 +34,12 @@ internal sealed class FakeRecorder : IRecorder
     /// </summary>
     public string? StartWarning { get; set; }
 
+    /// <summary>Screen segments the finished session carries (<see cref="SessionRecord.ScreenSegments"/>).</summary>
+    public List<ScreenSegment> Segments { get; } = [];
+
+    /// <summary>Runs inside <see cref="StartAsync"/> once the recorder is recording (e.g. to raise warnings).</summary>
+    public Action? AfterStart { get; set; }
+
     public List<RecordingOptions> Starts { get; } = [];
 
     public List<bool> ScreenCalls { get; } = [];
@@ -38,6 +48,21 @@ internal sealed class FakeRecorder : IRecorder
     public int Stops { get; private set; }
 
     public event Action<RecorderState>? StateChanged;
+
+    public event Action<RecorderWarning>? Warning;
+
+    /// <summary>A screen segment is running: switched on (at the start or later) and not ended by <see cref="FailScreen"/>.</summary>
+    public bool IsScreenRecording { get; set; }
+
+    /// <summary>Simulates a fatal screen fault: the segment ends, the audio goes on, <see cref="Warning"/> is raised.</summary>
+    public void FailScreen(string message = "Запис екрана зупинився через помилку; звук записується далі.")
+    {
+        IsScreenRecording = false;
+        Warning?.Invoke(new RecorderWarning("screen", message, ScreenStopped: true));
+    }
+
+    /// <summary>Raises a non-fatal warning.</summary>
+    public void RaiseWarning(string message, CaptureFaultKind kind = CaptureFaultKind.Other) => Warning?.Invoke(new RecorderWarning("screen", message, ScreenStopped: false, kind));
 
     public ValueTask<SessionRecord> StartAsync(RecordingOptions options, CancellationToken cancellationToken)
     {
@@ -51,21 +76,29 @@ internal sealed class FakeRecorder : IRecorder
         Current = new SessionRecord
         {
             Id = SessionId.New(),
-            Title = "Fake",
+            Title = options.Title ?? "Fake",
             StartedAt = DateTimeOffset.UnixEpoch,
             State = SessionState.Recording,
             HasMicrophone = options.Microphone && StartWarning is null,
             HasSystemAudio = options.SystemAudio,
             Error = StartWarning,
         };
+        IsScreenRecording = options.Screen;
         SetState(RecorderState.Recording);
+        AfterStart?.Invoke();
         return ValueTask.FromResult(Current);
     }
 
     public ValueTask SetScreenEnabledAsync(bool enabled, CancellationToken cancellationToken)
     {
         ScreenCalls.Add(enabled);
-        return ScreenFailure is { } failure ? throw failure : ValueTask.CompletedTask;
+        if (ScreenFailure is { } failure)
+        {
+            throw failure;
+        }
+
+        IsScreenRecording = enabled;
+        return ValueTask.CompletedTask;
     }
 
     /// <summary>When set, <see cref="StopAsync"/> enters Stopping and then waits for this task before finishing.</summary>
@@ -104,10 +137,12 @@ internal sealed class FakeRecorder : IRecorder
         var finished = current with
         {
             State = SessionState.Recorded,
-            Duration = Elapsed,
+            Duration = FinishedDuration ?? Elapsed,
+            ScreenSegments = [.. Segments],
             Error = StopError ?? current.Error,
         };
         Current = null;
+        IsScreenRecording = false;
         SetState(RecorderState.Idle);
         return finished;
     }
@@ -116,6 +151,7 @@ internal sealed class FakeRecorder : IRecorder
     public void FailBySelf()
     {
         Current = null;
+        IsScreenRecording = false;
         SetState(RecorderState.Idle);
     }
 

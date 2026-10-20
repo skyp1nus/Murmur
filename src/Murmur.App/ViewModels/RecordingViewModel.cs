@@ -1,9 +1,11 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Murmur.App.Controls;
+using Murmur.App.Resources;
 using Murmur.Core.Capture;
 using Murmur.Core.Recording;
 using Murmur.Core.Sessions;
+using Murmur.Core.Settings;
 
 namespace Murmur.App.ViewModels;
 
@@ -21,15 +23,21 @@ public sealed partial class RecordingViewModel : ObservableObject, ILevelSource
     private readonly ICapture _capture;
     private readonly ISessionStore _store;
     private readonly Action<Action> _post;
+    private readonly ISettingsStore? _settings;
     private SessionId? _sessionId;
     private bool _stopRequested;
 
     /// <summary>The stop in flight; meaningful only while it has not completed (a completed one is ignored).</summary>
     private Task? _stopTask;
     private bool _suppressScreenChange;
+    private readonly List<string> _notices = [];
 
     /// <param name="post">Marshals a callback to the UI thread; recorder events can arrive on any thread.</param>
-    public RecordingViewModel(IRecorder recorder, ICapture capture, ISessionStore store, Action<Action>? post = null)
+    /// <param name="settings">
+    /// The user's defaults (devices, display, screen on/off) the screen starts with every time it is shown;
+    /// <c>null</c> = system default devices and no screen.
+    /// </param>
+    public RecordingViewModel(IRecorder recorder, ICapture capture, ISessionStore store, Action<Action>? post = null, ISettingsStore? settings = null)
     {
         ArgumentNullException.ThrowIfNull(recorder);
         ArgumentNullException.ThrowIfNull(capture);
@@ -38,11 +46,14 @@ public sealed partial class RecordingViewModel : ObservableObject, ILevelSource
         _capture = capture;
         _store = store;
         _post = post ?? (action => Avalonia.Threading.Dispatcher.UIThread.Post(action));
+        _settings = settings;
 
         ScreenAvailable = capture.Capabilities.Screen;
         RefreshDevices();
+        ApplyDefaults();
         ApplyState(recorder.State);
         _recorder.StateChanged += OnRecorderStateChanged;
+        _recorder.Warning += OnRecorderWarning;
     }
 
     [ObservableProperty]
@@ -73,6 +84,13 @@ public sealed partial class RecordingViewModel : ObservableObject, ILevelSource
     /// <summary>Inline error text, or <c>null</c>.</summary>
     [ObservableProperty]
     public partial string? Error { get; set; }
+
+    /// <summary>
+    /// Problems that did not stop the recording (the screen fell behind or stopped; the audio goes on), one per line, shown
+    /// as a small notice under the controls; <c>null</c> when there are none. Cleared when a recording starts or ends.
+    /// </summary>
+    [ObservableProperty]
+    public partial string? Notice { get; set; }
 
     [ObservableProperty]
     public partial RecorderState State { get; set; }
@@ -106,15 +124,17 @@ public sealed partial class RecordingViewModel : ObservableObject, ILevelSource
 
     public bool CanGoBack => State == RecorderState.Idle;
 
-    public string StartStopLabel => IsRecording ? "Зупинити" : "Почати запис";
+    public string StartStopLabel => IsRecording ? Strings.Common_Stop : Strings.Recording_Start;
 
     public bool HasError => Error is not null;
 
+    public bool HasNotice => Notice is not null;
+
     /// <summary>Shown under the source pills when nothing can be recorded.</summary>
     public string? SourceHint => State != RecorderState.Idle ? null
-        : !MicrophoneAvailable && !SystemAudioAvailable ? "Не знайдено жодного джерела звуку."
-        : !(Microphone && MicrophoneAvailable) && !(SystemAudio && SystemAudioAvailable) ? "Увімкни мікрофон або системний звук."
-        : !MicrophoneAvailable ? "Мікрофон не знайдено — запишемо лише системний звук."
+        : !MicrophoneAvailable && !SystemAudioAvailable ? Strings.Recording_NoSources
+        : !(Microphone && MicrophoneAvailable) && !(SystemAudio && SystemAudioAvailable) ? Strings.Recording_EnableSource
+        : !MicrophoneAvailable ? Strings.Recording_NoMicrophone
         : null;
 
     public bool HasSourceHint => SourceHint is not null;
@@ -153,8 +173,10 @@ public sealed partial class RecordingViewModel : ObservableObject, ILevelSource
         }
 
         Error = null;
+        ClearNotices();
         TimerText = UiFormat.Duration(TimeSpan.Zero);
         RefreshDevices();
+        ApplyDefaults();
     }
 
     /// <summary>Polls the elapsed time. Called by the view at about 4 Hz while recording.</summary>
@@ -163,6 +185,7 @@ public sealed partial class RecordingViewModel : ObservableObject, ILevelSource
         if (State == RecorderState.Recording)
         {
             TimerText = UiFormat.Duration(_recorder.Elapsed);
+            SyncScreenWithRecorder();
         }
     }
 
@@ -224,8 +247,12 @@ public sealed partial class RecordingViewModel : ObservableObject, ILevelSource
         try
         {
             var session = await _recorder.StopAsync(CancellationToken.None);
+            _sessionId = null;
             ApplyState(_recorder.State);
             TimerText = UiFormat.Duration(TimeSpan.Zero);
+
+            // The session's own text (Error below) carries every warning of the recording.
+            ClearNotices();
             if (session.Error is { Length: > 0 } sessionError)
             {
                 Error = sessionError;
@@ -235,7 +262,7 @@ public sealed partial class RecordingViewModel : ObservableObject, ILevelSource
         }
         catch (Exception ex)
         {
-            Error = "Не вдалося зупинити запис: " + ex.Message;
+            Error = UiText.Format(Strings.Recording_StopFailed, ex.Message);
             ApplyState(_recorder.State);
         }
         finally
@@ -243,6 +270,49 @@ public sealed partial class RecordingViewModel : ObservableObject, ILevelSource
             // _stopTask is not touched here: StopAsync owns it and ignores it once this task has completed.
             _stopRequested = false;
         }
+    }
+
+    /// <summary>The recorder itself is idle (this view model's <see cref="State"/> may still be about to catch up with an event).</summary>
+    internal bool RecorderIsIdle => _recorder.State == RecorderState.Idle;
+
+    /// <summary>
+    /// The record hotkey: starts a recording with the saved defaults (the pills as <see cref="Prepare"/> set them) or stops
+    /// the running one, exactly like the start/stop button. Ignored while the recorder is starting or stopping, and when the
+    /// button itself would do nothing (no source to record). Completes when the start or stop has.
+    /// </summary>
+    internal Task ToggleRecordingFromHotkeyAsync()
+    {
+        var settled = _recorder.State switch
+        {
+            RecorderState.Idle => State == RecorderState.Idle,
+            RecorderState.Recording => State == RecorderState.Recording,
+            _ => false,
+        };
+        if (!settled || !StartStopCommand.CanExecute(null))
+        {
+            return Task.CompletedTask;
+        }
+
+        return StartStopCommand.ExecuteAsync(null);
+    }
+
+    /// <summary>
+    /// The screen hotkey: while recording, turns the screen to the opposite of what the recorder does now
+    /// (<see cref="IRecorder.IsScreenRecording"/>, which a screen fault may have changed behind the pill's back). The pill is
+    /// set to match first, then flipped, which sends the change to the recorder like a click does. Ignored when not
+    /// recording, without a screen capture, and while an earlier change is still in flight. Completes when the change has
+    /// been applied.
+    /// </summary>
+    internal Task ToggleScreenFromHotkeyAsync()
+    {
+        if (State != RecorderState.Recording || _recorder.State != RecorderState.Recording || !ScreenAvailable || !PendingScreenChange.IsCompleted)
+        {
+            return Task.CompletedTask;
+        }
+
+        SyncScreenWithRecorder();
+        Screen = !_recorder.IsScreenRecording;
+        return PendingScreenChange;
     }
 
     [RelayCommand(CanExecute = nameof(CanGoBack))]
@@ -262,11 +332,13 @@ public sealed partial class RecordingViewModel : ObservableObject, ILevelSource
             SystemAudio: SystemAudio && SystemAudioAvailable,
             Screen: Screen && ScreenAvailable,
             MicrophoneDeviceId: SelectedMicrophone is { IsDefault: false } mic ? mic.Id : null,
-            SystemDeviceId: SelectedSystemDevice is { IsDefault: false } output ? output.Id : null);
+            SystemDeviceId: SelectedSystemDevice is { IsDefault: false } output ? output.Id : null,
+            DisplayId: SavedDisplayId());
 
         try
         {
             _sessionId = null;
+            ClearNotices();
             var session = await _recorder.StartAsync(options, CancellationToken.None);
             _sessionId = session.Id;
             TimerText = UiFormat.Duration(TimeSpan.Zero);
@@ -279,7 +351,7 @@ public sealed partial class RecordingViewModel : ObservableObject, ILevelSource
         }
         catch (Exception ex)
         {
-            Error = "Не вдалося почати запис: " + ex.Message;
+            Error = UiText.Format(Strings.Recording_StartFailed, ex.Message);
         }
         finally
         {
@@ -305,6 +377,72 @@ public sealed partial class RecordingViewModel : ObservableObject, ILevelSource
         }
 
         NotifyStateDependents();
+    }
+
+    /// <summary>
+    /// Starts from the user's defaults: the saved microphone and output (when they are still plugged in), the screen on or
+    /// off. Called whenever the screen is shown, so a change in the Settings applies to the next recording.
+    /// </summary>
+    private void ApplyDefaults()
+    {
+        if (_settings is not { } store || State != RecorderState.Idle)
+        {
+            return;
+        }
+
+        var settings = store.Current;
+        // A saved device that is gone falls back to the system default (as the Settings screen shows it), not to the last pick.
+        SelectedMicrophone = Saved(MicrophoneDevices, settings.MicrophoneDeviceId) ?? Saved(MicrophoneDevices, null);
+        SelectedSystemDevice = Saved(SystemDevices, settings.SystemAudioDeviceId) ?? Saved(SystemDevices, null);
+
+        // The recorder is idle here, so the toggle only changes the pill, not a running recording.
+        Screen = settings.ScreenByDefault && ScreenAvailable;
+    }
+
+    /// <summary>The display chosen in the Settings while it is still connected, else <c>null</c> (the primary display).</summary>
+    private string? SavedDisplayId()
+    {
+        if (!ScreenAvailable || _settings?.Current.ScreenDisplayId is not { } id)
+        {
+            return null;
+        }
+
+        foreach (var display in _capture.GetDisplays())
+        {
+            if (display.Id == id)
+            {
+                return id;
+            }
+        }
+
+        return null;
+    }
+
+    private static AudioDevice? Saved(IReadOnlyList<AudioDevice> devices, string? id)
+    {
+        if (id is null)
+        {
+            // The system default: the device the platform marks as default, not whatever was picked last time.
+            foreach (var device in devices)
+            {
+                if (device.IsDefault)
+                {
+                    return device;
+                }
+            }
+
+            return devices.Count > 0 ? devices[0] : null;
+        }
+
+        foreach (var device in devices)
+        {
+            if (device.Id == id)
+            {
+                return device;
+            }
+        }
+
+        return null;
     }
 
     private static AudioDevice? Pick(IReadOnlyList<AudioDevice> devices, AudioDevice? previous)
@@ -333,6 +471,70 @@ public sealed partial class RecordingViewModel : ObservableObject, ILevelSource
 
     private void OnRecorderStateChanged(RecorderState state) => _post(() => ApplyState(_recorder.State));
 
+    private void OnRecorderWarning(RecorderWarning warning) => _post(() => ApplyWarning(warning));
+
+    private void ApplyWarning(RecorderWarning warning)
+    {
+        // A warning that arrives after the recording has ended belongs to the session text, not to a notice.
+        if (_recorder.State is not (RecorderState.Starting or RecorderState.Recording))
+        {
+            return;
+        }
+
+        // The text follows the UI language and the kind of the problem; the recorder's own (Ukrainian) text is for the session.
+        AddNotice(NoticeText(warning));
+        if (warning.ScreenStopped)
+        {
+            SyncScreenWithRecorder();
+        }
+    }
+
+    private static string NoticeText(RecorderWarning warning) => warning.ScreenStopped ? Strings.Recording_ScreenStopped : warning.Kind switch
+    {
+        CaptureFaultKind.FramesDropped => Strings.Recording_ScreenFramesDropped,
+        CaptureFaultKind.CpuFallback => Strings.Recording_ScreenCpuFallback,
+        _ => Strings.Recording_ScreenProblems,
+    };
+
+    private void AddNotice(string text)
+    {
+        if (_notices.Contains(text))
+        {
+            return;
+        }
+
+        _notices.Add(text);
+        Notice = string.Join('\n', _notices);
+    }
+
+    private void ClearNotices()
+    {
+        _notices.Clear();
+        Notice = null;
+    }
+
+    /// <summary>
+    /// The screen pill shows what the recorder really does: a fatal screen fault ends the segment by itself, so the pill
+    /// turns off. Not while a toggle the user made is still being applied (the recorder has not caught up yet).
+    /// </summary>
+    private void SyncScreenWithRecorder()
+    {
+        if (State != RecorderState.Recording || !Screen || _recorder.IsScreenRecording || !PendingScreenChange.IsCompleted)
+        {
+            return;
+        }
+
+        _suppressScreenChange = true;
+        try
+        {
+            Screen = false;
+        }
+        finally
+        {
+            _suppressScreenChange = false;
+        }
+    }
+
     private void ApplyState(RecorderState state)
     {
         var wasActive = State is RecorderState.Recording or RecorderState.Stopping;
@@ -341,28 +543,30 @@ public sealed partial class RecordingViewModel : ObservableObject, ILevelSource
             State = state;
         }
 
-        if (wasActive && state == RecorderState.Idle && !_stopRequested)
+        if (wasActive && state == RecorderState.Idle && !_stopRequested && _sessionId is not null)
         {
-            // The recorder stopped on its own (every audio source failed). Tell the user why.
+            // The recorder stopped on its own (every audio source failed). Tell the user why - but only for the session this
+            // screen started: a recording another screen runs (the onboarding's trial) ends in its own way.
             AutoStopReport = ReportAutoStopAsync();
         }
     }
 
     private async Task ReportAutoStopAsync()
     {
-        var reason = "Запис зупинився сам.";
+        var reason = Strings.Recording_StoppedItself;
         try
         {
             if (_sessionId is { } id && await _store.GetSessionAsync(id, CancellationToken.None) is { } session)
             {
-                reason = string.IsNullOrWhiteSpace(session.Error) ? reason : "Запис зупинився: " + session.Error;
+                reason = string.IsNullOrWhiteSpace(session.Error) ? reason : UiText.Format(Strings.Recording_StoppedWithReason, session.Error);
             }
         }
         catch (Exception ex)
         {
-            reason = "Запис зупинився сам: " + ex.Message;
+            reason = UiText.Format(Strings.Recording_StoppedItselfWithError, ex.Message);
         }
 
+        _sessionId = null;
         Error = reason;
         TimerText = UiFormat.Duration(TimeSpan.Zero);
     }
@@ -386,6 +590,8 @@ public sealed partial class RecordingViewModel : ObservableObject, ILevelSource
 
     partial void OnErrorChanged(string? value) => OnPropertyChanged(nameof(HasError));
 
+    partial void OnNoticeChanged(string? value) => OnPropertyChanged(nameof(HasNotice));
+
     partial void OnScreenChanged(bool value)
     {
         if (_suppressScreenChange || State != RecorderState.Recording)
@@ -404,7 +610,7 @@ public sealed partial class RecordingViewModel : ObservableObject, ILevelSource
         }
         catch (Exception ex)
         {
-            Error = (enabled ? "Не вдалося увімкнути запис екрана: " : "Не вдалося вимкнути запис екрана: ") + ex.Message;
+            Error = UiText.Format(enabled ? Strings.Recording_ScreenOnFailed : Strings.Recording_ScreenOffFailed, ex.Message);
             _suppressScreenChange = true;
             try
             {

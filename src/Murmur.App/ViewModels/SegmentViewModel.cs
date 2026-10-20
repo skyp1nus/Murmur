@@ -2,6 +2,7 @@ using System.Text;
 using System.Windows.Input;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using Murmur.App.Resources;
 using Murmur.Core.Transcription;
 
 namespace Murmur.App.ViewModels;
@@ -44,7 +45,7 @@ public sealed partial class SegmentViewModel : ObservableObject
     public Speaker Speaker => _segment.Speaker;
 
     /// <summary>"Я" for the microphone track, "Інші" for the loopback track.</summary>
-    public string SpeakerLabel => _segment.Speaker == Speaker.Me ? "Я" : "Інші";
+    public string SpeakerLabel => _segment.Speaker == Speaker.Me ? Strings.Segment_Me : Strings.Segment_Others;
 
     /// <summary>Geist Mono time chip, e.g. "12:34".</summary>
     public string TimeText => UiFormat.Clock(_segment.Start);

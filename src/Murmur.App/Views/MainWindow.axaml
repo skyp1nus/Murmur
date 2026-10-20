@@ -5,6 +5,7 @@
         x:Class="Murmur.App.Views.MainWindow"
         x:DataType="vm:ShellViewModel"
         Title="Murmur"
+        Icon="/Assets/murmur.ico"
         Width="1200"
         Height="780"
         MinWidth="900"
@@ -24,10 +25,37 @@
     <DataTemplate DataType="vm:LibraryChatViewModel">
       <views:LibraryChatView />
     </DataTemplate>
+    <DataTemplate DataType="vm:SettingsViewModel">
+      <views:SettingsView />
+    </DataTemplate>
+    <DataTemplate DataType="vm:SidebarViewModel">
+      <views:SidebarView />
+    </DataTemplate>
+    <DataTemplate DataType="vm:OnboardingViewModel">
+      <views:OnboardingView />
+    </DataTemplate>
   </Window.DataTemplates>
 
-  <ContentControl Margin="{StaticResource Inset.48}"
-                  HorizontalContentAlignment="Stretch"
-                  VerticalContentAlignment="Stretch"
-                  Content="{Binding CurrentPage}" />
+  <Window.Styles>
+    <!-- Pages sit in a 48 px margin; the onboarding has its own frame and fills the window. -->
+    <Style Selector="ContentControl.page">
+      <Setter Property="Margin" Value="{DynamicResource Inset.48}" />
+    </Style>
+    <Style Selector="ContentControl.page.fullWindow">
+      <Setter Property="Margin" Value="0" />
+    </Style>
+  </Window.Styles>
+
+  <Grid ColumnDefinitions="Auto,*">
+    <!-- The left navigation; null (nothing shown) on the recording and session screens. -->
+    <ContentControl Grid.Column="0"
+                    VerticalContentAlignment="Stretch"
+                    Content="{Binding Sidebar}" />
+    <ContentControl Grid.Column="1"
+                    Classes="page"
+                    Classes.fullWindow="{Binding IsOnboarding}"
+                    HorizontalContentAlignment="Stretch"
+                    VerticalContentAlignment="Stretch"
+                    Content="{Binding CurrentPage}" />
+  </Grid>
 </Window>

@@ -2,12 +2,16 @@ using Murmur.App;
 using Murmur.App.Services;
 using Murmur.Core.Capture;
 using Murmur.Core.Capture.Synthetic;
+using Murmur.Core.Input;
 using Murmur.Core.Jobs;
+using Murmur.Core.Models;
 using Murmur.Core.Processing;
 using Murmur.Core.Recording;
+using Murmur.Core.Settings;
 using Murmur.Core.Transcription;
 using Murmur.Intelligence;
 using Murmur.Intelligence.Rag;
+using Murmur.Models;
 using Murmur.Storage;
 
 namespace Murmur.Desktop;
@@ -19,6 +23,7 @@ namespace Murmur.Desktop;
 internal sealed class CompositionRoot : IDisposable
 {
     private SqliteStorage? _storage;
+    private JsonSettingsStore? _settings;
     private WorkerAsrClient? _asr;
     private JobQueue? _queue;
     private SessionProcessor? _processor;
@@ -26,11 +31,19 @@ internal sealed class CompositionRoot : IDisposable
     private RecordingHeapTrimmer? _heapTrimmer;
     private LocalLlm? _llm;
     private Assistant? _assistant;
+    private ModelManager? _modelManager;
+    private AiAwareModelManager? _aiModels;
+    private AiReindexScheduler? _reindex;
+    private CancellationTokenSource? _recoveryRetry;
+    private IGlobalHotkeys? _hotkeys;
+    private readonly SingleInstance? _instance;
 
-    public CompositionRoot(string[] args)
+    /// <param name="instance">The single-instance guard whose "a second start wants the window" signal goes to the app; <c>null</c> = none.</param>
+    public CompositionRoot(string[] args, SingleInstance? instance = null)
     {
         ArgumentNullException.ThrowIfNull(args);
         Args = args;
+        _instance = instance;
     }
 
     /// <summary>Command-line arguments the process was started with.</summary>
@@ -45,7 +58,18 @@ internal sealed class CompositionRoot : IDisposable
     /// </summary>
     public AppServices CreateServices()
     {
-        var storage = _storage ??= SqliteStorage.CreateDefault();
+        // settings.json sits next to the database (same data folder); the app reads the language from it once at
+        // start-up and follows the theme live. Storage asks it for the recordings folder at every new recording.
+        var paths = StoragePaths.FromEnvironment();
+        var settings = _settings ??= new JsonSettingsStore(paths);
+        if (_storage is null)
+        {
+            _storage = new SqliteStorage(paths, () => settings.Current.RecordingsDirectory);
+            _storage.RecordingsFolderFallback += static info => Console.Error.WriteLine(
+                $"Recordings folder '{info.RequestedFolder}' is unusable ({info.Reason}); session {info.Session} went to the default folder.");
+        }
+
+        var storage = _storage;
         var capture = CreateCapture();
         var recorder = new Recorder(capture, storage, TimeProvider.System, RecorderSettings.Default);
 
@@ -64,6 +88,14 @@ internal sealed class CompositionRoot : IDisposable
         var activity = _activity ??= new RecordingActivity(recorder);
         var llm = _llm ??= CreateLlm(models.ModelsDirectory, activity);
         var assistant = _assistant ??= new Assistant(llm, storage);
+
+        // The model manager installs into the same folder the ASR and the AI read from. Its active-model lookup is handed
+        // to the UI as a delegate because IModelManager does not expose it.
+        var modelManager = _modelManager ??= new ModelManager(models.ModelsDirectory);
+
+        // The UI removes models through this wrapper: it stops the llama-server first, so the files are not held open.
+        var aiModels = _aiModels ??= new AiAwareModelManager(
+            modelManager, llm, id => ItemPath(modelManager, id), llm.IsUsingModel);
         var processor = _processor ??= new SessionProcessor(
             recorder,
             storage,
@@ -72,6 +104,37 @@ internal sealed class CompositionRoot : IDisposable
             queue,
             indexer: (session, cancellationToken) => assistant.IndexSessionAsync(session, cancellationToken).AsTask(),
             isAiInstalled: () => llm.IsInstalled);
+
+        // AI installed in the app while it runs: sessions finished without it get their vectors now, not at the next start.
+        if (_reindex is null)
+        {
+            var reindex = _reindex = new AiReindexScheduler(
+                () => activity.IsRecording,
+                cancellationToken =>
+                {
+                    llm.Refresh();
+                    return processor.ReindexAllAsync(cancellationToken: cancellationToken).AsTask();
+                },
+                static ex => Console.Error.WriteLine($"Reindex after the AI install failed: {ex.Message}"));
+            activity.RecordingStopped += reindex.NotifyRecordingStopped;
+            modelManager.StatusChanged += status =>
+            {
+                // Synchronously, and before the UI's handlers (subscribed later): they poll Status in reaction to this event.
+                if (status.State is ModelInstallState.Installed or ModelInstallState.NotInstalled
+                    && status.Model.Kind is ModelKind.LlmRuntime or ModelKind.Chat or ModelKind.Embedding)
+                {
+                    llm.Refresh();
+                }
+
+                if (status.State == ModelInstallState.Installed
+                    && status.Model.Kind is ModelKind.LlmRuntime or ModelKind.Embedding
+                    && IsInstalled(modelManager, ModelKind.LlmRuntime)
+                    && IsInstalled(modelManager, ModelKind.Embedding))
+                {
+                    reindex.Request();
+                }
+            };
+        }
 
         // Start-up work runs before the library loads; the shell awaits it off the UI thread.
         var recovery = new RecoveryService(storage);
@@ -83,6 +146,10 @@ internal sealed class CompositionRoot : IDisposable
             async cancellationToken =>
             {
                 await recovery.RecoverAsync(cancellationToken).ConfigureAwait(false);
+
+                // Tracks still held by an antivirus/indexer right after a crash: retry just those sessions later.
+                _recoveryRetry = new CancellationTokenSource();
+                _ = recovery.RetryBusyInBackgroundAsync(_recoveryRetry.Token);
                 await processor.ResumePendingAsync(cancellationToken).ConfigureAwait(false);
 
                 // Sessions finished while the AI was not installed get their vectors now (a no-op without the models).
@@ -92,12 +159,25 @@ internal sealed class CompositionRoot : IDisposable
             CreatePlayback(),
             new SessionProcessingAdapter(processor, models),
             storage,
-            new AiServices(assistant, llm, models.ModelsDirectory));
+            new AiServices(assistant, llm, models.ModelsDirectory),
+            settings,
+            aiModels,
+            modelManager.ActiveModelId,
+            storage.Paths.RecordingsDirectory,
+            // WindowsCapture also plays the screen recordings (Media Engine); the synthetic capture does not.
+            capture as IVideoPlayback,
+            _hotkeys ??= CreateHotkeys(capture),
+            _instance);
     }
 
     public void Dispose()
     {
+        _recoveryRetry?.Cancel();
+
+        // The app (the hotkey coordinator) stopped using it when its window closed; this releases the hotkey thread.
+        _hotkeys?.Dispose();
         _heapTrimmer?.Dispose();
+        _reindex?.Dispose();
         _processor?.Dispose();
         _queue?.DisposeAsync().AsTask().GetAwaiter().GetResult();
         _activity?.Dispose();
@@ -105,14 +185,45 @@ internal sealed class CompositionRoot : IDisposable
         // Stops the llama-server processes, so none outlives the app.
         _llm?.DisposeAsync().AsTask().GetAwaiter().GetResult();
         _asr?.DisposeAsync().AsTask().GetAwaiter().GetResult();
+
+        // Stops running model downloads (their partial files are kept for the next start).
+        _modelManager?.Dispose();
         _storage?.Dispose();
     }
 
     private static LocalLlm CreateLlm(string modelsDirectory, RecordingActivity activity)
     {
-        var llm = new LocalLlm(AiModelPaths.Resolve(modelsDirectory, Environment.GetEnvironmentVariable), () => activity.IsRecording);
+        // Paths are resolved again on demand (environment, manifest, defaults), so models installed, switched or removed
+        // in the app are noticed without a restart.
+        var llm = new LocalLlm(() => AiModelPaths.Resolve(modelsDirectory, Environment.GetEnvironmentVariable), () => activity.IsRecording);
         activity.RecordingStarted += llm.NotifyRecordingStarted;
         return llm;
+    }
+
+    private static string? ItemPath(ModelManager manager, string id)
+    {
+        foreach (var item in manager.Items)
+        {
+            if (string.Equals(item.Id, id, StringComparison.Ordinal))
+            {
+                return Path.GetFullPath(Path.Combine(manager.ModelsDirectory, item.TargetPath));
+            }
+        }
+
+        return null;
+    }
+
+    private static bool IsInstalled(IModelManager manager, ModelKind kind)
+    {
+        foreach (var model in manager.Catalog)
+        {
+            if (model.Kind == kind && manager.GetStatus(model.Id).State == ModelInstallState.Installed)
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private static ICapture CreateCapture()
@@ -123,6 +234,15 @@ internal sealed class CompositionRoot : IDisposable
         // Linux development and CI: deterministic synthetic audio. The synthetic screen recorder only creates empty
         // segment files, which lets the screen toggle and --screen be exercised end to end.
         return new SyntheticCapture(new SyntheticCaptureOptions(Screen: true));
+#endif
+    }
+
+    private static IGlobalHotkeys CreateHotkeys(ICapture capture)
+    {
+#if WINDOWS
+        return ((Murmur.Capture.Windows.WindowsCapture)capture).CreateGlobalHotkeys();
+#else
+        return new UnsupportedGlobalHotkeys();
 #endif
     }
 

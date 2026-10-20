@@ -1,0 +1,112 @@
+name: models
+
+# Real downloads of the model catalog (src/Murmur.Models) from Hugging Face and GitHub, with the same engine the app uses.
+# The unit tests of Murmur.Models run against a local fake server (ci.yml); this workflow is the only place that touches
+# the real hosts. It also prints the size and SHA-256 of every file so the catalog can pin them later.
+
+# On demand only: the downloads are large and the hosts are external. Run it from the Actions tab once this file is on
+# master, or add the label `ci:models` to a pull request (a dispatch cannot start a workflow that master does not have
+# yet); remove and re-add the label to run it again.
+on:
+  workflow_dispatch:
+  pull_request:
+    types: [labeled]
+
+concurrency:
+  group: models-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  DOTNET_NOLOGO: "1"
+  DOTNET_CLI_TELEMETRY_OPTOUT: "1"
+  NUGET_PACKAGES: ${{ github.workspace }}/.nuget/packages
+  MURMUR_MODELS_DIR: ${{ github.workspace }}/models
+
+jobs:
+  models:
+    name: install the catalog (ubuntu-latest)
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.label.name == 'ci:models' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v5
+
+      # See ci.yml: dotnet-version pins the exact prerelease SDK, the next step verifies it.
+      - uses: actions/setup-dotnet@v5
+        with:
+          global-json-file: global.json
+          dotnet-version: 11.0.100-rc.2.26504.105
+
+      - name: Verify SDK matches global.json
+        run: test "$(dotnet --version)" = "$(jq -r .sdk.version global.json)"
+
+      - uses: actions/cache@v4
+        with:
+          path: ${{ env.NUGET_PACKAGES }}
+          key: nuget-${{ runner.os }}-${{ hashFiles('Directory.Packages.props', '**/*.csproj') }}
+          restore-keys: nuget-${{ runner.os }}-
+
+      - name: Build Murmur.ModelFetch
+        run: dotnet build tools/Murmur.ModelFetch -c Release
+
+      # What every source of the catalog is upstream today: Hugging Face commit, SHA-256 and size of each file, release
+      # asset digests, and whether a pinned hash/size drifted. Copy the revisions and pins from the job summary into
+      # ModelCatalog. Reads the APIs only (no model is downloaded); a failure here (e.g. a rate limit) must not stop the
+      # downloads below, so the step is allowed to fail.
+      - name: Resolve upstream pins (revision, SHA-256, size, drift)
+        id: pins
+        continue-on-error: true
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          dotnet run -c Release --no-build --project tools/Murmur.ModelFetch -- \
+            --resolve-pins \
+            --summary "$GITHUB_STEP_SUMMARY"
+
+      # Required ASR files, the llama.cpp runtime (tar.gz, extracted) and the embedding model. No cache on purpose:
+      # the point is to download from the real hosts. The chat models are 5 and 17 GB, so they are only probed.
+      - name: Install silero-vad, parakeet, llama.cpp and the embedding model
+        id: install
+        run: |
+          dotnet run -c Release --no-build --project tools/Murmur.ModelFetch -- \
+            --dir "$MURMUR_MODELS_DIR" \
+            --ids silero-vad,parakeet-tdt-0.6b-v3-int8,llama-cpp-b11716,embeddinggemma-300m-q8 \
+            --summary "$GITHUB_STEP_SUMMARY"
+
+      # Runs even when the install failed, so one red item does not hide the state of the others.
+      - name: Probe the chat models (no download)
+        if: ${{ !cancelled() }}
+        run: |
+          dotnet run -c Release --no-build --project tools/Murmur.ModelFetch -- \
+            --dir "$MURMUR_MODELS_DIR" \
+            --head-only gemma-4-e4b-q4,gemma-4-26b-a4b-q4 \
+            --summary "$GITHUB_STEP_SUMMARY"
+
+      # The checks below need the install; they run even when the (guessed) 26B probe above is red.
+      - name: Check the layout the app reads
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: |
+          parakeet=sherpa-onnx-nemo-parakeet-tdt-0.6b-v3-int8
+          for f in "$parakeet/encoder.int8.onnx" "$parakeet/decoder.int8.onnx" "$parakeet/joiner.int8.onnx" "$parakeet/tokens.txt" \
+                   silero_vad.onnx llama.cpp/llama-server gguf/embeddinggemma-300M-Q8_0.gguf gguf/models.json; do
+            test -s "$MURMUR_MODELS_DIR/$f" || { echo "::error::missing or empty: $f"; exit 1; }
+          done
+          test -x "$MURMUR_MODELS_DIR/llama.cpp/llama-server" || { echo "::error::llama-server is not executable"; exit 1; }
+          test ! -e "$MURMUR_MODELS_DIR/.staging" || { echo "::error::.staging was left behind"; exit 1; }
+          cat "$MURMUR_MODELS_DIR/gguf/models.json"
+          "$MURMUR_MODELS_DIR/llama.cpp/llama-server" --version
+          find "$MURMUR_MODELS_DIR" -maxdepth 2 -printf '%s %p\n' | sort -k2
+
+      - name: A second run installs nothing
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: |
+          dotnet run -c Release --no-build --project tools/Murmur.ModelFetch -- \
+            --dir "$MURMUR_MODELS_DIR" \
+            --ids silero-vad,parakeet-tdt-0.6b-v3-int8,llama-cpp-b11716,embeddinggemma-300m-q8 | tee second-run.log
+          test "$(grep -c 'already installed, nothing downloaded' second-run.log)" = 4

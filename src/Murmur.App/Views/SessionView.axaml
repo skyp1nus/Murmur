@@ -1,6 +1,7 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="using:Murmur.App.ViewModels"
+             xmlns:res="using:Murmur.App.Resources"
              xmlns:controls="using:Murmur.App.Controls"
              xmlns:views="using:Murmur.App.Views"
              x:Class="Murmur.App.Views.SessionView"
@@ -8,7 +9,9 @@
 
   <UserControl.Resources>
     <!-- Width of the player column and height of the waveform (layout sizes of this screen, not design tokens). -->
-    <GridLength x:Key="Session.PlayerWidth">340</GridLength>
+    <x:Double x:Key="Session.PlayerWidth">340</x:Double>
+    <!-- With the screen recording the player column is as wide as the mockup's player section (flex-basis 480). -->
+    <x:Double x:Key="Session.PlayerWidthVideo">480</x:Double>
     <x:Double x:Key="Session.WaveformHeight">96</x:Double>
     <x:Double x:Key="Session.StatusWidth">480</x:Double>
   </UserControl.Resources>
@@ -23,7 +26,7 @@
       <Button Grid.Column="0"
               Classes="outline"
               VerticalAlignment="Center"
-              Content="Назад"
+              Content="{x:Static res:Strings.Common_Back}"
               Command="{Binding BackCommand}" />
       <StackPanel Grid.Column="1"
                   VerticalAlignment="Center">
@@ -31,7 +34,7 @@
                    TextTrimming="CharacterEllipsis"
                    Text="{Binding Title}" />
         <TextBlock Classes="bodySm"
-                   Foreground="{StaticResource Brush.Smoke}"
+                   Foreground="{DynamicResource Brush.Smoke}"
                    Text="{Binding DateText}" />
       </StackPanel>
     </Grid>
@@ -39,41 +42,89 @@
     <Grid Grid.Row="1"
           ColumnSpacing="{StaticResource Space.24}">
       <Grid.ColumnDefinitions>
-        <ColumnDefinition Width="{StaticResource Session.PlayerWidth}" />
+        <ColumnDefinition Width="Auto" />
         <ColumnDefinition Width="*" />
       </Grid.ColumnDefinitions>
 
-      <!-- Player (left) -->
-      <Border Grid.Column="0"
-              Classes="card"
-              VerticalAlignment="Top"
-              Padding="{StaticResource Inset.24}">
-        <StackPanel Spacing="{StaticResource Space.16}">
-          <controls:WaveformControl x:Name="Waveform"
-                                    Height="{StaticResource Session.WaveformHeight}"
-                                    Peaks="{Binding Peaks}"
-                                    Fraction="{Binding PositionFraction}" />
-          <Grid ColumnDefinitions="*,Auto">
-            <TextBlock Grid.Column="0"
-                       Classes="mono"
-                       Text="{Binding PositionText}" />
-            <TextBlock Grid.Column="1"
-                       Classes="mono"
-                       Foreground="{StaticResource Brush.Smoke}"
-                       Text="{Binding DurationText}" />
-          </Grid>
-          <Button Classes="primary"
-                  HorizontalAlignment="Center"
-                  Content="{Binding PlayPauseLabel}"
-                  IsEnabled="{Binding CanPlay}"
-                  Command="{Binding PlayPauseCommand}" />
-          <TextBlock Classes="bodySm"
-                     TextWrapping="Wrap"
-                     Foreground="{StaticResource Brush.Smoke}"
-                     IsVisible="{Binding HasPlayerError}"
-                     Text="{Binding PlayerError}" />
-        </StackPanel>
-      </Border>
+      <!-- Player (left): the screen recording above the waveform card -->
+      <StackPanel Grid.Column="0"
+                  Classes="player"
+                  Classes.video="{Binding HasVideo}"
+                  VerticalAlignment="Top"
+                  Spacing="{StaticResource Space.16}">
+        <StackPanel.Styles>
+          <Style Selector="StackPanel.player">
+            <Setter Property="Width" Value="{StaticResource Session.PlayerWidth}" />
+          </Style>
+          <Style Selector="StackPanel.player.video">
+            <Setter Property="Width" Value="{StaticResource Session.PlayerWidthVideo}" />
+          </Style>
+        </StackPanel.Styles>
+
+        <Border x:Name="VideoPanel"
+                Classes="videoPanel"
+                IsVisible="{Binding HasVideo}">
+          <Panel>
+            <controls:VideoSurface x:Name="Video"
+                                   Player="{Binding VideoPlayer}"
+                                   Active="{Binding IsVideoOpen}"
+                                   Revision="{Binding VideoRevision}" />
+            <StackPanel x:Name="VideoPlaceholder"
+                        HorizontalAlignment="Center"
+                        VerticalAlignment="Center"
+                        Spacing="{StaticResource Space.8}"
+                        IsVisible="{Binding ShowVideoPlaceholder}">
+              <controls:IconControl Width="{StaticResource Size.VideoIcon}"
+                                    Height="{StaticResource Size.VideoIcon}"
+                                    HorizontalAlignment="Center"
+                                    TextElement.Foreground="{DynamicResource Brush.Smoke}"
+                                    Data="{StaticResource Icon.Screen}" />
+              <TextBlock Classes="bodySm"
+                         HorizontalAlignment="Center"
+                         TextAlignment="Center"
+                         TextWrapping="Wrap"
+                         Foreground="{DynamicResource Brush.Smoke}"
+                         Text="{Binding VideoPlaceholderText}" />
+            </StackPanel>
+            <Panel x:Name="VideoChip"
+                   Classes="videoChip"
+                   IsVisible="{Binding IsVideoOpen}">
+              <Border Classes="videoChipBackground" />
+              <TextBlock Classes="mono videoChipText"
+                         Text="{Binding VideoInfoText}" />
+            </Panel>
+          </Panel>
+        </Border>
+
+        <Border Classes="card"
+                Padding="{StaticResource Inset.24}">
+          <StackPanel Spacing="{StaticResource Space.16}">
+            <controls:WaveformControl x:Name="Waveform"
+                                      Height="{StaticResource Session.WaveformHeight}"
+                                      Peaks="{Binding Peaks}"
+                                      Fraction="{Binding PositionFraction}" />
+            <Grid ColumnDefinitions="*,Auto">
+              <TextBlock Grid.Column="0"
+                         Classes="mono"
+                         Text="{Binding PositionText}" />
+              <TextBlock Grid.Column="1"
+                         Classes="mono"
+                         Foreground="{DynamicResource Brush.Smoke}"
+                         Text="{Binding DurationText}" />
+            </Grid>
+            <Button Classes="primary"
+                    HorizontalAlignment="Center"
+                    Content="{Binding PlayPauseLabel}"
+                    IsEnabled="{Binding CanPlay}"
+                    Command="{Binding PlayPauseCommand}" />
+            <TextBlock Classes="bodySm"
+                       TextWrapping="Wrap"
+                       Foreground="{DynamicResource Brush.Smoke}"
+                       IsVisible="{Binding HasPlayerError}"
+                       Text="{Binding PlayerError}" />
+          </StackPanel>
+        </Border>
+      </StackPanel>
 
       <!-- Tabs and content (right) -->
       <Grid Grid.Column="1"
@@ -83,13 +134,13 @@
                     Orientation="Horizontal"
                     Spacing="{StaticResource Space.8}">
           <ToggleButton Classes="pill"
-                        Content="Транскрипт"
+                        Content="{x:Static res:Strings.Session_TabTranscript}"
                         IsChecked="{Binding IsTranscriptTab, Mode=TwoWay}" />
           <ToggleButton Classes="pill"
-                        Content="Резюме"
+                        Content="{x:Static res:Strings.Session_TabSummary}"
                         IsChecked="{Binding IsSummaryTab, Mode=TwoWay}" />
           <ToggleButton Classes="pill"
-                        Content="Запитати AI"
+                        Content="{x:Static res:Strings.Common_AskAi}"
                         IsChecked="{Binding IsAskTab, Mode=TwoWay}" />
         </StackPanel>
 
@@ -146,14 +197,14 @@
                        Text="{Binding StatusTitle}" />
             <TextBlock Classes="body"
                        TextWrapping="Wrap"
-                       Foreground="{StaticResource Brush.Graphite}"
+                       Foreground="{DynamicResource Brush.Graphite}"
                        Text="{Binding StatusText}" />
             <ProgressBar Minimum="0"
                          Maximum="100"
                          Value="{Binding ProgressValue}"
                          IsVisible="{Binding ShowProgress}" />
             <TextBlock Classes="mono"
-                       Foreground="{StaticResource Brush.Smoke}"
+                       Foreground="{DynamicResource Brush.Smoke}"
                        IsVisible="{Binding ShowProgress}"
                        Text="{Binding ProgressText}" />
             <Button Classes="primary"
@@ -174,14 +225,14 @@
           <StackPanel Spacing="{StaticResource Space.12}">
             <TextBlock Classes="subheading"
                        FontWeight="{StaticResource FontWeight.BodyMedium}"
-                       Text="Резюме" />
+                       Text="{x:Static res:Strings.Session_TabSummary}" />
             <TextBlock Classes="body"
                        TextWrapping="Wrap"
-                       Foreground="{StaticResource Brush.Graphite}"
-                       Text="Зʼявиться у фазі 3: короткий підсумок мітингу, рішення й завдання, складені локально." />
+                       Foreground="{DynamicResource Brush.Graphite}"
+                       Text="{x:Static res:Strings.Session_SummaryPlaceholder}" />
           </StackPanel>
         </Border>
-        <!-- Запитати AI: chat about this session; chips seek the player -->
+        <!-- "Ask AI" tab: chat about this session; chips seek the player -->
         <Panel Grid.Row="1"
                IsVisible="{Binding ShowAsk}">
           <views:ChatView DataContext="{Binding Chat}" />
