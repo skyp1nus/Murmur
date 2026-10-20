@@ -18,7 +18,7 @@ namespace Murmur.App.Tests.Design;
 public sealed class ParityCalibrationTests
 {
     /// <summary>A piece of the Main artboard: the crop of the reference, what the app draws for it and where the search starts.</summary>
-    private sealed record Case(string Name, int X, int Y, int Width, int Height, Func<Control> Build, double OriginX, double OriginY, int Range);
+    private sealed record Case(string Name, int X, int Y, int Width, int Height, Func<Control> Build, double OriginX, double OriginY, int Range, string Reference = "Main.png");
 
     private static Case Text(string name, string text, int x, int y, int width, int height, double size, int weight, double trackingEm, string foreground, bool mono = false)
     {
@@ -52,14 +52,16 @@ public sealed class ParityCalibrationTests
         Text("Row meta 13 px / 400", "10:30 · English · Mic, system audio, screen", 410, 714, 265, 13, 13, 400, 0.01, "#777169"),
         Text("Row snippet 13 px / 400", "…PDF export moves to next sprint: first we finish meeting summaries and action items.", 410, 733, 541, 13, 13, 400, 0.01, "#777169"),
         Text("Timestamp, Geist Mono 13 px", "47:12", 1256, 712, 39, 10, 13, 400, 0.01, "#44403b", mono: true),
-        new("Card corner: 20 px radius, 1 px hairline", 326, 666, 60, 50, () => new Border { Width = 300, Height = 200, CornerRadius = new CornerRadius(20), BorderThickness = new Thickness(1), BorderBrush = new SolidColorBrush(Color.Parse("#ebe8e4")) }, 6, 6, 3),
+        new("Card corner: 16 px radius, 1 px hairline", 326, 666, 60, 50, () => new Border { Width = 300, Height = 200, CornerRadius = new CornerRadius(16), BorderThickness = new Thickness(1), BorderBrush = new SolidColorBrush(Color.Parse("#ebe8e4")) }, 6, 6, 3),
+        new("Outline pill: 82 x 36, radius 18, 1 px border", 889, 391, 90, 44, () => new Border { Width = 82, Height = 36, CornerRadius = new CornerRadius(18), BorderThickness = new Thickness(1), BorderBrush = new SolidColorBrush(Color.Parse("#e5e5e5")) }, 4, 4, 3, "Onb4Preferences.notext.png"),
+        new("Row hairline: 1 px, 300 px long", 400, 368, 60, 9, () => new Border { Width = 300, Height = 1, Background = new SolidColorBrush(Color.Parse("#ebe8e4")) }, 0, 4, 3, "Onb4Preferences.notext.png"),
         new("Black pill, left cap (44 px high)", 520, 396, 22, 52, () => new Border { Width = 143, Height = 44, CornerRadius = new CornerRadius(22), Background = Brushes.Black }, 4, 4, 3),
     ];
 
     [Fact]
     public async Task TheFloorOfTextRasterisation_IsMeasuredAndReported()
     {
-        var reference = PixelImage.LoadPng(DesignBoards.Get("Main").ReferencePath);
+        var references = new Dictionary<string, PixelImage>(StringComparer.Ordinal);
         var sb = new StringBuilder();
         sb.Append("# Calibration: what a pixel-perfect layout still shows\n\n");
         sb.Append("Text lines, a card corner and a pill of `Main.png` (Chromium) drawn again by Avalonia/Skia with the same font, size, weight, colour and letter spacing, ")
@@ -70,9 +72,35 @@ public sealed class ParityCalibrationTests
 
         foreach (var c in Cases)
         {
+            if (!references.TryGetValue(c.Reference, out var reference))
+            {
+                references[c.Reference] = reference = PixelImage.LoadPng(Path.Combine(RepoPaths.Root, "docs", "design", "reference", c.Reference));
+            }
+
             var (best5, best12, best24, offset) = await UiHarness.Session.Dispatch(() => Measure(reference, c), TestContext.Current.CancellationToken);
             worst = Math.Max(worst, best5);
             sb.Append(CultureInfo.InvariantCulture, $"| {c.Name} | {best5:0.0} | {best12:0.0} | {best24:0.0} | {offset} |\n");
+        }
+
+        sb.Append("\nText: Skia draws glyphs about 6-15 % lighter than Chromium, so text lines never match pixel by pixel (hence the text gate measures geometry). ")
+          .Append("Shapes: fills, straight hairlines and pills match exactly; only anti-aliased curves differ.\n\n");
+        sb.Append("## Shape layer: share of drawn pixels that sit on an edge\n\n");
+        sb.Append("The shape layer compares `<Board>.notext.png` with the app without glyphs. Pixels inside fills and on straight 1 px lines match exactly; only pixels whose 3x3 neighbourhood is not uniform can differ by anti-aliasing. ")
+          .Append("Upper bound of the floor of a pixel-perfect layout = edge share x the worst edge rate measured above (card corner).\n\n");
+        sb.Append("| Board | Edge pixels, % of drawn | Floor upper bound at the corner rate, % |\n| --- | ---: | ---: |\n");
+        var cornerRate = 0.0;
+        foreach (var line in sb.ToString().Split('\n'))
+        {
+            if (line.StartsWith("| Card corner", StringComparison.Ordinal))
+            {
+                cornerRate = double.Parse(line.Split('|')[2], CultureInfo.InvariantCulture);
+            }
+        }
+
+        foreach (var board in DesignBoards.All.Where(b => !b.Dark))
+        {
+            var share = EdgeShare(PixelImage.LoadPng(board.ShapesReferencePath));
+            sb.Append(CultureInfo.InvariantCulture, $"| {board.Name} | {share:0.0} | {share * cornerRate / 100:0.0} |\n");
         }
 
         Directory.CreateDirectory(ParityReport.Directory);
@@ -152,6 +180,46 @@ public sealed class ParityCalibrationTests
         {
             window.Close();
         }
+    }
+
+    /// <summary>The share of non-background pixels whose 3x3 neighbourhood is not uniform (within 5/255): anti-aliased edges, gradients, curves.</summary>
+    private static double EdgeShare(PixelImage image)
+    {
+        var corner = (((image.Height - 1) * image.Width) + (image.Width - 1)) * 4;
+        long drawn = 0, edge = 0;
+        for (var y = 0; y < image.Height; y++)
+        {
+            for (var x = 0; x < image.Width; x++)
+            {
+                var o = ((y * image.Width) + x) * 4;
+                if (Math.Abs(image.Rgba[o] - image.Rgba[corner]) <= 5 && Math.Abs(image.Rgba[o + 1] - image.Rgba[corner + 1]) <= 5 && Math.Abs(image.Rgba[o + 2] - image.Rgba[corner + 2]) <= 5)
+                {
+                    continue;
+                }
+
+                drawn++;
+                var uniform = true;
+                for (var dy = -1; dy <= 1 && uniform; dy++)
+                {
+                    for (var dx = -1; dx <= 1 && uniform; dx++)
+                    {
+                        var nx = x + dx;
+                        var ny = y + dy;
+                        if (nx < 0 || ny < 0 || nx >= image.Width || ny >= image.Height)
+                        {
+                            continue;
+                        }
+
+                        var n = ((ny * image.Width) + nx) * 4;
+                        uniform = Math.Abs(image.Rgba[n] - image.Rgba[o]) <= 5 && Math.Abs(image.Rgba[n + 1] - image.Rgba[o + 1]) <= 5 && Math.Abs(image.Rgba[n + 2] - image.Rgba[o + 2]) <= 5;
+                    }
+                }
+
+                edge += uniform ? 0 : 1;
+            }
+        }
+
+        return drawn == 0 ? 0 : 100.0 * edge / drawn;
     }
 
     private static PixelImage Capture(Window window)

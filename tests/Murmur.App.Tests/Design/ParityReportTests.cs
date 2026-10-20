@@ -4,24 +4,36 @@ namespace Murmur.App.Tests.Design;
 [Trait("Category", "DesignParity")]
 public sealed class ParityReportTests
 {
+    private static BoardResult Result(string name, double shape = 12.5) =>
+        new(name, 1440, 1080, true, shape, 20, 10, 40, 30, 10, 4, 7, 40, 41, 39, 20, 1.5, 2, 1, 0, false, 5, 80, 3, ["a note", "another"]);
+
     [Fact]
     public void AResult_SurvivesTheRoundTripThroughItsFile()
     {
-        var result = new BoardResult("Main", 1440, 1406, 2.5, 2.75, 2.25, 49.5, 51.5, 48.5, 30.5, true, 1234, false, 3.0, ["a note", "another"]);
+        var result = Result("Main");
 
         var parsed = BoardResult.Parse(result.Serialize());
 
         Assert.Equal(result.Name, parsed.Name);
-        Assert.Equal(result.Total, parsed.Total);
-        Assert.Equal(result.Sidebar, parsed.Sidebar);
-        Assert.Equal(result.Content, parsed.Content);
-        Assert.Equal(result.Drawn, parsed.Drawn);
-        Assert.Equal(result.DrawnSidebar, parsed.DrawnSidebar);
-        Assert.Equal(result.DrawnContent, parsed.DrawnContent);
-        Assert.Equal(result.DrawnLenient, parsed.DrawnLenient);
-        Assert.Equal(result.Max, parsed.Max);
-        Assert.Equal(result.IgnoredPixels, parsed.IgnoredPixels);
+        Assert.Equal(result.ShapeDrawn, parsed.ShapeDrawn);
+        Assert.Equal(result.ShapeDrawnSidebar, parsed.ShapeDrawnSidebar);
+        Assert.Equal(result.ShapeDrawnContent, parsed.ShapeDrawnContent);
+        Assert.Equal((40, 30, 10, 4, 7), (parsed.TextReference, parsed.TextMatched, parsed.TextMissing, parsed.TextExtra, parsed.TextErrors));
+        Assert.Equal(75, parsed.TextMatchedPercent);
+        Assert.Equal(result.PixelDrawn, parsed.PixelDrawn);
+        Assert.Equal(result.PixelDrawnLenient, parsed.PixelDrawnLenient);
+        Assert.Equal((5, 80, 3), (parsed.MaxShape, parsed.MinText, parsed.MaxErrors));
         Assert.Equal(result.Notes, parsed.Notes);
+    }
+
+    [Fact]
+    public void NotEnforcedGates_AreStoredAsNull()
+    {
+        var result = Result("Main") with { MaxShape = null, MinText = null, MaxErrors = null };
+
+        var parsed = BoardResult.Parse(result.Serialize());
+
+        Assert.Equal((null, null, null), (parsed.MaxShape, parsed.MinText, parsed.MaxErrors));
     }
 
     [Fact]
@@ -31,7 +43,7 @@ public sealed class ParityReportTests
         Directory.CreateDirectory(directory);
         try
         {
-            File.WriteAllText(Path.Combine(directory, "Chat.result.txt"), new BoardResult("Chat", 1440, 1080, 1.5, 2, 1, 40, 41, 39, 20, true, 0, false, null, []).Serialize());
+            File.WriteAllText(Path.Combine(directory, "Chat.result.txt"), Result("Chat", shape: 33.25).Serialize());
             File.WriteAllText(Path.Combine(directory, "Old.result.txt"), "name=Old\n");
 
             var report = ParityReport.BuildReport(directory);
@@ -39,7 +51,7 @@ public sealed class ParityReportTests
             var rows = report.Split('\n').Where(l => l.StartsWith("| ", StringComparison.Ordinal) && !l.StartsWith("| Board", StringComparison.Ordinal) && !l.StartsWith("| ---", StringComparison.Ordinal)).ToArray();
             Assert.Equal(DesignBoards.All.Count, rows.Length);
             Assert.StartsWith("| Main | 1440x1406 | not rendered", rows[0], StringComparison.Ordinal);
-            Assert.Contains(rows, r => r.StartsWith("| Chat | 1440x1080 | 40.00 | 41.00 | 39.00 | 20.00 | 1.50 | 2.00 | 1.00 |", StringComparison.Ordinal));
+            Assert.Contains(rows, r => r.StartsWith("| Chat | 1440x1080 | 33.25 | 20.00 | 10.00 | 75.0 (30/40) | 7 | 10 | 5.00 / 80.0 / 3 | 40.00 |", StringComparison.Ordinal));
             Assert.Contains("OnbComponents", report, StringComparison.Ordinal);
             Assert.Contains("[VERSION] placeholder", report, StringComparison.Ordinal);
             Assert.Contains("Sidebar 'Recent' list", report, StringComparison.Ordinal);

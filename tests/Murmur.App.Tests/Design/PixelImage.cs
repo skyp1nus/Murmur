@@ -139,3 +139,51 @@ internal sealed class PixelImage
         File.WriteAllBytes(path, ToPng());
     }
 }
+
+internal static class PixelImageDrawing
+{
+    /// <summary>A 1 px outline; parts outside the image are skipped.</summary>
+    public static void DrawRect(this PixelImage image, double x, double y, double width, double height, byte r, byte g, byte b)
+    {
+        var left = (int)Math.Floor(x);
+        var top = (int)Math.Floor(y);
+        var right = (int)Math.Ceiling(x + width) - 1;
+        var bottom = (int)Math.Ceiling(y + height) - 1;
+        for (var px = left; px <= right; px++)
+        {
+            Put(image, px, top, r, g, b);
+            Put(image, px, bottom, r, g, b);
+        }
+
+        for (var py = top; py <= bottom; py++)
+        {
+            Put(image, left, py, r, g, b);
+            Put(image, right, py, r, g, b);
+        }
+    }
+
+    /// <summary>The image mixed with white: <paramref name="keepPercent"/> of the original stays.</summary>
+    public static PixelImage Faded(this PixelImage image, int keepPercent)
+    {
+        var result = new PixelImage(image.Width, image.Height);
+        for (var i = 0; i < image.Rgba.Length; i += 4)
+        {
+            for (var c = 0; c < 3; c++)
+            {
+                result.Rgba[i + c] = (byte)(255 - ((255 - image.Rgba[i + c]) * keepPercent / 100));
+            }
+
+            result.Rgba[i + 3] = 255;
+        }
+
+        return result;
+    }
+
+    private static void Put(PixelImage image, int x, int y, byte r, byte g, byte b)
+    {
+        if (x >= 0 && y >= 0 && x < image.Width && y < image.Height)
+        {
+            image.Set(x, y, r, g, b);
+        }
+    }
+}

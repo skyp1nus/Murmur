@@ -1,7 +1,7 @@
 namespace Murmur.App.Tests.Design;
 
-/// <summary>A rectangle of the reference image that is left out of the comparison, with the reason why.</summary>
-internal sealed record IgnoreRect(int X, int Y, int Width, int Height, string Reason)
+/// <summary>A rectangle of the reference image that is left out of the comparison, with the reason why. <c>TextOnly</c>: it hides glyphs only, so the shape layer (no glyphs) does not need it.</summary>
+internal sealed record IgnoreRect(int X, int Y, int Width, int Height, string Reason, bool TextOnly = false)
 {
     public bool Contains(int x, int y) => x >= X && x < X + Width && y >= Y && y < Y + Height;
 }

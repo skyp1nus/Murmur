@@ -1,4 +1,7 @@
 using Avalonia.Controls;
+using Avalonia.Controls.Documents;
+using Avalonia.Controls.Presenters;
+using Avalonia.Data;
 using Avalonia.Headless;
 using Avalonia.Input;
 using Avalonia.Media;
@@ -135,8 +138,12 @@ internal sealed class DesignScene : IDisposable
             }
         }
 
-        // Settled means two frames in a row are the same: a transition that is still running (a button changing its colour)
-        // would make the render depend on how busy the machine is.
+        WaitForStableFrame();
+    }
+
+    /// <summary>Settled means two frames in a row are the same: a transition that is still running would make the render depend on how busy the machine is.</summary>
+    private void WaitForStableFrame()
+    {
         byte[]? previous = null;
         for (var attempt = 0; attempt < 30; attempt++)
         {
@@ -152,6 +159,46 @@ internal sealed class DesignScene : IDisposable
         }
 
         Notes.Add("The frame did not settle: it kept changing for 3 s.");
+    }
+
+    /// <summary>
+    /// Makes every glyph invisible and returns the render: the shape layer (cards, hairlines, fills, icons, orbs). The
+    /// transparent foreground is set with the animation priority, which beats local values, styles and templates; layout is untouched.
+    /// </summary>
+    public PixelImage RenderShapesOnly()
+    {
+        HideText(Window);
+        UiHarness.Pump(4);
+        WaitForStableFrame();
+        return Render();
+    }
+
+    /// <summary>Sets every glyph-drawing control of the window to a transparent foreground (animation priority beats local values, styles and templates).</summary>
+    public static void HideText(Window window)
+    {
+        foreach (var visual in window.GetVisualDescendants().ToArray())
+        {
+            switch (visual)
+            {
+                case TextBlock block:
+                    block.SetValue(TextElement.ForegroundProperty, Brushes.Transparent, BindingPriority.Animation);
+                    if (block.Inlines is { } inlines)
+                    {
+                        foreach (var inline in inlines)
+                        {
+                            inline.SetValue(TextElement.ForegroundProperty, Brushes.Transparent, BindingPriority.Animation);
+                        }
+                    }
+
+                    break;
+                case TextPresenter presenter:
+                    presenter.SetValue(TextElement.ForegroundProperty, Brushes.Transparent, BindingPriority.Animation);
+                    break;
+                case TranscriptTextControl transcript:
+                    transcript.SetValue(TranscriptTextControl.ForegroundProperty, Brushes.Transparent, BindingPriority.Animation);
+                    break;
+            }
+        }
     }
 
     /// <summary>The rendered frame at the size of the window.</summary>

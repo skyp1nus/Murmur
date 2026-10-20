@@ -8,38 +8,61 @@ internal sealed record BoardResult(
     string Name,
     int Width,
     int Height,
-    double Total,
-    double Sidebar,
-    double Content,
-    double Drawn,
-    double DrawnSidebar,
-    double DrawnContent,
-    double DrawnLenient,
     bool HasSidebar,
+    double ShapeDrawn,
+    double ShapeDrawnSidebar,
+    double ShapeDrawnContent,
+    int TextReference,
+    int TextMatched,
+    int TextMissing,
+    int TextExtra,
+    int TextErrors,
+    double PixelDrawn,
+    double PixelDrawnSidebar,
+    double PixelDrawnContent,
+    double PixelDrawnLenient,
+    double PixelTotal,
+    double PixelSidebar,
+    double PixelContent,
     long IgnoredPixels,
     bool SizeDiffers,
-    double? Max,
+    double? MaxShape,
+    double? MinText,
+    int? MaxErrors,
     IReadOnlyList<string> Notes)
 {
+    public double TextMatchedPercent => TextReference == 0 ? 100 : 100.0 * TextMatched / TextReference;
+
     public string Serialize()
     {
         var sb = new StringBuilder();
         void Line(string key, string value) => sb.Append(key).Append('=').Append(value).Append('\n');
         string D(double v) => v.ToString("R", CultureInfo.InvariantCulture);
+        string I(long v) => v.ToString(CultureInfo.InvariantCulture);
         Line("name", Name);
-        Line("width", Width.ToString(CultureInfo.InvariantCulture));
-        Line("height", Height.ToString(CultureInfo.InvariantCulture));
-        Line("total", D(Total));
-        Line("sidebar", D(Sidebar));
-        Line("content", D(Content));
-        Line("drawn", D(Drawn));
-        Line("drawnSidebar", D(DrawnSidebar));
-        Line("drawnContent", D(DrawnContent));
-        Line("drawnLenient", D(DrawnLenient));
+        Line("width", I(Width));
+        Line("height", I(Height));
         Line("hasSidebar", HasSidebar ? "1" : "0");
-        Line("ignored", IgnoredPixels.ToString(CultureInfo.InvariantCulture));
+        Line("shapeDrawn", D(ShapeDrawn));
+        Line("shapeDrawnSidebar", D(ShapeDrawnSidebar));
+        Line("shapeDrawnContent", D(ShapeDrawnContent));
+        Line("textReference", I(TextReference));
+        Line("textMatched", I(TextMatched));
+        Line("textMissing", I(TextMissing));
+        Line("textExtra", I(TextExtra));
+        Line("textErrors", I(TextErrors));
+        Line("pixelDrawn", D(PixelDrawn));
+        Line("pixelDrawnSidebar", D(PixelDrawnSidebar));
+        Line("pixelDrawnContent", D(PixelDrawnContent));
+        Line("pixelDrawnLenient", D(PixelDrawnLenient));
+        Line("pixelTotal", D(PixelTotal));
+        Line("pixelSidebar", D(PixelSidebar));
+        Line("pixelContent", D(PixelContent));
+        Line("ignored", I(IgnoredPixels));
         Line("sizeDiffers", SizeDiffers ? "1" : "0");
-        Line("max", Max is { } max ? D(max) : string.Empty);
+        Line("maxShape", MaxShape is { } a ? D(a) : string.Empty);
+        Line("minText", MinText is { } b ? D(b) : string.Empty);
+        Line("maxErrors", MaxErrors is { } c ? I(c) : string.Empty);
         foreach (var note in Notes)
         {
             Line("note", note.Replace('\n', ' '));
@@ -68,24 +91,50 @@ internal sealed record BoardResult(
         }
 
         double D(string key) => double.Parse(values[key], CultureInfo.InvariantCulture);
+        int I(string key) => int.Parse(values[key], CultureInfo.InvariantCulture);
         return new BoardResult(
             values["name"],
-            int.Parse(values["width"], CultureInfo.InvariantCulture),
-            int.Parse(values["height"], CultureInfo.InvariantCulture),
-            D("total"),
-            D("sidebar"),
-            D("content"),
-            D("drawn"),
-            D("drawnSidebar"),
-            D("drawnContent"),
-            D("drawnLenient"),
+            I("width"),
+            I("height"),
             values["hasSidebar"] == "1",
+            D("shapeDrawn"),
+            D("shapeDrawnSidebar"),
+            D("shapeDrawnContent"),
+            I("textReference"),
+            I("textMatched"),
+            I("textMissing"),
+            I("textExtra"),
+            I("textErrors"),
+            D("pixelDrawn"),
+            D("pixelDrawnSidebar"),
+            D("pixelDrawnContent"),
+            D("pixelDrawnLenient"),
+            D("pixelTotal"),
+            D("pixelSidebar"),
+            D("pixelContent"),
             long.Parse(values["ignored"], CultureInfo.InvariantCulture),
             values["sizeDiffers"] == "1",
-            values["max"].Length == 0 ? null : D("max"),
+            values["maxShape"].Length == 0 ? null : D("maxShape"),
+            values["minText"].Length == 0 ? null : D("minText"),
+            values["maxErrors"].Length == 0 ? null : I("maxErrors"),
             notes);
     }
 }
+
+/// <summary>Everything one board produced: the renders, the comparisons and the texts.</summary>
+internal sealed record BoardRun(
+    DesignBoard Board,
+    PixelImage Reference,
+    PixelImage Actual,
+    PixelImage ShapesReference,
+    PixelImage ShapesActual,
+    ImageComparison Pixels,
+    ImageComparison PixelsLenient,
+    ImageComparison Shapes,
+    IReadOnlyList<TextItem> ReferenceTexts,
+    IReadOnlyList<TextItem> AppTexts,
+    TextComparison Texts,
+    IReadOnlyList<string> Notes);
 
 /// <summary>Writes the images and the report of the parity run to <c>artifacts/design-parity</c>.</summary>
 internal static class ParityReport
@@ -98,30 +147,44 @@ internal static class ParityReport
             ? custom
             : Path.Combine(RepoPaths.Root, "artifacts", "design-parity");
 
-    /// <summary>Saves the app render, the diff and the side-by-side of a board, and its result; then rebuilds <c>report.md</c>.</summary>
-    public static BoardResult Write(DesignBoard board, PixelImage reference, PixelImage actual, ImageComparison comparison, ImageComparison lenient, IReadOnlyList<string> notes)
+    /// <summary>Saves every image and the text report of a board and its result; then rebuilds <c>report.md</c>.</summary>
+    public static BoardResult Write(BoardRun run)
     {
+        var board = run.Board;
         System.IO.Directory.CreateDirectory(Directory);
-        actual.SavePng(Path.Combine(Directory, board.Name + ".app.png"));
-        comparison.Diff.SavePng(Path.Combine(Directory, board.Name + ".diff.png"));
-        SideBySide(reference, actual, comparison.Diff).SavePng(Path.Combine(Directory, board.Name + ".side.png"));
+        run.Actual.SavePng(Path.Combine(Directory, board.Name + ".app.png"));
+        run.Pixels.Diff.SavePng(Path.Combine(Directory, board.Name + ".diff.png"));
+        SideBySide(run.Reference, run.Actual, run.Pixels.Diff).SavePng(Path.Combine(Directory, board.Name + ".side.png"));
+        SideBySide(run.ShapesReference, run.ShapesActual, run.Shapes.Diff).SavePng(Path.Combine(Directory, board.Name + ".shapes.side.png"));
+        File.WriteAllText(Path.Combine(Directory, board.Name + ".text.md"), TextReport.Markdown(board, run.Texts));
+        TextReport.Overlay(run.Reference, run.ReferenceTexts, run.AppTexts).SavePng(Path.Combine(Directory, board.Name + ".text.png"));
 
         var result = new BoardResult(
             board.Name,
-            reference.Width,
-            reference.Height,
-            comparison.Total.Percent,
-            comparison.Sidebar.Percent,
-            comparison.Content.Percent,
-            comparison.Drawn.Percent,
-            comparison.DrawnSidebar.Percent,
-            comparison.DrawnContent.Percent,
-            lenient.Drawn.Percent,
+            run.Reference.Width,
+            run.Reference.Height,
             board.HasSidebar,
-            comparison.IgnoredPixels,
-            comparison.SizeDiffers,
-            board.MaxMismatchPercent,
-            notes);
+            run.Shapes.Drawn.Percent,
+            run.Shapes.DrawnSidebar.Percent,
+            run.Shapes.DrawnContent.Percent,
+            run.Texts.ReferenceCount,
+            run.Texts.Matches.Count,
+            run.Texts.Missing.Count,
+            run.Texts.Extra.Count,
+            run.Texts.GeometryErrors,
+            run.Pixels.Drawn.Percent,
+            run.Pixels.DrawnSidebar.Percent,
+            run.Pixels.DrawnContent.Percent,
+            run.PixelsLenient.Drawn.Percent,
+            run.Pixels.Total.Percent,
+            run.Pixels.Sidebar.Percent,
+            run.Pixels.Content.Percent,
+            run.Pixels.IgnoredPixels,
+            run.Pixels.SizeDiffers,
+            board.MaxShapeMismatchPercent,
+            board.MinTextMatchedPercent,
+            board.MaxTextGeometryErrors,
+            run.Notes);
         lock (Gate)
         {
             File.WriteAllText(Path.Combine(Directory, board.Name + ".result.txt"), result.Serialize());
@@ -170,53 +233,59 @@ internal static class ParityReport
         }
 
         string P(double v) => v.ToString("0.00", CultureInfo.InvariantCulture);
+        string P1(double v) => v.ToString("0.0", CultureInfo.InvariantCulture);
         var sb = new StringBuilder();
         sb.Append("# Design parity: the app against the canvas\n\n");
         sb.Append("Every artboard of `docs/design/source` is rendered by the app headlessly (Avalonia.Headless + Skia, English, scale 1, the size and theme of the board) ")
-          .Append("with the artboard's demo data (`DesignDemoData`) and compared with `docs/design/reference/<Board>.png`.\n\n");
-        sb.Append("The comparison is symmetric. A pixel is a mismatch when the app pixel has no pixel within ")
+          .Append("with the artboard's demo data (`DesignDemoData`) and compared with `docs/design/reference`. Text is judged by geometry, not by pixels (Skia and Chromium rasterise glyphs differently, see `calibration.md`).\n\n");
+        sb.Append("- **Shape layer** (first columns): the app rendered with every glyph invisible against `<Board>.notext.png`, symmetric comparison at ")
           .Append(ImageComparer.DefaultTolerance.ToString(CultureInfo.InvariantCulture))
-          .Append("/255 per channel in the 3x3 neighbourhood of the reference, **or** the reference pixel has none in the 3x3 neighbourhood of the app ")
-          .Append("(so 1 px shifts and anti-aliasing do not count, but a wrong fill, a missing hairline or missing content does). ")
-          .Append("**Mismatch of drawn %** is the number to gate on: the share of mismatching pixels among the pixels that are not page background in the reference or in the app (the union), ")
-          .Append("so empty page area does not dilute it. **Drawn % at tol 24** is the same metric with a text-tolerant tolerance (see `calibration.md`: Skia draws text about 10 % lighter than Chromium, so text lines never match at 5/255 even when the layout is exact). The sidebar is the strip x < ").Append(ImageComparer.SidebarWidth.ToString(CultureInfo.InvariantCulture))
-          .Append(" of the five main screens; the onboarding has none (content only). The plain total / sidebar / content columns count every pixel. Ignored rectangles are neither compared nor counted.\n\n");
-        sb.Append("| Board | Size | Mismatch of drawn % | Drawn sidebar % | Drawn content % | Drawn % at tol 24 | Total % | Sidebar % | Content % | Ignored | Limit | Notes |\n");
-        sb.Append("| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- |\n");
+          .Append("/255 per channel in a 3x3 neighbourhood. **Shape drawn %** is the share of mismatching pixels among the pixels that are not page background in either image (total / sidebar / content; the sidebar is the strip x < ")
+          .Append(ImageComparer.SidebarWidth.ToString(CultureInfo.InvariantCulture)).Append(" of the five main screens). Files: `<Board>.shapes.side.png` (reference | app | diff: red = only in the app, blue = only in the reference, purple = both).\n");
+        sb.Append("- **Text** (`<Board>.text.md`, `<Board>.text.png`): every reference text node is looked up in the app by its text; **Text matched %** = found / in the reference; **geometry errors** = found texts whose position (|dx|, |dy centre| > ")
+          .Append(TextTolerance.OffsetPx).Append(" px), total width (> ").Append(TextTolerance.WidthPercent).Append(" %), line count, font size, weight or family differ; **Missing** = in the reference, not in the app.\n");
+        sb.Append("- **Pixels** (last columns, information only): the whole rendered frame against `<Board>.png`; text pixels cannot match exactly. Ignored rectangles are neither compared nor counted.\n\n");
+        sb.Append("| Board | Size | Shape drawn % | Shape sidebar % | Shape content % | Text matched % | Text geometry errors | Missing texts | Gates (shape max / text min / errors max) | Pixel drawn % | Pixel drawn sidebar | Pixel drawn content | Pixel drawn at tol 24 | Pixel total % | Notes |\n");
+        sb.Append("| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | --- | ---: | ---: | ---: | ---: | ---: | --- |\n");
         foreach (var board in DesignBoards.All)
         {
             if (!results.TryGetValue(board.Name, out var r))
             {
-                sb.Append("| ").Append(board.Name).Append(" | ").Append(board.Width).Append('x').Append(board.Height).Append(" | not rendered | | | | | | | | | |\n");
+                sb.Append("| ").Append(board.Name).Append(" | ").Append(board.Width).Append('x').Append(board.Height).Append(" | not rendered | | | | | | | | | | | | |\n");
                 continue;
             }
 
-            var ignored = r.IgnoredPixels == 0 ? "—" : (100.0 * r.IgnoredPixels / ((double)r.Width * r.Height)).ToString("0.00", CultureInfo.InvariantCulture) + " %";
+            var gates = (r.MaxShape is null && r.MinText is null && r.MaxErrors is null)
+                ? "not enforced"
+                : $"{(r.MaxShape is { } a ? P(a) : "—")} / {(r.MinText is { } b ? P1(b) : "—")} / {(r.MaxErrors is { } c ? c.ToString(CultureInfo.InvariantCulture) : "—")}";
             var notes = string.Join("; ", r.Notes.Append(r.SizeDiffers ? "render size differs from the reference" : null!).Where(n => n is not null));
             sb.Append("| ").Append(r.Name)
               .Append(" | ").Append(r.Width).Append('x').Append(r.Height)
-              .Append(" | ").Append(P(r.Drawn))
-              .Append(" | ").Append(r.HasSidebar ? P(r.DrawnSidebar) : "—")
-              .Append(" | ").Append(P(r.DrawnContent))
-              .Append(" | ").Append(P(r.DrawnLenient))
-              .Append(" | ").Append(P(r.Total))
-              .Append(" | ").Append(r.HasSidebar ? P(r.Sidebar) : "—")
-              .Append(" | ").Append(P(r.Content))
-              .Append(" | ").Append(ignored)
-              .Append(" | ").Append(r.Max is { } max ? P(max) : "not enforced")
+              .Append(" | ").Append(P(r.ShapeDrawn))
+              .Append(" | ").Append(r.HasSidebar ? P(r.ShapeDrawnSidebar) : "—")
+              .Append(" | ").Append(P(r.ShapeDrawnContent))
+              .Append(" | ").Append(P1(r.TextMatchedPercent)).Append(" (").Append(r.TextMatched).Append('/').Append(r.TextReference).Append(')')
+              .Append(" | ").Append(r.TextErrors)
+              .Append(" | ").Append(r.TextMissing)
+              .Append(" | ").Append(gates)
+              .Append(" | ").Append(P(r.PixelDrawn))
+              .Append(" | ").Append(r.HasSidebar ? P(r.PixelDrawnSidebar) : "—")
+              .Append(" | ").Append(P(r.PixelDrawnContent))
+              .Append(" | ").Append(P(r.PixelDrawnLenient))
+              .Append(" | ").Append(P(r.PixelTotal))
               .Append(" | ").Append(notes)
               .Append(" |\n");
         }
 
-        sb.Append("\nFiles per board: `<Board>.app.png` (the app), `<Board>.diff.png` (reference greyed; red = only in the app, blue = only in the reference, purple = both; ignored rectangles yellow), `<Board>.side.png` (reference | app | diff).\n");
+        sb.Append("\nFiles per board: `<Board>.app.png` (the app), `<Board>.diff.png` and `<Board>.side.png` (whole-pixel comparison), `<Board>.shapes.side.png`, `<Board>.text.md` (what to fix, worst first), `<Board>.text.png` (blue = reference line boxes, red = app line boxes).\n");
 
         sb.Append("\n## Ignored rectangles\n\n");
-        sb.Append("Only content the app cannot reproduce (coordinates in the reference image).\n\n");
+        sb.Append("Only content the app cannot reproduce (coordinates in the reference image). Rectangles marked *text only* are left out of the pixel comparison; the shape layer has no glyphs, so it does not need them.\n\n");
         foreach (var board in DesignBoards.All.Where(b => b.Ignored.Count > 0))
         {
             foreach (var rect in board.Ignored)
             {
-                sb.Append("- `").Append(board.Name).Append("` (").Append(rect.X).Append(',').Append(rect.Y).Append(' ').Append(rect.Width).Append('x').Append(rect.Height).Append("): ").Append(rect.Reason).Append('\n');
+                sb.Append("- `").Append(board.Name).Append("` (").Append(rect.X).Append(',').Append(rect.Y).Append(' ').Append(rect.Width).Append('x').Append(rect.Height).Append("): ").Append(rect.Reason).Append(rect.TextOnly ? " *(text only)*" : string.Empty).Append('\n');
             }
         }
 

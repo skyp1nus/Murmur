@@ -44,7 +44,9 @@ internal enum BoardScreen
 /// Rectangles of the reference that are not compared, only for content the app cannot reproduce: the video frame
 /// placeholder, waveform bars the canvas draws from a formula, and the [VERSION] / [LICENSE] / [X.X] GB placeholders.
 /// </param>
-/// <param name="MaxMismatchPercent">The mismatch (whole board) above which the test fails; <c>null</c> = report only. Screen tasks set it.</param>
+/// <param name="MaxShapeMismatchPercent">The shape-layer mismatch of drawn pixels (total) above which the test fails; <c>null</c> = report only. Screen tasks set it.</param>
+/// <param name="MinTextMatchedPercent">The share of reference texts the app must have (by text); <c>null</c> = report only.</param>
+/// <param name="MaxTextGeometryErrors">The most matched texts allowed to be off in position, width, lines, size, weight or family; <c>null</c> = report only.</param>
 internal sealed record DesignBoard(
     string Name,
     BoardScreen Screen,
@@ -52,12 +54,20 @@ internal sealed record DesignBoard(
     int Width,
     int Height,
     IReadOnlyList<IgnoreRect> Ignored,
-    double? MaxMismatchPercent = null)
+    double? MaxShapeMismatchPercent = null,
+    double? MinTextMatchedPercent = null,
+    int? MaxTextGeometryErrors = null)
 {
     /// <summary>The main screens have the 240 px sidebar of the canvas; the onboarding fills the window.</summary>
     public bool HasSidebar => Screen is BoardScreen.Library or BoardScreen.Recording or BoardScreen.Session or BoardScreen.Chat or BoardScreen.Settings;
 
     public bool IsOnboarding => !HasSidebar;
+
+    /// <summary>The reference render with every glyph transparent (icons keep their colour).</summary>
+    public string ShapesReferencePath => Path.Combine(RepoPaths.Root, "docs", "design", "reference", Name + ".notext.png");
+
+    /// <summary>The rectangles that also matter without glyphs.</summary>
+    public IReadOnlyList<IgnoreRect> ShapeIgnored => [.. Ignored.Where(r => !r.TextOnly)];
 
     public string ReferencePath => Path.Combine(RepoPaths.Root, "docs", "design", "reference", Name + ".png");
 
@@ -125,8 +135,8 @@ internal static class DesignBoards
                 1440,
                 settingsHeight,
                 [
-                    new IgnoreRect(822, 1611 + shift, 70, 17, "Settings: [VERSION] placeholder"),
-                    new IgnoreRect(853, 1638 + shift, 70, 18, "Settings: [LICENSE] placeholder"),
+                    new IgnoreRect(822, 1611 + shift, 70, 17, "Settings: [VERSION] placeholder", TextOnly: true),
+                    new IgnoreRect(853, 1638 + shift, 70, 18, "Settings: [LICENSE] placeholder", TextOnly: true),
                 ]));
             boards.Add(new("Onb1Welcome" + suffix, BoardScreen.Onboarding1Welcome, dark, 1280, 800, []));
             boards.Add(new(
@@ -143,8 +153,8 @@ internal static class DesignBoards
                 1280,
                 800,
                 [
-                    new IgnoreRect(547, 497, 65, 16, "Onboarding 3: [X.X] GB placeholder"),
-                    new IgnoreRect(942, 497, 57, 16, "Onboarding 3: [XX] GB placeholder"),
+                    new IgnoreRect(547, 497, 65, 16, "Onboarding 3: [X.X] GB placeholder", TextOnly: true),
+                    new IgnoreRect(942, 497, 57, 16, "Onboarding 3: [XX] GB placeholder", TextOnly: true),
                 ]));
             boards.Add(new(
                 "Onb3ModelsReady" + suffix,
@@ -153,8 +163,8 @@ internal static class DesignBoards
                 1280,
                 800,
                 [
-                    new IgnoreRect(547, 462, 65, 16, "Onboarding 3 ready: [X.X] GB placeholder"),
-                    new IgnoreRect(942, 462, 57, 16, "Onboarding 3 ready: [XX] GB placeholder"),
+                    new IgnoreRect(547, 462, 65, 16, "Onboarding 3 ready: [X.X] GB placeholder", TextOnly: true),
+                    new IgnoreRect(942, 462, 57, 16, "Onboarding 3 ready: [XX] GB placeholder", TextOnly: true),
                 ]));
             boards.Add(new(
                 "Onb4Preferences" + suffix,
@@ -162,7 +172,7 @@ internal static class DesignBoards
                 dark,
                 1280,
                 800,
-                [new IgnoreRect(792, 404, 92, 18, "Onboarding 4: [N] GB free placeholder")]));
+                [new IgnoreRect(792, 404, 92, 18, "Onboarding 4: [N] GB free placeholder", TextOnly: true)]));
             boards.Add(new("Onb5FirstRecording" + suffix, BoardScreen.Onboarding5FirstRecording, dark, 1280, 800, []));
         }
 

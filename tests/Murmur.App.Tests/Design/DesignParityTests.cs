@@ -3,8 +3,9 @@ using SkiaSharp;
 namespace Murmur.App.Tests.Design;
 
 /// <summary>
-/// Renders every artboard with the app and compares it with the reference render. Report-only until a board gets a
-/// <see cref="DesignBoard.MaxMismatchPercent"/>: a board passes when it can be rendered.
+/// Renders every artboard with the app and compares it with the reference: the shape layer by pixels, the text by geometry.
+/// Report-only until a board gets a gate (<see cref="DesignBoard.MaxShapeMismatchPercent"/>, <see cref="DesignBoard.MinTextMatchedPercent"/>,
+/// <see cref="DesignBoard.MaxTextGeometryErrors"/>): a board passes when it can be rendered.
 /// Run with <c>scripts/design/parity.sh</c>; the output goes to <c>artifacts/design-parity</c>.
 /// </summary>
 [Trait("Category", "DesignParity")]
@@ -27,22 +28,48 @@ public sealed class DesignParityTests
         var reference = PixelImage.LoadPng(board.ReferencePath);
         Assert.Equal((board.Width, board.Height), (reference.Width, reference.Height));
 
-        var (actual, notes) = await UiHarness.Session.Dispatch(
+        var (actual, shapes, appTexts, notes) = await UiHarness.Session.Dispatch(
             async () =>
             {
                 using var scene = await DesignScene.BuildAsync(board);
-                return (scene.Render(), scene.Notes.ToArray());
+                var frame = scene.Render();
+                var texts = AppTexts.Collect(scene.Window);
+                var shapeLayer = scene.RenderShapesOnly();
+                return (frame, shapeLayer, texts, scene.Notes.ToArray());
             },
             TestContext.Current.CancellationToken);
 
-        var comparison = ImageComparer.Compare(reference, actual, board.Ignored, board.HasSidebar);
-        var lenient = ImageComparer.Compare(reference, actual, board.Ignored, board.HasSidebar, ImageComparer.LenientTolerance);
-        var result = ParityReport.Write(board, reference, actual, comparison, lenient, notes);
-
         Assert.Equal((board.Width, board.Height), (actual.Width, actual.Height));
-        if (board.MaxMismatchPercent is { } max)
+        var shapesReference = PixelImage.LoadPng(board.ShapesReferencePath);
+        var referenceTexts = ReferenceTexts.Load(name);
+        var run = new BoardRun(
+            board,
+            reference,
+            actual,
+            shapesReference,
+            shapes,
+            ImageComparer.Compare(reference, actual, board.Ignored, board.HasSidebar),
+            ImageComparer.Compare(reference, actual, board.Ignored, board.HasSidebar, ImageComparer.LenientTolerance),
+            ImageComparer.Compare(shapesReference, shapes, board.ShapeIgnored, board.HasSidebar),
+            referenceTexts,
+            appTexts,
+            TextMatcher.Compare(referenceTexts, appTexts),
+            notes);
+        var result = ParityReport.Write(run);
+
+        if (board.MaxShapeMismatchPercent is { } maxShape)
         {
-            Assert.True(result.Total <= max, $"{board.Name}: {result.Total:0.00} % of the pixels differ, the limit is {max:0.00} %.");
+            Assert.True(result.ShapeDrawn <= maxShape, $"{board.Name}: {result.ShapeDrawn:0.00} % of the drawn shape pixels differ, the limit is {maxShape:0.00} %.");
+        }
+
+        if (board.MinTextMatchedPercent is { } minText)
+        {
+            Assert.True(result.TextMatchedPercent >= minText, $"{board.Name}: {result.TextMatchedPercent:0.0} % of the texts were found, at least {minText:0.0} % are required.");
+        }
+
+        if (board.MaxTextGeometryErrors is { } maxErrors)
+        {
+            Assert.True(result.TextErrors <= maxErrors, $"{board.Name}: {result.TextErrors} texts are off, at most {maxErrors} are allowed.");
         }
     }
 
