@@ -60,12 +60,19 @@ for (const file of canvas.order) {
         .map(r => ({ x: +r.x.toFixed(2), y: +(r.y + window.scrollY).toFixed(2), w: +r.width.toFixed(2), h: +r.height.toFixed(2) }));
       if (lines.length === 0) continue;
       // The first line's baseline, read from a zero-size inline-block marker placed before the text (its bottom edge
-      // sits on the baseline), so the app side can compare baselines instead of line boxes.
+      // sits on the baseline), so the app side can compare baselines instead of line boxes. The text and the marker are
+      // wrapped in one span for the measurement: a text node that is a direct child of a flex or grid container is an
+      // anonymous item, and a bare marker next to it would become an item of its own instead of sitting on its line.
+      const parent = node.parentNode;
+      const wrapper = document.createElement('span');
       const marker = document.createElement('span');
       marker.style.cssText = 'display:inline-block;width:0;height:0;vertical-align:baseline;padding:0;margin:0;border:0';
-      node.parentNode.insertBefore(marker, node);
+      parent.insertBefore(wrapper, node);
+      wrapper.appendChild(marker);
+      wrapper.appendChild(node);
       const baseline = +(marker.getBoundingClientRect().bottom + window.scrollY).toFixed(2);
-      marker.remove();
+      parent.insertBefore(node, wrapper);
+      wrapper.remove();
       // The nearest block-level ancestor: texts split around inline chips or highlights share it.
       let block = el;
       while (block.parentElement && /^inline/.test(getComputedStyle(block).display)) block = block.parentElement;
