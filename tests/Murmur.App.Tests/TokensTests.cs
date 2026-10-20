@@ -51,6 +51,51 @@ public sealed partial class TokensTests
         Assert.Contains("0 0 1 0 #66000000, 0 1 1 0 #0A000000, 0 2 4 0 #0A000000", axaml, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void TheCanvasValues_AreTokens_NotHandWrittenKeys()
+    {
+        var axaml = TokenGenerator.Generate(File.ReadAllText(RepoPaths.TokensJson));
+
+        foreach (var key in new[]
+        {
+            "FontSize.Meta", "LineHeight.Small", "LetterSpacing.RowTitle", "FontSize.Wordmark", "FontSize.CardTitle", "LineHeight.MonoRow", "FontSize.MonoSmall",
+            "Space.2", "Space.3", "Space.6", "Space.10", "Space.14", "Space.28", "Radius.Key", "Radius.Tile", "Radius.Note", "Radius.CardTop", "Radius.CardBottom",
+            "Inset.Key", "Inset.RowPad", "Inset.TopBar", "Inset.SidebarFrame", "Orb.Base", "Orb.Cream", "Orb.Violet", "Orb.EmberX", "Orb.PinkStop",
+        })
+        {
+            Assert.Contains($"x:Key=\"{key}\"", axaml, StringComparison.Ordinal);
+        }
+
+        Assert.Contains("<x:Double x:Key=\"LineHeight.PageTitle\">42</x:Double>", axaml, StringComparison.Ordinal);
+        Assert.Contains("<x:Double x:Key=\"LetterSpacing.Wordmark\">-0.17</x:Double>", axaml, StringComparison.Ordinal);
+        Assert.Contains("<x:Double x:Key=\"LetterSpacing.Meta\">0.14</x:Double>", axaml, StringComparison.Ordinal);
+        Assert.Contains("<CornerRadius x:Key=\"Radius.CardTop\">20,20,0,0</CornerRadius>", axaml, StringComparison.Ordinal);
+        Assert.Contains("<Color x:Key=\"Orb.Cream\">#fff1e8</Color>", axaml, StringComparison.Ordinal);
+        Assert.Contains("<Color x:Key=\"Orb.Violet\">#0447ff</Color>", axaml, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ShellStyles_DoNotDefineKeysThatLookLikeTokens()
+    {
+        // D-044: the values of the canvas live in tokens.json; the shell's style file only names the sizes of its own components (Size.*, Margin.*).
+        var generated = new[] { "FontSize.", "LineHeight.", "LetterSpacing.", "Radius.", "Space.", "Inset.", "Orb.", "Font.", "FontWeight.", "Shadow.", "Hairline.Width", "Hairline.Thickness" };
+        var offenders = new List<string>();
+        foreach (var path in new[] { Path.Combine(RepoPaths.AppDirectory, "Styles", "Shell.axaml") })
+        {
+            foreach (var key in XDocument.Load(path).Descendants().Select(e => (string?)e.Attribute(Xaml + "Key")).Where(k => k is not null))
+            {
+                if (generated.Any(prefix => key!.StartsWith(prefix, StringComparison.Ordinal)) && !AllowedHandWritten.Contains(key!))
+                {
+                    offenders.Add(Path.GetFileName(path) + ": " + key);
+                }
+            }
+        }
+
+        Assert.Empty(offenders);
+    }
+
+    private static readonly HashSet<string> AllowedHandWritten = [];
+
     private static readonly XNamespace Xaml = "http://schemas.microsoft.com/winfx/2006/xaml";
 
     private static XElement ThemeDictionary(XDocument document, string variant) =>

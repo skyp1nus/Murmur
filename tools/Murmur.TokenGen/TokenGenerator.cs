@@ -33,6 +33,7 @@ public static class TokenGenerator
             Inset.<Component>   Thickness (horizontal, vertical) pairs taken from the scale, see TokenGenerator.Insets
             Radius.<Name>       CornerRadius                   Hairline.*     border hairline width / thickness (brush: Brush.Hairline)
             Shadow.<Name>       BoxShadows (rgba converted to #AARRGGBB, px dropped; Avalonia parses unitless numbers)
+            Orb.<Layer>         Color of a layer of the orb gradient (+ X, Y, Stop doubles); Orb.Base the lavender under them. Not themed.
 
           Everything except Color.* / Brush.* is theme-independent and sits outside the theme dictionaries.
           Accent colours are only for the recording orb and icons; Orb*.axaml and Icons/ may reference them.
@@ -40,7 +41,7 @@ public static class TokenGenerator
         """;
 
     /// <summary>Typography scale entries that use the display font (light weight, negative tracking).</summary>
-    private static readonly string[] DisplayScale = ["display", "heading", "headingSm"];
+    private static readonly string[] DisplayScale = ["display", "heading", "headingSm", "cardTitle", "pageTitle"];
 
     /// <summary>Component insets: name, horizontal and vertical value. Both must exist in the spacing scale.</summary>
     private static readonly (string Name, int Horizontal, int Vertical)[] Insets =
@@ -49,6 +50,18 @@ public static class TokenGenerator
         ("Input", 12, 8),
         ("Search", 20, 12),
         ("Card", 32, 32),
+        ("SidebarFrame", 16, 20),
+        ("Wordmark", 10, 4),
+        ("Offline", 16, 14),
+        ("TopBar", 32, 12),
+        ("Key", 8, 3),
+        ("Toggle", 14, 0),
+        ("Suggestion", 12, 0),
+        ("StartButton", 20, 0),
+        ("SearchBox", 16, 0),
+        ("RowPad", 20, 16),
+        ("LibraryItem", 32, 0),
+        ("InputBare", 2, 0),
     ];
 
     public static string Generate(string tokensJson)
@@ -70,6 +83,7 @@ public static class TokenGenerator
         EmitRadii(sb, root.GetProperty("radius"));
         EmitHairline(sb, root.GetProperty("border").GetProperty("hairline"));
         EmitShadows(sb, root.GetProperty("shadow"));
+        EmitOrb(sb, root.GetProperty("orbGradient"), root.GetProperty("color"));
 
         sb.Append("</ResourceDictionary>\n");
         return sb.ToString();
@@ -180,10 +194,15 @@ public static class TokenGenerator
             var name = Pascal(entry.Name);
             var size = entry.Value.GetProperty("size").GetDouble();
             var ratio = entry.Value.GetProperty("lineHeight").GetDouble();
-            var em = Array.IndexOf(DisplayScale, entry.Name) >= 0 ? displayEm : bodyEm;
+            var em = entry.Value.TryGetProperty("letterSpacingEm", out var own)
+                ? own.GetDouble()
+                : Array.IndexOf(DisplayScale, entry.Name) >= 0 ? displayEm : bodyEm;
+
+            // 'letterSpacing' is an absolute value in DIPs: the canvas sets 0.01 em once on a 14 px page and every descendant inherits 0.14 px.
+            var spacing = entry.Value.TryGetProperty("letterSpacing", out var absolute) ? absolute.GetDouble() : size * em;
             sb.Append("  <x:Double x:Key=\"FontSize.").Append(name).Append("\">").Append(Num(size)).Append("</x:Double>\n");
             sb.Append("  <x:Double x:Key=\"LineHeight.").Append(name).Append("\">").Append(Num(size * ratio)).Append("</x:Double>\n");
-            sb.Append("  <x:Double x:Key=\"LetterSpacing.").Append(name).Append("\">").Append(Num(size * em)).Append("</x:Double>\n");
+            sb.Append("  <x:Double x:Key=\"LetterSpacing.").Append(name).Append("\">").Append(Num(spacing)).Append("</x:Double>\n");
         }
 
         var mono = font.GetProperty("mono");
@@ -215,7 +234,7 @@ public static class TokenGenerator
 
         foreach (var (name, horizontal, vertical) in Insets)
         {
-            if (!values.Contains(horizontal) || !values.Contains(vertical))
+            if ((horizontal != 0 && !values.Contains(horizontal)) || (vertical != 0 && !values.Contains(vertical)))
             {
                 throw new InvalidOperationException($"Inset.{name} uses a value outside the spacing scale.");
             }
@@ -228,13 +247,44 @@ public static class TokenGenerator
 
     private static void EmitRadii(StringBuilder sb, JsonElement radii)
     {
-        Section(sb, "Radii");
+        Section(sb, "Radii (CardTop / CardBottom: the first and the last row of a card of rows round only their outer corners)");
         foreach (var radius in radii.EnumerateObject())
         {
             sb.Append("  <CornerRadius x:Key=\"Radius.").Append(Pascal(radius.Name)).Append("\">")
                 .Append(Num(radius.Value.GetDouble())).Append("</CornerRadius>\n");
         }
+
+        if (radii.TryGetProperty("card", out var card))
+        {
+            var value = Num(card.GetDouble());
+            sb.Append("  <CornerRadius x:Key=\"Radius.CardTop\">").Append(value).Append(',').Append(value).Append(",0,0</CornerRadius>\n");
+            sb.Append("  <CornerRadius x:Key=\"Radius.CardBottom\">0,0,").Append(value).Append(',').Append(value).Append("</CornerRadius>\n");
+        }
     }
+
+    /// <summary>
+    /// The orb as theme-independent resources: <c>Orb.Base</c>, and per layer <c>Orb.&lt;Layer&gt;</c> (colour) with <c>X</c>, <c>Y</c> (centre, as a
+    /// fraction of the box) and <c>Stop</c> (where it fades out, as a fraction of the farthest-corner radius).
+    /// </summary>
+    private static void EmitOrb(StringBuilder sb, JsonElement orb, JsonElement colors)
+    {
+        Section(sb, "Orb gradient (theme-independent; first layer paints on top)");
+        sb.Append("  <Color x:Key=\"Orb.Base\">").Append(OrbColour(orb.GetProperty("base").GetString()!, colors)).Append("</Color>\n");
+        foreach (var layer in orb.GetProperty("layers").EnumerateArray())
+        {
+            var name = Pascal(layer.GetProperty("name").GetString()!);
+            sb.Append("  <Color x:Key=\"Orb.").Append(name).Append("\">").Append(OrbColour(layer.GetProperty("color").GetString()!, colors)).Append("</Color>\n");
+            sb.Append("  <x:Double x:Key=\"Orb.").Append(name).Append("X\">").Append(Num(layer.GetProperty("x").GetDouble())).Append("</x:Double>\n");
+            sb.Append("  <x:Double x:Key=\"Orb.").Append(name).Append("Y\">").Append(Num(layer.GetProperty("y").GetDouble())).Append("</x:Double>\n");
+            sb.Append("  <x:Double x:Key=\"Orb.").Append(name).Append("Stop\">").Append(Num(layer.GetProperty("stop").GetDouble())).Append("</x:Double>\n");
+        }
+    }
+
+    /// <summary>A hex colour as written, or the light value of a colour token.</summary>
+    private static string OrbColour(string value, JsonElement colors) =>
+        value.StartsWith('#') ? value : colors.TryGetProperty(value, out var token)
+            ? token.GetString()!
+            : throw new InvalidOperationException($"orbGradient: '{value}' is neither a hex colour nor a colour token.");
 
     private static void EmitHairline(StringBuilder sb, JsonElement hairline)
     {

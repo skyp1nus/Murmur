@@ -1,30 +1,31 @@
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Media;
+using Avalonia.Media.Immutable;
+using Avalonia.Styling;
 
 namespace Murmur.App.Controls;
 
 /// <summary>
 /// The still orb of the canvas (wordmark, "Recording" pill, the New recording card, the answer avatar): a disc painted with the
-/// five stacked radial gradients of <c>orbGradient</c> in <c>docs/design/tokens.json</c>. Violet and Ember come from the token
-/// resources; the cream highlight, the pink and the lavender base are the other three stops of the same gradient (the tokens keep
-/// them only inside the <c>orbGradient</c> string). It never animates; the breathing orb of the recording screen is <see cref="OrbControl"/>.
+/// stacked radial gradients of <c>orbGradient</c> in <c>docs/design/tokens.json</c>, read from the generated <c>Orb.*</c> resources
+/// (colour, centre and fade-out of each layer, and the lavender base). It never animates; the breathing orb of the recording
+/// screen is <see cref="OrbControl"/>.
 /// </summary>
 public sealed class OrbDisc : Control
 {
-    private static readonly Color Cream = Color.FromRgb(0xFF, 0xF1, 0xE8);
-    private static readonly Color Pink = Color.FromRgb(0xF4, 0xA6, 0xC8);
-    private static readonly Color Lavender = Color.FromRgb(0xD8, 0xC8, 0xF0);
-
     public static readonly StyledProperty<bool> GlowProperty =
         AvaloniaProperty.Register<OrbDisc, bool>(nameof(Glow));
 
-    private Color _violetColour;
-    private IBrush? _cream;
-    private IBrush? _violet;
-    private IBrush? _ember;
-    private IBrush? _pink;
+    /// <summary>Painted bottom to top (CSS lists the top layer first): the order of the layers in tokens.json, reversed.</summary>
+    private static readonly string[] LayersTopFirst = ["Cream", "Violet", "Ember", "Pink"];
+
+    private const double GlowBlur = 60;
+    private const byte GlowAlpha = 64;
+
     private IBrush? _base;
+    private IBrush[]? _layers;
+    private BoxShadows _halo;
 
     public OrbDisc()
     {
@@ -61,7 +62,7 @@ public sealed class OrbDisc : Control
     public override void Render(DrawingContext context)
     {
         base.Render(context);
-        if (_base is null)
+        if (_base is null || _layers is null)
         {
             return;
         }
@@ -69,52 +70,78 @@ public sealed class OrbDisc : Control
         var rect = new Rect(Bounds.Size);
         var radius = Math.Min(rect.Width, rect.Height) / 2;
         var centre = rect.Center;
-
-        // CSS paints the first gradient on top: base first, the cream highlight last.
-        if (Glow && ActualThemeVariant == Avalonia.Styling.ThemeVariant.Dark)
+        if (Glow && ActualThemeVariant == ThemeVariant.Dark)
         {
-            var halo = new BoxShadows(new BoxShadow { Blur = 60, Color = Color.FromArgb(64, _violetColour.R, _violetColour.G, _violetColour.B) });
-            context.DrawRectangle(_base, null, new RoundedRect(new Rect(centre.X - radius, centre.Y - radius, radius * 2, radius * 2), radius), halo);
+            context.DrawRectangle(_base, null, new RoundedRect(new Rect(centre.X - radius, centre.Y - radius, radius * 2, radius * 2), radius), _halo);
         }
         else
         {
             context.DrawEllipse(_base, null, centre, radius, radius);
         }
 
-        context.DrawEllipse(_pink, null, centre, radius, radius);
-        context.DrawEllipse(_ember, null, centre, radius, radius);
-        context.DrawEllipse(_violet, null, centre, radius, radius);
-        context.DrawEllipse(_cream, null, centre, radius, radius);
+        // The base first, then the layers from the bottom one to the cream highlight on top.
+        for (var i = _layers.Length - 1; i >= 0; i--)
+        {
+            context.DrawEllipse(_layers[i], null, centre, radius, radius);
+        }
     }
 
     private void Rebuild()
     {
-        if (!this.TryFindResource("Color.AccentViolet", ActualThemeVariant, out var violetValue) || violetValue is not Color violet ||
-            !this.TryFindResource("Color.AccentEmber", ActualThemeVariant, out var emberValue) || emberValue is not Color ember)
+        if (!this.TryFindResource("Orb.Base", ActualThemeVariant, out var baseValue) || baseValue is not Color baseColour)
         {
             _base = null;
             return;
         }
 
-        // "circle at X% Y%" has the farthest-corner radius: the distance from the centre to the far corner, in box widths.
-        _violetColour = violet;
-        _cream = Layer(Cream, 0.32, 0.26, 0.30);
-        _violet = Layer(violet, 0.74, 0.70, 0.58);
-        _ember = Layer(ember, 0.20, 0.80, 0.55);
-        _pink = Layer(Pink, 0.72, 0.20, 0.50);
-        _base = new Avalonia.Media.Immutable.ImmutableSolidColorBrush(Lavender);
+        var layers = new IBrush[LayersTopFirst.Length];
+        for (var i = 0; i < layers.Length; i++)
+        {
+            var name = LayersTopFirst[i];
+            if (!Lookup("Orb." + name, out Color colour) || !Lookup("Orb." + name + "X", out double x)
+                || !Lookup("Orb." + name + "Y", out double y) || !Lookup("Orb." + name + "Stop", out double stop))
+            {
+                _base = null;
+                return;
+            }
+
+            layers[i] = Layer(colour, x, y, stop);
+        }
+
+        _layers = layers;
+        _base = new ImmutableSolidColorBrush(baseColour);
+        if (Lookup("Orb.Violet", out Color violet))
+        {
+            _halo = new BoxShadows(new BoxShadow { Blur = GlowBlur, Color = Color.FromArgb(GlowAlpha, violet.R, violet.G, violet.B) });
+        }
+
         InvalidateVisual();
     }
 
+    private bool Lookup<T>(string key, out T value)
+    {
+        if (this.TryFindResource(key, ActualThemeVariant, out var found) && found is T typed)
+        {
+            value = typed;
+            return true;
+        }
+
+        value = default!;
+        return false;
+    }
+
+    /// <summary>"circle at X% Y%" has the farthest-corner radius: the distance from the centre to the far corner, in box widths.</summary>
     private static IBrush Layer(Color colour, double x, double y, double stop)
     {
-        var farthest = Math.Sqrt((Math.Max(x, 1 - x) * Math.Max(x, 1 - x)) + (Math.Max(y, 1 - y) * Math.Max(y, 1 - y)));
+        var dx = Math.Max(x, 1 - x);
+        var dy = Math.Max(y, 1 - y);
+        var farthest = Math.Sqrt((dx * dx) + (dy * dy));
         return new RadialGradientBrush
         {
             Center = new RelativePoint(x, y, RelativeUnit.Relative),
             GradientOrigin = new RelativePoint(x, y, RelativeUnit.Relative),
-            RadiusX = RelativeScalar.Parse(string.Create(System.Globalization.CultureInfo.InvariantCulture, $"{farthest * 100}%")),
-            RadiusY = RelativeScalar.Parse(string.Create(System.Globalization.CultureInfo.InvariantCulture, $"{farthest * 100}%")),
+            RadiusX = new RelativeScalar(farthest, RelativeUnit.Relative),
+            RadiusY = new RelativeScalar(farthest, RelativeUnit.Relative),
             GradientStops =
             {
                 new GradientStop(colour, 0),
