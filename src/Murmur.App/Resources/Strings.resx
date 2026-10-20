@@ -434,7 +434,7 @@
     <value>Storage</value>
   </data>
   <data name="Settings_StorageText" xml:space="preserve">
-    <value>Audio, video and the search index live in one folder.</value>
+    <value>Audio and video of new recordings are saved in this folder.</value>
   </data>
   <data name="Settings_HotkeysTitle" xml:space="preserve">
     <value>Hotkeys</value>
@@ -596,7 +596,7 @@
     <value>Not set</value>
   </data>
   <data name="Hotkeys_Press" xml:space="preserve">
-    <value>Press a shortcut…</value>
+    <value>Press a new shortcut…</value>
   </data>
   <data name="Hotkeys_Hint" xml:space="preserve">
     <value>Esc cancels, Backspace clears the shortcut.</value>

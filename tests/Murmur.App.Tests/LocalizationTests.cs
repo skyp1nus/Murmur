@@ -248,6 +248,12 @@ public sealed partial class LocalizationTests
     [InlineData("uk", "uk")]
     [InlineData("UK", "uk")]
     [InlineData(" uk ", "uk")]
+    [InlineData("uk-UA", "uk")]
+    [InlineData("UK-ua", "uk")]
+    [InlineData(" uk-UA ", "uk")]
+    [InlineData("en-US", "en")]
+    [InlineData("ukr", "en")]
+    [InlineData("uk_UA", "en")]
     [InlineData("de", "en")]
     [InlineData("", "en")]
     [InlineData("  ", "en")]
@@ -285,8 +291,9 @@ public sealed partial class LocalizationTests
     [InlineData(null, "en")]
     [InlineData("", "en")]
     [InlineData("de", "en")]
-    [InlineData("uk-UA", "en")]
-    public void UiCulture_Resolve_UsesUkrainianOnlyForUk(string? language, string expected)
+    [InlineData("uk-UA", "uk")]
+    [InlineData("en-US", "en")]
+    public void UiCulture_Resolve_UsesUkrainianForUkAndUkRegions(string? language, string expected)
     {
         Assert.Equal(expected, UiCulture.Resolve(language).Name);
     }

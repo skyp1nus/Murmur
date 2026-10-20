@@ -142,6 +142,19 @@ public sealed class JsonSettingsStoreTests
     }
 
     [Fact]
+    public void AFileAtVersion2_WithPascalCaseNames_KeepsTheLanguageToo()
+    {
+        using var root = new TempDataRoot();
+        Directory.CreateDirectory(root.Path);
+        File.WriteAllText(root.SettingsFile, """{ "SettingsVersion": 2, "language": "uk" }""");
+
+        var store = new JsonSettingsStore(new StoragePaths(root.Path));
+
+        Assert.Equal("uk", store.Current.Language);
+        Assert.Equal(2, store.Current.SettingsVersion);
+    }
+
+    [Fact]
     public void AFileFromANewerVersion_IsNotMigrated()
     {
         using var root = new TempDataRoot();

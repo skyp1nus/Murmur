@@ -433,7 +433,7 @@
     <value>Сховище</value>
   </data>
   <data name="Settings_StorageText" xml:space="preserve">
-    <value>Аудіо, відео та пошуковий індекс лежать в одній папці.</value>
+    <value>Аудіо та відео нових записів зберігаються в цій папці.</value>
   </data>
   <data name="Settings_HotkeysTitle" xml:space="preserve">
     <value>Гарячі клавіші</value>
@@ -601,7 +601,7 @@
     <value>Не задано</value>
   </data>
   <data name="Hotkeys_Press" xml:space="preserve">
-    <value>Натисніть комбінацію…</value>
+    <value>Натисни нову комбінацію…</value>
   </data>
   <data name="Hotkeys_Hint" xml:space="preserve">
     <value>Esc скасовує, Backspace прибирає комбінацію.</value>
