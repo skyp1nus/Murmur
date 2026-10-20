@@ -29,7 +29,7 @@ internal sealed class FakeRecorder : IRecorder
     public string? StopError { get; set; }
 
     /// <summary>
-    /// When set, the start succeeds without the microphone and the session carries this warning in
+    /// When set (a stored note: a code, see <c>SessionNotes</c>, or free text), the start succeeds without the microphone and the session carries it in
     /// <see cref="SessionRecord.Error"/>, like <see cref="Recorder"/> when Windows denies microphone access.
     /// </summary>
     public string? StartWarning { get; set; }
@@ -55,14 +55,23 @@ internal sealed class FakeRecorder : IRecorder
     public bool IsScreenRecording { get; set; }
 
     /// <summary>Simulates a fatal screen fault: the segment ends, the audio goes on, <see cref="Warning"/> is raised.</summary>
-    public void FailScreen(string message = "Запис екрана зупинився через помилку; звук записується далі.")
+    public void FailScreen()
     {
         IsScreenRecording = false;
-        Warning?.Invoke(new RecorderWarning("screen", message, ScreenStopped: true));
+        Warning?.Invoke(new RecorderWarning("screen", RecorderWarningCode.ScreenStopped, ScreenStopped: true));
     }
 
-    /// <summary>Raises a non-fatal warning.</summary>
-    public void RaiseWarning(string message, CaptureFaultKind kind = CaptureFaultKind.Other) => Warning?.Invoke(new RecorderWarning("screen", message, ScreenStopped: false, kind));
+    /// <summary>Raises a non-fatal warning of the given fault kind.</summary>
+    public void RaiseWarning(CaptureFaultKind kind = CaptureFaultKind.Other) => Warning?.Invoke(new RecorderWarning(
+        "screen",
+        kind switch
+        {
+            CaptureFaultKind.FramesDropped => RecorderWarningCode.ScreenFramesDropped,
+            CaptureFaultKind.CpuFallback => RecorderWarningCode.ScreenCpuFallback,
+            _ => RecorderWarningCode.ScreenOther,
+        },
+        ScreenStopped: false,
+        kind));
 
     public ValueTask<SessionRecord> StartAsync(RecordingOptions options, CancellationToken cancellationToken)
     {

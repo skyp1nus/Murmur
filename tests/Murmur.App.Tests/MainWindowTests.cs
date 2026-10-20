@@ -134,7 +134,7 @@ public sealed class MainWindowTests
                 var window = UiHarness.Show(shell);
                 bool Visible() => window.GetVisualDescendants().OfType<TextBlock>().Any(t => t.IsVisible && t.Text == text);
                 var visibleBefore = Visible();
-                harness.Recorder.RaiseWarning("core text", Murmur.Core.Capture.CaptureFaultKind.FramesDropped);
+                harness.Recorder.RaiseWarning(Murmur.Core.Capture.CaptureFaultKind.FramesDropped);
                 UiHarness.Pump();
                 var visibleAfter = Visible();
                 window.Close();

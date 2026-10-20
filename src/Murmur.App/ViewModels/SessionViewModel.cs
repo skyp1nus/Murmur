@@ -525,7 +525,7 @@ public sealed partial class SessionViewModel : ObservableObject, IDisposable
     {
         if (live is { Stage: SessionProcessingStage.Failed } || (live is null && _record.State == SessionState.Failed))
         {
-            ShowFailed(live?.Message ?? _record.Error);
+            ShowFailed(SessionNoteText.Describe(live?.Message ?? _record.Error));
         }
         else if (live is not null && ProcessingText.IsBusy(live.Stage))
         {
@@ -614,7 +614,7 @@ public sealed partial class SessionViewModel : ObservableObject, IDisposable
         switch (status.Stage)
         {
             case SessionProcessingStage.Failed:
-                ShowFailed(status.Message);
+                ShowFailed(SessionNoteText.Describe(status.Message));
                 break;
             case SessionProcessingStage.ModelMissing:
                 ShowAsrMissing();
