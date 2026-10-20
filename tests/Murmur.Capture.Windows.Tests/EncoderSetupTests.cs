@@ -78,6 +78,7 @@ public sealed unsafe class EncoderSetupTests
     [Trait("Category", "Windows")]
     public void VariantClear_EmptiesAScalarVariant()
     {
+        Assert.SkipUnless(OperatingSystem.IsWindows(), "VariantClear (oleaut32) exists only on Windows.");
         var value = Variant.FromUInt32(12_000_000);
         Assert.Equal(ScreenConstants.SOk, ScreenNativeMethods.VariantClear(&value));
         Assert.Equal(0, value.Vt); // VT_EMPTY
