@@ -239,7 +239,7 @@ public sealed class OnboardingViewTests
 
         Assert.Equal(new Thickness(0), onboarding.Margin);
         Assert.False(onboarding.Item2);
-        Assert.Equal(new Thickness(48), library.Margin);
+        Assert.Equal(new Thickness(0), library.Margin);
         Assert.True(library.Item2);
         Assert.True(onboarding.Item3 > library.Item3);
     }
@@ -319,6 +319,27 @@ public sealed class OnboardingViewTests
         Assert.True(snapshot.released);
         Assert.True(snapshot.older);
         Assert.True(snapshot.stopped);
+    }
+
+    [Fact]
+    public async Task ThePreferencesStep_ShowsTheCanvasWording_InEnglish()
+    {
+        var texts = await Session.Dispatch(
+            async () =>
+            {
+                using var scope = UiCulture.Override("en");
+                var rig = new OnboardingRig();
+                var window = Show(rig);
+                await AdvanceAsync(rig, 4);
+                var result = VisibleTexts(window);
+                window.Close();
+                return result;
+            },
+            TestContext.Current.CancellationToken);
+
+        Assert.Contains("Works even when Murmur is minimised", texts);
+        Assert.Contains("Start / stop hotkey", texts);
+        Assert.Contains("Make it yours.", texts);
     }
 
     [Fact]

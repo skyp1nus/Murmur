@@ -103,4 +103,17 @@ internal sealed class UiHarness
             orb.Tick();
         }
     }
+
+    /// <summary>The same for the orb of the onboarding canvas: a manual clock, 2.8 s of breathing, the same frame on every run.</summary>
+    public static void BreatheOrb(GlassOrbControl orb)
+    {
+        var clock = new TestTime(Now);
+        orb.Clock = clock;
+        orb.Tick();
+        for (var i = 1; i <= 40; i++)
+        {
+            clock.Advance(TimeSpan.FromMilliseconds(70));
+            orb.Tick();
+        }
+    }
 }

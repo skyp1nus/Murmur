@@ -34,6 +34,7 @@ internal static unsafe partial class ScreenNativeMethods
     /// const D3D_FEATURE_LEVEL*, UINT FeatureLevels, UINT SDKVersion, ID3D11Device**, D3D_FEATURE_LEVEL*,
     /// ID3D11DeviceContext**)</c>.
     /// </summary>
+    [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
     [LibraryImport("d3d11.dll")]
     public static partial int D3D11CreateDevice(
         nint adapter,
@@ -48,6 +49,7 @@ internal static unsafe partial class ScreenNativeMethods
         nint* immediateContext);
 
     /// <summary><c>HRESULT CreateDirect3D11DeviceFromDXGIDevice(IDXGIDevice*, IInspectable**)</c>.</summary>
+    [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
     [LibraryImport("d3d11.dll")]
     public static partial int CreateDirect3D11DeviceFromDXGIDevice(nint dxgiDevice, nint* graphicsDevice);
 

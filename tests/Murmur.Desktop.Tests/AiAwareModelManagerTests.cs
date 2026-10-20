@@ -16,6 +16,7 @@ public sealed class AiAwareModelManagerTests
 
     [Theory]
     [InlineData("runtime", true)]  // the executable: always released
+    [InlineData("runtime-vulkan", true)] // a GPU build is not listed in the catalog but holds its executable the same way
     [InlineData("chat", true)]     // loaded
     [InlineData("chat-big", false)] // not loaded
     [InlineData("embed", true)]    // loaded
@@ -31,6 +32,34 @@ public sealed class AiAwareModelManagerTests
         await manager.RemoveAsync(id, Ct);
 
         Assert.Equal(unloads ? ["unload", "remove " + id] : ["remove " + id], log);
+    }
+
+    [Theory]
+    [InlineData("runtime", true)]
+    [InlineData("runtime-vulkan", true)]
+    [InlineData("chat", false)]
+    [InlineData("embed", false)]
+    [InlineData("asr", false)]
+    public async Task Install_OfAnInstalledRuntime_UnloadsTheAiFirst(string id, bool unloads)
+    {
+        var log = new List<string>();
+        var manager = Create(log, Path("chat"));
+
+        await manager.InstallAsync(id, Ct);
+
+        Assert.Equal(unloads ? ["unload", "install " + id] : ["install " + id], log);
+    }
+
+    [Fact]
+    public async Task Install_OfARuntimeThatIsNotInstalled_DoesNotUnload()
+    {
+        var log = new List<string>();
+        var inner = new FakeManager(log) { State = ModelInstallState.NotInstalled };
+        var manager = new AiAwareModelManager(inner, new FakeLlm(log), _ => null, _ => false);
+
+        await manager.InstallAsync("runtime-vulkan", Ct);
+
+        Assert.Equal(["install runtime-vulkan"], log);
     }
 
     [Fact]
@@ -113,9 +142,24 @@ public sealed class AiAwareModelManagerTests
 
         public event Action<ModelStatus>? StatusChanged;
 
-        public ModelStatus GetStatus(string id) => new(Catalog.Single(m => m.Id == id), ModelInstallState.Installed, 1, 1, null);
+        /// <summary>Installable by id but not listed (<c>ModelCatalogItem.Listed = false</c>): the GPU builds of the runtime.</summary>
+        private static ModelInfo Unlisted { get; } = new("runtime-vulkan", ModelKind.LlmRuntime, "Runtime (Vulkan)", 1, false);
 
-        public Task InstallAsync(string id, CancellationToken cancellationToken) => Task.CompletedTask;
+        public ModelStatus GetStatus(string id) =>
+            new(
+                Catalog.FirstOrDefault(m => m.Id == id) ?? (id == Unlisted.Id ? Unlisted : throw new ArgumentException($"Unknown model id '{id}'", nameof(id))),
+                State,
+                1,
+                1,
+                null);
+
+        public ModelInstallState State { get; set; } = ModelInstallState.Installed;
+
+        public Task InstallAsync(string id, CancellationToken cancellationToken)
+        {
+            log.Add("install " + id);
+            return Task.CompletedTask;
+        }
 
         public Task RemoveAsync(string id, CancellationToken cancellationToken)
         {

@@ -29,7 +29,7 @@ internal sealed class FakeRecorder : IRecorder
     public string? StopError { get; set; }
 
     /// <summary>
-    /// When set, the start succeeds without the microphone and the session carries this warning in
+    /// When set (a stored note: a code, see <c>SessionNotes</c>, or free text), the start succeeds without the microphone and the session carries it in
     /// <see cref="SessionRecord.Error"/>, like <see cref="Recorder"/> when Windows denies microphone access.
     /// </summary>
     public string? StartWarning { get; set; }
@@ -55,14 +55,23 @@ internal sealed class FakeRecorder : IRecorder
     public bool IsScreenRecording { get; set; }
 
     /// <summary>Simulates a fatal screen fault: the segment ends, the audio goes on, <see cref="Warning"/> is raised.</summary>
-    public void FailScreen(string message = "Запис екрана зупинився через помилку; звук записується далі.")
+    public void FailScreen()
     {
         IsScreenRecording = false;
-        Warning?.Invoke(new RecorderWarning("screen", message, ScreenStopped: true));
+        Warning?.Invoke(new RecorderWarning("screen", RecorderWarningCode.ScreenStopped, ScreenStopped: true));
     }
 
-    /// <summary>Raises a non-fatal warning.</summary>
-    public void RaiseWarning(string message, CaptureFaultKind kind = CaptureFaultKind.Other) => Warning?.Invoke(new RecorderWarning("screen", message, ScreenStopped: false, kind));
+    /// <summary>Raises a non-fatal warning of the given fault kind.</summary>
+    public void RaiseWarning(CaptureFaultKind kind = CaptureFaultKind.Other) => Warning?.Invoke(new RecorderWarning(
+        "screen",
+        kind switch
+        {
+            CaptureFaultKind.FramesDropped => RecorderWarningCode.ScreenFramesDropped,
+            CaptureFaultKind.CpuFallback => RecorderWarningCode.ScreenCpuFallback,
+            _ => RecorderWarningCode.ScreenOther,
+        },
+        ScreenStopped: false,
+        kind));
 
     public ValueTask<SessionRecord> StartAsync(RecordingOptions options, CancellationToken cancellationToken)
     {
@@ -84,6 +93,7 @@ internal sealed class FakeRecorder : IRecorder
             Error = StartWarning,
         };
         IsScreenRecording = options.Screen;
+        _screenOnResume = false;
         SetState(RecorderState.Recording);
         AfterStart?.Invoke();
         return ValueTask.FromResult(Current);
@@ -97,9 +107,75 @@ internal sealed class FakeRecorder : IRecorder
             throw failure;
         }
 
+        if (State == RecorderState.Paused)
+        {
+            _screenOnResume = enabled;
+            return ValueTask.CompletedTask;
+        }
+
         IsScreenRecording = enabled;
         return ValueTask.CompletedTask;
     }
+
+    /// <summary>Number of <see cref="PauseAsync"/> calls that paused (a call in the wrong state is a no-op, like <see cref="Recorder"/>).</summary>
+    public int Pauses { get; private set; }
+
+    /// <summary>Number of <see cref="ResumeAsync"/> calls that resumed.</summary>
+    public int Resumes { get; private set; }
+
+    /// <summary>When set, <see cref="PauseAsync"/> and <see cref="ResumeAsync"/> throw it (a writer that died).</summary>
+    public Exception? PauseFailure { get; set; }
+
+    /// <summary>When set, <see cref="PauseAsync"/> and <see cref="ResumeAsync"/> wait for this task before they change the state.</summary>
+    public Task? PauseGate { get; set; }
+
+    public async ValueTask PauseAsync(CancellationToken cancellationToken)
+    {
+        if (PauseGate is { } gate)
+        {
+            await gate;
+        }
+
+        if (State != RecorderState.Recording)
+        {
+            return;
+        }
+
+        if (PauseFailure is { } failure)
+        {
+            throw failure;
+        }
+
+        Pauses++;
+        Levels = default;
+        _screenOnResume = IsScreenRecording;
+        IsScreenRecording = false;
+        SetState(RecorderState.Paused);
+    }
+
+    public async ValueTask ResumeAsync(CancellationToken cancellationToken)
+    {
+        if (PauseGate is { } gate)
+        {
+            await gate;
+        }
+
+        if (State != RecorderState.Paused)
+        {
+            return;
+        }
+
+        if (PauseFailure is { } failure)
+        {
+            throw failure;
+        }
+
+        Resumes++;
+        IsScreenRecording = _screenOnResume;
+        SetState(RecorderState.Recording);
+    }
+
+    private bool _screenOnResume;
 
     /// <summary>When set, <see cref="StopAsync"/> enters Stopping and then waits for this task before finishing.</summary>
     public Task? StopGate { get; set; }
@@ -112,7 +188,7 @@ internal sealed class FakeRecorder : IRecorder
     public ValueTask<SessionRecord> StopAsync(CancellationToken cancellationToken)
     {
         Stops++;
-        if (State != RecorderState.Recording || Current is not { } current)
+        if (State is not (RecorderState.Recording or RecorderState.Paused) || Current is not { } current)
         {
             return ValueTask.FromException<SessionRecord>(new InvalidOperationException("Not recording."));
         }

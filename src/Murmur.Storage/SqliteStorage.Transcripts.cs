@@ -20,6 +20,16 @@ public sealed partial class SqliteStorage
     public ValueTask<Transcript?> GetTranscriptAsync(SessionId id, CancellationToken cancellationToken) =>
         Run(() => GetTranscript(id), cancellationToken);
 
+    /// <summary>
+    /// Language and first segment text of the transcripts of the given sessions in one query per 500 distinct ids (the words are never read; cancellation is checked between batches).
+    /// Sessions without a transcript are absent from the result.
+    /// </summary>
+    public ValueTask<IReadOnlyList<TranscriptSummary>> GetTranscriptSummariesAsync(IReadOnlyList<SessionId> sessions, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(sessions);
+        return Run<IReadOnlyList<TranscriptSummary>>(() => GetTranscriptSummaries(sessions, cancellationToken), cancellationToken);
+    }
+
     /// <summary>Phase 3 building block: runs an FTS5 MATCH query over segment text, best rank first.</summary>
     internal ValueTask<IReadOnlyList<SegmentMatch>> MatchSegmentsAsync(string ftsQuery, int limit, CancellationToken cancellationToken)
     {
@@ -143,6 +153,46 @@ public sealed partial class SqliteStorage
         }
 
         return new Transcript(id, segments, engine, language);
+    }
+
+    private List<TranscriptSummary> GetTranscriptSummaries(IReadOnlyList<SessionId> requested, CancellationToken cancellationToken)
+    {
+        const int BatchSize = 500;
+        var sessions = requested.Distinct().ToList();
+        var result = new List<TranscriptSummary>(sessions.Count);
+        if (sessions.Count == 0)
+        {
+            return result;
+        }
+
+        using var connection = OpenConnection();
+        for (var offset = 0; offset < sessions.Count; offset += BatchSize)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var count = Math.Min(BatchSize, sessions.Count - offset);
+            using var command = connection.CreateCommand();
+            var names = new string[count];
+            for (var i = 0; i < count; i++)
+            {
+                names[i] = "$s" + i.ToString(System.Globalization.CultureInfo.InvariantCulture);
+                command.Parameters.AddWithValue(names[i], sessions[offset + i].ToString());
+            }
+
+            command.CommandText =
+                "SELECT t.session_id, t.language, " +
+                "(SELECT s.text FROM segments s WHERE s.session_id = t.session_id ORDER BY s.start_ms, s.idx LIMIT 1) " +
+                "FROM transcripts t WHERE t.session_id IN (" + string.Join(',', names) + ")";
+            using var reader = command.ExecuteReader();
+            while (reader.Read())
+            {
+                result.Add(new TranscriptSummary(
+                    SessionId.Parse(reader.GetString(0)),
+                    reader.IsDBNull(1) ? null : reader.GetString(1),
+                    reader.IsDBNull(2) ? null : reader.GetString(2)));
+            }
+        }
+
+        return result;
     }
 
     private List<SegmentMatch> MatchSegments(string ftsQuery, int limit)

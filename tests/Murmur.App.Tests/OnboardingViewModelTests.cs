@@ -1,4 +1,5 @@
 using Avalonia.Input;
+using Murmur.App.Localization;
 using Murmur.App.Services;
 using Murmur.App.Tests.Fakes;
 using Murmur.App.ViewModels;
@@ -10,8 +11,13 @@ using Murmur.Core.Settings;
 namespace Murmur.App.Tests;
 
 /// <summary>The onboarding without a window: when it shows, how the steps navigate and what each of them does with its services.</summary>
-public sealed class OnboardingViewModelTests
+public sealed class OnboardingViewModelTests : IDisposable
 {
+    // The texts asserted below are Ukrainian; English is the default language (D-039).
+    private readonly IDisposable _ukrainian = UiCulture.Override("uk");
+
+    public void Dispose() => _ukrainian.Dispose();
+
     // Start and finish -----------------------------------------------------------------------------------------------
 
     [Fact]
@@ -483,15 +489,28 @@ public sealed class OnboardingViewModelTests
             samples[i] = MathF.Sin(i * 0.1f) * 0.3f;
         }
 
-        meter.Write(samples);
-        var before = GC.GetAllocatedBytesForCurrentThread();
-        for (var i = 0; i < 1000; i++)
+        // Warm both paths up first. The steady state must be allocation-free: a pass that allocates nothing proves it,
+        // while one-time runtime work (tiered JIT promoting a method mid-loop) can land in any single pass.
+        var attempts = new List<long>();
+        for (var attempt = 0; attempt < 3; attempt++)
         {
             meter.Write(samples);
             meter.WriteSilence(480);
+            var before = GC.GetAllocatedBytesForCurrentThread();
+            for (var i = 0; i < 1000; i++)
+            {
+                meter.Write(samples);
+                meter.WriteSilence(480);
+            }
+
+            attempts.Add(GC.GetAllocatedBytesForCurrentThread() - before);
+            if (attempts[^1] == 0)
+            {
+                break;
+            }
         }
 
-        Assert.Equal(before, GC.GetAllocatedBytesForCurrentThread());
+        Assert.True(attempts[^1] == 0, $"bytes allocated per pass: {string.Join(", ", attempts)}");
         Assert.True(meter.Level > 0);
     }
 

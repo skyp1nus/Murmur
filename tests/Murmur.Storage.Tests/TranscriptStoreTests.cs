@@ -71,6 +71,59 @@ public sealed class TranscriptStoreTests : IDisposable
         Scalar("INSERT INTO segments_fts (segments_fts, rank) VALUES ('integrity-check', 1)");
 
     [Fact]
+    public async Task Summaries_GiveLanguageAndFirstLineOfEachTranscribedSession_InOneCall()
+    {
+        var storage = Open();
+        var first = await NewSession(storage);
+        var second = await NewSession(storage);
+        var empty = await NewSession(storage);
+        var none = await NewSession(storage);
+        await storage.SaveTranscriptAsync(new Transcript(first, [Segment(Speaker.Others, 5000, 6000, "later"), Segment(Speaker.Me, 1000, 2000, "hello there")], "e", "en"), Ct);
+        await storage.SaveTranscriptAsync(new Transcript(second, [Segment(Speaker.Me, 0, 1000, "привіт")], "e", null), Ct);
+        await storage.SaveTranscriptAsync(new Transcript(empty, [], "e", "uk"), Ct);
+
+        var summaries = await storage.GetTranscriptSummariesAsync([first, second, empty, none, SessionId.New()], Ct);
+
+        Assert.Equal(3, summaries.Count);
+        Assert.Equal(new TranscriptSummary(first, "en", "hello there"), summaries.Single(s => s.Session == first));
+        Assert.Equal(new TranscriptSummary(second, null, "привіт"), summaries.Single(s => s.Session == second));
+        Assert.Equal(new TranscriptSummary(empty, "uk", null), summaries.Single(s => s.Session == empty));
+        Assert.Empty(await storage.GetTranscriptSummariesAsync([], Ct));
+    }
+
+    [Fact]
+    public async Task Summaries_AnswerARepeatedIdOnce_AndStopWhenCancelled()
+    {
+        var storage = Open();
+        var id = await NewSession(storage);
+        await storage.SaveTranscriptAsync(new Transcript(id, [Segment(Speaker.Me, 0, 1000, "once")], "e", "en"), Ct);
+
+        var summaries = await storage.GetTranscriptSummariesAsync([id, id, id], Ct);
+        Assert.Single(summaries);
+
+        using var cancelled = new CancellationTokenSource();
+        await cancelled.CancelAsync();
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(async () => await storage.GetTranscriptSummariesAsync([id], cancelled.Token));
+    }
+
+    [Fact]
+    public async Task Summaries_HandleMoreSessionsThanOneBatch()
+    {
+        var storage = Open();
+        var ids = new List<SessionId>();
+        for (var i = 0; i < 520; i++)
+        {
+            ids.Add(await NewSession(storage));
+        }
+
+        await storage.SaveTranscriptAsync(new Transcript(ids[^1], [Segment(Speaker.Me, 0, 1000, "last")], "e", "en"), Ct);
+
+        var summaries = await storage.GetTranscriptSummariesAsync(ids, Ct);
+
+        Assert.Equal("last", Assert.Single(summaries).FirstLine);
+    }
+
+    [Fact]
     public async Task Get_WithoutTranscript_ReturnsNull()
     {
         var storage = Open();

@@ -116,6 +116,33 @@ public sealed class HotkeyMappingTests
     }
 
     [Fact]
+    public void EveryAction_HasItsOwnWindowsHotkeyId_ThatMapsBack_TogglePauseIncluded()
+    {
+        var ids = new HashSet<int>();
+        foreach (var action in Enum.GetValues<HotkeyAction>())
+        {
+            var id = HotkeyBook.IdOf(action);
+            Assert.True(ids.Add(id), $"{action} shares its id");
+            Assert.True(HotkeyBook.TryActionOf(id, out var back));
+            Assert.Equal(action, back);
+        }
+
+        Assert.Contains(HotkeyBook.IdOf(HotkeyAction.TogglePause), ids);
+    }
+
+    [Fact]
+    public void Book_KeepsTheGesturesOfAllFourActionsApart()
+    {
+        var book = new HotkeyBook();
+        var pause = new HotkeyGesture(HotkeyModifiers.Ctrl | HotkeyModifiers.Shift, HotkeyKey.P);
+        book.Set(HotkeyAction.TogglePause, pause);
+
+        Assert.True(book.IsHeldByOther(HotkeyAction.ToggleRecording, pause));
+        Assert.False(book.IsHeldByOther(HotkeyAction.TogglePause, pause));
+        Assert.Equal([HotkeyAction.TogglePause], book.HeldActions().ToArray());
+    }
+
+    [Fact]
     public void Book_TracksHeldActions()
     {
         var book = new HotkeyBook();

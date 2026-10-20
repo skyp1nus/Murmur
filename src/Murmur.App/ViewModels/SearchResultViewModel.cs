@@ -1,4 +1,5 @@
 using System.Text;
+using CommunityToolkit.Mvvm.Input;
 using Murmur.App.Resources;
 using Murmur.Core.Sessions;
 
@@ -8,7 +9,7 @@ namespace Murmur.App.ViewModels;
 /// One row of the library search: the session title, a time chip and the matching transcript snippet. A title match
 /// has no time (the row shows the session date instead of a snippet). Clicking the row opens the session there.
 /// </summary>
-public sealed class SearchResultViewModel
+public sealed partial class SearchResultViewModel
 {
     /// <summary>Longer snippets are cut at a word boundary and end with an ellipsis.</summary>
     public const int MaxSnippetLength = 180;
@@ -43,6 +44,19 @@ public sealed class SearchResultViewModel
     public bool HasTime => At is not null;
 
     public string Snippet { get; }
+
+    /// <summary>Where the row sits in its card (set by the library when it lays the results out).</summary>
+    public RowPosition Position { get; set; } = RowPosition.Only;
+
+    public bool HasTopCorners => Position is RowPosition.First or RowPosition.Only;
+
+    public bool HasBottomCorners => Position is RowPosition.Last or RowPosition.Only;
+
+    /// <summary>Opens the session at the match.</summary>
+    public Action<SearchResultViewModel>? OpenAction { get; init; }
+
+    [RelayCommand]
+    private void Open() => OpenAction?.Invoke(this);
 
     /// <summary>Collapses whitespace and cuts long text at a word boundary.</summary>
     internal static string Shorten(string text)

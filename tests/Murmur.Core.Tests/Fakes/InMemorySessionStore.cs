@@ -55,12 +55,28 @@ internal sealed class InMemorySessionStore : ISessionStore
         return ValueTask.FromResult(record);
     }
 
+    /// <remarks>Like the real store: every column but the title (a stored row keeps its title; <see cref="RenameSessionAsync"/> changes it).</remarks>
     public ValueTask UpdateSessionAsync(SessionRecord session, CancellationToken cancellationToken)
     {
         lock (_sessions)
         {
-            _sessions[session.Id] = session;
+            _sessions[session.Id] = _sessions.TryGetValue(session.Id, out var stored) ? session with { Title = stored.Title } : session;
             _updates.Add(session);
+        }
+
+        return ValueTask.CompletedTask;
+    }
+
+    public ValueTask RenameSessionAsync(SessionId id, string title, CancellationToken cancellationToken)
+    {
+        lock (_sessions)
+        {
+            if (!_sessions.TryGetValue(id, out var stored))
+            {
+                throw new KeyNotFoundException($"Session {id} does not exist.");
+            }
+
+            _sessions[id] = stored with { Title = title };
         }
 
         return ValueTask.CompletedTask;

@@ -1,0 +1,842 @@
+{
+ "board": "Chat",
+ "width": 1440,
+ "height": 1080,
+ "texts": [
+  {
+   "text": "Murmur",
+   "lines": [
+    {
+     "x": 58,
+     "y": 25,
+     "w": 64.45,
+     "h": 20
+    }
+   ],
+   "baseline": 41,
+   "blockId": 0,
+   "blockText": "Murmur",
+   "fontFamily": "Inter, ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
+   "fontSize": 17,
+   "fontWeight": 600,
+   "letterSpacing": "-0.17px",
+   "lineHeight": "normal",
+   "color": "rgb(0, 0, 0)"
+  },
+  {
+   "text": "New recording",
+   "lines": [
+    {
+     "x": 78.78,
+     "y": 87.5,
+     "w": 100.08,
+     "h": 17
+    }
+   ],
+   "baseline": 101.5,
+   "blockId": 1,
+   "blockText": "New recording",
+   "fontFamily": "Inter, ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
+   "fontSize": 14,
+   "fontWeight": 500,
+   "letterSpacing": "0.14px",
+   "lineHeight": "normal",
+   "color": "rgb(255, 255, 255)"
+  },
+  {
+   "text": "Library",
+   "lines": [
+    {
+     "x": 56,
+     "y": 153.5,
+     "w": 47.36,
+     "h": 17
+    }
+   ],
+   "baseline": 167.5,
+   "blockId": 2,
+   "blockText": "Library",
+   "fontFamily": "Inter, ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
+   "fontSize": 14,
+   "fontWeight": 400,
+   "letterSpacing": "0.14px",
+   "lineHeight": "normal",
+   "color": "rgb(68, 64, 59)"
+  },
+  {
+   "text": "Ask AI",
+   "lines": [
+    {
+     "x": 56,
+     "y": 195.5,
+     "w": 43.56,
+     "h": 17
+    }
+   ],
+   "baseline": 209.5,
+   "blockId": 3,
+   "blockText": "Ask AI",
+   "fontFamily": "Inter, ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
+   "fontSize": 14,
+   "fontWeight": 500,
+   "letterSpacing": "0.14px",
+   "lineHeight": "normal",
+   "color": "rgb(0, 0, 0)"
+  },
+  {
+   "text": "Settings",
+   "lines": [
+    {
+     "x": 56,
+     "y": 237.5,
+     "w": 55.06,
+     "h": 17
+    }
+   ],
+   "baseline": 251.5,
+   "blockId": 4,
+   "blockText": "Settings",
+   "fontFamily": "Inter, ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
+   "fontSize": 14,
+   "fontWeight": 400,
+   "letterSpacing": "0.14px",
+   "lineHeight": "normal",
+   "color": "rgb(68, 64, 59)"
+  },
+  {
+   "text": "Chats",
+   "lines": [
+    {
+     "x": 28,
+     "y": 290,
+     "w": 33.45,
+     "h": 15
+    }
+   ],
+   "baseline": 302,
+   "blockId": 5,
+   "blockText": "Chats",
+   "fontFamily": "Inter, ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
+   "fontSize": 12,
+   "fontWeight": 400,
+   "letterSpacing": "0.14px",
+   "lineHeight": "normal",
+   "color": "rgb(119, 113, 105)"
+  },
+  {
+   "text": "PDF export",
+   "lines": [
+    {
+     "x": 28,
+     "y": 323,
+     "w": 70.41,
+     "h": 16
+    }
+   ],
+   "baseline": 336,
+   "blockId": 6,
+   "blockText": "PDF export",
+   "fontFamily": "Inter, ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
+   "fontSize": 13,
+   "fontWeight": 500,
+   "letterSpacing": "0.14px",
+   "lineHeight": "normal",
+   "color": "rgb(0, 0, 0)"
+  },
+  {
+   "text": "Action items this week",
+   "lines": [
+    {
+     "x": 28,
+     "y": 361,
+     "w": 141.08,
+     "h": 16
+    }
+   ],
+   "baseline": 374,
+   "blockId": 7,
+   "blockText": "Action items this week",
+   "fontFamily": "Inter, ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
+   "fontSize": 13,
+   "fontWeight": 400,
+   "letterSpacing": "0.14px",
+   "lineHeight": "normal",
+   "color": "rgb(68, 64, 59)"
+  },
+  {
+   "text": "Fully offline",
+   "lines": [
+    {
+     "x": 56,
+     "y": 988,
+     "w": 73.66,
+     "h": 16
+    }
+   ],
+   "baseline": 1001,
+   "blockId": 8,
+   "blockText": "Fully offline",
+   "fontFamily": "Inter, ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
+   "fontSize": 13,
+   "fontWeight": 500,
+   "letterSpacing": "0.14px",
+   "lineHeight": "normal",
+   "color": "rgb(0, 0, 0)"
+  },
+  {
+   "text": "Recordings and models stay on this PC",
+   "lines": [
+    {
+     "x": 32,
+     "y": 1011,
+     "w": 163.81,
+     "h": 15
+    },
+    {
+     "x": 32,
+     "y": 1029,
+     "w": 59.14,
+     "h": 15
+    }
+   ],
+   "baseline": 1023,
+   "blockId": 9,
+   "blockText": "Recordings and models stay on this PC",
+   "fontFamily": "Inter, ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
+   "fontSize": 12,
+   "fontWeight": 400,
+   "letterSpacing": "0.14px",
+   "lineHeight": "18px",
+   "color": "rgb(119, 113, 105)"
+  },
+  {
+   "text": "Whole library",
+   "lines": [
+    {
+     "x": 301.64,
+     "y": 22,
+     "w": 82.73,
+     "h": 16
+    }
+   ],
+   "baseline": 35,
+   "blockId": 10,
+   "blockText": "Whole library",
+   "fontFamily": "Inter, ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
+   "fontSize": 13,
+   "fontWeight": 500,
+   "letterSpacing": "normal",
+   "lineHeight": "normal",
+   "color": "rgb(0, 0, 0)"
+  },
+  {
+   "text": "Client demo — Q4 roadmap",
+   "lines": [
+    {
+     "x": 420.38,
+     "y": 22,
+     "w": 171.56,
+     "h": 16
+    }
+   ],
+   "baseline": 35,
+   "blockId": 11,
+   "blockText": "Client demo — Q4 roadmap",
+   "fontFamily": "Inter, ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
+   "fontSize": 13,
+   "fontWeight": 500,
+   "letterSpacing": "normal",
+   "lineHeight": "normal",
+   "color": "rgb(0, 0, 0)"
+  },
+  {
+   "text": "Gemma 4 E4B · local",
+   "lines": [
+    {
+     "x": 1275.38,
+     "y": 22.5,
+     "w": 120.63,
+     "h": 15
+    }
+   ],
+   "baseline": 34.5,
+   "blockId": 12,
+   "blockText": "Gemma 4 E4B · local",
+   "fontFamily": "Inter, ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
+   "fontSize": 12,
+   "fontWeight": 400,
+   "letterSpacing": "0.14px",
+   "lineHeight": "normal",
+   "color": "rgb(68, 64, 59)"
+  },
+  {
+   "text": "What did we decide about PDF export?",
+   "lines": [
+    {
+     "x": 919.28,
+     "y": 98,
+     "w": 281.03,
+     "h": 19
+    }
+   ],
+   "baseline": 113,
+   "blockId": 13,
+   "blockText": "What did we decide about PDF export?",
+   "fontFamily": "Inter, ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
+   "fontSize": 15,
+   "fontWeight": 400,
+   "letterSpacing": "0.14px",
+   "lineHeight": "23.25px",
+   "color": "rgb(0, 0, 0)"
+  },
+  {
+   "text": "Murmur",
+   "lines": [
+    {
+     "x": 496.31,
+     "y": 167.25,
+     "w": 50.13,
+     "h": 16
+    }
+   ],
+   "baseline": 180.25,
+   "blockId": 14,
+   "blockText": "Murmur",
+   "fontFamily": "Inter, ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
+   "fontSize": 13,
+   "fontWeight": 500,
+   "letterSpacing": "0.14px",
+   "lineHeight": "normal",
+   "color": "rgb(0, 0, 0)"
+  },
+  {
+   "text": "PDF export was moved to next sprint — meeting summaries and action items come first",
+   "lines": [
+    {
+     "x": 462.31,
+     "y": 206.25,
+     "w": 677.7,
+     "h": 20
+    }
+   ],
+   "baseline": 222.25,
+   "blockId": 15,
+   "blockText": "PDF export was moved to next sprint — meeting summaries and action items come first 12:52. The client said they need PDFs for their reports 12:40.",
+   "fontFamily": "Inter, ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
+   "fontSize": 16,
+   "fontWeight": 400,
+   "letterSpacing": "0.14px",
+   "lineHeight": "26.4px",
+   "color": "rgb(0, 0, 0)"
+  },
+  {
+   "text": "12:52",
+   "lines": [
+    {
+     "x": 1161.02,
+     "y": 207.86,
+     "w": 36.7,
+     "h": 16
+    }
+   ],
+   "baseline": 219.86,
+   "blockId": 15,
+   "blockText": "PDF export was moved to next sprint — meeting summaries and action items come first 12:52. The client said they need PDFs for their reports 12:40.",
+   "fontFamily": "\"Geist Mono\", ui-monospace, monospace",
+   "fontSize": 12,
+   "fontWeight": 400,
+   "letterSpacing": "0.14px",
+   "lineHeight": "19.8px",
+   "color": "rgb(0, 0, 0)"
+  },
+  {
+   "text": ". The client said they need PDFs for their reports",
+   "lines": [
+    {
+     "x": 1205.72,
+     "y": 206.25,
+     "w": 4.75,
+     "h": 20
+    },
+    {
+     "x": 462.31,
+     "y": 232.64,
+     "w": 368.03,
+     "h": 20
+    }
+   ],
+   "baseline": 222.25,
+   "blockId": 15,
+   "blockText": "PDF export was moved to next sprint — meeting summaries and action items come first 12:52. The client said they need PDFs for their reports 12:40.",
+   "fontFamily": "Inter, ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
+   "fontSize": 16,
+   "fontWeight": 400,
+   "letterSpacing": "0.14px",
+   "lineHeight": "26.4px",
+   "color": "rgb(0, 0, 0)"
+  },
+  {
+   "text": "12:40",
+   "lines": [
+    {
+     "x": 851.34,
+     "y": 234.25,
+     "w": 36.7,
+     "h": 16
+    }
+   ],
+   "baseline": 246.25,
+   "blockId": 15,
+   "blockText": "PDF export was moved to next sprint — meeting summaries and action items come first 12:52. The client said they need PDFs for their reports 12:40.",
+   "fontFamily": "\"Geist Mono\", ui-monospace, monospace",
+   "fontSize": 12,
+   "fontWeight": 400,
+   "letterSpacing": "0.14px",
+   "lineHeight": "19.8px",
+   "color": "rgb(0, 0, 0)"
+  },
+  {
+   "text": ".",
+   "lines": [
+    {
+     "x": 896.05,
+     "y": 232.64,
+     "w": 4.75,
+     "h": 20
+    }
+   ],
+   "baseline": 248.64,
+   "blockId": 15,
+   "blockText": "PDF export was moved to next sprint — meeting summaries and action items come first 12:52. The client said they need PDFs for their reports 12:40.",
+   "fontFamily": "Inter, ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
+   "fontSize": 16,
+   "fontWeight": 400,
+   "letterSpacing": "0.14px",
+   "lineHeight": "26.4px",
+   "color": "rgb(0, 0, 0)"
+  },
+  {
+   "text": "In the sprint retro, the team also agreed to review the report template with the designer before starting",
+   "lines": [
+    {
+     "x": 462.31,
+     "y": 275.03,
+     "w": 722.92,
+     "h": 20
+    },
+    {
+     "x": 462.31,
+     "y": 301.42,
+     "w": 63.16,
+     "h": 20
+    }
+   ],
+   "baseline": 291.03,
+   "blockId": 16,
+   "blockText": "In the sprint retro, the team also agreed to review the report template with the designer before starting Retro · 31:05.",
+   "fontFamily": "Inter, ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
+   "fontSize": 16,
+   "fontWeight": 400,
+   "letterSpacing": "0.14px",
+   "lineHeight": "26.4px",
+   "color": "rgb(0, 0, 0)"
+  },
+  {
+   "text": "Retro · 31:05",
+   "lines": [
+    {
+     "x": 546.47,
+     "y": 303.03,
+     "w": 95.42,
+     "h": 16
+    }
+   ],
+   "baseline": 315.03,
+   "blockId": 16,
+   "blockText": "In the sprint retro, the team also agreed to review the report template with the designer before starting Retro · 31:05.",
+   "fontFamily": "\"Geist Mono\", ui-monospace, monospace",
+   "fontSize": 12,
+   "fontWeight": 400,
+   "letterSpacing": "0.14px",
+   "lineHeight": "19.8px",
+   "color": "rgb(0, 0, 0)"
+  },
+  {
+   "text": ".",
+   "lines": [
+    {
+     "x": 649.89,
+     "y": 301.42,
+     "w": 4.75,
+     "h": 20
+    }
+   ],
+   "baseline": 317.42,
+   "blockId": 16,
+   "blockText": "In the sprint retro, the team also agreed to review the report template with the designer before starting Retro · 31:05.",
+   "fontFamily": "Inter, ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
+   "fontSize": 16,
+   "fontWeight": 400,
+   "letterSpacing": "0.14px",
+   "lineHeight": "26.4px",
+   "color": "rgb(0, 0, 0)"
+  },
+  {
+   "text": "Sources",
+   "lines": [
+    {
+     "x": 462.31,
+     "y": 340.81,
+     "w": 47.48,
+     "h": 15
+    }
+   ],
+   "baseline": 352.81,
+   "blockId": 17,
+   "blockText": "Sources",
+   "fontFamily": "Inter, ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
+   "fontSize": 12,
+   "fontWeight": 400,
+   "letterSpacing": "0.14px",
+   "lineHeight": "normal",
+   "color": "rgb(119, 113, 105)"
+  },
+  {
+   "text": "Client demo",
+   "lines": [
+    {
+     "x": 479.31,
+     "y": 378.81,
+     "w": 76.05,
+     "h": 16
+    }
+   ],
+   "baseline": 391.81,
+   "blockId": 18,
+   "blockText": "Client demo",
+   "fontFamily": "Inter, ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
+   "fontSize": 13,
+   "fontWeight": 500,
+   "letterSpacing": "0.14px",
+   "lineHeight": "normal",
+   "color": "rgb(0, 0, 0)"
+  },
+  {
+   "text": "12:52",
+   "lines": [
+    {
+     "x": 655.27,
+     "y": 378.81,
+     "w": 36.7,
+     "h": 16
+    }
+   ],
+   "baseline": 390.81,
+   "blockId": 19,
+   "blockText": "12:52",
+   "fontFamily": "\"Geist Mono\", ui-monospace, monospace",
+   "fontSize": 12,
+   "fontWeight": 400,
+   "letterSpacing": "0.14px",
+   "lineHeight": "normal",
+   "color": "rgb(119, 113, 105)"
+  },
+  {
+   "text": "“PDF export moves to next sprint…”",
+   "lines": [
+    {
+     "x": 479.31,
+     "y": 401.81,
+     "w": 167.63,
+     "h": 16
+    },
+    {
+     "x": 479.31,
+     "y": 421.31,
+     "w": 52.28,
+     "h": 16
+    }
+   ],
+   "baseline": 414.81,
+   "blockId": 20,
+   "blockText": "“PDF export moves to next sprint…”",
+   "fontFamily": "Inter, ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
+   "fontSize": 13,
+   "fontWeight": 400,
+   "letterSpacing": "0.14px",
+   "lineHeight": "19.5px",
+   "color": "rgb(119, 113, 105)"
+  },
+  {
+   "text": "Client demo",
+   "lines": [
+    {
+     "x": 733.97,
+     "y": 378.81,
+     "w": 76.05,
+     "h": 16
+    }
+   ],
+   "baseline": 391.81,
+   "blockId": 21,
+   "blockText": "Client demo",
+   "fontFamily": "Inter, ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
+   "fontSize": 13,
+   "fontWeight": 500,
+   "letterSpacing": "0.14px",
+   "lineHeight": "normal",
+   "color": "rgb(0, 0, 0)"
+  },
+  {
+   "text": "12:40",
+   "lines": [
+    {
+     "x": 909.94,
+     "y": 378.81,
+     "w": 36.7,
+     "h": 16
+    }
+   ],
+   "baseline": 390.81,
+   "blockId": 22,
+   "blockText": "12:40",
+   "fontFamily": "\"Geist Mono\", ui-monospace, monospace",
+   "fontSize": 12,
+   "fontWeight": 400,
+   "letterSpacing": "0.14px",
+   "lineHeight": "normal",
+   "color": "rgb(119, 113, 105)"
+  },
+  {
+   "text": "“What about PDF export? We need it for our reports.”",
+   "lines": [
+    {
+     "x": 733.97,
+     "y": 401.81,
+     "w": 182.27,
+     "h": 16
+    },
+    {
+     "x": 733.97,
+     "y": 421.31,
+     "w": 146.66,
+     "h": 16
+    }
+   ],
+   "baseline": 414.81,
+   "blockId": 23,
+   "blockText": "“What about PDF export? We need it for our reports.”",
+   "fontFamily": "Inter, ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
+   "fontSize": 13,
+   "fontWeight": 400,
+   "letterSpacing": "0.14px",
+   "lineHeight": "19.5px",
+   "color": "rgb(119, 113, 105)"
+  },
+  {
+   "text": "Sprint retro",
+   "lines": [
+    {
+     "x": 988.64,
+     "y": 378.81,
+     "w": 71.7,
+     "h": 16
+    }
+   ],
+   "baseline": 391.81,
+   "blockId": 24,
+   "blockText": "Sprint retro",
+   "fontFamily": "Inter, ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
+   "fontSize": 13,
+   "fontWeight": 500,
+   "letterSpacing": "0.14px",
+   "lineHeight": "normal",
+   "color": "rgb(0, 0, 0)"
+  },
+  {
+   "text": "31:05",
+   "lines": [
+    {
+     "x": 1164.61,
+     "y": 378.81,
+     "w": 36.7,
+     "h": 16
+    }
+   ],
+   "baseline": 390.81,
+   "blockId": 25,
+   "blockText": "31:05",
+   "fontFamily": "\"Geist Mono\", ui-monospace, monospace",
+   "fontSize": 12,
+   "fontWeight": 400,
+   "letterSpacing": "0.14px",
+   "lineHeight": "normal",
+   "color": "rgb(119, 113, 105)"
+  },
+  {
+   "text": "“…let's show the report template to the designer first.”",
+   "lines": [
+    {
+     "x": 988.64,
+     "y": 401.81,
+     "w": 203.55,
+     "h": 16
+    },
+    {
+     "x": 988.64,
+     "y": 421.31,
+     "w": 132.02,
+     "h": 16
+    }
+   ],
+   "baseline": 414.81,
+   "blockId": 26,
+   "blockText": "“…let's show the report template to the designer first.”",
+   "fontFamily": "Inter, ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
+   "fontSize": 13,
+   "fontWeight": 400,
+   "letterSpacing": "0.14px",
+   "lineHeight": "19.5px",
+   "color": "rgb(119, 113, 105)"
+  },
+  {
+   "text": "And who's sending the demo invite?",
+   "lines": [
+    {
+     "x": 939.22,
+     "y": 548.81,
+     "w": 261.09,
+     "h": 19
+    }
+   ],
+   "baseline": 563.81,
+   "blockId": 27,
+   "blockText": "And who's sending the demo invite?",
+   "fontFamily": "Inter, ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
+   "fontSize": 15,
+   "fontWeight": 400,
+   "letterSpacing": "0.14px",
+   "lineHeight": "23.25px",
+   "color": "rgb(0, 0, 0)"
+  },
+  {
+   "text": "Murmur",
+   "lines": [
+    {
+     "x": 496.31,
+     "y": 618.06,
+     "w": 50.13,
+     "h": 16
+    }
+   ],
+   "baseline": 631.06,
+   "blockId": 28,
+   "blockText": "Murmur",
+   "fontFamily": "Inter, ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
+   "fontSize": 13,
+   "fontWeight": 500,
+   "letterSpacing": "0.14px",
+   "lineHeight": "normal",
+   "color": "rgb(0, 0, 0)"
+  },
+  {
+   "text": "You are — you promised to send it the same day",
+   "lines": [
+    {
+     "x": 462.31,
+     "y": 653.06,
+     "w": 376.33,
+     "h": 20
+    }
+   ],
+   "baseline": 669.06,
+   "blockId": 29,
+   "blockText": "You are — you promised to send it the same day 13:24.",
+   "fontFamily": "Inter, ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
+   "fontSize": 16,
+   "fontWeight": 400,
+   "letterSpacing": "0.14px",
+   "lineHeight": "26.4px",
+   "color": "rgb(0, 0, 0)"
+  },
+  {
+   "text": "13:24",
+   "lines": [
+    {
+     "x": 859.64,
+     "y": 654.67,
+     "w": 36.7,
+     "h": 16
+    }
+   ],
+   "baseline": 666.67,
+   "blockId": 29,
+   "blockText": "You are — you promised to send it the same day 13:24.",
+   "fontFamily": "\"Geist Mono\", ui-monospace, monospace",
+   "fontSize": 12,
+   "fontWeight": 400,
+   "letterSpacing": "0.14px",
+   "lineHeight": "19.8px",
+   "color": "rgb(0, 0, 0)"
+  },
+  {
+   "text": ".",
+   "lines": [
+    {
+     "x": 904.34,
+     "y": 653.06,
+     "w": 4.75,
+     "h": 20
+    }
+   ],
+   "baseline": 669.06,
+   "blockId": 29,
+   "blockText": "You are — you promised to send it the same day 13:24.",
+   "fontFamily": "Inter, ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
+   "fontSize": 16,
+   "fontWeight": 400,
+   "letterSpacing": "0.14px",
+   "lineHeight": "26.4px",
+   "color": "rgb(0, 0, 0)"
+  },
+  {
+   "text": "Answers are based only on your transcripts. Check them against the timestamps.",
+   "lines": [
+    {
+     "x": 604.97,
+     "y": 1033,
+     "w": 470.67,
+     "h": 15
+    }
+   ],
+   "baseline": 1045,
+   "blockId": 30,
+   "blockText": "Answers are based only on your transcripts. Check them against the timestamps.",
+   "fontFamily": "Inter, ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
+   "fontSize": 12,
+   "fontWeight": 400,
+   "letterSpacing": "0.14px",
+   "lineHeight": "normal",
+   "color": "rgb(119, 113, 105)"
+  },
+  {
+   "text": "Ask about any recording…",
+   "placeholder": true,
+   "box": {
+    "x": 482.3125,
+    "y": 956,
+    "w": 678,
+    "h": 57
+   },
+   "textX": 482.31,
+   "centerY": 984.5,
+   "lines": [],
+   "fontFamily": "Inter, ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
+   "fontSize": 15,
+   "fontWeight": 400,
+   "letterSpacing": "normal",
+   "lineHeight": "22.5px",
+   "color": "rgb(0, 0, 0)"
+  }
+ ]
+}

@@ -1,22 +1,75 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using Murmur.App.Resources;
+using Murmur.Core.Recording;
+using Murmur.Core.Sessions;
 
 namespace Murmur.App.ViewModels;
 
+/// <summary>What the list under the pages shows.</summary>
+public enum SidebarContext
+{
+    None,
+
+    /// <summary>The three latest recordings (Library and the recording view).</summary>
+    Recent,
+
+    /// <summary>The chats of Ask AI; filled by the chat screen through <see cref="SidebarViewModel.SetChats"/>.</summary>
+    Chats,
+
+    /// <summary>The sections of the Settings page.</summary>
+    Sections,
+}
+
+/// <summary>A row of the sidebar's context list: a pill with a title, highlighted while it is the open one.</summary>
+public sealed partial class SidebarEntry : ObservableObject
+{
+    private readonly Action? _open;
+
+    public SidebarEntry(string title, Action? open = null, bool isActive = false)
+    {
+        ArgumentNullException.ThrowIfNull(title);
+        Title = title;
+        _open = open;
+        IsActive = isActive;
+    }
+
+    public string Title { get; }
+
+    /// <summary>The open recording, chat or section: the pill is filled and its text is medium.</summary>
+    [ObservableProperty]
+    public partial bool IsActive { get; set; }
+
+    [RelayCommand]
+    private void Open() => _open?.Invoke();
+}
+
 /// <summary>
-/// The left navigation of the mockups: new recording, Library, Ask AI, Settings, and (on the Settings screen) the section
-/// list. It follows the page the shell shows.
+/// The left navigation of the canvas: the wordmark, "New recording" (the "Recording" pill while a recording runs), Library, Ask AI,
+/// Settings, a list that depends on the screen (<see cref="Context"/>) and the "Fully offline" card. It follows the page the shell shows.
 /// </summary>
+/// <remarks>
+/// The list is <b>Recent</b> on the Library and the open recording (the open one highlighted), <b>Chats</b> on Ask AI and
+/// <b>Sections</b> on Settings. The chat screen fills the chats through <see cref="SetChats"/>; the settings screen's sections come
+/// from <see cref="SettingsViewModel.Sections"/> and a click scrolls the page there through its <c>ShowSectionCommand</c>.
+/// </remarks>
 public sealed partial class SidebarViewModel : ObservableObject
 {
+    /// <summary>How many recent recordings the list shows.</summary>
+    public const int RecentCount = 3;
+
     private readonly ShellViewModel _shell;
+    private IReadOnlyList<SidebarEntry> _chats = [];
 
     internal SidebarViewModel(ShellViewModel shell)
     {
         _shell = shell;
+        Entries = [];
+        Rebuild();
     }
 
-    public bool IsLibrary => _shell.CurrentPage is LibraryViewModel;
+    /// <summary>The library is the current place: its own screen, or a recording opened from it.</summary>
+    public bool IsLibrary => _shell.CurrentPage is LibraryViewModel or SessionViewModel;
 
     public bool IsChat => _shell.CurrentPage is LibraryChatViewModel;
 
@@ -24,10 +77,67 @@ public sealed partial class SidebarViewModel : ObservableObject
 
     public bool CanAskAi => _shell.CanShowLibraryChat;
 
+    /// <summary>A recording is running (or starting, or stopping): the "Recording" pill replaces "New recording".</summary>
+    public bool IsRecordingActive => _shell.Recording.State != RecorderState.Idle;
+
+    public bool ShowNewRecording => !IsRecordingActive;
+
+    /// <summary>The recording view is on screen: the pill is the current place.</summary>
+    public bool IsOnRecordingPage => _shell.CurrentPage is RecordingViewModel;
+
+    /// <summary>"Recordings and models stay on this PC", or the promise that matters while recording.</summary>
+    public string OfflineText => IsRecordingActive ? Strings.Nav_OfflineRecording : Strings.Nav_OfflineText;
+
+    /// <summary>The Settings screen of the canvas has no offline card.</summary>
+    public bool ShowOffline => !IsSettings;
+
+    public SidebarContext Context =>
+        _shell.CurrentPage switch
+        {
+            LibraryViewModel or SessionViewModel => SidebarContext.Recent,
+            LibraryChatViewModel => SidebarContext.Chats,
+            SettingsViewModel => SidebarContext.Sections,
+            _ => SidebarContext.None,
+        };
+
+    public string? ContextTitle => Context switch
+    {
+        SidebarContext.Recent => Strings.Nav_Recent,
+        SidebarContext.Chats => Strings.Nav_Chats,
+        SidebarContext.Sections => Strings.Nav_Sections,
+        _ => null,
+    };
+
+    /// <summary>The rows of the list; replaced as a whole when the page or the data changes.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasEntries))]
+    public partial IReadOnlyList<SidebarEntry> Entries { get; private set; }
+
+    /// <summary>The list has rows (an empty one hides its heading too).</summary>
+    public bool HasEntries => Entries.Count > 0;
+
+    /// <summary>The sections of the Settings page (kept for the settings tests; the list shows them as <see cref="Entries"/>).</summary>
     public IReadOnlyList<SettingsSection> Sections => _shell.Settings?.Sections ?? [];
+
+    /// <summary>
+    /// The chat screen's hook: the chats the Chats list shows (the open one with <see cref="SidebarEntry.IsActive"/> set).
+    /// Until a chat screen provides them the list is empty and hidden.
+    /// </summary>
+    public void SetChats(IReadOnlyList<SidebarEntry> chats)
+    {
+        ArgumentNullException.ThrowIfNull(chats);
+        _chats = chats;
+        if (Context == SidebarContext.Chats)
+        {
+            Rebuild();
+        }
+    }
 
     [RelayCommand]
     private void NewRecording() => _shell.ShowRecording();
+
+    [RelayCommand]
+    private void ShowRecording() => _shell.ShowRecording();
 
     [RelayCommand]
     private void ShowLibrary() => _shell.ShowLibrary();
@@ -41,13 +151,56 @@ public sealed partial class SidebarViewModel : ObservableObject
     [RelayCommand]
     private void ShowSection(SettingsSection? section) => _shell.Settings?.ShowSectionCommand.Execute(section);
 
-    /// <summary>The shell moved to another page.</summary>
+    /// <summary>The shell moved to another page, or something the sidebar shows changed (recorder state, recent recordings).</summary>
     internal void Update()
     {
         OnPropertyChanged(nameof(IsLibrary));
         OnPropertyChanged(nameof(IsChat));
         OnPropertyChanged(nameof(IsSettings));
         OnPropertyChanged(nameof(CanAskAi));
+        OnPropertyChanged(nameof(IsRecordingActive));
+        OnPropertyChanged(nameof(ShowNewRecording));
+        OnPropertyChanged(nameof(IsOnRecordingPage));
+        OnPropertyChanged(nameof(OfflineText));
+        OnPropertyChanged(nameof(ShowOffline));
+        OnPropertyChanged(nameof(Context));
+        OnPropertyChanged(nameof(ContextTitle));
         OnPropertyChanged(nameof(Sections));
+        Rebuild();
+    }
+
+    private void Rebuild()
+    {
+        var entries = new List<SidebarEntry>();
+        switch (Context)
+        {
+            case SidebarContext.Recent:
+                var open = _shell.Session?.Id;
+                foreach (var record in _shell.Library.Recent.Take(RecentCount))
+                {
+                    var captured = record;
+                    entries.Add(new SidebarEntry(
+                        string.IsNullOrWhiteSpace(record.Title) ? Strings.Common_UntitledRecording : record.Title,
+                        () => _shell.OpenSession(captured),
+                        isActive: open is { } id && id == record.Id));
+                }
+
+                break;
+
+            case SidebarContext.Chats:
+                entries.AddRange(_chats);
+                break;
+
+            case SidebarContext.Sections:
+                foreach (var section in Sections)
+                {
+                    var captured = section;
+                    entries.Add(new SidebarEntry(section.Title, () => ShowSection(captured)));
+                }
+
+                break;
+        }
+
+        Entries = entries;
     }
 }

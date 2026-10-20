@@ -76,11 +76,14 @@ jobs:
         run: |
           dotnet run -c Release --no-build --project tools/Murmur.ModelFetch -- \
             --dir "$MURMUR_MODELS_DIR" \
-            --ids silero-vad,parakeet-tdt-0.6b-v3-int8,llama-cpp-b11716,embeddinggemma-300m-q8 \
+            --ids silero-vad,parakeet-tdt-0.6b-v3-int8,llama-cpp-b11716,llama-cpp-vulkan-b11716,embeddinggemma-300m-q8 \
             --summary "$GITHUB_STEP_SUMMARY"
 
-      # Runs even when the install failed, so one red item does not hide the state of the others.
-      - name: Probe the chat models (no download)
+      # Runs even when the install failed, so one red item does not hide the state of the others. Also probes the
+      # Vulkan build of llama-server (D-042): the Windows Vulkan/CUDA assets and their SHA-256 are checked by the
+      # "Resolve upstream pins" step above (an asset missing from the release is an ERROR row there); this proves the
+      # Linux one is downloadable.
+      - name: Probe the chat models and the Vulkan runtime (no download)
         if: ${{ !cancelled() }}
         run: |
           dotnet run -c Release --no-build --project tools/Murmur.ModelFetch -- \
@@ -98,6 +101,7 @@ jobs:
             test -s "$MURMUR_MODELS_DIR/$f" || { echo "::error::missing or empty: $f"; exit 1; }
           done
           test -x "$MURMUR_MODELS_DIR/llama.cpp/llama-server" || { echo "::error::llama-server is not executable"; exit 1; }
+          test -x "$MURMUR_MODELS_DIR/llama.cpp-vulkan/llama-server" || { echo "::error::the Vulkan llama-server is not executable"; exit 1; }
           test ! -e "$MURMUR_MODELS_DIR/.staging" || { echo "::error::.staging was left behind"; exit 1; }
           cat "$MURMUR_MODELS_DIR/gguf/models.json"
           "$MURMUR_MODELS_DIR/llama.cpp/llama-server" --version
@@ -108,5 +112,5 @@ jobs:
         run: |
           dotnet run -c Release --no-build --project tools/Murmur.ModelFetch -- \
             --dir "$MURMUR_MODELS_DIR" \
-            --ids silero-vad,parakeet-tdt-0.6b-v3-int8,llama-cpp-b11716,embeddinggemma-300m-q8 | tee second-run.log
-          test "$(grep -c 'already installed, nothing downloaded' second-run.log)" = 4
+            --ids silero-vad,parakeet-tdt-0.6b-v3-int8,llama-cpp-b11716,llama-cpp-vulkan-b11716,embeddinggemma-300m-q8 | tee second-run.log
+          test "$(grep -c 'already installed, nothing downloaded' second-run.log)" = 5

@@ -1,3 +1,4 @@
+using Murmur.App.Localization;
 using Murmur.App.Tests.Fakes;
 using Murmur.App.ViewModels;
 using Murmur.Core.Capture;
@@ -9,9 +10,16 @@ namespace Murmur.App.Tests;
 
 public sealed class SessionViewModelTests : IDisposable
 {
+    // The texts asserted below are Ukrainian; English is the default language (D-039).
+    private readonly IDisposable _ukrainian = UiCulture.Override("uk");
+
     private readonly SessionFixture _fixture = new();
 
-    public void Dispose() => _fixture.Dispose();
+    public void Dispose()
+    {
+        _ukrainian.Dispose();
+        _fixture.Dispose();
+    }
 
     private static TimeSpan S(double seconds) => TimeSpan.FromSeconds(seconds);
 
@@ -589,7 +597,7 @@ public sealed class SessionViewModelTests : IDisposable
         var vm = _fixture.Create();
         await vm.LoadAsync();
 
-        _fixture.Processing.Raise(new SessionProcessingStatus(_fixture.Record.Id, SessionProcessingStage.ModelMissing, 0, SessionProcessor.AsrNotInstalledMessage));
+        _fixture.Processing.Raise(new SessionProcessingStatus(_fixture.Record.Id, SessionProcessingStage.ModelMissing, 0, SessionProcessor.AsrNotInstalledCode));
 
         Assert.Equal(TranscriptStatus.AsrMissing, vm.Status);
     }

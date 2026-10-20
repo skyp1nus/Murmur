@@ -7,8 +7,13 @@ using Murmur.Core.Sessions;
 
 namespace Murmur.App.Tests;
 
-public sealed class RecordingViewModelTests
+public sealed class RecordingViewModelTests : IDisposable
 {
+    // The texts asserted below are Ukrainian; English is the default language (D-039).
+    private readonly IDisposable _ukrainian = UiCulture.Override("uk");
+
+    public void Dispose() => _ukrainian.Dispose();
+
     private readonly FakeRecorder _recorder = new();
     private readonly FakeCapture _capture = new();
     private readonly FakeSessionStore _store = new();
@@ -188,7 +193,7 @@ public sealed class RecordingViewModelTests
         Assert.Equal("mic-usb", options.MicrophoneDeviceId);
         Assert.Null(options.SystemDeviceId);
         Assert.True(vm.IsRecording);
-        Assert.Equal("Зупинити", vm.StartStopLabel);
+        Assert.Equal("Зупинити й розпізнати", vm.StartStopLabel);
     }
 
     [Fact]
@@ -330,17 +335,16 @@ public sealed class RecordingViewModelTests
         vm.Screen = true;
         await vm.StartStopAsync();
 
-        // The Core texts are Ukrainian session texts: the notice never shows them, it shows the UI-language text of the kind.
-        _recorder.RaiseWarning("core text A", CaptureFaultKind.FramesDropped);
-        _recorder.RaiseWarning("core text B", CaptureFaultKind.FramesDropped);
-        _recorder.RaiseWarning("core text C", CaptureFaultKind.CpuFallback);
-        _recorder.RaiseWarning("core text D");
+        // The recorder reports codes only: the notice shows the UI-language text of the code.
+        _recorder.RaiseWarning(CaptureFaultKind.FramesDropped);
+        _recorder.RaiseWarning(CaptureFaultKind.FramesDropped);
+        _recorder.RaiseWarning(CaptureFaultKind.CpuFallback);
+        _recorder.RaiseWarning();
 
         Assert.True(vm.Screen);
         Assert.Equal(
             string.Join('\n', Resources.Strings.Recording_ScreenFramesDropped, Resources.Strings.Recording_ScreenCpuFallback, Resources.Strings.Recording_ScreenProblems),
             vm.Notice);
-        Assert.DoesNotContain("core text", vm.Notice);
     }
 
     [Fact]
@@ -350,7 +354,7 @@ public sealed class RecordingViewModelTests
         await vm.StartStopAsync();
         using (UiCulture.Override(UiCulture.English))
         {
-            _recorder.RaiseWarning("x", CaptureFaultKind.CpuFallback);
+            _recorder.RaiseWarning(CaptureFaultKind.CpuFallback);
             _recorder.FailScreen();
         }
 
@@ -365,13 +369,13 @@ public sealed class RecordingViewModelTests
         var vm = Create();
         vm.Screen = true;
         await vm.StartStopAsync();
-        _recorder.RaiseWarning("Під час запису екрана були збої.");
+        _recorder.RaiseWarning();
         Assert.True(vm.HasNotice);
 
         await vm.StartStopAsync();
 
         Assert.False(vm.HasNotice);
-        _recorder.RaiseWarning("late"); // the recording is over: not a notice any more
+        _recorder.RaiseWarning(); // the recording is over: not a notice any more
         Assert.False(vm.HasNotice);
 
         vm.Screen = true;
@@ -490,8 +494,9 @@ public sealed class RecordingViewModelTests
     [Fact]
     public async Task StartWithASkippedTrack_ShowsTheWarningInlineAndRecords()
     {
-        const string warning = "Мікрофон недоступний: Windows забороняє доступ (Параметри → Конфіденційність і безпека → Мікрофон). Записую лише системний звук.";
-        _recorder.StartWarning = warning;
+        // Core stores codes; the inline text is the App's, in the UI language.
+        _recorder.StartWarning = SessionNotes.Join(SessionNotes.Format(SessionNotes.MicrophoneDenied), SessionNotes.Format(SessionNotes.OnlySystemAudio));
+        var warning = string.Join('\n', Resources.Strings.Note_MicDenied, Resources.Strings.Note_OnlySystem);
         var vm = Create();
 
         await vm.StartStopCommand.ExecuteAsync(null);

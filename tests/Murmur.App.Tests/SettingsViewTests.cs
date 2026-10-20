@@ -93,6 +93,29 @@ public sealed partial class SettingsViewTests
         }
     }
 
+    [Fact]
+    public async Task Settings_ShowsTheCanvasWording_InEnglish()
+    {
+        var texts = await Session.Dispatch(
+            () =>
+            {
+                using var scope = UiCulture.Override("en");
+                var rig = new Rig();
+                var window = rig.Show();
+                var result = VisibleTexts(window);
+                window.Close();
+                return result;
+            },
+            TestContext.Current.CancellationToken);
+
+        Assert.Contains("Show in Explorer", texts);
+        Assert.Contains("Work even when the window is minimised.", texts);
+        Assert.Contains("Audio and video of new recordings are saved in this folder.", texts);
+        Assert.Contains("Start / stop recording", texts);
+        Assert.Contains("Open Murmur", texts);
+        Assert.Contains("Free, no accounts, no cloud.", texts);
+    }
+
     [Theory]
     [InlineData("Light", "uk")]
     [InlineData("Dark", "uk")]
@@ -127,7 +150,7 @@ public sealed partial class SettingsViewTests
             "Settings_Title", "Settings_ModelsTitle", "Settings_DevicesTitle", "Settings_StorageTitle", "Settings_HotkeysTitle",
             "Settings_AppearanceTitle", "Settings_AboutTitle", "Models_AiNote", "Hotkeys_Record", "Hotkeys_ToggleScreen", "Hotkeys_ShowApp",
             "Storage_Change", "Storage_Open", "Appearance_ThemeLight", "Appearance_ThemeDark", "Appearance_ThemeSystem",
-            "Appearance_OnboardingRestart", "Nav_Library", "Nav_Settings", "Nav_OfflineTitle", "Devices_ScreenByDefault",
+            "Appearance_OnboardingRestart", "Nav_Library", "Nav_Settings", "Devices_ScreenByDefault",
         })
         {
             Assert.Contains(Text(key), texts);
@@ -246,7 +269,7 @@ public sealed partial class SettingsViewTests
                 UiHarness.Pump(4);
                 var chat = (Page: rig.Shell.CurrentPage, ChatOn: On(Strings.Common_AskAi));
 
-                window.GetVisualDescendants().OfType<Button>().Single(b => b.Classes.Contains("primary") && b.GetVisualDescendants().OfType<TextBlock>().Any(t => t.Text == Strings.Library_NewRecording && t.Parent is StackPanel))
+                window.GetVisualDescendants().OfType<Button>().Single(b => b.Classes.Contains("side") && b.IsEffectivelyVisible && b.GetVisualDescendants().OfType<TextBlock>().Any(t => t.Text == Strings.Library_NewRecording))
                     .Command!.Execute(null);
                 UiHarness.Pump(4);
                 var recording = (Page: rig.Shell.CurrentPage, Sidebars: Sidebars());
@@ -275,7 +298,7 @@ public sealed partial class SettingsViewTests
         Assert.True(snapshot.chat.ChatOn);
 
         Assert.IsType<RecordingViewModel>(snapshot.recording.Page);
-        Assert.Equal(0, snapshot.recording.Sidebars);
+        Assert.Equal(1, snapshot.recording.Sidebars);
     }
 
     [Fact]
@@ -312,8 +335,8 @@ public sealed partial class SettingsViewTests
                 var start = scroller.Offset.Y;
                 var about = rig.Settings.Sections.Single(s => s.Id == SettingsViewModel.AboutSectionId);
 
-                var link = window.GetVisualDescendants().OfType<Button>().Single(b => b.Classes.Contains("sub") && Equals(b.CommandParameter, about));
-                link.Command!.Execute(link.CommandParameter);
+                var link = window.GetVisualDescendants().OfType<Button>().Single(b => b.Classes.Contains("sub") && b.GetVisualDescendants().OfType<TextBlock>().Any(t => t.Text == about.Title));
+                link.Command!.Execute(null);
                 UiHarness.Pump(6);
                 var result = (start, scroller.Offset.Y);
                 window.Close();
@@ -436,7 +459,7 @@ public sealed partial class SettingsViewTests
             },
             TestContext.Current.CancellationToken);
 
-        Assert.Equal(("Press a shortcut…", true), snapshot.waiting);
+        Assert.Equal(("Press a new shortcut…", true), snapshot.waiting);
         Assert.Equal(("Ctrl Alt K", "Ctrl+Alt+K", false), snapshot.captured);
         Assert.Equal(("Ctrl Shift S", "Ctrl+Shift+S"), snapshot.escaped);
         Assert.Equal(("Not set", (string?)null), snapshot.cleared);
@@ -496,15 +519,15 @@ public sealed partial class SettingsViewTests
         var snapshot = await Session.Dispatch(
             async () =>
             {
-                using var scope = UiCulture.Override("uk");
+                using var scope = UiCulture.Override("en");
                 var rig = new Rig();
                 var window = rig.Show();
                 var noteBefore = VisibleTexts(window).Contains(Strings.Appearance_RestartNote);
 
-                Named<ToggleButton>(window, "LanguageEn").IsChecked = true;
+                Named<ToggleButton>(window, "LanguageUk").IsChecked = true;
                 await rig.Settings.LastSave;
                 UiHarness.Pump(4);
-                var result = (noteBefore, VisibleTexts(window).Contains(Strings.Appearance_RestartNote), rig.Store.Current.Language, UiCulture.Language, Named<ToggleButton>(window, "LanguageUk").IsChecked);
+                var result = (noteBefore, VisibleTexts(window).Contains(Strings.Appearance_RestartNote), rig.Store.Current.Language, UiCulture.Language, Named<ToggleButton>(window, "LanguageEn").IsChecked);
                 window.Close();
                 return result;
             },
@@ -512,8 +535,8 @@ public sealed partial class SettingsViewTests
 
         Assert.False(snapshot.noteBefore);
         Assert.True(snapshot.Item2);
-        Assert.Equal("en", snapshot.Item3);
-        Assert.Equal("uk", snapshot.Item4);
+        Assert.Equal("uk", snapshot.Item3);
+        Assert.Equal("en", snapshot.Item4);
         Assert.False(snapshot.Item5);
     }
 

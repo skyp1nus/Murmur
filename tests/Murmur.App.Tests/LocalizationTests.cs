@@ -14,7 +14,7 @@ using Murmur.Core.Sessions;
 
 namespace Murmur.App.Tests;
 
-/// <summary>UI texts: Ukrainian (neutral) and English resources stay in step, nothing is hard-coded, the culture is applied.</summary>
+/// <summary>UI texts: English (neutral, the default) and Ukrainian resources stay in step, nothing is hard-coded, the culture is applied.</summary>
 public sealed partial class LocalizationTests
 {
     private static readonly CultureInfo English = CultureInfo.GetCultureInfo("en");
@@ -27,9 +27,9 @@ public sealed partial class LocalizationTests
         XDocument.Load(Path.Combine(RepoPaths.ResourcesDirectory, fileName)).Root!.Elements("data")
             .ToDictionary(e => (string)e.Attribute("name")!, e => e.Element("value")!.Value, StringComparer.Ordinal);
 
-    private static Dictionary<string, string> Uk => ReadResx("Strings.resx");
+    private static Dictionary<string, string> Uk => ReadResx("Strings.uk.resx");
 
-    private static Dictionary<string, string> En => ReadResx("Strings.en.resx");
+    private static Dictionary<string, string> En => ReadResx("Strings.resx");
 
     /// <summary>Runs <paramref name="action"/> with the UI language of the current async flow switched, then restores it.</summary>
     private static T WithUiCulture<T>(CultureInfo culture, Func<T> action)
@@ -41,7 +41,7 @@ public sealed partial class LocalizationTests
     // The resource files ----------------------------------------------------------------------------------------------
 
     [Fact]
-    public void EveryKeyOfTheUkrainianFile_ExistsInTheEnglishFile_AndViceVersa()
+    public void EveryKeyOfTheEnglishFile_ExistsInTheUkrainianFile_AndViceVersa()
     {
         var uk = Uk.Keys.ToHashSet(StringComparer.Ordinal);
         var en = En.Keys.ToHashSet(StringComparer.Ordinal);
@@ -54,8 +54,8 @@ public sealed partial class LocalizationTests
     [Fact]
     public void NoValueIsEmpty()
     {
-        Assert.Empty(Uk.Where(p => string.IsNullOrWhiteSpace(p.Value)).Select(p => "Strings.resx: " + p.Key));
-        Assert.Empty(En.Where(p => string.IsNullOrWhiteSpace(p.Value)).Select(p => "Strings.en.resx: " + p.Key));
+        Assert.Empty(Uk.Where(p => string.IsNullOrWhiteSpace(p.Value)).Select(p => "Strings.uk.resx: " + p.Key));
+        Assert.Empty(En.Where(p => string.IsNullOrWhiteSpace(p.Value)).Select(p => "Strings.resx: " + p.Key));
     }
 
     [Fact]
@@ -175,14 +175,15 @@ public sealed partial class LocalizationTests
     // The resources at run time -----------------------------------------------------------------------------------------
 
     [Fact]
-    public void Strings_ComeFromTheNeutralUkrainianResources_ByDefault()
+    public void Strings_ComeFromTheNeutralEnglishResources_ByDefault()
     {
-        var uk = Uk;
+        var en = En;
 
-        // The test runner's UI culture is invariant: the neutral resources (Ukrainian) answer.
-        Assert.Equal(uk["Common_Back"], Strings.Common_Back);
-        Assert.Equal("Назад", Strings.Common_Back);
-        Assert.Equal(uk["Library_EmptyHint"], Strings.Library_EmptyHint);
+        // The test runner's UI culture is invariant and no language was applied: the neutral resources (English) answer.
+        Assert.Equal("en", UiCulture.Language);
+        Assert.Equal(en["Common_Back"], Strings.Common_Back);
+        Assert.Equal("Back", Strings.Common_Back);
+        Assert.Equal(en["Library_EmptyHint"], Strings.Library_EmptyHint);
     }
 
     [Fact]
@@ -194,11 +195,11 @@ public sealed partial class LocalizationTests
             .Where(p => p.PropertyType == typeof(string))
             .ToDictionary(p => p.Name, StringComparer.Ordinal);
 
-        Assert.Equal(uk.Keys.Order(StringComparer.Ordinal), properties.Keys.Order(StringComparer.Ordinal));
+        Assert.Equal(en.Keys.Order(StringComparer.Ordinal), properties.Keys.Order(StringComparer.Ordinal));
         foreach (var (key, property) in properties)
         {
             Assert.Equal(uk[key], WithUiCulture(Ukrainian, () => (string)property.GetValue(null)!));
-            Assert.Equal(uk[key], WithUiCulture(CultureInfo.InvariantCulture, () => (string)property.GetValue(null)!));
+            Assert.Equal(en[key], WithUiCulture(CultureInfo.InvariantCulture, () => (string)property.GetValue(null)!));
             Assert.Equal(en[key], WithUiCulture(English, () => (string)property.GetValue(null)!));
             Assert.Equal(en[key], WithUiCulture(CultureInfo.GetCultureInfo("en-US"), () => (string)property.GetValue(null)!));
         }
@@ -207,7 +208,7 @@ public sealed partial class LocalizationTests
     [Fact]
     public void TheOsCulture_NeverChangesTheLanguage()
     {
-        // The UI language comes from the settings only: whatever the OS (or the thread) culture is, the default is Ukrainian.
+        // The UI language comes from the settings only: whatever the OS (or the thread) culture is, the default is English.
         var previous = CultureInfo.CurrentUICulture;
         try
         {
@@ -215,9 +216,9 @@ public sealed partial class LocalizationTests
             {
                 CultureInfo.CurrentUICulture = CultureInfo.GetCultureInfo(name);
 
-                Assert.Equal("uk", UiCulture.Language);
-                Assert.Equal(Uk["Common_Back"], Strings.Common_Back);
-                Assert.Equal("42 %", UiText.Format(Strings.Common_Percent, 42));
+                Assert.Equal("en", UiCulture.Language);
+                Assert.Equal(En["Common_Back"], Strings.Common_Back);
+                Assert.Equal("42%", UiText.Format(Strings.Common_Percent, 42));
             }
         }
         finally
@@ -229,15 +230,15 @@ public sealed partial class LocalizationTests
     [Fact]
     public void TheOverride_IsUndoneOnDispose()
     {
-        using (UiCulture.Override("en"))
+        using (UiCulture.Override("uk"))
         {
-            Assert.Equal("en", UiCulture.Language);
-            Assert.Equal("Back", Strings.Common_Back);
-            Assert.Equal("42%", UiText.Format(Strings.Common_Percent, 42));
+            Assert.Equal("uk", UiCulture.Language);
+            Assert.Equal("Назад", Strings.Common_Back);
+            Assert.Equal("42 %", UiText.Format(Strings.Common_Percent, 42));
         }
 
-        Assert.Equal("uk", UiCulture.Language);
-        Assert.Equal("Назад", Strings.Common_Back);
+        Assert.Equal("en", UiCulture.Language);
+        Assert.Equal("Back", Strings.Common_Back);
     }
 
     [Theory]
@@ -245,10 +246,19 @@ public sealed partial class LocalizationTests
     [InlineData("EN", "en")]
     [InlineData(" en ", "en")]
     [InlineData("uk", "uk")]
-    [InlineData("de", "uk")]
-    [InlineData("", "uk")]
-    [InlineData(null, "uk")]
-    public void Normalize_KnowsOnlyEnglishAndUkrainian(string? language, string expected)
+    [InlineData("UK", "uk")]
+    [InlineData(" uk ", "uk")]
+    [InlineData("uk-UA", "uk")]
+    [InlineData("UK-ua", "uk")]
+    [InlineData(" uk-UA ", "uk")]
+    [InlineData("en-US", "en")]
+    [InlineData("ukr", "en")]
+    [InlineData("uk_UA", "en")]
+    [InlineData("de", "en")]
+    [InlineData("", "en")]
+    [InlineData("  ", "en")]
+    [InlineData(null, "en")]
+    public void Normalize_KnowsOnlyEnglishAndUkrainian_AndFallsBackToEnglish(string? language, string expected)
     {
         Assert.Equal(expected, UiCulture.Normalize(language));
     }
@@ -256,12 +266,12 @@ public sealed partial class LocalizationTests
     [Fact]
     public void BothLanguagesAreEmbeddedInTheAppAssembly_NotInASatelliteAssembly()
     {
-        // Native AOT cannot load satellite assemblies, so the English texts must live in Murmur.App.dll itself.
+        // Native AOT cannot load satellite assemblies, so the Ukrainian texts must live in Murmur.App.dll itself.
         var names = typeof(Strings).Assembly.GetManifestResourceNames();
 
         Assert.Contains("Murmur.App.Resources.Strings.resources", names);
-        Assert.Contains("Murmur.App.Resources.Strings.en.resources", names);
-        Assert.Equal("uk", typeof(Strings).Assembly.GetCustomAttributes(typeof(System.Resources.NeutralResourcesLanguageAttribute), false)
+        Assert.Contains("Murmur.App.Resources.Strings.uk.resources", names);
+        Assert.Equal("en", typeof(Strings).Assembly.GetCustomAttributes(typeof(System.Resources.NeutralResourcesLanguageAttribute), false)
             .Cast<System.Resources.NeutralResourcesLanguageAttribute>().Single().CultureName);
     }
 
@@ -274,14 +284,16 @@ public sealed partial class LocalizationTests
 
     [Theory]
     [InlineData("uk", "uk")]
+    [InlineData("UK", "uk")]
+    [InlineData(" uk ", "uk")]
     [InlineData("en", "en")]
     [InlineData("EN", "en")]
-    [InlineData(" en ", "en")]
-    [InlineData(null, "uk")]
-    [InlineData("", "uk")]
-    [InlineData("de", "uk")]
+    [InlineData(null, "en")]
+    [InlineData("", "en")]
+    [InlineData("de", "en")]
     [InlineData("uk-UA", "uk")]
-    public void UiCulture_Resolve_UsesEnglishOnlyForEn(string? language, string expected)
+    [InlineData("en-US", "en")]
+    public void UiCulture_Resolve_UsesUkrainianForUkAndUkRegions(string? language, string expected)
     {
         Assert.Equal(expected, UiCulture.Resolve(language).Name);
     }
@@ -292,11 +304,31 @@ public sealed partial class LocalizationTests
         string? language = null;
         CultureInfo? culture = null;
 
-        var result = UiCulture.Apply(" EN ", (l, c) => (language, culture) = (l, c));
+        var result = UiCulture.Apply(" UK ", (l, c) => (language, culture) = (l, c));
+
+        Assert.Equal("uk", language);
+        Assert.Same(result, culture);
+        Assert.Equal("uk", culture!.Name);
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("fr")]
+    public void UiCulture_Apply_FallsBackToEnglish_ForAnEmptyOrUnknownLanguage(string? requested)
+    {
+        string? language = null;
+
+        UiCulture.Apply(requested, (l, _) => language = l);
 
         Assert.Equal("en", language);
-        Assert.Same(result, culture);
-        Assert.Equal("en", culture!.Name);
+    }
+
+    [Fact]
+    public void AppSettings_DefaultLanguage_IsEnglish()
+    {
+        Assert.Equal("en", new Murmur.Core.Settings.AppSettings().Language);
+        Assert.Equal("en", UiCulture.Normalize(new Murmur.Core.Settings.AppSettings().Language));
     }
 
     // View models in both languages ---------------------------------------------------------------------------------------
@@ -350,7 +382,7 @@ public sealed partial class LocalizationTests
         Assert.Equal("42 %", WithUiCulture(Ukrainian, () => ProcessingText.PercentText(0.424)));
         Assert.Equal("42%", WithUiCulture(English, () => ProcessingText.PercentText(0.424)));
         Assert.Equal("Транскрибується 42 %", WithUiCulture(Ukrainian, () => ProcessingText.Badge(SessionState.Transcribing, live)));
-        Assert.Equal("Transcribing 42%", WithUiCulture(English, () => ProcessingText.Badge(SessionState.Transcribing, live)));
+        Assert.Equal("Transcribing · 42%", WithUiCulture(English, () => ProcessingText.Badge(SessionState.Transcribing, live)));
         Assert.Equal("Interrupted", WithUiCulture(English, () => ProcessingText.Badge(SessionState.Interrupted, null)));
         Assert.Equal("Queued for transcription", WithUiCulture(English, () => ProcessingText.Stage(SessionProcessingStage.Queued)));
     }
@@ -370,7 +402,7 @@ public sealed partial class LocalizationTests
         Assert.Equal("AI is not installed", en.NoticeTitle);
         Assert.Contains("the files will go to /models", en.NoticeText, StringComparison.Ordinal);
         Assert.Equal("Couldn’t get an answer: boom", en.Item3);
-        Assert.Equal("Ask about any recording", en.PlaceholderText);
+        Assert.Equal("Ask about any recording…", en.PlaceholderText);
     }
 
     [Fact]
@@ -384,7 +416,7 @@ public sealed partial class LocalizationTests
 
         Assert.Equal("No recordings yet", title);
         Assert.Equal("Click “New recording” to record your first meeting. Everything stays on your computer.", hint);
-        Assert.Equal("Me", speaker);
+        Assert.Equal("You", speaker);
     }
 
     [Fact]
@@ -402,18 +434,18 @@ public sealed partial class LocalizationTests
                     var window = UiHarness.Show(shell);
                     var result = (
                         window.GetVisualDescendants().OfType<TextBlock>().Where(t => t.IsEffectivelyVisible).Select(t => t.Text).ToArray(),
-                        window.GetVisualDescendants().OfType<Button>().Where(b => b is not Avalonia.Controls.Primitives.ToggleButton && b.IsEffectivelyVisible).Select(b => b.Content as string).ToArray(),
-                        window.GetVisualDescendants().OfType<Avalonia.Controls.Primitives.ToggleButton>().Select(b => b.Content as string).ToArray(),
-                        window.GetVisualDescendants().OfType<TextBox>().Single().PlaceholderText);
+                        window.GetVisualDescendants().OfType<Button>().Where(b => b is not Avalonia.Controls.Primitives.ToggleButton && b.IsEffectivelyVisible && b.Content is string).Select(b => (string)b.Content!).ToArray(),
+                        window.GetVisualDescendants().OfType<Button>().Where(b => b.Classes.Contains("filter")).Select(b => b.GetVisualDescendants().OfType<TextBlock>().Single(t => t.IsEffectivelyVisible).Text).ToArray(),
+                        window.GetVisualDescendants().OfType<TextBox>().Single(t => t.IsEffectivelyVisible).PlaceholderText);
                     window.Close();
                     return result;
                 }),
             TestContext.Current.CancellationToken);
 
         Assert.Contains("No recordings yet", texts);
-        Assert.Equal(["New recording", "New recording"], buttons);
-        Assert.Equal(["Today", "Week", "All"], pills);
-        Assert.Equal("Search recordings", placeholder);
+        Assert.Equal(["Start recording", "New recording"], buttons);
+        Assert.Equal(["All", "Today", "This week", "This month", "Pick dates"], pills);
+        Assert.Equal("Search titles and text", placeholder);
     }
 
     [Fact]
@@ -451,9 +483,9 @@ public sealed partial class LocalizationTests
         Assert.Contains("Transcript", sessionButtons);
         Assert.Contains("Summary", sessionButtons);
         Assert.Contains("Ask AI", sessionButtons);
-        Assert.Contains("Me", sessionSpeakers);
+        Assert.Contains("You", sessionSpeakers);
         Assert.Contains("Others", sessionSpeakers);
-        Assert.Contains("Let participants know you’re recording.", recordingTexts);
+        Assert.Contains("Tell everyone on the call that the meeting is being recorded, or send a short note in the chat.", recordingTexts);
         Assert.Contains("System audio output", recordingTexts);
     }
 }

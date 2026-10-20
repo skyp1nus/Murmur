@@ -1,8 +1,8 @@
 <!doctype html>
-<html lang="uk">
+<html lang="en">
 <head>
 <meta charset="utf-8">
-<title>Murmur — Запитати AI (темна)</title>
+<title>Murmur — Ask AI (dark)</title>
 <script src="./support.js"></script>
 </head>
 <body>
@@ -28,120 +28,120 @@ textarea::placeholder{color:#a59f97}
 </helmet>
 <div style="min-height: 100vh; display: flex; flex-wrap: wrap; background: #141312; color: #f5f3f1; font-family: Inter, ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif; font-size: 14px; letter-spacing: 0.01em">
 
-<nav aria-label="Головна навігація" style="flex: 1 1 240px; padding: 20px 16px; border-right: 1px solid #2b2825; display: flex; flex-direction: column; gap: 24px">
+<nav aria-label="Main navigation" style="flex: 1 1 240px; padding: 20px 16px; border-right: 1px solid #2b2825; display: flex; flex-direction: column; gap: 24px">
   <div style="display: flex; align-items: center; gap: 10px; padding: 4px 10px">
     <div class="orb" aria-hidden="true" style="width: 22px; height: 22px; border-radius: 9999px"></div>
     <span style="font-size: 17px; font-weight: 600; letter-spacing: -0.01em">Murmur</span>
   </div>
   <a href="RecordingDark.dc.html" class="ink" style="height: 44px; border-radius: 9999px; background: #f5f3f1; color: #141312; display: flex; align-items: center; justify-content: center; gap: 10px; font-weight: 500">
     <span aria-hidden="true" style="width: 8px; height: 8px; border-radius: 9999px; background: #141312"></span>
-    Новий запис
+    New recording
   </a>
   <div style="display: flex; flex-direction: column; gap: 2px">
     <a href="MainDark.dc.html" class="nav" style="height: 40px; padding: 0 12px; border-radius: 9999px; display: flex; align-items: center; gap: 10px">
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 5h16M4 12h16M4 19h10"/></svg>
-      Бібліотека
+      Library
     </a>
     <a href="ChatDark.dc.html" class="nav on" aria-current="page" style="height: 40px; padding: 0 12px; border-radius: 9999px; display: flex; align-items: center; gap: 10px">
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z"/><path d="M19 16v4M17 18h4"/></svg>
-      Запитати AI
+      Ask AI
     </a>
     <a href="SettingsDark.dc.html" class="nav" style="height: 40px; padding: 0 12px; border-radius: 9999px; display: flex; align-items: center; gap: 10px">
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/></svg>
-      Налаштування
+      Settings
     </a>
   </div>
   <div style="display: flex; flex-direction: column; gap: 2px">
-    <div style="padding: 0 12px 6px; font-size: 12px; color: #a59f97">Розмови</div>
-    <a href="ChatDark.dc.html" class="nav on" style="height: 36px; padding: 0 12px; border-radius: 9999px; display: flex; align-items: center; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">Експорт у PDF</a>
-    <a href="ChatDark.dc.html" class="nav" style="height: 36px; padding: 0 12px; border-radius: 9999px; display: flex; align-items: center; font-size: 13px">Action items за тиждень</a>
+    <div style="padding: 0 12px 6px; font-size: 12px; color: #a59f97">Chats</div>
+    <a href="ChatDark.dc.html" class="nav on" style="height: 36px; padding: 0 12px; border-radius: 9999px; display: flex; align-items: center; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">PDF export</a>
+    <a href="ChatDark.dc.html" class="nav" style="height: 36px; padding: 0 12px; border-radius: 9999px; display: flex; align-items: center; font-size: 13px">Action items this week</a>
   </div>
   <div style="margin-top: auto; padding: 14px 16px; border-radius: 16px; background: #1e1c1a; display: flex; flex-direction: column; gap: 6px">
     <div style="display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 500">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l8 3v6c0 4.5-3.4 8.3-8 9-4.6-.7-8-4.5-8-9V6z"/></svg>
-      Повністю офлайн
+      Fully offline
     </div>
-    <div style="font-size: 12px; color: #a59f97; line-height: 1.5">Записи й моделі лишаються на цьому ПК</div>
+    <div style="font-size: 12px; color: #a59f97; line-height: 1.5">Recordings and models stay on this PC</div>
   </div>
 </nav>
 
 <main style="flex: 999 1 560px; min-width: 0; display: flex; flex-direction: column">
   <header style="min-height: 60px; padding: 12px 32px; display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap">
-    <div role="group" aria-label="Де шукати" style="display: flex; gap: 6px; flex-wrap: wrap">
+    <div role="group" aria-label="Search scope" style="display: flex; gap: 6px; flex-wrap: wrap">
       <button type="button" aria-pressed="{{isAll}}" onClick="{{pickAll}}" class="ghost" style="height: 34px; padding: 0 14px; border-radius: 9999px; border: 1px solid #33302c; background: #141312; color: #f5f3f1; display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 500; cursor: pointer">
         <sc-if value="{{isAll}}" hint-placeholder-val="{{ true }}"><span aria-hidden="true" style="width: 6px; height: 6px; border-radius: 9999px; background: #f5f3f1"></span></sc-if>
-        Уся бібліотека
+        Whole library
       </button>
       <button type="button" aria-pressed="{{isOne}}" onClick="{{pickOne}}" class="ghost" style="height: 34px; padding: 0 14px; border-radius: 9999px; border: 1px solid #33302c; background: #141312; color: #f5f3f1; display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 500; cursor: pointer">
         <sc-if value="{{isOne}}" hint-placeholder-val="{{ false }}"><span aria-hidden="true" style="width: 6px; height: 6px; border-radius: 9999px; background: #f5f3f1"></span></sc-if>
-        Демо для клієнта — roadmap Q4
+        Client demo — Q4 roadmap
       </button>
     </div>
     <div style="display: flex; align-items: center; gap: 8px; height: 30px; padding: 0 12px; border-radius: 9999px; background: #1e1c1a; font-size: 12px; color: #d6d1cb">
       <span class="orb" aria-hidden="true" style="width: 10px; height: 10px; border-radius: 9999px"></span>
-      Gemma 4 E4B · локально
+      Gemma 4 E4B · local
     </div>
   </header>
 
   <div style="flex: 1; width: 100%; max-width: 820px; margin: 0 auto; padding: 24px 32px 32px; display: flex; flex-direction: column; gap: 32px">
 
-    <div style="align-self: flex-end; max-width: 80%; padding: 12px 18px; border-radius: 20px; background: #1e1c1a; font-size: 15px; line-height: 1.55">Що ми вирішили щодо експорту в PDF?</div>
+    <div style="align-self: flex-end; max-width: 80%; padding: 12px 18px; border-radius: 20px; background: #1e1c1a; font-size: 15px; line-height: 1.55">What did we decide about PDF export?</div>
 
     <article style="display: flex; flex-direction: column; gap: 16px">
       <div style="display: flex; align-items: center; gap: 10px">
         <span class="orb" aria-hidden="true" style="width: 24px; height: 24px; border-radius: 9999px"></span>
         <span style="font-size: 13px; font-weight: 500">Murmur</span>
       </div>
-      <p style="margin: 0; font-size: 16px; line-height: 1.65; color: #f5f3f1">Експорт у PDF перенесли на наступний спринт — спершу закривають резюме мітингу та action items <a href="SessionDark.dc.html" class="tc" style="display: inline-flex; align-items: center; gap: 4px; padding: 1px 8px; border-radius: 9999px; background: #2b2825; font-family: 'Geist Mono', ui-monospace, monospace; font-size: 12px; color: #f5f3f1; vertical-align: 1px"><svg width="9" height="9" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>12:52</a>. Клієнт пояснив, що PDF потрібен для звітів <a href="SessionDark.dc.html" class="tc" style="display: inline-flex; align-items: center; gap: 4px; padding: 1px 8px; border-radius: 9999px; background: #2b2825; font-family: 'Geist Mono', ui-monospace, monospace; font-size: 12px; color: #f5f3f1; vertical-align: 1px"><svg width="9" height="9" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>12:40</a>.</p>
-      <p style="margin: 0; font-size: 16px; line-height: 1.65; color: #f5f3f1">На ретро спринту окремо згадували, що шаблон звіту варто погодити з дизайнером до старту роботи <a href="SessionDark.dc.html" class="tc" style="display: inline-flex; align-items: center; gap: 4px; padding: 1px 8px; border-radius: 9999px; background: #2b2825; font-family: 'Geist Mono', ui-monospace, monospace; font-size: 12px; color: #f5f3f1; vertical-align: 1px"><svg width="9" height="9" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>Ретро · 31:05</a>.</p>
+      <p style="margin: 0; font-size: 16px; line-height: 1.65; color: #f5f3f1">PDF export was moved to next sprint — meeting summaries and action items come first <a href="SessionDark.dc.html" class="tc" style="display: inline-flex; align-items: center; gap: 4px; padding: 1px 8px; border-radius: 9999px; background: #2b2825; font-family: 'Geist Mono', ui-monospace, monospace; font-size: 12px; color: #f5f3f1; vertical-align: 1px"><svg width="9" height="9" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>12:52</a>. The client said they need PDFs for their reports <a href="SessionDark.dc.html" class="tc" style="display: inline-flex; align-items: center; gap: 4px; padding: 1px 8px; border-radius: 9999px; background: #2b2825; font-family: 'Geist Mono', ui-monospace, monospace; font-size: 12px; color: #f5f3f1; vertical-align: 1px"><svg width="9" height="9" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>12:40</a>.</p>
+      <p style="margin: 0; font-size: 16px; line-height: 1.65; color: #f5f3f1">In the sprint retro, the team also agreed to review the report template with the designer before starting <a href="SessionDark.dc.html" class="tc" style="display: inline-flex; align-items: center; gap: 4px; padding: 1px 8px; border-radius: 9999px; background: #2b2825; font-family: 'Geist Mono', ui-monospace, monospace; font-size: 12px; color: #f5f3f1; vertical-align: 1px"><svg width="9" height="9" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>Retro · 31:05</a>.</p>
 
       <div style="display: flex; flex-direction: column; gap: 8px">
-        <div style="font-size: 12px; color: #a59f97">Джерела</div>
+        <div style="font-size: 12px; color: #a59f97">Sources</div>
         <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(220px, 100%), 1fr)); gap: 8px">
           <a href="SessionDark.dc.html" class="src" style="border: 1px solid #2b2825; border-radius: 16px; padding: 14px 16px; display: flex; flex-direction: column; gap: 6px">
-            <div style="display: flex; justify-content: space-between; gap: 8px"><span style="font-size: 13px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">Демо для клієнта</span><span style="font-family: 'Geist Mono', ui-monospace, monospace; font-size: 12px; color: #a59f97">12:52</span></div>
-            <div style="font-size: 13px; line-height: 1.5; color: #a59f97">«Експорт переносимо на наступний спринт…»</div>
+            <div style="display: flex; justify-content: space-between; gap: 8px"><span style="font-size: 13px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">Client demo</span><span style="font-family: 'Geist Mono', ui-monospace, monospace; font-size: 12px; color: #a59f97">12:52</span></div>
+            <div style="font-size: 13px; line-height: 1.5; color: #a59f97">“PDF export moves to next sprint…”</div>
           </a>
           <a href="SessionDark.dc.html" class="src" style="border: 1px solid #2b2825; border-radius: 16px; padding: 14px 16px; display: flex; flex-direction: column; gap: 6px">
-            <div style="display: flex; justify-content: space-between; gap: 8px"><span style="font-size: 13px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">Демо для клієнта</span><span style="font-family: 'Geist Mono', ui-monospace, monospace; font-size: 12px; color: #a59f97">12:40</span></div>
-            <div style="font-size: 13px; line-height: 1.5; color: #a59f97">«А що з експортом у PDF? Нам це треба для звітів.»</div>
+            <div style="display: flex; justify-content: space-between; gap: 8px"><span style="font-size: 13px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">Client demo</span><span style="font-family: 'Geist Mono', ui-monospace, monospace; font-size: 12px; color: #a59f97">12:40</span></div>
+            <div style="font-size: 13px; line-height: 1.5; color: #a59f97">“What about PDF export? We need it for our reports.”</div>
           </a>
           <a href="SessionDark.dc.html" class="src" style="border: 1px solid #2b2825; border-radius: 16px; padding: 14px 16px; display: flex; flex-direction: column; gap: 6px">
-            <div style="display: flex; justify-content: space-between; gap: 8px"><span style="font-size: 13px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">Ретро спринту</span><span style="font-family: 'Geist Mono', ui-monospace, monospace; font-size: 12px; color: #a59f97">31:05</span></div>
-            <div style="font-size: 13px; line-height: 1.5; color: #a59f97">«…шаблон звіту краще спершу показати дизайнеру.»</div>
+            <div style="display: flex; justify-content: space-between; gap: 8px"><span style="font-size: 13px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">Sprint retro</span><span style="font-family: 'Geist Mono', ui-monospace, monospace; font-size: 12px; color: #a59f97">31:05</span></div>
+            <div style="font-size: 13px; line-height: 1.5; color: #a59f97">“…let's show the report template to the designer first.”</div>
           </a>
         </div>
       </div>
 
       <div style="display: flex; gap: 6px">
-        <button type="button" class="ghost" aria-label="Копіювати відповідь" style="width: 32px; height: 32px; border-radius: 9999px; border: 0; background: transparent; color: #a59f97; display: flex; align-items: center; justify-content: center; cursor: pointer">
+        <button type="button" class="ghost" aria-label="Copy answer" style="width: 32px; height: 32px; border-radius: 9999px; border: 0; background: transparent; color: #a59f97; display: flex; align-items: center; justify-content: center; cursor: pointer">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"/></svg>
         </button>
-        <button type="button" class="ghost" aria-label="Згенерувати ще раз" style="width: 32px; height: 32px; border-radius: 9999px; border: 0; background: transparent; color: #a59f97; display: flex; align-items: center; justify-content: center; cursor: pointer">
+        <button type="button" class="ghost" aria-label="Regenerate" style="width: 32px; height: 32px; border-radius: 9999px; border: 0; background: transparent; color: #a59f97; display: flex; align-items: center; justify-content: center; cursor: pointer">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.3-5.7M20 4v5h-5"/></svg>
         </button>
       </div>
     </article>
 
-    <div style="align-self: flex-end; max-width: 80%; padding: 12px 18px; border-radius: 20px; background: #1e1c1a; font-size: 15px; line-height: 1.55">А хто надсилає запрошення на демо?</div>
+    <div style="align-self: flex-end; max-width: 80%; padding: 12px 18px; border-radius: 20px; background: #1e1c1a; font-size: 15px; line-height: 1.55">And who's sending the demo invite?</div>
 
     <article style="display: flex; flex-direction: column; gap: 12px">
       <div style="display: flex; align-items: center; gap: 10px">
         <span class="orb" aria-hidden="true" style="width: 24px; height: 24px; border-radius: 9999px"></span>
         <span style="font-size: 13px; font-weight: 500">Murmur</span>
       </div>
-      <p style="margin: 0; font-size: 16px; line-height: 1.65; color: #f5f3f1">Ви — пообіцяли надіслати запрошення того ж дня <a href="SessionDark.dc.html" class="tc" style="display: inline-flex; align-items: center; gap: 4px; padding: 1px 8px; border-radius: 9999px; background: #2b2825; font-family: 'Geist Mono', ui-monospace, monospace; font-size: 12px; color: #f5f3f1; vertical-align: 1px"><svg width="9" height="9" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>13:24</a>.</p>
+      <p style="margin: 0; font-size: 16px; line-height: 1.65; color: #f5f3f1">You are — you promised to send it the same day <a href="SessionDark.dc.html" class="tc" style="display: inline-flex; align-items: center; gap: 4px; padding: 1px 8px; border-radius: 9999px; background: #2b2825; font-family: 'Geist Mono', ui-monospace, monospace; font-size: 12px; color: #f5f3f1; vertical-align: 1px"><svg width="9" height="9" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>13:24</a>.</p>
     </article>
 
     <form style="margin-top: auto; display: flex; flex-direction: column; gap: 10px">
       <div style="display: flex; align-items: flex-end; gap: 8px; padding: 10px 10px 10px 20px; border-radius: 24px; background: #1e1c1a; border: 1px solid #33302c">
-        <label for="msg" style="position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0)">Питання</label>
-        <textarea id="msg" rows="2" placeholder="Запитайте про будь-який запис…" style="flex: 1; min-width: 0; border: 0; outline: none; resize: none; background: transparent; font-size: 15px; line-height: 1.5; color: #f5f3f1; padding: 6px 0"></textarea>
-        <button type="button" aria-label="Надіслати" class="ink" style="width: 40px; height: 40px; flex: none; border-radius: 9999px; border: 0; background: #f5f3f1; color: #141312; display: flex; align-items: center; justify-content: center; cursor: pointer">
+        <label for="msg" style="position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0)">Question</label>
+        <textarea id="msg" rows="2" placeholder="Ask about any recording…" style="flex: 1; min-width: 0; border: 0; outline: none; resize: none; background: transparent; font-size: 15px; line-height: 1.5; color: #f5f3f1; padding: 6px 0"></textarea>
+        <button type="button" aria-label="Send" class="ink" style="width: 40px; height: 40px; flex: none; border-radius: 9999px; border: 0; background: #f5f3f1; color: #141312; display: flex; align-items: center; justify-content: center; cursor: pointer">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5M6 11l6-6 6 6"/></svg>
         </button>
       </div>
-      <div style="text-align: center; font-size: 12px; color: #a59f97">Відповіді спираються лише на ваші транскрипти. Перевіряйте за таймкодами.</div>
+      <div style="text-align: center; font-size: 12px; color: #a59f97">Answers are based only on your transcripts. Check them against the timestamps.</div>
     </form>
   </div>
 </main>

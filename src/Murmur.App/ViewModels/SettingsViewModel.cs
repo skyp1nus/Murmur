@@ -68,7 +68,7 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable
         ArgumentNullException.ThrowIfNull(settings);
         ArgumentNullException.ThrowIfNull(capture);
         _store = settings;
-        _writer = new SettingsWriter(settings);
+        _writer = SettingsWriter.For(settings);
         _capture = capture;
         _modelManager = models;
         _activeModel = activeModel;

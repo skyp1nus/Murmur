@@ -1,0 +1,1343 @@
+{
+ "board": "SettingsDark",
+ "width": 1440,
+ "height": 1821,
+ "texts": [
+  {
+   "text": "Murmur",
+   "lines": [
+    {
+     "x": 58,
+     "y": 25,
+     "w": 64.45,
+     "h": 20
+    }
+   ],
+   "baseline": 41,
+   "blockId": 0,
+   "blockText": "Murmur",
+   "fontFamily": "Inter, ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
+   "fontSize": 17,
+   "fontWeight": 600,
+   "letterSpacing": "-0.17px",
+   "lineHeight": "normal",
+   "color": "rgb(245, 243, 241)"
+  },
+  {
+   "text": "New recording",
+   "lines": [
+    {
+     "x": 78.78,
+     "y": 87.5,
+     "w": 100.08,
+     "h": 17
+    }
+   ],
+   "baseline": 101.5,
+   "blockId": 1,
+   "blockText": "New recording",
+   "fontFamily": "Inter, ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
+   "fontSize": 14,
+   "fontWeight": 500,
+   "letterSpacing": "0.14px",
+   "lineHeight": "normal",
+   "color": "rgb(20, 19, 18)"
+  },
+  {
+   "text": "Library",
+   "lines": [
+    {
+     "x": 56,
+     "y": 153.5,
+     "w": 47.36,
+     "h": 17
+    }
+   ],
+   "baseline": 167.5,
+   "blockId": 2,
+   "blockText": "Library",
+   "fontFamily": "Inter, ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
+   "fontSize": 14,
+   "fontWeight": 400,
+   "letterSpacing": "0.14px",
+   "lineHeight": "normal",
+   "color": "rgb(214, 209, 203)"
+  },
+  {
+   "text": "Ask AI",
+   "lines": [
+    {
+     "x": 56,
+     "y": 195.5,
+     "w": 42.94,
+     "h": 17
+    }
+   ],
+   "baseline": 209.5,
+   "blockId": 3,
+   "blockText": "Ask AI",
+   "fontFamily": "Inter, ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
+   "fontSize": 14,
+   "fontWeight": 400,
+   "letterSpacing": "0.14px",
+   "lineHeight": "normal",
+   "color": "rgb(214, 209, 203)"
+  },
+  {
+   "text": "Settings",
+   "lines": [
+    {
+     "x": 56,
+     "y": 237.5,
+     "w": 56.05,
+     "h": 17
+    }
+   ],
+   "baseline": 251.5,
+   "blockId": 4,
+   "blockText": "Settings",
+   "fontFamily": "Inter, ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
+   "fontSize": 14,
+   "fontWeight": 500,
+   "letterSpacing": "0.14px",
+   "lineHeight": "normal",
+   "color": "rgb(245, 243, 241)"
+  },
+  {
+   "text": "Sections",
+   "lines": [
+    {
+     "x": 28,
+     "y": 290,
+     "w": 50.13,
+     "h": 15
+    }
+   ],
+   "baseline": 302,
+   "blockId": 5,
+   "blockText": "Sections",
+   "fontFamily": "Inter, ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
+   "fontSize": 12,
+   "fontWeight": 400,
+   "letterSpacing": "0.14px",
+   "lineHeight": "normal",
+   "color": "rgb(165, 159, 151)"
+  },
+  {
+   "text": "Models",
+   "lines": [
+    {
+     "x": 28,
+     "y": 323,
+     "w": 45.94,
+     "h": 16
+    }
+   ],
+   "baseline": 336,
+   "blockId": 6,
+   "blockText": "Models",
+   "fontFamily": "Inter, ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
+   "fontSize": 13,
+   "fontWeight": 400,
+   "letterSpacing": "0.14px",
+   "lineHeight": "normal",
+   "color": "rgb(214, 209, 203)"
+  },
+  {
+   "text": "Devices",
+   "lines": [
+    {
+     "x": 28,
+     "y": 361,
+     "w": 50.02,
+     "h": 16
+    }
+   ],
+   "baseline": 374,
+   "blockId": 7,
+   "blockText": "Devices",
+   "fontFamily": "Inter, ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
+   "fontSize": 13,
+   "fontWeight": 400,
+   "letterSpacing": "0.14px",
+   "lineHeight": "normal",
+   "color": "rgb(214, 209, 203)"
+  },
+  {
+   "text": "Storage",
+   "lines": [
+    {
+     "x": 28,
+     "y": 399,
+     "w": 49,
+     "h": 16
+    }
+   ],
+   "baseline": 412,
+   "blockId": 8,
+   "blockText": "Storage",
+   "fontFamily": "Inter, ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
+   "fontSize": 13,
+   "fontWeight": 400,
+   "letterSpacing": "0.14px",
+   "lineHeight": "normal",
+   "color": "rgb(214, 209, 203)"
+  },
+  {
+   "text": "Hotkeys",
+   "lines": [
+    {
+     "x": 28,
+     "y": 437,
+     "w": 51.03,
+     "h": 16
+    }
+   ],
+   "baseline": 450,
+   "blockId": 9,
+   "blockText": "Hotkeys",
+   "fontFamily": "Inter, ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
+   "fontSize": 13,
+   "fontWeight": 400,
+   "letterSpacing": "0.14px",
+   "lineHeight": "normal",
+   "color": "rgb(214, 209, 203)"
+  },
+  {
+   "text": "About",
+   "lines": [
+    {
+     "x": 28,
+     "y": 475,
+     "w": 37.38,
+     "h": 16
+    }
+   ],
+   "baseline": 488,
+   "blockId": 10,
+   "blockText": "About",
+   "fontFamily": "Inter, ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
+   "fontSize": 13,
+   "fontWeight": 400,
+   "letterSpacing": "0.14px",
+   "lineHeight": "normal",
+   "color": "rgb(214, 209, 203)"
+  },
+  {
+   "text": "Settings",
+   "lines": [
+    {
+     "x": 272.64,
+     "y": 21.5,
+     "w": 55.06,
+     "h": 17
+    }
+   ],
+   "baseline": 35.5,
+   "blockId": 11,
+   "blockText": "Settings",
+   "fontFamily": "Inter, ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
+   "fontSize": 14,
+   "fontWeight": 400,
+   "letterSpacing": "0.14px",
+   "lineHeight": "normal",
+   "color": "rgb(214, 209, 203)"
+  },
+  {
+   "text": "Settings",
+   "lines": [
+    {
+     "x": 382.31,
+     "y": 75,
+     "w": 129.19,
+     "h": 44
+    }
+   ],
+   "baseline": 110,
+   "blockId": 12,
+   "blockText": "Settings",
+   "fontFamily": "Inter, ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
+   "fontSize": 36,
+   "fontWeight": 300,
+   "letterSpacing": "-0.72px",
+   "lineHeight": "42.12px",
+   "color": "rgb(245, 243, 241)"
+  },
+  {
+   "text": "Models",
+   "lines": [
+    {
+     "x": 382.31,
+     "y": 166.11,
+     "w": 63.23,
+     "h": 21
+    }
+   ],
+   "baseline": 183.11,
+   "blockId": 13,
+   "blockText": "Models",
+   "fontFamily": "Inter, ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
+   "fontSize": 18,
+   "fontWeight": 500,
+   "letterSpacing": "normal",
+   "lineHeight": "normal",
+   "color": "rgb(245, 243, 241)"
+  },
+  {
+   "text": "Everything runs locally. Models load only when needed and unload when they're done.",
+   "lines": [
+    {
+     "x": 382.31,
+     "y": 195.11,
+     "w": 195.95,
+     "h": 16
+    },
+    {
+     "x": 382.31,
+     "y": 215.25,
+     "w": 219.66,
+     "h": 16
+    },
+    {
+     "x": 382.31,
+     "y": 235.39,
+     "w": 120.91,
+     "h": 16
+    }
+   ],
+   "baseline": 208.11,
+   "blockId": 14,
+   "blockText": "Everything runs locally. Models load only when needed and unload when they're done.",
+   "fontFamily": "Inter, ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
+   "fontSize": 13,
+   "fontWeight": 400,
+   "letterSpacing": "0.14px",
+   "lineHeight": "20.15px",
+   "color": "rgb(165, 159, 151)"
+  },
+  {
+   "text": "Parakeet TDT v3 · int8",
+   "lines": [
+    {
+     "x": 663.52,
+     "y": 185.11,
+     "w": 162.06,
+     "h": 19
+    }
+   ],
+   "baseline": 200.11,
+   "blockId": 15,
+   "blockText": "Parakeet TDT v3 · int8",
+   "fontFamily": "Inter, ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
+   "fontSize": 15,
+   "fontWeight": 500,
+   "letterSpacing": "0.14px",
+   "lineHeight": "normal",
+   "color": "rgb(245, 243, 241)"
+  },
+  {
+   "text": "Transcription · 25 European languages · CPU",
+   "lines": [
+    {
+     "x": 663.52,
+     "y": 207.11,
+     "w": 281.52,
+     "h": 16
+    }
+   ],
+   "baseline": 220.11,
+   "blockId": 16,
+   "blockText": "Transcription · 25 European languages · CPU",
+   "fontFamily": "Inter, ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
+   "fontSize": 13,
+   "fontWeight": 400,
+   "letterSpacing": "0.14px",
+   "lineHeight": "normal",
+   "color": "rgb(165, 159, 151)"
+  },
+  {
+   "text": "0.67 GB",
+   "lines": [
+    {
+     "x": 1116.23,
+     "y": 196.11,
+     "w": 51.39,
+     "h": 16
+    }
+   ],
+   "baseline": 208.11,
+   "blockId": 17,
+   "blockText": "0.67 GB",
+   "fontFamily": "\"Geist Mono\", ui-monospace, monospace",
+   "fontSize": 12,
+   "fontWeight": 400,
+   "letterSpacing": "0.14px",
+   "lineHeight": "normal",
+   "color": "rgb(165, 159, 151)"
+  },
+  {
+   "text": "Installed",
+   "lines": [
+    {
+     "x": 1215.63,
+     "y": 196.61,
+     "w": 49.69,
+     "h": 15
+    }
+   ],
+   "baseline": 208.61,
+   "blockId": 18,
+   "blockText": "Installed",
+   "fontFamily": "Inter, ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
+   "fontSize": 12,
+   "fontWeight": 500,
+   "letterSpacing": "0.14px",
+   "lineHeight": "normal",
+   "color": "rgb(245, 243, 241)"
+  },
+  {
+   "text": "Silero VAD + diarization",
+   "lines": [
+    {
+     "x": 663.52,
+     "y": 260.11,
+     "w": 172.17,
+     "h": 19
+    }
+   ],
+   "baseline": 275.11,
+   "blockId": 19,
+   "blockText": "Silero VAD + diarization",
+   "fontFamily": "Inter, ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
+   "fontSize": 15,
+   "fontWeight": 500,
+   "letterSpacing": "0.14px",
+   "lineHeight": "normal",
+   "color": "rgb(245, 243, 241)"
+  },
+  {
+   "text": "Splits audio into segments and speakers",
+   "lines": [
+    {
+     "x": 663.52,
+     "y": 282.11,
+     "w": 252.97,
+     "h": 16
+    }
+   ],
+   "baseline": 295.11,
+   "blockId": 20,
+   "blockText": "Splits audio into segments and speakers",
+   "fontFamily": "Inter, ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
+   "fontSize": 13,
+   "fontWeight": 400,
+   "letterSpacing": "0.14px",
+   "lineHeight": "normal",
+   "color": "rgb(165, 159, 151)"
+  },
+  {
+   "text": "Installed",
+   "lines": [
+    {
+     "x": 1215.63,
+     "y": 271.61,
+     "w": 49.69,
+     "h": 15
+    }
+   ],
+   "baseline": 283.61,
+   "blockId": 21,
+   "blockText": "Installed",
+   "fontFamily": "Inter, ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
+   "fontSize": 12,
+   "fontWeight": 500,
+   "letterSpacing": "0.14px",
+   "lineHeight": "normal",
+   "color": "rgb(245, 243, 241)"
+  },
+  {
+   "text": "Gemma 4 E4B",
+   "lines": [
+    {
+     "x": 663.52,
+     "y": 335.61,
+     "w": 103.31,
+     "h": 19
+    }
+   ],
+   "baseline": 350.61,
+   "blockId": 22,
+   "blockText": "Gemma 4 E4B",
+   "fontFamily": "Inter, ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
+   "fontSize": 15,
+   "fontWeight": 500,
+   "letterSpacing": "0.14px",
+   "lineHeight": "normal",
+   "color": "rgb(245, 243, 241)"
+  },
+  {
+   "text": "Default",
+   "lines": [
+    {
+     "x": 783.83,
+     "y": 338.11,
+     "w": 38.34,
+     "h": 14
+    }
+   ],
+   "baseline": 349.11,
+   "blockId": 23,
+   "blockText": "Default",
+   "fontFamily": "Inter, ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
+   "fontSize": 11,
+   "fontWeight": 400,
+   "letterSpacing": "0.14px",
+   "lineHeight": "normal",
+   "color": "rgb(214, 209, 203)"
+  },
+  {
+   "text": "AI chat, summaries, action items · GGUF Q4",
+   "lines": [
+    {
+     "x": 663.52,
+     "y": 361.11,
+     "w": 274.88,
+     "h": 16
+    }
+   ],
+   "baseline": 374.11,
+   "blockId": 24,
+   "blockText": "AI chat, summaries, action items · GGUF Q4",
+   "fontFamily": "Inter, ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
+   "fontSize": 13,
+   "fontWeight": 400,
+   "letterSpacing": "0.14px",
+   "lineHeight": "normal",
+   "color": "rgb(165, 159, 151)"
+  },
+  {
+   "text": "42%",
+   "lines": [
+    {
+     "x": 893.52,
+     "y": 385.11,
+     "w": 22.03,
+     "h": 16
+    }
+   ],
+   "baseline": 397.11,
+   "blockId": 25,
+   "blockText": "42%",
+   "fontFamily": "\"Geist Mono\", ui-monospace, monospace",
+   "fontSize": 12,
+   "fontWeight": 400,
+   "letterSpacing": "0.14px",
+   "lineHeight": "normal",
+   "color": "rgb(214, 209, 203)"
+  },
+  {
+   "text": "Cancel",
+   "lines": [
+    {
+     "x": 1219.16,
+     "y": 360.11,
+     "w": 43.16,
+     "h": 16
+    }
+   ],
+   "baseline": 373.11,
+   "blockId": 26,
+   "blockText": "Cancel",
+   "fontFamily": "Inter, ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
+   "fontSize": 13,
+   "fontWeight": 500,
+   "letterSpacing": "normal",
+   "lineHeight": "normal",
+   "color": "rgb(245, 243, 241)"
+  },
+  {
+   "text": "Gemma 4 26B A4B",
+   "lines": [
+    {
+     "x": 663.52,
+     "y": 438.11,
+     "w": 138.02,
+     "h": 19
+    }
+   ],
+   "baseline": 453.11,
+   "blockId": 27,
+   "blockText": "Gemma 4 26B A4B",
+   "fontFamily": "Inter, ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
+   "fontSize": 15,
+   "fontWeight": 500,
+   "letterSpacing": "0.14px",
+   "lineHeight": "normal",
+   "color": "rgb(245, 243, 241)"
+  },
+  {
+   "text": "For powerful PCs · more accurate answers",
+   "lines": [
+    {
+     "x": 663.52,
+     "y": 460.11,
+     "w": 266.81,
+     "h": 16
+    }
+   ],
+   "baseline": 473.11,
+   "blockId": 28,
+   "blockText": "For powerful PCs · more accurate answers",
+   "fontFamily": "Inter, ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
+   "fontSize": 13,
+   "fontWeight": 400,
+   "letterSpacing": "0.14px",
+   "lineHeight": "normal",
+   "color": "rgb(165, 159, 151)"
+  },
+  {
+   "text": "Download",
+   "lines": [
+    {
+     "x": 1200.02,
+     "y": 449.11,
+     "w": 62.3,
+     "h": 16
+    }
+   ],
+   "baseline": 462.11,
+   "blockId": 29,
+   "blockText": "Download",
+   "fontFamily": "Inter, ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
+   "fontSize": 13,
+   "fontWeight": 500,
+   "letterSpacing": "normal",
+   "lineHeight": "normal",
+   "color": "rgb(245, 243, 241)"
+  },
+  {
+   "text": "EmbeddingGemma",
+   "lines": [
+    {
+     "x": 663.52,
+     "y": 513.11,
+     "w": 138.25,
+     "h": 19
+    }
+   ],
+   "baseline": 528.11,
+   "blockId": 30,
+   "blockText": "EmbeddingGemma",
+   "fontFamily": "Inter, ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
+   "fontSize": 15,
+   "fontWeight": 500,
+   "letterSpacing": "0.14px",
+   "lineHeight": "normal",
+   "color": "rgb(245, 243, 241)"
+  },
+  {
+   "text": "Semantic search across transcripts",
+   "lines": [
+    {
+     "x": 663.52,
+     "y": 535.11,
+     "w": 220.97,
+     "h": 16
+    }
+   ],
+   "baseline": 548.11,
+   "blockId": 31,
+   "blockText": "Semantic search across transcripts",
+   "fontFamily": "Inter, ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
+   "fontSize": 13,
+   "fontWeight": 400,
+   "letterSpacing": "0.14px",
+   "lineHeight": "normal",
+   "color": "rgb(165, 159, 151)"
+  },
+  {
+   "text": "Installed",
+   "lines": [
+    {
+     "x": 1215.63,
+     "y": 524.61,
+     "w": 49.69,
+     "h": 15
+    }
+   ],
+   "baseline": 536.61,
+   "blockId": 32,
+   "blockText": "Installed",
+   "fontFamily": "Inter, ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
+   "fontSize": 12,
+   "fontWeight": 500,
+   "letterSpacing": "0.14px",
+   "lineHeight": "normal",
+   "color": "rgb(245, 243, 241)"
+  },
+  {
+   "text": "Acceleration",
+   "lines": [
+    {
+     "x": 662.52,
+     "y": 607.11,
+     "w": 86.11,
+     "h": 17
+    }
+   ],
+   "baseline": 621.11,
+   "blockId": 33,
+   "blockText": "Acceleration",
+   "fontFamily": "Inter, ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
+   "fontSize": 14,
+   "fontWeight": 500,
+   "letterSpacing": "0.14px",
+   "lineHeight": "normal",
+   "color": "rgb(245, 243, 241)"
+  },
+  {
+   "text": "A GPU speeds up Gemma; Parakeet runs well on CPU too",
+   "lines": [
+    {
+     "x": 662.52,
+     "y": 627.11,
+     "w": 360.34,
+     "h": 16
+    }
+   ],
+   "baseline": 640.11,
+   "blockId": 34,
+   "blockText": "A GPU speeds up Gemma; Parakeet runs well on CPU too",
+   "fontFamily": "Inter, ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
+   "fontSize": 13,
+   "fontWeight": 400,
+   "letterSpacing": "0.14px",
+   "lineHeight": "normal",
+   "color": "rgb(165, 159, 151)"
+  },
+  {
+   "text": "CPU",
+   "lines": [
+    {
+     "x": 1074.3,
+     "y": 617.11,
+     "w": 27.5,
+     "h": 16
+    }
+   ],
+   "baseline": 630.11,
+   "blockId": 35,
+   "blockText": "CPU",
+   "fontFamily": "Inter, ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
+   "fontSize": 13,
+   "fontWeight": 500,
+   "letterSpacing": "normal",
+   "lineHeight": "normal",
+   "color": "rgb(20, 19, 18)"
+  },
+  {
+   "text": "DirectML",
+   "lines": [
+    {
+     "x": 1133.8,
+     "y": 617.11,
+     "w": 56.23,
+     "h": 16
+    }
+   ],
+   "baseline": 630.11,
+   "blockId": 36,
+   "blockText": "DirectML",
+   "fontFamily": "Inter, ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
+   "fontSize": 13,
+   "fontWeight": 500,
+   "letterSpacing": "normal",
+   "lineHeight": "normal",
+   "color": "rgb(214, 209, 203)"
+  },
+  {
+   "text": "CUDA",
+   "lines": [
+    {
+     "x": 1222.03,
+     "y": 617.11,
+     "w": 37.28,
+     "h": 16
+    }
+   ],
+   "baseline": 630.11,
+   "blockId": 37,
+   "blockText": "CUDA",
+   "fontFamily": "Inter, ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
+   "fontSize": 13,
+   "fontWeight": 500,
+   "letterSpacing": "normal",
+   "lineHeight": "normal",
+   "color": "rgb(214, 209, 203)"
+  },
+  {
+   "text": "Devices",
+   "lines": [
+    {
+     "x": 382.31,
+     "y": 761.11,
+     "w": 69.75,
+     "h": 21
+    }
+   ],
+   "baseline": 778.11,
+   "blockId": 38,
+   "blockText": "Devices",
+   "fontFamily": "Inter, ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
+   "fontSize": 18,
+   "fontWeight": 500,
+   "letterSpacing": "0.14px",
+   "lineHeight": "normal",
+   "color": "rgb(245, 243, 241)"
+  },
+  {
+   "text": "The microphone becomes the “You” track, system audio becomes “Others”.",
+   "lines": [
+    {
+     "x": 382.31,
+     "y": 790.11,
+     "w": 187.52,
+     "h": 16
+    },
+    {
+     "x": 382.31,
+     "y": 810.25,
+     "w": 162.19,
+     "h": 16
+    },
+    {
+     "x": 382.31,
+     "y": 830.39,
+     "w": 117.75,
+     "h": 16
+    }
+   ],
+   "baseline": 803.11,
+   "blockId": 39,
+   "blockText": "The microphone becomes the “You” track, system audio becomes “Others”.",
+   "fontFamily": "Inter, ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
+   "fontSize": 13,
+   "fontWeight": 400,
+   "letterSpacing": "0.14px",
+   "lineHeight": "20.15px",
+   "color": "rgb(165, 159, 151)"
+  },
+  {
+   "text": "Microphone",
+   "lines": [
+    {
+     "x": 642.52,
+     "y": 761.11,
+     "w": 75.84,
+     "h": 16
+    }
+   ],
+   "baseline": 774.11,
+   "blockId": 40,
+   "blockText": "Microphone",
+   "fontFamily": "Inter, ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
+   "fontSize": 13,
+   "fontWeight": 500,
+   "letterSpacing": "0.14px",
+   "lineHeight": "normal",
+   "color": "rgb(245, 243, 241)"
+  },
+  {
+   "text": "System audio",
+   "lines": [
+    {
+     "x": 642.52,
+     "y": 839.11,
+     "w": 85.88,
+     "h": 16
+    }
+   ],
+   "baseline": 852.11,
+   "blockId": 41,
+   "blockText": "System audio",
+   "fontFamily": "Inter, ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
+   "fontSize": 13,
+   "fontWeight": 500,
+   "letterSpacing": "0.14px",
+   "lineHeight": "normal",
+   "color": "rgb(245, 243, 241)"
+  },
+  {
+   "text": "Screen recording",
+   "lines": [
+    {
+     "x": 642.52,
+     "y": 917.11,
+     "w": 109.22,
+     "h": 16
+    }
+   ],
+   "baseline": 930.11,
+   "blockId": 42,
+   "blockText": "Screen recording",
+   "fontFamily": "Inter, ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
+   "fontSize": 13,
+   "fontWeight": 500,
+   "letterSpacing": "0.14px",
+   "lineHeight": "normal",
+   "color": "rgb(245, 243, 241)"
+  },
+  {
+   "text": "Storage",
+   "lines": [
+    {
+     "x": 382.31,
+     "y": 1076.11,
+     "w": 68.27,
+     "h": 21
+    }
+   ],
+   "baseline": 1093.11,
+   "blockId": 43,
+   "blockText": "Storage",
+   "fontFamily": "Inter, ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
+   "fontSize": 18,
+   "fontWeight": 500,
+   "letterSpacing": "0.14px",
+   "lineHeight": "normal",
+   "color": "rgb(245, 243, 241)"
+  },
+  {
+   "text": "Audio, video and the search index live in one folder.",
+   "lines": [
+    {
+     "x": 382.31,
+     "y": 1105.11,
+     "w": 213.3,
+     "h": 16
+    },
+    {
+     "x": 382.31,
+     "y": 1125.25,
+     "w": 107.19,
+     "h": 16
+    }
+   ],
+   "baseline": 1118.11,
+   "blockId": 44,
+   "blockText": "Audio, video and the search index live in one folder.",
+   "fontFamily": "Inter, ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
+   "fontSize": 13,
+   "fontWeight": 400,
+   "letterSpacing": "0.14px",
+   "lineHeight": "20.15px",
+   "color": "rgb(165, 159, 151)"
+  },
+  {
+   "text": "C:\\Users\\[USER]\\Murmur",
+   "lines": [
+    {
+     "x": 681.52,
+     "y": 1101.25,
+     "w": 174.69,
+     "h": 17
+    }
+   ],
+   "baseline": 1114.25,
+   "blockId": 45,
+   "blockText": "C:\\Users\\[USER]\\Murmur",
+   "fontFamily": "\"Geist Mono\", ui-monospace, monospace",
+   "fontSize": 13,
+   "fontWeight": 400,
+   "letterSpacing": "0.14px",
+   "lineHeight": "normal",
+   "color": "rgb(245, 243, 241)"
+  },
+  {
+   "text": "Change",
+   "lines": [
+    {
+     "x": 1082.7,
+     "y": 1101.75,
+     "w": 48.25,
+     "h": 16
+    }
+   ],
+   "baseline": 1114.75,
+   "blockId": 46,
+   "blockText": "Change",
+   "fontFamily": "Inter, ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
+   "fontSize": 13,
+   "fontWeight": 500,
+   "letterSpacing": "normal",
+   "lineHeight": "normal",
+   "color": "rgb(245, 243, 241)"
+  },
+  {
+   "text": "Show in Explorer",
+   "lines": [
+    {
+     "x": 1176.95,
+     "y": 1101.75,
+     "w": 104.36,
+     "h": 16
+    }
+   ],
+   "baseline": 1114.75,
+   "blockId": 47,
+   "blockText": "Show in Explorer",
+   "fontFamily": "Inter, ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
+   "fontSize": 13,
+   "fontWeight": 500,
+   "letterSpacing": "normal",
+   "lineHeight": "normal",
+   "color": "rgb(214, 209, 203)"
+  },
+  {
+   "text": "Hotkeys",
+   "lines": [
+    {
+     "x": 382.31,
+     "y": 1240.39,
+     "w": 71.34,
+     "h": 21
+    }
+   ],
+   "baseline": 1257.39,
+   "blockId": 48,
+   "blockText": "Hotkeys",
+   "fontFamily": "Inter, ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
+   "fontSize": 18,
+   "fontWeight": 500,
+   "letterSpacing": "0.14px",
+   "lineHeight": "normal",
+   "color": "rgb(245, 243, 241)"
+  },
+  {
+   "text": "Work even when the window is minimised.",
+   "lines": [
+    {
+     "x": 382.31,
+     "y": 1269.39,
+     "w": 194.77,
+     "h": 16
+    },
+    {
+     "x": 382.31,
+     "y": 1289.53,
+     "w": 67.45,
+     "h": 16
+    }
+   ],
+   "baseline": 1282.39,
+   "blockId": 49,
+   "blockText": "Work even when the window is minimised.",
+   "fontFamily": "Inter, ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
+   "fontSize": 13,
+   "fontWeight": 400,
+   "letterSpacing": "0.14px",
+   "lineHeight": "20.15px",
+   "color": "rgb(165, 159, 151)"
+  },
+  {
+   "text": "Start / stop recording",
+   "lines": [
+    {
+     "x": 663.52,
+     "y": 1262.89,
+     "w": 143.75,
+     "h": 17
+    }
+   ],
+   "baseline": 1276.89,
+   "blockId": 50,
+   "blockText": "Start / stop recording",
+   "fontFamily": "Inter, ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
+   "fontSize": 14,
+   "fontWeight": 400,
+   "letterSpacing": "0.14px",
+   "lineHeight": "normal",
+   "color": "rgb(245, 243, 241)"
+  },
+  {
+   "text": "Ctrl Shift R",
+   "lines": [
+    {
+     "x": 1177.91,
+     "y": 1263.39,
+     "w": 86.41,
+     "h": 16
+    }
+   ],
+   "baseline": 1275.39,
+   "blockId": 51,
+   "blockText": "Ctrl Shift R",
+   "fontFamily": "\"Geist Mono\", ui-monospace, monospace",
+   "fontSize": 12,
+   "fontWeight": 400,
+   "letterSpacing": "normal",
+   "lineHeight": "normal",
+   "color": "rgb(245, 243, 241)"
+  },
+  {
+   "text": "Pause",
+   "lines": [
+    {
+     "x": 663.52,
+     "y": 1323.89,
+     "w": 41.34,
+     "h": 17
+    }
+   ],
+   "baseline": 1337.89,
+   "blockId": 52,
+   "blockText": "Pause",
+   "fontFamily": "Inter, ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
+   "fontSize": 14,
+   "fontWeight": 400,
+   "letterSpacing": "0.14px",
+   "lineHeight": "normal",
+   "color": "rgb(245, 243, 241)"
+  },
+  {
+   "text": "Ctrl Shift P",
+   "lines": [
+    {
+     "x": 1177.91,
+     "y": 1324.39,
+     "w": 86.41,
+     "h": 16
+    }
+   ],
+   "baseline": 1336.39,
+   "blockId": 53,
+   "blockText": "Ctrl Shift P",
+   "fontFamily": "\"Geist Mono\", ui-monospace, monospace",
+   "fontSize": 12,
+   "fontWeight": 400,
+   "letterSpacing": "normal",
+   "lineHeight": "normal",
+   "color": "rgb(245, 243, 241)"
+  },
+  {
+   "text": "Toggle screen recording",
+   "lines": [
+    {
+     "x": 663.52,
+     "y": 1384.89,
+     "w": 164.64,
+     "h": 17
+    }
+   ],
+   "baseline": 1398.89,
+   "blockId": 54,
+   "blockText": "Toggle screen recording",
+   "fontFamily": "Inter, ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
+   "fontSize": 14,
+   "fontWeight": 400,
+   "letterSpacing": "0.14px",
+   "lineHeight": "normal",
+   "color": "rgb(245, 243, 241)"
+  },
+  {
+   "text": "Ctrl Shift S",
+   "lines": [
+    {
+     "x": 1177.91,
+     "y": 1385.39,
+     "w": 86.41,
+     "h": 16
+    }
+   ],
+   "baseline": 1397.39,
+   "blockId": 55,
+   "blockText": "Ctrl Shift S",
+   "fontFamily": "\"Geist Mono\", ui-monospace, monospace",
+   "fontSize": 12,
+   "fontWeight": 400,
+   "letterSpacing": "normal",
+   "lineHeight": "normal",
+   "color": "rgb(245, 243, 241)"
+  },
+  {
+   "text": "Open Murmur",
+   "lines": [
+    {
+     "x": 663.52,
+     "y": 1445.89,
+     "w": 93.42,
+     "h": 17
+    }
+   ],
+   "baseline": 1459.89,
+   "blockId": 56,
+   "blockText": "Open Murmur",
+   "fontFamily": "Inter, ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
+   "fontSize": 14,
+   "fontWeight": 400,
+   "letterSpacing": "0.14px",
+   "lineHeight": "normal",
+   "color": "rgb(245, 243, 241)"
+  },
+  {
+   "text": "Ctrl Shift M",
+   "lines": [
+    {
+     "x": 1177.91,
+     "y": 1446.39,
+     "w": 86.41,
+     "h": 16
+    }
+   ],
+   "baseline": 1458.39,
+   "blockId": 57,
+   "blockText": "Ctrl Shift M",
+   "fontFamily": "\"Geist Mono\", ui-monospace, monospace",
+   "fontSize": 12,
+   "fontWeight": 400,
+   "letterSpacing": "normal",
+   "lineHeight": "normal",
+   "color": "rgb(245, 243, 241)"
+  },
+  {
+   "text": "About",
+   "lines": [
+    {
+     "x": 382.31,
+     "y": 1582.39,
+     "w": 52.42,
+     "h": 21
+    }
+   ],
+   "baseline": 1599.39,
+   "blockId": 58,
+   "blockText": "About",
+   "fontFamily": "Inter, ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
+   "fontSize": 18,
+   "fontWeight": 500,
+   "letterSpacing": "0.14px",
+   "lineHeight": "normal",
+   "color": "rgb(245, 243, 241)"
+  },
+  {
+   "text": "Free, no accounts, no cloud.",
+   "lines": [
+    {
+     "x": 382.31,
+     "y": 1611.39,
+     "w": 178.19,
+     "h": 16
+    }
+   ],
+   "baseline": 1624.39,
+   "blockId": 59,
+   "blockText": "Free, no accounts, no cloud.",
+   "fontFamily": "Inter, ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
+   "fontSize": 13,
+   "fontWeight": 400,
+   "letterSpacing": "0.14px",
+   "lineHeight": "20.15px",
+   "color": "rgb(165, 159, 151)"
+  },
+  {
+   "text": "Murmur",
+   "lines": [
+    {
+     "x": 742.52,
+     "y": 1606.39,
+     "w": 71.2,
+     "h": 24
+    }
+   ],
+   "baseline": 1625.39,
+   "blockId": 60,
+   "blockText": "Murmur",
+   "fontFamily": "Inter, ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
+   "fontSize": 20,
+   "fontWeight": 300,
+   "letterSpacing": "-0.4px",
+   "lineHeight": "normal",
+   "color": "rgb(245, 243, 241)"
+  },
+  {
+   "text": "[VERSION]",
+   "lines": [
+    {
+     "x": 823.72,
+     "y": 1613.39,
+     "w": 66.06,
+     "h": 16
+    }
+   ],
+   "baseline": 1625.39,
+   "blockId": 61,
+   "blockText": "[VERSION]",
+   "fontFamily": "\"Geist Mono\", ui-monospace, monospace",
+   "fontSize": 12,
+   "fontWeight": 400,
+   "letterSpacing": "0.14px",
+   "lineHeight": "normal",
+   "color": "rgb(165, 159, 151)"
+  },
+  {
+   "text": "Project license — [LICENSE]",
+   "lines": [
+    {
+     "x": 742.52,
+     "y": 1640.39,
+     "w": 177.95,
+     "h": 16
+    }
+   ],
+   "baseline": 1653.39,
+   "blockId": 62,
+   "blockText": "Project license — [LICENSE] Parakeet TDT v3 — NVIDIA, CC-BY-4.0 Gemma 4 and EmbeddingGemma — Google, Apache 2.0",
+   "fontFamily": "Inter, ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
+   "fontSize": 13,
+   "fontWeight": 400,
+   "letterSpacing": "0.14px",
+   "lineHeight": "20.8px",
+   "color": "rgb(214, 209, 203)"
+  },
+  {
+   "text": "Parakeet TDT v3 — NVIDIA, CC-BY-4.0",
+   "lines": [
+    {
+     "x": 742.52,
+     "y": 1661.19,
+     "w": 246.03,
+     "h": 16
+    }
+   ],
+   "baseline": 1674.19,
+   "blockId": 62,
+   "blockText": "Project license — [LICENSE] Parakeet TDT v3 — NVIDIA, CC-BY-4.0 Gemma 4 and EmbeddingGemma — Google, Apache 2.0",
+   "fontFamily": "Inter, ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
+   "fontSize": 13,
+   "fontWeight": 400,
+   "letterSpacing": "0.14px",
+   "lineHeight": "20.8px",
+   "color": "rgb(214, 209, 203)"
+  },
+  {
+   "text": "Gemma 4 and EmbeddingGemma — Google, Apache 2.0",
+   "lines": [
+    {
+     "x": 742.52,
+     "y": 1681.98,
+     "w": 355.02,
+     "h": 16
+    }
+   ],
+   "baseline": 1694.98,
+   "blockId": 62,
+   "blockText": "Project license — [LICENSE] Parakeet TDT v3 — NVIDIA, CC-BY-4.0 Gemma 4 and EmbeddingGemma — Google, Apache 2.0",
+   "fontFamily": "Inter, ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
+   "fontSize": 13,
+   "fontWeight": 400,
+   "letterSpacing": "0.14px",
+   "lineHeight": "20.8px",
+   "color": "rgb(214, 209, 203)"
+  }
+ ]
+}

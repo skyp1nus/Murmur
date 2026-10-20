@@ -82,6 +82,16 @@ jobs:
           if-no-files-found: warn
           retention-days: 14
 
+      # The design-parity tests (tests/Murmur.App.Tests/Design) run with the tests above and write their report and images here.
+      - name: Upload design parity report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: design-parity
+          path: artifacts/design-parity
+          if-no-files-found: warn
+          retention-days: 14
+
       - name: Publish Native AOT (Murmur.Desktop, linux-x64)
         run: |
           mkdir -p artifacts/logs

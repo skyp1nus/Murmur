@@ -18,6 +18,15 @@ public static class ModelCatalog
     public const string SileroVadId = "silero-vad";
     public const string LlamaCppTag = "b11716";
     public const string LlamaCppId = "llama-cpp-" + LlamaCppTag;
+
+    /// <summary>The Vulkan build of the same llama.cpp release (an unlisted, on-demand item; see <see cref="ModelCatalogItem.Listed"/>).</summary>
+    public const string LlamaCppVulkanId = "llama-cpp-vulkan-" + LlamaCppTag;
+
+    /// <summary>The CUDA 12.4 build of the same release plus its <c>cudart</c> DLLs (Windows only; unlisted, on demand).</summary>
+    public const string LlamaCppCudaId = "llama-cpp-cuda-" + LlamaCppTag;
+
+    /// <summary>CUDA toolkit generation of the asset names; the runtime DLLs ship in the matching <c>cudart-llama-bin-win-cuda-*</c> zip.</summary>
+    public const string LlamaCppCudaVersion = "12.4";
     public const string EmbeddingId = "embeddinggemma-300m-q8";
     public const string ChatE4BId = "gemma-4-e4b-q4";
     public const string Chat26BId = "gemma-4-26b-a4b-q4";
@@ -40,6 +49,12 @@ public static class ModelCatalog
 
     /// <summary>Directory (below the models directory) holding the llama.cpp server and its libraries.</summary>
     public const string LlamaCppDirectoryName = "llama.cpp";
+
+    /// <summary>Directory (below the models directory) holding the Vulkan build; the CPU build stays intact next to it.</summary>
+    public const string LlamaCppVulkanDirectoryName = "llama.cpp-vulkan";
+
+    /// <summary>Directory (below the models directory) holding the CUDA build and its runtime DLLs.</summary>
+    public const string LlamaCppCudaDirectoryName = "llama.cpp-cuda";
 
     /// <summary>Directory (below the models directory) holding the GGUF files and <c>models.json</c>.</summary>
     public const string GgufDirectoryName = "gguf";
@@ -79,6 +94,9 @@ public static class ModelCatalog
         {
             items.Add(runtime);
         }
+
+        // GPU builds: optional, unlisted, installed on demand by the acceleration setting. Same release as the CPU build.
+        items.AddRange(GpuRuntimes(sources, platform));
 
         // Candidate order: the first source is the preferred one; the rest are fallbacks. Every source carries its own pin
         // (the same quantisation from different publishers is a different file). Mirrors that do not exist upstream were
@@ -155,6 +173,65 @@ public static class ModelCatalog
                 sources.PinHashes ? (platform == ModelPlatform.Linux ? 17_968_449 : 19_662_702) : null)],
             packaging,
             executable);
+    }
+
+    /// <summary>
+    /// The Vulkan build (Windows and Linux) and the CUDA build (Windows) of the release, pinned from the
+    /// <c>--resolve-pins</c> output of the models workflow (run 39494110582); an unpinned file is refused (<c>RequirePins</c>).
+    /// </summary>
+    private static IEnumerable<ModelCatalogItem> GpuRuntimes(ModelCatalogSources sources, ModelPlatform platform)
+    {
+        string ReleaseUrl(string asset) => $"{sources.GitHub}/ggml-org/llama.cpp/releases/download/{LlamaCppTag}/{asset}";
+        string? Pin(string sha256) => sources.PinHashes ? sha256 : null;
+        long? Size(long bytes) => sources.PinHashes ? bytes : null;
+
+        switch (platform)
+        {
+            case ModelPlatform.Windows:
+            {
+                var vulkan = $"llama-{LlamaCppTag}-bin-win-vulkan-x64.zip";
+                yield return new ModelCatalogItem(
+                    new ModelInfo(LlamaCppVulkanId, ModelKind.LlmRuntime, $"llama.cpp {LlamaCppTag} (Vulkan server)", 32_306_221, Required: false),
+                    LlamaCppVulkanDirectoryName,
+                    IsDirectory: true,
+                    [new ModelFileSpec(ReleaseUrl(vulkan), vulkan, Pin("7e0ede8a80ba3f2e658706bada56a6216a01ab6f6e83922662c823df8f95b4d3"), Size(32_306_221))],
+                    ModelPackaging.Zip,
+                    "llama-server.exe",
+                    Listed: false,
+                    RequirePins: sources.PinHashes);
+
+                var cuda = $"llama-{LlamaCppTag}-bin-win-cuda-{LlamaCppCudaVersion}-x64.zip";
+                var cudart = $"cudart-llama-bin-win-cuda-{LlamaCppCudaVersion}-x64.zip";
+                yield return new ModelCatalogItem(
+                    new ModelInfo(LlamaCppCudaId, ModelKind.LlmRuntime, $"llama.cpp {LlamaCppTag} (CUDA {LlamaCppCudaVersion} server)", 267_472_762 + 391_443_627, Required: false),
+                    LlamaCppCudaDirectoryName,
+                    IsDirectory: true,
+                    [
+                        new ModelFileSpec(ReleaseUrl(cuda), cuda, Pin("f00e612c7071158006701cd28faf8dd47a55170432fb3e634eee4e0d285883af"), Size(267_472_762)),
+                        new ModelFileSpec(ReleaseUrl(cudart), cudart, Pin("8c79a9b226de4b3cacfd1f83d24f962d0773be79f1e7b75c6af4ded7e32ae1d6"), Size(391_443_627)),
+                    ],
+                    ModelPackaging.Zip,
+                    "llama-server.exe",
+                    Listed: false,
+                    RequirePins: sources.PinHashes);
+                break;
+            }
+
+            case ModelPlatform.Linux:
+            {
+                var vulkan = $"llama-{LlamaCppTag}-bin-ubuntu-vulkan-x64.tar.gz";
+                yield return new ModelCatalogItem(
+                    new ModelInfo(LlamaCppVulkanId, ModelKind.LlmRuntime, $"llama.cpp {LlamaCppTag} (Vulkan server)", 30_610_886, Required: false),
+                    LlamaCppVulkanDirectoryName,
+                    IsDirectory: true,
+                    [new ModelFileSpec(ReleaseUrl(vulkan), vulkan, Pin("23a1b3d24b7058c647ef4d5a56addc87986b9c85770978bf30e923676e7b0d18"), Size(30_610_886))],
+                    ModelPackaging.TarGz,
+                    "llama-server",
+                    Listed: false,
+                    RequirePins: sources.PinHashes);
+                break;
+            }
+        }
     }
 
     private sealed record GgufSource(string Repo, string FileName, string? Sha256, long? SizeBytes);

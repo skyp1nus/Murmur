@@ -23,9 +23,9 @@ public sealed partial class AppearanceSettingsViewModel : ObservableObject
     [ObservableProperty]
     public partial ThemePreference Theme { get; set; }
 
-    /// <summary><c>uk</c> or <c>en</c>.</summary>
+    /// <summary><c>en</c> or <c>uk</c>.</summary>
     [ObservableProperty]
-    public partial string Language { get; set; } = UiCulture.Ukrainian;
+    public partial string Language { get; set; } = UiCulture.English;
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HasError))]

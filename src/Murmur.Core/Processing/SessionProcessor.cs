@@ -28,7 +28,7 @@ public enum SessionProcessingStage
 }
 
 /// <param name="Progress">Transcription progress of the session in [0, 1] (peaks, every track, saving); 1 from <see cref="SessionProcessingStage.Indexing"/> on.</param>
-/// <param name="Message">Error text for <see cref="SessionProcessingStage.Failed"/>, the reason for <see cref="SessionProcessingStage.ModelMissing"/>.</param>
+/// <param name="Message">A technical (English) error text for <see cref="SessionProcessingStage.Failed"/>; a <see cref="SessionNotes"/> line (code and detail, not a sentence) for <see cref="SessionProcessingStage.ModelMissing"/> and for <see cref="SessionProcessingStage.Completed"/> with a failed indexing. The App words them.</param>
 public sealed record SessionProcessingStatus(SessionId Session, SessionProcessingStage Stage, double Progress, string? Message = null);
 
 /// <summary>
@@ -46,9 +46,9 @@ public sealed record SessionProcessingStatus(SessionId Session, SessionProcessin
 /// works) and is remembered in <see cref="NeedsIndex"/> and by a <c>needs-index</c> marker file in the session folder
 /// (so it survives a restart); <see cref="ReindexAllAsync"/> indexes those later, when the AI models appear. A transcription failure -&gt; Failed with <see cref="SessionRecord.Error"/>. An indexing failure keeps
 /// the transcript: the session is Ready with <see cref="SessionRecord.Error"/> =
-/// <see cref="IndexingFailedPrefix"/> + reason, and stays in <see cref="NeedsIndex"/>. A pre-empted or cancelled job leaves the session Transcribing (or Indexing) so it is resumed later. With the ASR
+/// <see cref="IndexingFailedCode"/> + reason as the detail (<see cref="SessionNotes"/>; the App words it), and stays in <see cref="NeedsIndex"/>. A pre-empted or cancelled job leaves the session Transcribing (or Indexing) so it is resumed later. With the ASR
 /// not installed the session is left Recorded and the status is <see cref="SessionProcessingStage.ModelMissing"/>
-/// (<see cref="AsrNotInstalledMessage"/>).</para>
+/// (<see cref="AsrNotInstalledCode"/>).</para>
 /// <para><b>Tracks.</b> <c>mic.wav</c> is transcribed as <see cref="Speaker.Me"/>, <c>system.wav</c> as
 /// <see cref="Speaker.Others"/> (only the tracks that exist); segments are merged by start time.</para>
 /// <para><b>Threads.</b> <see cref="ProgressChanged"/> is raised on the job's thread (never the recorder's);
@@ -58,10 +58,17 @@ public sealed class SessionProcessor : IDisposable
 {
     public const string Engine = "parakeet-tdt-0.6b-v3-int8";
 
-    public const string AsrNotInstalledMessage = "Модель Parakeet не встановлена";
+    /// <summary>Code (not a sentence: the App words it) of the status of a session left Recorded because the ASR model is missing.</summary>
+    public const string AsrNotInstalledCode = SessionNotes.AsrMissing;
 
-    /// <summary>Start of <see cref="SessionRecord.Error"/> of a Ready session whose indexing failed.</summary>
-    public const string IndexingFailedPrefix = "Індексування не вдалося: ";
+    /// <summary>Code at the start of <see cref="SessionRecord.Error"/> of a Ready session whose indexing failed; the reason follows as its detail.</summary>
+    public const string IndexingFailedCode = SessionNotes.IndexFailed;
+
+    /// <summary>
+    /// The start of the text a session got before codes existed (Ukrainian, written by an earlier version). Matched only, to
+    /// find such sessions for re-indexing; never written.
+    /// </summary>
+    private const string LegacyIndexingFailedPrefix = "Індексування не вдалося: ";
 
     private const double PeaksWeight = 0.02;
     private const double SaveWeight = 0.02;
@@ -113,8 +120,8 @@ public sealed class SessionProcessor : IDisposable
 
     public bool IsAsrInstalled => _asr.Status != AsrStatus.ModelMissing;
 
-    /// <summary><see cref="AsrNotInstalledMessage"/> when the model is missing, else <c>null</c>.</summary>
-    public string? AsrStatusMessage => IsAsrInstalled ? null : AsrNotInstalledMessage;
+    /// <summary><see cref="AsrNotInstalledCode"/> when the model is missing, else <c>null</c>.</summary>
+    public string? AsrStatusMessage => IsAsrInstalled ? null : AsrNotInstalledCode;
 
     /// <summary>Whether sessions are indexed right now: an indexer is configured and the AI models are installed.</summary>
     public bool CanIndex => _indexer is not null && (_isAiInstalled?.Invoke() ?? true);
@@ -197,7 +204,7 @@ public sealed class SessionProcessor : IDisposable
 
     /// <summary>
     /// Queues indexing of the Ready sessions that were left without vectors: those in <see cref="NeedsIndex"/> and those
-    /// whose Error starts with <see cref="IndexingFailedPrefix"/>, plus those with a persisted <c>needs-index</c> marker
+    /// whose Error carries <see cref="IndexingFailedCode"/> (or the text an earlier version wrote), plus those with a persisted <c>needs-index</c> marker
     /// (so both survive a restart). Call it when the AI models appear, and at start-up. Jobs wait in the queue while a
     /// recording is running.
     /// </summary>
@@ -227,7 +234,7 @@ public sealed class SessionProcessor : IDisposable
 
             wanted = wanted || File.Exists(NeedsIndexMarkerPath(session.Id));
 
-            if ((wanted || session.Error?.StartsWith(IndexingFailedPrefix, StringComparison.Ordinal) == true) && EnqueueIndexing(session.Id, reindex: true))
+            if ((wanted || IndexingFailed(session.Error)) && EnqueueIndexing(session.Id, reindex: true))
             {
                 queued++;
             }
@@ -449,7 +456,7 @@ public sealed class SessionProcessor : IDisposable
                 await UpdateAsync(id, SessionState.Recorded, null, cancellationToken).ConfigureAwait(false);
             }
 
-            SetStatus(id, SessionProcessingStage.ModelMissing, 0, AsrNotInstalledMessage);
+            SetStatus(id, SessionProcessingStage.ModelMissing, 0, AsrNotInstalledCode);
             return;
         }
 
@@ -583,11 +590,14 @@ public sealed class SessionProcessor : IDisposable
         {
             // The transcript is intact: Ready (keyword search works) with the reason in Error.
             MarkNeedsIndex(id);
-            var message = IndexingFailedPrefix + (string.IsNullOrWhiteSpace(ex.Message) ? ex.GetType().Name : ex.Message);
+            var message = SessionNotes.Format(IndexingFailedCode, string.IsNullOrWhiteSpace(ex.Message) ? ex.GetType().Name : ex.Message);
             await UpdateAsync(id, SessionState.Ready, message, CancellationToken.None).ConfigureAwait(false);
             SetStatus(id, SessionProcessingStage.Completed, 1, message);
         }
     }
+
+    private static bool IndexingFailed(string? error) =>
+        SessionNotes.Has(error, IndexingFailedCode) || error?.StartsWith(LegacyIndexingFailedPrefix, StringComparison.Ordinal) == true;
 
     private async Task FailAsync(SessionId id, Exception error)
     {

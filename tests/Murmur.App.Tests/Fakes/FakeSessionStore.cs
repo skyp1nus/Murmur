@@ -27,6 +27,39 @@ internal sealed class FakeSessionStore : ISessionStore
 
     public ValueTask UpdateSessionAsync(SessionRecord session, CancellationToken cancellationToken) => throw new NotSupportedException();
 
+    /// <summary>Every rename, in order.</summary>
+    public List<(SessionId Id, string Title)> Renames { get; } = [];
+
+    /// <summary>When set, <see cref="RenameSessionAsync"/> throws it.</summary>
+    public Exception? RenameFailure { get; set; }
+
+    /// <summary>When set, <see cref="RenameSessionAsync"/> waits for this task before it writes (a slow database).</summary>
+    public Task? RenameGate { get; set; }
+
+    public async ValueTask RenameSessionAsync(SessionId id, string title, CancellationToken cancellationToken)
+    {
+        if (RenameGate is { } gate)
+        {
+            await gate;
+        }
+
+        if (RenameFailure is { } failure)
+        {
+            throw failure;
+        }
+
+        var index = _sessions.FindIndex(s => s.Id == id);
+        if (index < 0)
+        {
+            throw new KeyNotFoundException($"Session {id} does not exist.");
+        }
+
+        _sessions[index] = _sessions[index] with { Title = title };
+        Renames.Add((id, title));
+    }
+
+    public SessionRecord? Get(SessionId id) => _sessions.Find(s => s.Id == id);
+
     public ValueTask<SessionRecord?> GetSessionAsync(SessionId id, CancellationToken cancellationToken) =>
         ValueTask.FromResult(_sessions.Find(s => s.Id == id));
 
@@ -41,7 +74,7 @@ internal sealed class FakeSessionStore : ISessionStore
         IReadOnlyList<SessionRecord> result =
         [
             .. _sessions
-                .Where(s => (query.From is null || s.StartedAt >= query.From) && (query.To is null || s.StartedAt < query.To))
+                .Where(s => (query.From is null || s.StartedAt >= query.From) && (query.To is null || s.StartedAt <= query.To))
                 .OrderByDescending(s => s.StartedAt)
                 .Take(query.Limit),
         ];

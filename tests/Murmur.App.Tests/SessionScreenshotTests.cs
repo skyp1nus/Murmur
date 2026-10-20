@@ -1,4 +1,5 @@
 using Avalonia.Headless;
+using Murmur.App.Localization;
 using Murmur.App.Tests.Fakes;
 using Murmur.App.ViewModels;
 using Murmur.Core.Processing;
@@ -69,6 +70,7 @@ public sealed class SessionScreenshotTests
     [Fact]
     public async Task Library_WithProcessingStates_WritesPng()
     {
+        using var uk = UiCulture.Override("uk");
         var harness = new UiHarness();
         var running = Sessions.Make("Щотижневий стендап команди", UiHarness.Now.AddHours(-1), TimeSpan.FromMinutes(23) + TimeSpan.FromSeconds(41), state: SessionState.Transcribing);
         var queued = Sessions.Make("Інтервʼю з кандидатом", UiHarness.Now.AddHours(-3), TimeSpan.FromHours(1) + TimeSpan.FromMinutes(7), screen: true, state: SessionState.Recorded);
@@ -90,6 +92,7 @@ public sealed class SessionScreenshotTests
         await Session.Dispatch(
             () =>
             {
+                using var scope = UiCulture.Override("uk");
                 var window = UiHarness.Show(shell);
                 UiHarness.Save(window, Path("phase2-library-processing.png"));
                 window.Close();

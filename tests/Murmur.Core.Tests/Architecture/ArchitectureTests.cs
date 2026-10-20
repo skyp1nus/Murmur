@@ -104,5 +104,32 @@ public sealed class ArchitectureTests
         Assert.All(tfms, tfm => Assert.True(IsWindowsTfm(tfm), tfm));
     }
 
+    [Fact]
+    public void Core_WritesNoUkrainianText_OnlyCodes()
+    {
+        // Ukrainian below the App reaches an English UI (D-039); Core stores codes and the App words them. The one allowed
+        // literal matches the text an earlier version stored.
+        var offenders = new List<string>();
+        foreach (var file in Directory.EnumerateFiles(Path.Combine(Tree.Value.Root, "src", "Murmur.Core"), "*.cs", SearchOption.AllDirectories))
+        {
+            if (file.Contains($"{Path.DirectorySeparatorChar}obj{Path.DirectorySeparatorChar}", StringComparison.Ordinal)
+                || file.Contains($"{Path.DirectorySeparatorChar}bin{Path.DirectorySeparatorChar}", StringComparison.Ordinal))
+            {
+                continue;
+            }
+
+            foreach (var line in File.ReadLines(file))
+            {
+                var code = line.Contains("//", StringComparison.Ordinal) ? line[..line.IndexOf("//", StringComparison.Ordinal)] : line;
+                if (code.Any(c => c is >= '\u0400' and <= '\u04FF') && !code.Contains("LegacyIndexingFailedPrefix", StringComparison.Ordinal))
+                {
+                    offenders.Add($"{Path.GetFileName(file)}: {line.Trim()}");
+                }
+            }
+        }
+
+        Assert.Empty(offenders);
+    }
+
     private static bool IsWindowsTfm(string tfm) => tfm.Contains("-windows", StringComparison.OrdinalIgnoreCase);
 }
