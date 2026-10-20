@@ -176,13 +176,14 @@ public static class ModelCatalog
     }
 
     /// <summary>
-    /// The Vulkan build (Windows and Linux) and the CUDA build (Windows) of the release. Pins are filled in from the
-    /// <c>--resolve-pins</c> output of the models workflow (GitHub publishes the SHA-256 digest of every release asset);
-    /// until then the download is verified by the TLS connection to GitHub only and the sizes are approximate.
+    /// The Vulkan build (Windows and Linux) and the CUDA build (Windows) of the release, pinned from the
+    /// <c>--resolve-pins</c> output of the models workflow (run 39494110582); an unpinned file is refused (<c>RequirePins</c>).
     /// </summary>
     private static IEnumerable<ModelCatalogItem> GpuRuntimes(ModelCatalogSources sources, ModelPlatform platform)
     {
         string ReleaseUrl(string asset) => $"{sources.GitHub}/ggml-org/llama.cpp/releases/download/{LlamaCppTag}/{asset}";
+        string? Pin(string sha256) => sources.PinHashes ? sha256 : null;
+        long? Size(long bytes) => sources.PinHashes ? bytes : null;
 
         switch (platform)
         {
@@ -190,10 +191,10 @@ public static class ModelCatalog
             {
                 var vulkan = $"llama-{LlamaCppTag}-bin-win-vulkan-x64.zip";
                 yield return new ModelCatalogItem(
-                    new ModelInfo(LlamaCppVulkanId, ModelKind.LlmRuntime, $"llama.cpp {LlamaCppTag} (Vulkan server)", 45_000_000, Required: false),
+                    new ModelInfo(LlamaCppVulkanId, ModelKind.LlmRuntime, $"llama.cpp {LlamaCppTag} (Vulkan server)", 32_306_221, Required: false),
                     LlamaCppVulkanDirectoryName,
                     IsDirectory: true,
-                    [new ModelFileSpec(ReleaseUrl(vulkan), vulkan)],
+                    [new ModelFileSpec(ReleaseUrl(vulkan), vulkan, Pin("7e0ede8a80ba3f2e658706bada56a6216a01ab6f6e83922662c823df8f95b4d3"), Size(32_306_221))],
                     ModelPackaging.Zip,
                     "llama-server.exe",
                     Listed: false,
@@ -202,10 +203,13 @@ public static class ModelCatalog
                 var cuda = $"llama-{LlamaCppTag}-bin-win-cuda-{LlamaCppCudaVersion}-x64.zip";
                 var cudart = $"cudart-llama-bin-win-cuda-{LlamaCppCudaVersion}-x64.zip";
                 yield return new ModelCatalogItem(
-                    new ModelInfo(LlamaCppCudaId, ModelKind.LlmRuntime, $"llama.cpp {LlamaCppTag} (CUDA {LlamaCppCudaVersion} server)", 600_000_000, Required: false),
+                    new ModelInfo(LlamaCppCudaId, ModelKind.LlmRuntime, $"llama.cpp {LlamaCppTag} (CUDA {LlamaCppCudaVersion} server)", 267_472_762 + 391_443_627, Required: false),
                     LlamaCppCudaDirectoryName,
                     IsDirectory: true,
-                    [new ModelFileSpec(ReleaseUrl(cuda), cuda), new ModelFileSpec(ReleaseUrl(cudart), cudart)],
+                    [
+                        new ModelFileSpec(ReleaseUrl(cuda), cuda, Pin("f00e612c7071158006701cd28faf8dd47a55170432fb3e634eee4e0d285883af"), Size(267_472_762)),
+                        new ModelFileSpec(ReleaseUrl(cudart), cudart, Pin("8c79a9b226de4b3cacfd1f83d24f962d0773be79f1e7b75c6af4ded7e32ae1d6"), Size(391_443_627)),
+                    ],
                     ModelPackaging.Zip,
                     "llama-server.exe",
                     Listed: false,
@@ -217,10 +221,10 @@ public static class ModelCatalog
             {
                 var vulkan = $"llama-{LlamaCppTag}-bin-ubuntu-vulkan-x64.tar.gz";
                 yield return new ModelCatalogItem(
-                    new ModelInfo(LlamaCppVulkanId, ModelKind.LlmRuntime, $"llama.cpp {LlamaCppTag} (Vulkan server)", 40_000_000, Required: false),
+                    new ModelInfo(LlamaCppVulkanId, ModelKind.LlmRuntime, $"llama.cpp {LlamaCppTag} (Vulkan server)", 30_610_886, Required: false),
                     LlamaCppVulkanDirectoryName,
                     IsDirectory: true,
-                    [new ModelFileSpec(ReleaseUrl(vulkan), vulkan)],
+                    [new ModelFileSpec(ReleaseUrl(vulkan), vulkan, Pin("23a1b3d24b7058c647ef4d5a56addc87986b9c85770978bf30e923676e7b0d18"), Size(30_610_886))],
                     ModelPackaging.TarGz,
                     "llama-server",
                     Listed: false,

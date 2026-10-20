@@ -301,8 +301,8 @@ public sealed class CatalogTests
 
         // Status, install and remove work by id for an unlisted item, so the Settings control can drive them.
         var status = manager.GetStatus(ModelCatalog.LlamaCppVulkanId);
-        Assert.Equal(ModelInstallState.Failed, status.State); // unavailable until the pins are in the catalog (fail closed)
-        Assert.Contains("not pinned yet", status.Error, StringComparison.Ordinal);
+        Assert.Equal(ModelInstallState.NotInstalled, status.State); // pinned: installable on demand (unpinned would be Failed)
+        Assert.Null(status.Error);
         Assert.Equal(ModelKind.LlmRuntime, status.Model.Kind);
         Assert.True(status.Model.SizeBytes > 0);
     }
