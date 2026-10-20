@@ -1,5 +1,7 @@
 using System.Diagnostics;
 using System.Text.Json;
+using Murmur.App.Localization;
+using Murmur.App.Resources;
 using Murmur.App.ViewModels;
 using Murmur.Core.Audio;
 using Murmur.Core.Recording;
@@ -85,9 +87,11 @@ public sealed class AutoRecordRunner
         {
             lock (faultWarnings)
             {
-                if (!faultWarnings.Contains(warning.Message))
+                // The report is read by people and scripts, not by the user of the UI: always English.
+                var text = SessionNoteText.Describe(warning, UiCulture.English);
+                if (!faultWarnings.Contains(text))
                 {
-                    faultWarnings.Add(warning.Message);
+                    faultWarnings.Add(text);
                 }
             }
         }
@@ -195,7 +199,7 @@ public sealed class AutoRecordRunner
 
             if (session.State != SessionState.Failed)
             {
-                AddStopError(warnings, session.Error);
+                AddWarning(warnings, session.Error);
             }
 
             report = report with
@@ -304,36 +308,19 @@ public sealed class AutoRecordRunner
         return bytes;
     }
 
-    /// <summary>Adds a warning unless the list already says it (a text that contains it, e.g. a joined start warning).</summary>
-    private static void AddWarning(List<string> warnings, string? warning)
-    {
-        if (string.IsNullOrWhiteSpace(warning) || warnings.Exists(existing => existing.Contains(warning, StringComparison.Ordinal)))
-        {
-            return;
-        }
-
-        warnings.Add(warning);
-    }
-
     /// <summary>
-    /// The session's error text is the recorder's own composition: a stop failure (if any) in front of the warnings it
-    /// kept. What the run already knows is not repeated; anything in front of it is the stop failure.
+    /// Adds the problems a stored text (<c>SessionRecord.Error</c>: one line per code or technical message) carries, in
+    /// English and unless the list already says them.
     /// </summary>
-    private static void AddStopError(List<string> warnings, string? error)
+    private static void AddWarning(List<string> warnings, string? stored)
     {
-        if (string.IsNullOrWhiteSpace(error))
+        foreach (var note in SessionNotes.Parse(stored))
         {
-            return;
-        }
-
-        var known = string.Join(' ', warnings);
-        if (known.Length > 0 && error.EndsWith(known, StringComparison.Ordinal))
-        {
-            AddWarning(warnings, error[..^known.Length].Trim());
-        }
-        else if (!error.Equals(known, StringComparison.Ordinal))
-        {
-            AddWarning(warnings, error);
+            var text = SessionNoteText.DescribeNote(note, UiCulture.English);
+            if (!warnings.Contains(text))
+            {
+                warnings.Add(text);
+            }
         }
     }
 

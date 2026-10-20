@@ -137,8 +137,11 @@ public sealed class SessionProcessorTests : IAsyncDisposable
 
         var ready = await WaitForStateAsync(session.Id, SessionState.Ready);
 
-        Assert.Equal("Індексування не вдалося: index broke", ready.Error);
-        Assert.StartsWith(SessionProcessor.IndexingFailedPrefix, ready.Error, StringComparison.Ordinal);
+        Assert.Equal("proc.index.failed|index broke", ready.Error);
+        Assert.StartsWith(SessionProcessor.IndexingFailedCode, ready.Error, StringComparison.Ordinal);
+        var note = Assert.Single(SessionNotes.Parse(ready.Error));
+        Assert.Equal(SessionProcessor.IndexingFailedCode, note.Code);
+        Assert.Equal("index broke", note.Detail);
         Assert.NotNull(await _transcripts.GetTranscriptAsync(session.Id, CancellationToken.None));
         Assert.Equal([session.Id], processor.NeedsIndex);
         Assert.Equal(SessionProcessingStage.Completed, processor.GetStatus(session.Id)!.Stage);
@@ -252,11 +255,13 @@ public sealed class SessionProcessorTests : IAsyncDisposable
         Assert.Empty(processor.NeedsIndex);
     }
 
-    [Fact]
-    public async Task ReindexAll_FindsFailedIndexingAfterARestart_ByTheErrorText()
+    [Theory]
+    [InlineData("proc.index.failed|old")]
+    [InlineData("Індексування не вдалося: old")] // stored by a version from before codes existed
+    public async Task ReindexAll_FindsFailedIndexingAfterARestart_ByTheErrorCode(string stored)
     {
         var failed = await CreateSessionAsync(mic: true, system: false, SessionState.Ready);
-        _sessions.Seed(failed with { Error = SessionProcessor.IndexingFailedPrefix + "old" });
+        _sessions.Seed(failed with { Error = stored });
         var calls = 0;
         using var processor = Create((_, _) =>
         {
@@ -453,7 +458,7 @@ public sealed class SessionProcessorTests : IAsyncDisposable
 
         var row = _sessions.Get(session.Id)!;
         Assert.Equal(SessionState.Ready, row.State);
-        Assert.Equal(SessionProcessor.IndexingFailedPrefix + "boom", row.Error);
+        Assert.Equal(SessionProcessor.IndexingFailedCode + "|boom", row.Error);
         Assert.True(File.Exists(marker));
         Assert.Contains(session.Id, processor.NeedsIndex);
     }
@@ -466,7 +471,7 @@ public sealed class SessionProcessorTests : IAsyncDisposable
 
         var ready = await WaitForStateAsync(session.Id, SessionState.Ready);
 
-        Assert.Equal(SessionProcessor.IndexingFailedPrefix + nameof(InvalidOperationException), ready.Error);
+        Assert.Equal(SessionProcessor.IndexingFailedCode + "|" + nameof(InvalidOperationException), ready.Error);
     }
 
     [Fact]
@@ -662,13 +667,13 @@ public sealed class SessionProcessorTests : IAsyncDisposable
         _asr.Installed = false;
         using var processor = Create();
         Assert.False(processor.IsAsrInstalled);
-        Assert.Equal("Модель Parakeet не встановлена", processor.AsrStatusMessage);
+        Assert.Equal("proc.asr.missing", processor.AsrStatusMessage);
 
         var session = await RecordAsync(mic: true, system: true);
         await WaitUntilAsync(() => processor.GetStatus(session.Id)?.Stage == SessionProcessingStage.ModelMissing);
 
         Assert.Equal(SessionState.Recorded, _sessions.Get(session.Id)!.State);
-        Assert.Equal(SessionProcessor.AsrNotInstalledMessage, processor.GetStatus(session.Id)!.Message);
+        Assert.Equal(SessionProcessor.AsrNotInstalledCode, processor.GetStatus(session.Id)!.Message);
         Assert.Empty(_asr.Requests);
 
         // Installed later: a retry goes through.

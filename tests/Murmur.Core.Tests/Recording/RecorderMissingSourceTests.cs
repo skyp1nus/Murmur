@@ -11,8 +11,7 @@ namespace Murmur.Core.Tests.Recording;
 [Collection(RealtimeCollection.Name)]
 public sealed class RecorderMissingSourceTests : IDisposable
 {
-    private const string MicDenied =
-        "Мікрофон недоступний: Windows забороняє доступ (Параметри → Конфіденційність і безпека → Мікрофон). Записую лише системний звук.";
+    private const string MicDenied = "rec.mic.denied\nrec.only.system";
 
     private readonly TempDirectory _dir = new();
     private readonly InMemorySessionStore _store;
@@ -104,7 +103,7 @@ public sealed class RecorderMissingSourceTests : IDisposable
 
         Assert.True(started.HasMicrophone);
         Assert.False(started.HasSystemAudio);
-        Assert.Equal("Системний звук недоступний: No default output is available. Записую лише мікрофон.", started.Error);
+        Assert.Equal("rec.system.unavailable|No default output is available\nrec.only.mic", started.Error);
         Assert.Equal(SessionState.Recorded, finished.State);
         Assert.True(finished.HasMicrophone);
         Assert.False(finished.HasSystemAudio);
@@ -125,8 +124,8 @@ public sealed class RecorderMissingSourceTests : IDisposable
         Assert.False(started.HasMicrophone);
         Assert.True(started.HasSystemAudio);
         Assert.NotNull(started.Error);
-        Assert.StartsWith("Мікрофон недоступний: ", started.Error, StringComparison.Ordinal);
-        Assert.EndsWith("Записую лише системний звук.", started.Error, StringComparison.Ordinal);
+        Assert.StartsWith("rec.mic.unavailable|", started.Error, StringComparison.Ordinal);
+        Assert.EndsWith("\nrec.only.system", started.Error, StringComparison.Ordinal);
         Assert.Equal(SessionState.Recorded, finished.State);
     }
 
@@ -202,10 +201,10 @@ public sealed class RecorderMissingSourceTests : IDisposable
     }
 
     [Theory]
-    [InlineData(AudioDeviceKind.Microphone, true, "Мікрофон недоступний: Windows забороняє доступ (Параметри → Конфіденційність і безпека → Мікрофон). Записую лише системний звук.")]
-    [InlineData(AudioDeviceKind.Microphone, false, "Мікрофон недоступний: device busy. Записую лише системний звук.")]
-    [InlineData(AudioDeviceKind.SystemOutput, true, "Системний звук недоступний: Windows забороняє доступ. Записую лише мікрофон.")]
-    [InlineData(AudioDeviceKind.SystemOutput, false, "Системний звук недоступний: device busy. Записую лише мікрофон.")]
+    [InlineData(AudioDeviceKind.Microphone, true, "rec.mic.denied\nrec.only.system")]
+    [InlineData(AudioDeviceKind.Microphone, false, "rec.mic.unavailable|device busy\nrec.only.system")]
+    [InlineData(AudioDeviceKind.SystemOutput, true, "rec.system.denied\nrec.only.mic")]
+    [InlineData(AudioDeviceKind.SystemOutput, false, "rec.system.unavailable|device busy\nrec.only.mic")]
     public void DescribeSkippedTracks_NamesTheLostTrackAndWhatIsRecorded(AudioDeviceKind kind, bool denied, string expected)
     {
         // Access denial is recognised anywhere in the chain (a source may wrap it in its start error).

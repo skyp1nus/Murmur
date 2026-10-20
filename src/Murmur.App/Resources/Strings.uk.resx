@@ -149,6 +149,73 @@
   <data name="Recording_ScreenProblems" xml:space="preserve">
     <value>Під час запису екрана були збої.</value>
   </data>
+  <data name="Note_MicDenied" xml:space="preserve">
+    <value>Мікрофон недоступний: Windows забороняє доступ (Параметри → Конфіденційність і безпека → Мікрофон).</value>
+  </data>
+  <data name="Note_SystemDenied" xml:space="preserve">
+    <value>Системний звук недоступний: Windows забороняє доступ.</value>
+  </data>
+  <data name="Note_MicUnavailable" xml:space="preserve">
+    <value>Мікрофон недоступний: {0}.</value>
+    <comment>{0} = reason from the system</comment>
+  </data>
+  <data name="Note_SystemUnavailable" xml:space="preserve">
+    <value>Системний звук недоступний: {0}.</value>
+    <comment>{0} = reason from the system</comment>
+  </data>
+  <data name="Note_OnlySystem" xml:space="preserve">
+    <value>Записую лише системний звук.</value>
+  </data>
+  <data name="Note_OnlyMic" xml:space="preserve">
+    <value>Записую лише мікрофон.</value>
+  </data>
+  <data name="Note_AsrMissing" xml:space="preserve">
+    <value>Модель Parakeet не встановлена.</value>
+  </data>
+  <data name="Note_IndexFailed" xml:space="preserve">
+    <value>Індексування не вдалося: {0}</value>
+    <comment>{0} = reason</comment>
+  </data>
+  <data name="Recording_DefaultTitle" xml:space="preserve">
+    <value>Без назви — {0} {1}, {2}</value>
+    <comment>Title of a recording started without a name. {0} = day, {1} = month, {2} = time (HH:mm)</comment>
+  </data>
+  <data name="TitleMonth_01" xml:space="preserve">
+    <value>січня</value>
+  </data>
+  <data name="TitleMonth_02" xml:space="preserve">
+    <value>лютого</value>
+  </data>
+  <data name="TitleMonth_03" xml:space="preserve">
+    <value>березня</value>
+  </data>
+  <data name="TitleMonth_04" xml:space="preserve">
+    <value>квітня</value>
+  </data>
+  <data name="TitleMonth_05" xml:space="preserve">
+    <value>травня</value>
+  </data>
+  <data name="TitleMonth_06" xml:space="preserve">
+    <value>червня</value>
+  </data>
+  <data name="TitleMonth_07" xml:space="preserve">
+    <value>липня</value>
+  </data>
+  <data name="TitleMonth_08" xml:space="preserve">
+    <value>серпня</value>
+  </data>
+  <data name="TitleMonth_09" xml:space="preserve">
+    <value>вересня</value>
+  </data>
+  <data name="TitleMonth_10" xml:space="preserve">
+    <value>жовтня</value>
+  </data>
+  <data name="TitleMonth_11" xml:space="preserve">
+    <value>листопада</value>
+  </data>
+  <data name="TitleMonth_12" xml:space="preserve">
+    <value>грудня</value>
+  </data>
   <data name="Session_TabTranscript" xml:space="preserve">
     <value>Транскрипт</value>
   </data>

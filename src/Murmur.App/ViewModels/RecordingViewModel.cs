@@ -24,6 +24,7 @@ public sealed partial class RecordingViewModel : ObservableObject, ILevelSource
     private readonly ISessionStore _store;
     private readonly Action<Action> _post;
     private readonly ISettingsStore? _settings;
+    private readonly TimeProvider _time;
     private SessionId? _sessionId;
     private bool _stopRequested;
 
@@ -37,7 +38,8 @@ public sealed partial class RecordingViewModel : ObservableObject, ILevelSource
     /// The user's defaults (devices, display, screen on/off) the screen starts with every time it is shown;
     /// <c>null</c> = system default devices and no screen.
     /// </param>
-    public RecordingViewModel(IRecorder recorder, ICapture capture, ISessionStore store, Action<Action>? post = null, ISettingsStore? settings = null)
+    /// <param name="time">The clock for the default title ("Untitled — Oct 18, 01:12"); the system clock when <c>null</c>.</param>
+    public RecordingViewModel(IRecorder recorder, ICapture capture, ISessionStore store, Action<Action>? post = null, ISettingsStore? settings = null, TimeProvider? time = null)
     {
         ArgumentNullException.ThrowIfNull(recorder);
         ArgumentNullException.ThrowIfNull(capture);
@@ -47,6 +49,7 @@ public sealed partial class RecordingViewModel : ObservableObject, ILevelSource
         _store = store;
         _post = post ?? (action => Avalonia.Threading.Dispatcher.UIThread.Post(action));
         _settings = settings;
+        _time = time ?? TimeProvider.System;
 
         ScreenAvailable = capture.Capabilities.Screen;
         RefreshDevices();
@@ -253,7 +256,7 @@ public sealed partial class RecordingViewModel : ObservableObject, ILevelSource
 
             // The session's own text (Error below) carries every warning of the recording.
             ClearNotices();
-            if (session.Error is { Length: > 0 } sessionError)
+            if (SessionNoteText.Describe(session.Error) is { Length: > 0 } sessionError)
             {
                 Error = sessionError;
             }
@@ -333,7 +336,8 @@ public sealed partial class RecordingViewModel : ObservableObject, ILevelSource
             Screen: Screen && ScreenAvailable,
             MicrophoneDeviceId: SelectedMicrophone is { IsDefault: false } mic ? mic.Id : null,
             SystemDeviceId: SelectedSystemDevice is { IsDefault: false } output ? output.Id : null,
-            DisplayId: SavedDisplayId());
+            DisplayId: SavedDisplayId(),
+            Title: UiFormat.DefaultTitle(_time.GetLocalNow(), _time));
 
         try
         {
@@ -344,7 +348,7 @@ public sealed partial class RecordingViewModel : ObservableObject, ILevelSource
             TimerText = UiFormat.Duration(TimeSpan.Zero);
 
             // The recorder skipped a track it could not start (e.g. Windows denies the microphone): say so inline.
-            if (session.Error is { Length: > 0 } warning)
+            if (SessionNoteText.Describe(session.Error) is { Length: > 0 } warning)
             {
                 Error = warning;
             }
@@ -481,20 +485,13 @@ public sealed partial class RecordingViewModel : ObservableObject, ILevelSource
             return;
         }
 
-        // The text follows the UI language and the kind of the problem; the recorder's own (Ukrainian) text is for the session.
-        AddNotice(NoticeText(warning));
+        // The text follows the UI language and the code of the problem (the recorder only reports the code).
+        AddNotice(SessionNoteText.Describe(warning));
         if (warning.ScreenStopped)
         {
             SyncScreenWithRecorder();
         }
     }
-
-    private static string NoticeText(RecorderWarning warning) => warning.ScreenStopped ? Strings.Recording_ScreenStopped : warning.Kind switch
-    {
-        CaptureFaultKind.FramesDropped => Strings.Recording_ScreenFramesDropped,
-        CaptureFaultKind.CpuFallback => Strings.Recording_ScreenCpuFallback,
-        _ => Strings.Recording_ScreenProblems,
-    };
 
     private void AddNotice(string text)
     {
@@ -558,7 +555,7 @@ public sealed partial class RecordingViewModel : ObservableObject, ILevelSource
         {
             if (_sessionId is { } id && await _store.GetSessionAsync(id, CancellationToken.None) is { } session)
             {
-                reason = string.IsNullOrWhiteSpace(session.Error) ? reason : UiText.Format(Strings.Recording_StoppedWithReason, session.Error);
+                reason = SessionNoteText.Describe(session.Error) is { Length: > 0 } why ? UiText.Format(Strings.Recording_StoppedWithReason, why) : reason;
             }
         }
         catch (Exception ex)

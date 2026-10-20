@@ -59,6 +59,17 @@ internal static class UiFormat
             : UiText.Format(Strings.Date_OtherYear, day, month, clock, local.Year.ToString(CultureInfo.InvariantCulture));
     }
 
+    /// <summary>
+    /// The title of a recording that was started without a name, like the canvas: "Untitled — Oct 18, 01:12" (English) or
+    /// "Без назви — 18 жовтня, 01:12" (Ukrainian). The month comes from the resources.
+    /// </summary>
+    public static string DefaultTitle(DateTimeOffset startedAt, TimeProvider time)
+    {
+        var local = TimeZoneInfo.ConvertTime(startedAt, time.LocalTimeZone);
+        var clock = string.Create(CultureInfo.InvariantCulture, $"{local.Hour:00}:{local.Minute:00}");
+        return UiText.Format(Strings.Recording_DefaultTitle, local.Day.ToString(CultureInfo.InvariantCulture), TitleMonthName(local.Month), clock);
+    }
+
     /// <summary>A byte count for the UI: GB with two decimals from 100 MB (decimal units, like the mockup's "0,67 ГБ"), else MB or KB.</summary>
     public static string Size(long bytes)
     {
@@ -74,6 +85,23 @@ internal static class UiFormat
             _ => UiText.Format(Strings.Size_Kb, bytes / 1_000d),
         };
     }
+
+    private static string TitleMonthName(int month) => month switch
+    {
+        1 => Strings.TitleMonth_01,
+        2 => Strings.TitleMonth_02,
+        3 => Strings.TitleMonth_03,
+        4 => Strings.TitleMonth_04,
+        5 => Strings.TitleMonth_05,
+        6 => Strings.TitleMonth_06,
+        7 => Strings.TitleMonth_07,
+        8 => Strings.TitleMonth_08,
+        9 => Strings.TitleMonth_09,
+        10 => Strings.TitleMonth_10,
+        11 => Strings.TitleMonth_11,
+        12 => Strings.TitleMonth_12,
+        _ => throw new ArgumentOutOfRangeException(nameof(month), month, "Month must be 1..12."),
+    };
 
     private static string MonthName(int month) => month switch
     {
