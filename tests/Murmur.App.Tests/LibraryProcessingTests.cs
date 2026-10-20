@@ -1,3 +1,4 @@
+using Murmur.App.Localization;
 using Murmur.App.Tests.Fakes;
 using Murmur.App.ViewModels;
 using Murmur.Core.Processing;
@@ -5,8 +6,13 @@ using Murmur.Core.Sessions;
 
 namespace Murmur.App.Tests;
 
-public sealed class LibraryProcessingTests
+public sealed class LibraryProcessingTests : IDisposable
 {
+    // The texts asserted below are Ukrainian; English is the default language (D-039).
+    private readonly IDisposable _ukrainian = UiCulture.Override("uk");
+
+    public void Dispose() => _ukrainian.Dispose();
+
     private static readonly DateTimeOffset Now = UiHarness.Now;
 
     private readonly FakeSessionStore _store = new();

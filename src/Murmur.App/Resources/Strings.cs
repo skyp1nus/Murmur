@@ -9,35 +9,35 @@ namespace Murmur.App.Resources;
 /// <c>Strings.keys.g.cs</c>; they all read through <see cref="Get"/>.
 /// </summary>
 /// <remarks>
-/// <para>Ukrainian (<c>Strings.resx</c>) is the neutral language and the fallback; English is <c>Strings.en.resx</c>.
-/// Both are embedded in this assembly and looked up with two <see cref="ResourceManager"/> instances instead of one with
-/// satellite assemblies, because Native AOT cannot load satellite assemblies (the English texts would never be found).</para>
-/// <para>The language is <see cref="UiCulture.Language"/>: Ukrainian until the app sets it once at start-up from
+/// <para>English (<c>Strings.resx</c>) is the neutral language, the default and the fallback; Ukrainian is <c>Strings.uk.resx</c>
+/// (decision D-039). Both are embedded in this assembly and looked up with two <see cref="ResourceManager"/> instances instead
+/// of one with satellite assemblies, because Native AOT cannot load satellite assemblies (the Ukrainian texts would never be found).</para>
+/// <para>The language is <see cref="UiCulture.Language"/>: English until the app sets it once at start-up from
 /// <c>AppSettings.Language</c> (decision D-032). The OS culture is never consulted.</para>
 /// </remarks>
 public static partial class Strings
 {
     private const string BaseName = "Murmur.App.Resources.Strings";
 
-    private static readonly ResourceManager Ukrainian = new(BaseName, typeof(Strings).Assembly);
+    private static readonly ResourceManager English = new(BaseName, typeof(Strings).Assembly);
 
-    private static readonly ResourceManager English = new(BaseName + ".en", typeof(Strings).Assembly);
+    private static readonly ResourceManager Ukrainian = new(BaseName + ".uk", typeof(Strings).Assembly);
 
-    /// <summary>The text for <paramref name="name"/> in the UI language; Ukrainian when English has no such key.</summary>
+    /// <summary>The text for <paramref name="name"/> in the UI language; English when Ukrainian has no such key.</summary>
     internal static string Get(string name)
     {
-        if (string.Equals(UiCulture.Language, UiCulture.English, StringComparison.Ordinal)
-            && English.GetString(name, CultureInfo.InvariantCulture) is { } english)
+        if (string.Equals(UiCulture.Language, UiCulture.Ukrainian, StringComparison.Ordinal)
+            && Ukrainian.GetString(name, CultureInfo.InvariantCulture) is { } ukrainian)
         {
-            return english;
+            return ukrainian;
         }
 
-        return Ukrainian.GetString(name, CultureInfo.InvariantCulture) ?? name;
+        return English.GetString(name, CultureInfo.InvariantCulture) ?? name;
     }
 
-    /// <summary>The text of <paramref name="name"/> in a given language (<c>en</c> or anything else = Ukrainian); for tests and tools.</summary>
+    /// <summary>The text of <paramref name="name"/> in a given language (<c>uk</c> = Ukrainian, anything else = English); for tests and tools.</summary>
     internal static string? Get(string name, string language) =>
-        string.Equals(language, "en", StringComparison.OrdinalIgnoreCase)
-            ? English.GetString(name, CultureInfo.InvariantCulture)
-            : Ukrainian.GetString(name, CultureInfo.InvariantCulture);
+        string.Equals(language?.Trim(), UiCulture.Ukrainian, StringComparison.OrdinalIgnoreCase)
+            ? Ukrainian.GetString(name, CultureInfo.InvariantCulture)
+            : English.GetString(name, CultureInfo.InvariantCulture);
 }

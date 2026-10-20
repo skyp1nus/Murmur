@@ -7,8 +7,13 @@ using Murmur.Core.Sessions;
 
 namespace Murmur.App.Tests;
 
-public sealed class RecordingViewModelTests
+public sealed class RecordingViewModelTests : IDisposable
 {
+    // The texts asserted below are Ukrainian; English is the default language (D-039).
+    private readonly IDisposable _ukrainian = UiCulture.Override("uk");
+
+    public void Dispose() => _ukrainian.Dispose();
+
     private readonly FakeRecorder _recorder = new();
     private readonly FakeCapture _capture = new();
     private readonly FakeSessionStore _store = new();

@@ -322,6 +322,27 @@ public sealed class OnboardingViewTests
     }
 
     [Fact]
+    public async Task ThePreferencesStep_ShowsTheCanvasWording_InEnglish()
+    {
+        var texts = await Session.Dispatch(
+            async () =>
+            {
+                using var scope = UiCulture.Override("en");
+                var rig = new OnboardingRig();
+                var window = Show(rig);
+                await AdvanceAsync(rig, 4);
+                var result = VisibleTexts(window);
+                window.Close();
+                return result;
+            },
+            TestContext.Current.CancellationToken);
+
+        Assert.Contains("Works even when Murmur is minimised", texts);
+        Assert.Contains("Start / stop hotkey", texts);
+        Assert.Contains("Make it yours.", texts);
+    }
+
+    [Fact]
     public async Task TheHotkeyField_CapturesTheNextKeyCombination_LikeTheSettings()
     {
         var snapshot = await Session.Dispatch(

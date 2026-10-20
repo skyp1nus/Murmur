@@ -5,6 +5,7 @@ using Avalonia.Headless;
 using Avalonia.Input;
 using Avalonia.VisualTree;
 using Murmur.App.Controls;
+using Murmur.App.Localization;
 using Murmur.App.Tests.Fakes;
 using Murmur.App.ViewModels;
 using Murmur.App.Views;
@@ -259,12 +260,14 @@ public sealed class SessionViewTests : IDisposable
     [Fact]
     public async Task TheTabs_ShowTheTranscript_TheSummaryPlaceholder_AndTheChat()
     {
+        using var uk = UiCulture.Override("uk");
         _fixture.UseShortTranscript();
         var (_, shell) = await OpenAsync();
 
         var (pills, summary, ask) = await Session.Dispatch(
             () =>
             {
+                using var scope = UiCulture.Override("uk");
                 var window = UiHarness.Show(shell);
                 var pillTexts = window.GetVisualDescendants().OfType<ToggleButton>().Select(b => b.Content as string).ToArray();
                 shell.Session!.IsSummaryTab = true;
@@ -289,12 +292,14 @@ public sealed class SessionViewTests : IDisposable
     [Fact]
     public async Task TheInstallCard_ExplainsHowToGetTheModel()
     {
+        using var uk = UiCulture.Override("uk");
         _fixture.Processing.IsAsrInstalled = false;
         var (_, shell) = await OpenAsync();
 
         var (texts, buttons) = await Session.Dispatch(
             () =>
             {
+                using var scope = UiCulture.Override("uk");
                 var window = UiHarness.Show(shell);
                 var visible = VisibleTexts(window);
                 var primary = window.GetVisualDescendants().OfType<Button>().Where(b => b.IsEffectivelyVisible).Select(b => b.Content as string).ToArray();

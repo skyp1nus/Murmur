@@ -1,11 +1,17 @@
+using Murmur.App.Localization;
 using Murmur.App.Tests.Fakes;
 using Murmur.App.ViewModels;
 using Murmur.Core.Sessions;
 
 namespace Murmur.App.Tests;
 
-public sealed class LibraryViewModelTests
+public sealed class LibraryViewModelTests : IDisposable
 {
+    // The texts asserted below are Ukrainian; English is the default language (D-039).
+    private readonly IDisposable _ukrainian = UiCulture.Override("uk");
+
+    public void Dispose() => _ukrainian.Dispose();
+
     // Sunday 18 Oct 2026, 15:00 UTC.
     private static readonly DateTimeOffset Now = new(2026, 10, 18, 15, 0, 0, TimeSpan.Zero);
 

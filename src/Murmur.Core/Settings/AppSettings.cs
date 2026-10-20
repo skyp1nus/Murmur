@@ -10,14 +10,21 @@ public enum ThemePreference
 
 /// <summary>
 /// User preferences that survive restarts. Missing values in a stored file take these defaults, so new properties
-/// can be added without a migration.
+/// can be added without a migration; a change of meaning of an existing one is a migration keyed on <see cref="SettingsVersion"/>.
 /// </summary>
 public sealed record AppSettings
 {
+    /// <summary>
+    /// The layout version of the stored settings; the current one is 2. A file without it (or with a lower value) was written
+    /// before D-039, when <c>"uk"</c> in <see cref="Language"/> was only the old default: the store loads it with
+    /// <c>Language = "en"</c> and writes version 2 on the next save. A file with version 2 keeps the user's choice.
+    /// </summary>
+    public int SettingsVersion { get; init; } = 2;
+
     public ThemePreference Theme { get; init; } = ThemePreference.System;
 
-    /// <summary>UI language, a two-letter culture name: <c>uk</c> (default) or <c>en</c>. Applied on the next start.</summary>
-    public string Language { get; init; } = "uk";
+    /// <summary>UI language, a two-letter culture name: <c>en</c> (default) or <c>uk</c>. Applied on the next start.</summary>
+    public string Language { get; init; } = "en";
 
     /// <summary>Set when the first-run onboarding has been finished or skipped.</summary>
     public bool OnboardingCompleted { get; init; }

@@ -68,7 +68,7 @@ public sealed partial class HotkeyRowViewModel : ObservableObject
 
     public string Hint => Strings.Hotkeys_Hint;
 
-    /// <summary>The key caps: <c>Ctrl Shift R</c>, "Натисніть комбінацію…" while capturing, "Не задано" when empty.</summary>
+    /// <summary>The key caps: <c>Ctrl Shift R</c>, "Натисни нову комбінацію…" while capturing, "Не задано" when empty.</summary>
     public string DisplayText => IsCapturing ? Strings.Hotkeys_Press : Gesture is { Length: > 0 } g ? HotkeyGestures.Display(g) : Strings.Hotkeys_None;
 
     [RelayCommand]
