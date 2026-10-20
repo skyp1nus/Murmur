@@ -62,6 +62,8 @@ internal sealed class FakeStorage : IStorage
 
     public ValueTask UpdateSessionAsync(SessionRecord session, CancellationToken cancellationToken) => throw new NotSupportedException();
 
+    public ValueTask RenameSessionAsync(SessionId id, string title, CancellationToken cancellationToken) => throw new NotSupportedException();
+
     public ValueTask<IReadOnlyList<SessionRecord>> ListSessionsAsync(SessionQuery query, CancellationToken cancellationToken) => throw new NotSupportedException();
 
     public ValueTask DeleteSessionAsync(SessionId id, CancellationToken cancellationToken) => throw new NotSupportedException();
