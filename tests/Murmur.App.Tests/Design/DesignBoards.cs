@@ -158,7 +158,7 @@ internal static class DesignBoards
                     new IgnoreRect(853, 1638 + shift, 70, 18, "Settings: [LICENSE] placeholder", TextOnly: true),
                 ],
                 ExcludedTexts: [Version, License, UserPath]));
-            boards.Add(new("Onb1Welcome" + suffix, BoardScreen.Onboarding1Welcome, dark, 1280, 800, [], MaxShapeMismatchPercent: 1.0, MinTextMatchedPercent: 95, MaxTextGeometryErrors: 0));
+            boards.Add(new("Onb1Welcome" + suffix, BoardScreen.Onboarding1Welcome, dark, 1280, 800, [], MaxShapeMismatchPercent: 0.8, MinTextMatchedPercent: 95, MaxTextGeometryErrors: 0));
             boards.Add(new(
                 "Onb2Audio" + suffix,
                 BoardScreen.Onboarding2Audio,
@@ -180,7 +180,7 @@ internal static class DesignBoards
                     new IgnoreRect(547, 497, 65, 16, "Onboarding 3: [X.X] GB placeholder", TextOnly: true),
                     new IgnoreRect(942, 497, 57, 16, "Onboarding 3: [XX] GB placeholder", TextOnly: true),
                 ],
-                MaxShapeMismatchPercent: 6.0,
+                MaxShapeMismatchPercent: 5.0,
                 MinTextMatchedPercent: 95,
                 MaxTextGeometryErrors: 0,
                 ExcludedTexts: [SizeSmall, SizeLarge]));
@@ -194,7 +194,7 @@ internal static class DesignBoards
                     new IgnoreRect(547, 462, 65, 16, "Onboarding 3 ready: [X.X] GB placeholder", TextOnly: true),
                     new IgnoreRect(942, 462, 57, 16, "Onboarding 3 ready: [XX] GB placeholder", TextOnly: true),
                 ],
-                MaxShapeMismatchPercent: 5.0,
+                MaxShapeMismatchPercent: 4.5,
                 MinTextMatchedPercent: 95,
                 MaxTextGeometryErrors: 0,
                 ExcludedTexts: [SizeSmall, SizeLarge]));
@@ -205,11 +205,11 @@ internal static class DesignBoards
                 1280,
                 800,
                 [new IgnoreRect(792, 404, 92, 18, "Onboarding 4: [N] GB free placeholder", TextOnly: true)],
-                MaxShapeMismatchPercent: 3.5,
+                MaxShapeMismatchPercent: 2.8,
                 MinTextMatchedPercent: 95,
                 MaxTextGeometryErrors: 0,
                 ExcludedTexts: [FreeSpace, UserPath]));
-            boards.Add(new("Onb5FirstRecording" + suffix, BoardScreen.Onboarding5FirstRecording, dark, 1280, 800, [], MaxShapeMismatchPercent: 4.0, MinTextMatchedPercent: 95, MaxTextGeometryErrors: 0));
+            boards.Add(new("Onb5FirstRecording" + suffix, BoardScreen.Onboarding5FirstRecording, dark, 1280, 800, [], MaxShapeMismatchPercent: 3.5, MinTextMatchedPercent: 95, MaxTextGeometryErrors: 0));
         }
 
         return boards;

@@ -129,6 +129,9 @@ public sealed partial class ModelsStepViewModel : OnboardingStepViewModel
 
     public bool HasFreeSpace => FreeSpaceText.Length > 0;
 
+    /// <summary>The free space as the tooltip of the background note; <c>null</c> (no tooltip at all) when the drive cannot be read.</summary>
+    public string? FreeSpaceTip => HasFreeSpace ? FreeSpaceText : null;
+
     /// <summary>Everything that was chosen is installed: the "Ready" variant of the step.</summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(ShowBackgroundNote))]
@@ -269,6 +272,7 @@ public sealed partial class ModelsStepViewModel : OnboardingStepViewModel
         {
             OnPropertyChanged(nameof(FreeSpaceText));
             OnPropertyChanged(nameof(HasFreeSpace));
+            OnPropertyChanged(nameof(FreeSpaceTip));
             RefreshFreeBytes();
             Recompute();
         }

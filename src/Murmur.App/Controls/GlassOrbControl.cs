@@ -57,6 +57,7 @@ public sealed class GlassOrbControl : Panel
         AvaloniaProperty.Register<GlassOrbControl, double>(nameof(InnerGlowOpacity), 0.35);
 
     // The three stops of tokens.json "orbGradient" that are not accent colours.
+    // TODO(D-044): these three stops of the orb gradient are canvas colours with no token yet; they move to tokens.json (orbGradient).
     private static readonly Color Highlight = Color.FromRgb(0xff, 0xf1, 0xe8);
     private static readonly Color Pink = Color.FromRgb(0xf4, 0xa6, 0xc8);
     private static readonly Color Lavender = Color.FromRgb(0xd8, 0xc8, 0xf0);
@@ -71,10 +72,21 @@ public sealed class GlassOrbControl : Panel
     private const double ReleasePerSecond = 3.5;
     private const double MaxStepSeconds = 0.1;
     private const double MinUpdateSeconds = 0.066;
+
+    // A timer tick is never exactly one interval after the last: ticks a little early still count, or every other tick would be dropped.
+    private const double UpdateSlack = 0.8;
     private const double SkipThreshold = 0.003;
+
+    /// <summary>How many halo bitmaps this orb computed (for tests: once per size, blur and theme colours).</summary>
+    internal int HaloBuilds { get; private set; }
 
     private readonly Layer _halo;
     private readonly Layer _body;
+    private static readonly TimeSpan ActiveInterval = TimeSpan.FromSeconds(MinUpdateSeconds);
+
+    // While the orb is hidden or its window minimized nothing is drawn: the timer only wakes up twice a second to notice the change.
+    private static readonly TimeSpan HiddenInterval = TimeSpan.FromMilliseconds(500);
+
     private readonly DispatcherTimer _timer;
     private TimeProvider _clock = TimeProvider.System;
     private long _clockStart;
@@ -105,8 +117,8 @@ public sealed class GlassOrbControl : Panel
         _halo = new Layer(this, isHalo: true) { IsHitTestVisible = false };
         _body = new Layer(this, isHalo: false) { IsHitTestVisible = false };
         _clockStart = _clock.GetTimestamp();
-        _timer = new DispatcherTimer(DispatcherPriority.Render) { Interval = TimeSpan.FromSeconds(MinUpdateSeconds) };
-        _timer.Tick += (_, _) => Tick();
+        _timer = new DispatcherTimer(DispatcherPriority.Render) { Interval = ActiveInterval };
+        _timer.Tick += (_, _) => OnTimer();
         IsHitTestVisible = false;
         Focusable = false;
         ClipToBounds = false;
@@ -190,6 +202,26 @@ public sealed class GlassOrbControl : Panel
         }
     }
 
+    /// <summary>One timer tick: a step when the orb can be seen, otherwise the timer slows down until it can.</summary>
+    internal void OnTimer()
+    {
+        var shown = IsEffectivelyVisible && (TopLevel.GetTopLevel(this) as Window)?.WindowState != WindowState.Minimized;
+        var wanted = shown ? ActiveInterval : HiddenInterval;
+        if (_timer.Interval != wanted)
+        {
+            _timer.Interval = wanted;
+            _primed = false;
+        }
+
+        if (shown)
+        {
+            Tick();
+        }
+    }
+
+    /// <summary>The timer's current interval (for tests).</summary>
+    internal TimeSpan TimerInterval => _timer.Interval;
+
     /// <summary>One animation step at the clock's current time: exactly what the timer does (internal for tests).</summary>
     internal void Tick() => Update(_clock.GetElapsedTime(_clockStart));
 
@@ -265,6 +297,8 @@ public sealed class GlassOrbControl : Panel
         var run = IsActive && ((Visual)this).IsAttachedToVisualTree();
         if (run && !_timer.IsEnabled)
         {
+            _primed = false;
+            _timer.Interval = ActiveInterval;
             _timer.Start();
         }
         else if (!run && _timer.IsEnabled)
@@ -277,7 +311,7 @@ public sealed class GlassOrbControl : Panel
     internal void Update(TimeSpan timestamp)
     {
         var elapsed = (timestamp - _lastFrame).TotalSeconds;
-        if (_primed && elapsed < MinUpdateSeconds)
+        if (_primed && elapsed < MinUpdateSeconds * UpdateSlack)
         {
             return;
         }
@@ -287,6 +321,7 @@ public sealed class GlassOrbControl : Panel
         if (source is null)
         {
             // The canvas "breathe": ease in and out between rest (0) and the peak (1) every 3.6 s, starting at rest.
+            // TODO(reduced-motion): hold the rest frame when the user prefers reduced motion (Core preference, follow-up task for all orbs).
             _primed = true;
             _lastFrame = timestamp;
             _phaseSeconds = starting ? 0 : _phaseSeconds + Math.Min(elapsed, MaxStepSeconds);
@@ -368,6 +403,18 @@ public sealed class GlassOrbControl : Panel
     /// <summary>One CSS gradient layer: colour, centre in the element (0..1), the stop (share of the farthest corner) where it fades out.</summary>
     private readonly record struct Blob(Color Colour, double X, double Y, double Reach);
 
+    /// <summary>
+    /// The gradients of tokens.json "orbGradient" from the bottom up (CSS lists them top first: highlight, blue, ember, pink, over the
+    /// lavender base): the one description both the sphere's brushes and the halo's bitmap are made from.
+    /// </summary>
+    private static Blob[] Blobs(Color blue, Color ember) =>
+    [
+        new(Pink, 0.72, 0.20, 0.50),
+        new(ember, 0.20, 0.80, 0.55),
+        new(blue, 0.74, 0.70, 0.58),
+        new(Highlight, 0.32, 0.26, 0.30),
+    ];
+
 
     /// <summary>The blurred sphere as a premultiplied bitmap at 1/<see cref="Scale"/> of the size.</summary>
     private static class HaloImage
@@ -381,13 +428,7 @@ public sealed class GlassOrbControl : Panel
             var plane = new float[width * height * 4];
 
             // 1. The sphere: the CSS gradients over the lavender base, premultiplied, with a one-pixel soft rim.
-            Blob[] blobs =
-            [
-                new(Pink, 0.72, 0.20, 0.50),
-                new(ember, 0.20, 0.80, 0.55),
-                new(blue, 0.74, 0.70, 0.58),
-                new(Highlight, 0.32, 0.26, 0.30),
-            ];
+            var blobs = Blobs(blue, ember);
             var radius = diameter / 2;
             var left = (layer.Width - diameter) / 2;
             var top = (layer.Height - diameter) / 2;
@@ -586,6 +627,7 @@ public sealed class GlassOrbControl : Panel
             if (_haloBitmap is null || _haloKey != key)
             {
                 _haloBitmap?.Dispose();
+                _owner.HaloBuilds++;
                 _haloBitmap = HaloImage.Create(diameter, sigma, Bounds.Size, _owner._blue, _owner._ember);
                 _haloKey = key;
             }
@@ -609,14 +651,7 @@ public sealed class GlassOrbControl : Panel
             _brushesFor = key;
             _base = new ImmutableSolidColorBrush(Lavender);
 
-            // CSS stacks the layers top first: highlight, blue, ember, pink over the lavender base.
-            Blob[] blobs =
-            [
-                new(Pink, 0.72, 0.20, 0.50),
-                new(_owner._ember, 0.20, 0.80, 0.55),
-                new(_owner._blue, 0.74, 0.70, 0.58),
-                new(Highlight, 0.32, 0.26, 0.30),
-            ];
+            var blobs = Blobs(_owner._blue, _owner._ember);
             var brushes = new IBrush[blobs.Length];
             for (var i = 0; i < blobs.Length; i++)
             {

@@ -1,6 +1,7 @@
 <Styles xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        xmlns:controls="using:Murmur.App.Controls">
+        xmlns:controls="using:Murmur.App.Controls"
+        xmlns:coll="using:Avalonia.Collections">
 
   <!--
     Styles of the first-run onboarding (Onb1..Onb5 mockups). Like Controls.axaml this file holds no literal colours, fonts,
@@ -24,13 +25,14 @@
           <StaticResource x:Key="Shadow.OnbKnob" ResourceKey="Shadow.Subtle" />
           <!-- The open device list: its outline and the chosen row. -->
           <StaticResource x:Key="Brush.OnbListBorder" ResourceKey="Brush.Stone" />
+          <StaticResource x:Key="Shadow.OnbList" ResourceKey="Shadow.Subtle" />
           <StaticResource x:Key="Brush.OnbItemSelected" ResourceKey="Brush.Surface" />
           <!-- The canvas orbs: standard deviation of the halo's blur, opacity of the voice halo, strength of the inner glow. -->
-          <x:Double x:Key="Orb.WelcomeHaloBlur">30</x:Double>
-          <x:Double x:Key="Orb.WelcomeGlow">0.35</x:Double>
-          <x:Double x:Key="Orb.VoiceHaloBlur">20</x:Double>
-          <x:Double x:Key="Orb.VoiceHaloOpacity">0.3</x:Double>
-          <x:Double x:Key="Orb.VoiceGlow">0.35</x:Double>
+          <x:Double x:Key="Onb.Orb.WelcomeHaloBlur">30</x:Double>
+          <x:Double x:Key="Onb.Orb.WelcomeGlow">0.35</x:Double>
+          <x:Double x:Key="Onb.Orb.VoiceHaloBlur">20</x:Double>
+          <x:Double x:Key="Onb.Orb.VoiceHaloOpacity">0.3</x:Double>
+          <x:Double x:Key="Onb.Orb.VoiceGlow">0.35</x:Double>
         </ResourceDictionary>
         <ResourceDictionary x:Key="Dark">
           <StaticResource x:Key="Brush.SwitchKnobOff" ResourceKey="Brush.Graphite" />
@@ -38,12 +40,14 @@
           <StaticResource x:Key="Brush.OnbCap" ResourceKey="Brush.Stone" />
           <BoxShadows x:Key="Shadow.OnbKnob">none</BoxShadows>
           <StaticResource x:Key="Brush.OnbListBorder" ResourceKey="Brush.ButtonBorder" />
+          <!-- TODO(D-044): the dark mockup's list shadow is "0 8 24 rgba(0,0,0,0.5)"; it needs a shadow token (a literal colour is not allowed here). -->
+          <StaticResource x:Key="Shadow.OnbList" ResourceKey="Shadow.Subtle" />
           <StaticResource x:Key="Brush.OnbItemSelected" ResourceKey="Brush.Stone" />
-          <x:Double x:Key="Orb.WelcomeHaloBlur">34</x:Double>
-          <x:Double x:Key="Orb.WelcomeGlow">0.25</x:Double>
-          <x:Double x:Key="Orb.VoiceHaloBlur">22</x:Double>
-          <x:Double x:Key="Orb.VoiceHaloOpacity">0.45</x:Double>
-          <x:Double x:Key="Orb.VoiceGlow">0.25</x:Double>
+          <x:Double x:Key="Onb.Orb.WelcomeHaloBlur">34</x:Double>
+          <x:Double x:Key="Onb.Orb.WelcomeGlow">0.25</x:Double>
+          <x:Double x:Key="Onb.Orb.VoiceHaloBlur">22</x:Double>
+          <x:Double x:Key="Onb.Orb.VoiceHaloOpacity">0.45</x:Double>
+          <x:Double x:Key="Onb.Orb.VoiceGlow">0.25</x:Double>
         </ResourceDictionary>
       </ResourceDictionary.ThemeDictionaries>
 
@@ -61,8 +65,6 @@
       <Thickness x:Key="Inset.OnbChip">8,0</Thickness>
       <Thickness x:Key="Inset.OnbSmall">12,0</Thickness>
       <Thickness x:Key="Inset.OnbDashed">0.5</Thickness>
-      <x:Double x:Key="Dash.On">3</x:Double>
-      <x:Double x:Key="Dash.Off">3</x:Double>
       <Thickness x:Key="Inset.OnbOption">14,0</Thickness>
       <Thickness x:Key="Inset.OnbModel">24,20</Thickness>
       <Thickness x:Key="Inset.OnbCardExtra">0,6,0,0</Thickness>
@@ -89,8 +91,8 @@
       <!-- The mockups write 1.5 px for the chosen card, the radio ring and the focused hotkey field; Chromium floors border widths to
            whole device pixels, so the canvas shows (and these styles use) the 1 px hairline. -->
 
-      <!-- TODO(D-044): every Onb.FontSize / Onb.LineHeight / Onb.LetterSpacing / Onb.FontWeight / Onb.Radius / Onb.Space key below is a canvas
-           value that tokens.json lacks; switch to the generated tokens once the shell task adds them.
+      <!-- TODO(D-044): every Onb.* key in this file (FontSize, LineHeight, LetterSpacing, FontWeight, Radius, Space, Stroke, Dash, Orb, OrbBody) is
+           a canvas value that tokens.json lacks; switch to the generated tokens once the shell task adds them.
            Type of the canvas that the scale of tokens.json lacks (the mockups use 11, 12, 13 and 15 px next to the 14 / 16 px steps);
            the line heights are the "normal" ones of Inter, the tracking is the root's 0.14 px that the mockups inherit. -->
       <x:Double x:Key="Onb.FontSize.H1">44</x:Double>
@@ -128,14 +130,22 @@
       <x:Double x:Key="Size.OnbSmallButton">36</x:Double>
       <x:Double x:Key="Onb.Space.Models">36</x:Double>
       <x:Double x:Key="Onb.Space.Compact">20</x:Double>
-      <x:Double x:Key="Size.OnbOrbCompact">240</x:Double>
+      <x:Double x:Key="Size.OnbOrbCompact">220</x:Double>
       <x:Double x:Key="Size.OnbVoiceOrbCompact">132</x:Double>
       <x:Double x:Key="Onb.Space.Cards">14</x:Double>
       <x:Double x:Key="Onb.Space.Tight">3</x:Double>
       <x:Double x:Key="Size.OnbCheck">13</x:Double>
       <x:Double x:Key="Size.OnbNoteCheck">14</x:Double>
-      <x:Double x:Key="Stroke.OnbCheck">2.2</x:Double>
-      <x:Double x:Key="Stroke.OnbNoteCheck">2</x:Double>
+      <x:Double x:Key="Onb.Stroke.Check">2.2</x:Double>
+      <x:Double x:Key="Onb.Stroke.Chevron">1.6</x:Double>
+      <x:Double x:Key="Onb.Radius.DashedCard">19.5</x:Double>
+      <!-- Dash and gap of the waiting card outline, in multiples of its stroke. -->
+      <coll:AvaloniaList x:Key="Onb.Dash.Outline"
+                         x:TypeArguments="x:Double">
+        <x:Double>3</x:Double>
+        <x:Double>3</x:Double>
+      </coll:AvaloniaList>
+      <x:Double x:Key="Onb.Stroke.NoteCheck">2</x:Double>
       <x:Double x:Key="Size.OnbStatus">28</x:Double>
       <x:Double x:Key="Size.OnbStatusCard">26</x:Double>
       <x:Double x:Key="Onb.Space.Badge">10</x:Double>
@@ -155,12 +165,12 @@
       <x:Double x:Key="Size.BannerIcon">40</x:Double>
       <x:Double x:Key="Size.Avatar">28</x:Double>
       <x:Double x:Key="Size.OnbOrb">300</x:Double>
-      <x:Double x:Key="OrbBody.Welcome">0.77333</x:Double>
+      <x:Double x:Key="Onb.OrbBody.Welcome">0.77333</x:Double>
       <x:Double x:Key="Size.WordmarkOrb">18</x:Double>
       <x:Double x:Key="Size.OnbVoiceOrb">168</x:Double>
-      <x:Double x:Key="OrbBody.Voice">0.78571</x:Double>
-      <x:Double x:Key="Orb.GlowBlurWelcome">40</x:Double>
-      <x:Double x:Key="Orb.GlowBlurVoice">28</x:Double>
+      <x:Double x:Key="Onb.OrbBody.Voice">0.78571</x:Double>
+      <x:Double x:Key="Onb.Orb.GlowBlurWelcome">40</x:Double>
+      <x:Double x:Key="Onb.Orb.GlowBlurVoice">28</x:Double>
       <x:Double x:Key="Size.OnbAudioWidth">840</x:Double>
       <x:Double x:Key="Size.OnbModelsWidth">760</x:Double>
       <x:Double x:Key="Size.OnbPreferencesWidth">720</x:Double>
@@ -563,7 +573,7 @@
     <Setter Property="Stretch" Value="None" />
     <Setter Property="Fill" Value="Transparent" />
     <Setter Property="Stroke" Value="{DynamicResource Brush.Smoke}" />
-    <Setter Property="StrokeThickness" Value="1.6" />
+    <Setter Property="StrokeThickness" Value="{StaticResource Onb.Stroke.Chevron}" />
     <Setter Property="StrokeLineCap" Value="Round" />
     <Setter Property="StrokeJoin" Value="Round" />
   </Style>
@@ -579,18 +589,48 @@
     <Setter Property="BorderBrush" Value="{DynamicResource Brush.OnbListBorder}" />
     <Setter Property="CornerRadius" Value="{StaticResource Onb.Radius.Badge}" />
     <Setter Property="Padding" Value="{StaticResource Inset.4}" />
+    <Setter Property="BoxShadow" Value="{DynamicResource Shadow.OnbList}" />
   </Style>
   <Style Selector="ComboBox.onb ComboBoxItem">
     <Setter Property="Height" Value="{StaticResource Size.NavSubItem}" />
     <Setter Property="MinHeight" Value="0" />
     <Setter Property="Padding" Value="{StaticResource Inset.OnbItem}" />
     <Setter Property="CornerRadius" Value="{StaticResource Onb.Radius.Cap}" />
+    <Setter Property="Template">
+      <ControlTemplate>
+        <Border x:Name="PART_Item"
+                Background="Transparent"
+                CornerRadius="{TemplateBinding CornerRadius}"
+                Padding="{TemplateBinding Padding}">
+          <Grid ColumnDefinitions="*,Auto">
+            <ContentPresenter x:Name="PART_ItemContent"
+                              VerticalAlignment="Center"
+                              Content="{TemplateBinding Content}"
+                              ContentTemplate="{TemplateBinding ContentTemplate}" />
+            <!-- The chosen row ends with a check mark (OnbComponents "Device dropdown / Item - selected"). -->
+            <controls:IconControl x:Name="PART_Check"
+                                  Grid.Column="1"
+                                  IsVisible="False"
+                                  Width="{StaticResource Size.OnbNoteCheck}"
+                                  Height="{StaticResource Size.OnbNoteCheck}"
+                                  Stroke="{StaticResource Onb.Stroke.NoteCheck}"
+                                  Data="{StaticResource Icon.Check}" />
+          </Grid>
+        </Border>
+      </ControlTemplate>
+    </Setter>
   </Style>
-  <Style Selector="ComboBox.onb ComboBoxItem:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+  <Style Selector="ComboBox.onb ComboBoxItem /template/ ContentPresenter#PART_ItemContent">
+    <Setter Property="Background" Value="Transparent" />
+  </Style>
+  <Style Selector="ComboBox.onb ComboBoxItem:pointerover /template/ Border#PART_Item">
     <Setter Property="Background" Value="{DynamicResource Brush.OnbItemSelected}" />
   </Style>
-  <Style Selector="ComboBox.onb ComboBoxItem:selected /template/ ContentPresenter#PART_ContentPresenter">
+  <Style Selector="ComboBox.onb ComboBoxItem:selected /template/ Border#PART_Item">
     <Setter Property="Background" Value="{DynamicResource Brush.OnbItemSelected}" />
+  </Style>
+  <Style Selector="ComboBox.onb ComboBoxItem:selected /template/ controls|IconControl#PART_Check">
+    <Setter Property="IsVisible" Value="True" />
   </Style>
 
   <!-- Buttons inside the banners: 40 px tall pills with the 14 px label. -->
@@ -660,27 +700,27 @@
   <!-- Dashed outline of the waiting card. -->
   <Style Selector="Rectangle.dashedOutline">
     <Setter Property="Margin" Value="{StaticResource Inset.OnbDashed}" />
-    <Setter Property="RadiusX" Value="19.5" />
-    <Setter Property="RadiusY" Value="19.5" />
+    <Setter Property="RadiusX" Value="{StaticResource Onb.Radius.DashedCard}" />
+    <Setter Property="RadiusY" Value="{StaticResource Onb.Radius.DashedCard}" />
     <Setter Property="Stroke" Value="{DynamicResource Brush.DashedBorder}" />
-    <Setter Property="StrokeThickness" Value="1" />
-    <Setter Property="StrokeDashArray" Value="3,3" />
+    <Setter Property="StrokeThickness" Value="{StaticResource Hairline.Width}" />
+    <Setter Property="StrokeDashArray" Value="{StaticResource Onb.Dash.Outline}" />
     <Setter Property="IsHitTestVisible" Value="False" />
   </Style>
 
   <!-- The canvas orb: wordmark (plain sphere), welcome orb and voice orb (sphere, inner glow, blurred halo). -->
   <Style Selector="controls|GlassOrbControl.welcome">
-    <Setter Property="BodyFraction" Value="{StaticResource OrbBody.Welcome}" />
-    <Setter Property="HaloBlur" Value="{DynamicResource Orb.WelcomeHaloBlur}" />
-    <Setter Property="InnerGlowBlur" Value="{StaticResource Orb.GlowBlurWelcome}" />
-    <Setter Property="InnerGlowOpacity" Value="{DynamicResource Orb.WelcomeGlow}" />
+    <Setter Property="BodyFraction" Value="{StaticResource Onb.OrbBody.Welcome}" />
+    <Setter Property="HaloBlur" Value="{DynamicResource Onb.Orb.WelcomeHaloBlur}" />
+    <Setter Property="InnerGlowBlur" Value="{StaticResource Onb.Orb.GlowBlurWelcome}" />
+    <Setter Property="InnerGlowOpacity" Value="{DynamicResource Onb.Orb.WelcomeGlow}" />
   </Style>
   <Style Selector="controls|GlassOrbControl.voice">
-    <Setter Property="BodyFraction" Value="{StaticResource OrbBody.Voice}" />
-    <Setter Property="HaloBlur" Value="{DynamicResource Orb.VoiceHaloBlur}" />
-    <Setter Property="HaloOpacity" Value="{DynamicResource Orb.VoiceHaloOpacity}" />
-    <Setter Property="InnerGlowBlur" Value="{StaticResource Orb.GlowBlurVoice}" />
-    <Setter Property="InnerGlowOpacity" Value="{DynamicResource Orb.VoiceGlow}" />
+    <Setter Property="BodyFraction" Value="{StaticResource Onb.OrbBody.Voice}" />
+    <Setter Property="HaloBlur" Value="{DynamicResource Onb.Orb.VoiceHaloBlur}" />
+    <Setter Property="HaloOpacity" Value="{DynamicResource Onb.Orb.VoiceHaloOpacity}" />
+    <Setter Property="InnerGlowBlur" Value="{StaticResource Onb.Orb.GlowBlurVoice}" />
+    <Setter Property="InnerGlowOpacity" Value="{DynamicResource Onb.Orb.VoiceGlow}" />
   </Style>
 
   <!-- The footer's buttons: 44 px tall pills. Disabled primary = Stone with Ash text (OnbComponents). -->

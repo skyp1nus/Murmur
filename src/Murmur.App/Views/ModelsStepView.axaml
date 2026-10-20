@@ -67,7 +67,7 @@
                             Spacing="{StaticResource Onb.Space.Icon}">
                   <controls:IconControl Width="{StaticResource Size.OnbCheck}"
                                         Height="{StaticResource Size.OnbCheck}"
-                                        Stroke="{StaticResource Stroke.OnbCheck}"
+                                        Stroke="{StaticResource Onb.Stroke.Check}"
                                         Data="{StaticResource Icon.Check}" />
                   <TextBlock Classes="onbLabelMedium"
                              VerticalAlignment="Center"
@@ -157,7 +157,7 @@
                                 Spacing="{StaticResource Onb.Space.Icon}">
                       <controls:IconControl Width="{StaticResource Size.OnbCheck}"
                                             Height="{StaticResource Size.OnbCheck}"
-                                            Stroke="{StaticResource Stroke.OnbCheck}"
+                                            Stroke="{StaticResource Onb.Stroke.Check}"
                                             Data="{StaticResource Icon.Check}" />
                       <TextBlock Classes="onbLabelMedium"
                                  VerticalAlignment="Center"
@@ -205,7 +205,7 @@
                      HorizontalAlignment="Right"
                      IsVisible="{Binding ShowBackgroundNote}"
                      Text="{x:Static res:Strings.Onb3_Background}"
-                     ToolTip.Tip="{Binding FreeSpaceText}" />
+                     ToolTip.Tip="{Binding FreeSpaceTip}" />
           <StackPanel x:Name="AllDoneNote"
                       Orientation="Horizontal"
                       HorizontalAlignment="Right"
@@ -213,7 +213,7 @@
                       IsVisible="{Binding AllDone}">
             <controls:IconControl Width="{StaticResource Size.OnbNoteCheck}"
                                   Height="{StaticResource Size.OnbNoteCheck}"
-                                  Stroke="{StaticResource Stroke.OnbNoteCheck}"
+                                  Stroke="{StaticResource Onb.Stroke.NoteCheck}"
                                   TextElement.Foreground="{DynamicResource Brush.Graphite}"
                                   Data="{StaticResource Icon.Check}" />
             <TextBlock Classes="onbNote"
