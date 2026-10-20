@@ -33,7 +33,7 @@ public sealed class AiPausedException : InvalidOperationException
 /// nothing starts at all.
 /// </para>
 /// </remarks>
-public sealed class LocalLlm : ILlm
+public sealed class LocalLlm : ILlm, IAccelerationStatusSource
 {
     /// <summary>How long a resolved set of options is reused before the provider is asked again.</summary>
     public static readonly TimeSpan OptionsRefreshInterval = TimeSpan.FromSeconds(2);
@@ -53,6 +53,7 @@ public sealed class LocalLlm : ILlm
 
     // The GPU build that failed to start in this session (written and read without the lock; replaced as a whole).
     private AccelerationFailure? _accelerationFailure;
+    private AccelerationStatus? _publishedStatus;
 
     // Servers being stopped gracefully (idle, model switch): recording start kills them, unload and dispose wait for them.
     private readonly Dictionary<ILlamaServer, StopEntry> _stopping = [];
@@ -139,32 +140,55 @@ public sealed class LocalLlm : ILlm
     /// </summary>
     public void Refresh() => GetOptions(force: true);
 
-    /// <summary>Raised (off the caller's thread of control, outside any lock) when a GPU server failed to start and the CPU build took over.</summary>
-    public event Action<AccelerationStatus>? AccelerationChanged;
+    /// <inheritdoc />
+    public event Action<AccelerationStatus>? Changed;
 
     /// <summary>
     /// The build the chat server uses and why it is not the chosen one: <see cref="AccelerationFallback.RuntimeNotInstalled"/>
     /// = download it first, <see cref="AccelerationFallback.StartFailed"/> = "GPU unavailable: <see cref="AccelerationStatus.Detail"/>".
     /// Cheap; reads the options as last resolved.
     /// </summary>
-    public AccelerationStatus Acceleration
+    public AccelerationStatus Current => ComputeStatus(GetOptions());
+
+    private AccelerationStatus ComputeStatus(LocalLlmOptions options)
     {
-        get
+        if (options.Acceleration == AiAcceleration.Cpu)
         {
-            var options = GetOptions();
-            if (options.Acceleration == AiAcceleration.Cpu)
-            {
-                return new AccelerationStatus(AiAcceleration.Cpu, AiAcceleration.Cpu, AccelerationFallback.None);
-            }
+            return new AccelerationStatus(AiAcceleration.Cpu, AiAcceleration.Cpu, AccelerationFallback.None);
+        }
 
-            if (!FileExists(options.AcceleratedServerPath))
-            {
-                return new AccelerationStatus(options.Acceleration, AiAcceleration.Cpu, AccelerationFallback.RuntimeNotInstalled);
-            }
+        if (!FileExists(options.AcceleratedServerPath))
+        {
+            return new AccelerationStatus(options.Acceleration, AiAcceleration.Cpu, AccelerationFallback.RuntimeNotInstalled);
+        }
 
-            return FailureFor(options) is { } failure
-                ? new AccelerationStatus(options.Acceleration, AiAcceleration.Cpu, AccelerationFallback.StartFailed, failure.Reason)
-                : new AccelerationStatus(options.Acceleration, options.Acceleration, AccelerationFallback.None);
+        return FailureFor(options) is { } failure
+            ? new AccelerationStatus(options.Acceleration, AiAcceleration.Cpu, AccelerationFallback.StartFailed, failure.Reason)
+            : new AccelerationStatus(options.Acceleration, options.Acceleration, AccelerationFallback.None);
+    }
+
+    /// <summary>Tells the listeners when the status differs from the one published last (the first one is only remembered).</summary>
+    private void PublishIfChanged(AccelerationStatus status)
+    {
+        var previous = Interlocked.Exchange(ref _publishedStatus, status);
+        if (previous is null || previous == status)
+        {
+            return;
+        }
+
+        var handler = Changed;
+        if (handler is null)
+        {
+            return;
+        }
+
+        try
+        {
+            handler(status);
+        }
+        catch (Exception)
+        {
+            // A faulty subscriber must not break model loading.
         }
     }
 
@@ -312,6 +336,7 @@ public sealed class LocalLlm : ILlm
             Interlocked.CompareExchange(ref _accelerationFailure, null, failure);
         }
 
+        PublishIfChanged(ComputeStatus(options));
         return options;
     }
 
@@ -393,20 +418,7 @@ public sealed class LocalLlm : ILlm
     private void RecordAccelerationFailure(LocalLlmOptions options, Exception error)
     {
         Volatile.Write(ref _accelerationFailure, new AccelerationFailure(options.Acceleration, options.AcceleratedServerPath, DescribeFailure(error)));
-        var handler = AccelerationChanged;
-        if (handler is null)
-        {
-            return;
-        }
-
-        try
-        {
-            handler(new AccelerationStatus(options.Acceleration, AiAcceleration.Cpu, AccelerationFallback.StartFailed, DescribeFailure(error)));
-        }
-        catch (Exception)
-        {
-            // A faulty subscriber must not break the fallback.
-        }
+        PublishIfChanged(ComputeStatus(options));
     }
 
     /// <summary>One short line for the UI: the last line the server printed, else the first line of the error.</summary>

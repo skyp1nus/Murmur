@@ -32,11 +32,14 @@ public sealed record LocalLlmOptions
 
     /// <summary>
     /// Path of <c>llama-server(.exe)</c> of the chosen GPU build (<see cref="DefaultServerPath(string, AiAcceleration)"/>).
-    /// When the file is missing the CPU build runs and <see cref="LocalLlm.Acceleration"/> reports that the runtime needs to be downloaded.
+    /// When the file is missing the CPU build runs and <see cref="LocalLlm.Current"/> reports that the runtime needs to be downloaded.
     /// </summary>
     public string? AcceleratedServerPath { get; init; }
 
-    /// <summary>Arguments added to the chat server of a GPU build: offload every layer (<c>-ngl 99</c>). Placed before <see cref="ChatExtraArguments"/>, so those can override them.</summary>
+    /// <summary>
+    /// Arguments added to the chat server of a GPU build: offload every layer (<c>-ngl 99</c>). Placed before <see cref="ChatExtraArguments"/>, so those can override them.
+    /// Risk: a model larger than the VRAM falls back to the CPU build instead of a partial offload; revisit with <c>-ngl auto</c> / fit once verified on b11716.
+    /// </summary>
     public IReadOnlyList<string> AcceleratedChatArguments { get; init; } = ["-ngl", "99"];
 
     /// <summary>

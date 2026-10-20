@@ -110,7 +110,7 @@ public sealed class LocalLlmAccelerationTests : IAsyncLifetime
         var started = Assert.Single(_started);
         Assert.Equal(CpuServer, started.ServerPath);
         Assert.Empty(started.ExtraArguments);
-        Assert.Equal(new AccelerationStatus(AiAcceleration.Cpu, AiAcceleration.Cpu, AccelerationFallback.None), llm.Acceleration);
+        Assert.Equal(new AccelerationStatus(AiAcceleration.Cpu, AiAcceleration.Cpu, AccelerationFallback.None), llm.Current);
     }
 
     [Theory]
@@ -128,7 +128,7 @@ public sealed class LocalLlmAccelerationTests : IAsyncLifetime
         Assert.Equal(acceleration == AiAcceleration.Vulkan ? VulkanServer : CudaServer, started.ServerPath);
         Assert.Equal(["-ngl", "99"], started.ExtraArguments);
         Assert.False(started.Embedding);
-        Assert.Equal(new AccelerationStatus(acceleration, acceleration, AccelerationFallback.None), llm.Acceleration);
+        Assert.Equal(new AccelerationStatus(acceleration, acceleration, AccelerationFallback.None), llm.Current);
     }
 
     [Fact]
@@ -172,7 +172,7 @@ public sealed class LocalLlmAccelerationTests : IAsyncLifetime
         File.Delete(VulkanServer);
         await using var llm = Create(Options(AiAcceleration.Vulkan));
 
-        var before = llm.Acceleration;
+        var before = llm.Current;
         await llm.GetChatClientAsync(Ct);
 
         Assert.Equal(new AccelerationStatus(AiAcceleration.Vulkan, AiAcceleration.Cpu, AccelerationFallback.RuntimeNotInstalled), before);
@@ -180,7 +180,7 @@ public sealed class LocalLlmAccelerationTests : IAsyncLifetime
         var started = Assert.Single(_started);
         Assert.Equal(CpuServer, started.ServerPath);
         Assert.Empty(started.ExtraArguments);
-        Assert.True(llm.Acceleration.NeedsDownload);
+        Assert.True(llm.Current.NeedsDownload);
     }
 
     [Fact]
@@ -203,7 +203,7 @@ public sealed class LocalLlmAccelerationTests : IAsyncLifetime
             : null;
         await using var llm = Create(Options(AiAcceleration.Vulkan));
         var raised = new List<AccelerationStatus>();
-        llm.AccelerationChanged += raised.Add;
+        llm.Changed += raised.Add;
 
         var chat = await llm.GetChatClientAsync(Ct);
         var answer = await chat.GetResponseAsync([new ChatMessage(ChatRole.User, "ping")], cancellationToken: Ct);
@@ -213,9 +213,37 @@ public sealed class LocalLlmAccelerationTests : IAsyncLifetime
         Assert.Equal(["-ngl", "99"], _started.First().ExtraArguments);
         Assert.Empty(_started.Last().ExtraArguments);
         var expected = new AccelerationStatus(AiAcceleration.Vulkan, AiAcceleration.Cpu, AccelerationFallback.StartFailed, "llama_model_load: error loading model");
-        Assert.Equal(expected, llm.Acceleration);
+        Assert.Equal(expected, llm.Current);
         Assert.Equal([expected], raised);
-        Assert.False(llm.Acceleration.NeedsDownload);
+        Assert.False(llm.Current.NeedsDownload);
+    }
+
+    [Fact]
+    public async Task IsTheAccelerationStatusSource_AndRaisesChangedWhenTheStatusChanges()
+    {
+        var choice = AiAcceleration.Cpu;
+        File.Delete(CudaServer);
+        await using var llm = Create(() => Options(choice));
+        IAccelerationStatusSource source = llm;
+        var raised = new List<AccelerationStatus>();
+        source.Changed += raised.Add;
+        Assert.Equal(AccelerationFallback.None, source.Current.Fallback); // the first read is the baseline: no event
+
+        choice = AiAcceleration.Cuda;
+        _time.Advance(LocalLlm.OptionsRefreshInterval);
+        Assert.True(source.Current.NeedsDownload);
+        Assert.True(source.Current.NeedsDownload); // reading again is not a change
+
+        File.WriteAllText(CudaServer, ""); // the runtime was installed
+        _time.Advance(LocalLlm.OptionsRefreshInterval);
+        llm.Refresh();
+
+        Assert.Equal(
+            [
+                new AccelerationStatus(AiAcceleration.Cuda, AiAcceleration.Cpu, AccelerationFallback.RuntimeNotInstalled),
+                new AccelerationStatus(AiAcceleration.Cuda, AiAcceleration.Cuda, AccelerationFallback.None),
+            ],
+            raised);
     }
 
     [Fact]
@@ -232,8 +260,8 @@ public sealed class LocalLlmAccelerationTests : IAsyncLifetime
         await llm.GetChatClientAsync(Ct);
 
         Assert.Equal([CudaServer, CpuServer, CpuServer], _started.Select(s => s.ServerPath));
-        Assert.Equal(AccelerationFallback.StartFailed, llm.Acceleration.Fallback);
-        Assert.Equal("llama-server did not become healthy in time.", llm.Acceleration.Detail);
+        Assert.Equal(AccelerationFallback.StartFailed, llm.Current.Fallback);
+        Assert.Equal("llama-server did not become healthy in time.", llm.Current.Detail);
     }
 
     [Fact]
@@ -260,17 +288,17 @@ public sealed class LocalLlmAccelerationTests : IAsyncLifetime
         _failure = o => o.ServerPath == VulkanServer && broken ? new LlamaServerException("exit", "driver too old", 1) : null;
         await using var llm = Create(() => Options(choice));
         await llm.GetChatClientAsync(Ct);
-        Assert.Equal(AccelerationFallback.StartFailed, llm.Acceleration.Fallback);
+        Assert.Equal(AccelerationFallback.StartFailed, llm.Current.Fallback);
 
         choice = AiAcceleration.Cpu;
         _time.Advance(LocalLlm.OptionsRefreshInterval);
-        Assert.Equal(AccelerationFallback.None, llm.Acceleration.Fallback);
+        Assert.Equal(AccelerationFallback.None, llm.Current.Fallback);
         await llm.GetChatClientAsync(Ct);
 
         broken = false;
         choice = AiAcceleration.Vulkan;
         _time.Advance(LocalLlm.OptionsRefreshInterval);
-        Assert.Equal(AccelerationFallback.None, llm.Acceleration.Fallback);
+        Assert.Equal(AccelerationFallback.None, llm.Current.Fallback);
         await llm.GetChatClientAsync(Ct);
 
         Assert.Equal(VulkanServer, _started.Last().ServerPath);
@@ -286,7 +314,7 @@ public sealed class LocalLlmAccelerationTests : IAsyncLifetime
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => llm.GetChatClientAsync(Ct).AsTask());
 
         Assert.Equal([VulkanServer], _started.Select(s => s.ServerPath));
-        Assert.Equal(AccelerationFallback.None, llm.Acceleration.Fallback);
+        Assert.Equal(AccelerationFallback.None, llm.Current.Fallback);
     }
 
     [Fact]
@@ -453,7 +481,7 @@ public sealed class LocalLlmAccelerationProcessTests
         Assert.Equal("echo: привіт", answer.Text);
         Assert.Contains("-ngl", gpu.ReadArguments());
         Assert.DoesNotContain("-ngl", cpu.ReadArguments());
-        var status = llm.Acceleration;
+        var status = llm.Current;
         Assert.Equal(AccelerationFallback.StartFailed, status.Fallback);
         Assert.Equal("llama_server: exiting due to model loading error", status.Detail);
     }

@@ -170,7 +170,7 @@ internal sealed class CompositionRoot : IDisposable
             CreatePlayback(),
             new SessionProcessingAdapter(processor, models),
             storage,
-            new AiServices(assistant, llm, models.ModelsDirectory),
+            new AiServices(assistant, llm, models.ModelsDirectory, AccelerationProbe, llm),
             settings,
             aiModels,
             modelManager.ActiveModelId,
