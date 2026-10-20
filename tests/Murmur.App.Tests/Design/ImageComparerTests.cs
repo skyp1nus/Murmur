@@ -117,7 +117,7 @@ public sealed class ImageComparerTests
         var result = ImageComparer.Compare(Page(), small);
 
         Assert.True(result.SizeDiffers);
-        Assert.True(result.Total.Mismatched >= 200L * 300);
+        Assert.True(result.Total.Mismatched > 0, "the content of the reference that the smaller render lacks is reported");
     }
 
     [Fact]
@@ -181,6 +181,45 @@ public sealed class ImageComparerTests
         Assert.Equal(result.Total.Mismatched, result.Drawn.Mismatched);
         Assert.Equal(result.Drawn.Compared, result.DrawnSidebar.Compared + result.DrawnContent.Compared);
     }
+
+    [Fact]
+    public void ALargerRender_IsComparedOverTheLargerSize_ExtraContentMismatches_ExtraPageDoesNot()
+    {
+        var reference = PixelImage.Filled(100, 100, 253, 252, 252);
+        var blankLarger = PixelImage.Filled(150, 140, 253, 252, 252);
+        var withContent = PixelImage.Filled(150, 140, 253, 252, 252);
+        withContent.Fill(110, 20, 20, 20, 0, 0, 0);
+
+        var blank = ImageComparer.Compare(reference, blankLarger);
+        var content = ImageComparer.Compare(reference, withContent);
+
+        Assert.True(blank.SizeDiffers);
+        Assert.Equal(0, blank.Total.Mismatched);
+        Assert.Equal(150L * 140, blank.Total.Compared);
+        Assert.Equal(20 * 20, content.Total.Mismatched);
+        Assert.Equal((150, 140), (content.Diff.Width, content.Diff.Height));
+    }
+
+    [Fact]
+    public void TheBackground_IsTheGivenColour_NotTheCornerPixel()
+    {
+        // The corner of this "reference" is covered by a card; the page colour is the token one.
+        var reference = PixelImage.Filled(100, 100, 253, 252, 252);
+        reference.Fill(0, 0, 100, 100, 245, 243, 241);
+        var app = PixelImage.Filled(100, 100, 245, 243, 241);
+
+        var corner = ImageComparer.Compare(reference, app);
+        var token = ImageComparer.Compare(reference, app, background: (253, 252, 252));
+
+        Assert.Equal(0, corner.Drawn.Compared);
+        Assert.Equal(100 * 100, token.Drawn.Compared);
+    }
+
+    [Theory]
+    [InlineData(false, 0xfd, 0xfc, 0xfc)]
+    [InlineData(true, 0x14, 0x13, 0x12)]
+    public void TheCanvasColour_ComesFromTheTokens(bool dark, int r, int g, int b) =>
+        Assert.Equal(((byte)r, (byte)g, (byte)b), ImageComparer.CanvasColor(dark));
 
     [Fact]
     public void APngRoundTrip_KeepsThePixels()

@@ -61,4 +61,29 @@ public sealed class ParityReportTests
             Directory.Delete(directory, recursive: true);
         }
     }
+
+    [Fact]
+    public void AResultOfAnEarlierRun_IsMarkedStale()
+    {
+        var directory = Path.Combine(Path.GetTempPath(), "murmur-parity-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(directory);
+        try
+        {
+            var old = Path.Combine(directory, "Main.result.txt");
+            File.WriteAllText(old, (Result("Main") with { RunId = "old-run" }).Serialize());
+            File.SetLastWriteTimeUtc(old, DateTime.UtcNow.AddHours(-2));
+            File.WriteAllText(Path.Combine(directory, "Chat.result.txt"), (Result("Chat") with { RunId = "new-run" }).Serialize());
+
+            var report = ParityReport.BuildReport(directory);
+
+            var main = report.Split('\n').Single(l => l.StartsWith("| Main |", StringComparison.Ordinal));
+            var chat = report.Split('\n').Single(l => l.StartsWith("| Chat |", StringComparison.Ordinal));
+            Assert.Contains("STALE", main, StringComparison.Ordinal);
+            Assert.DoesNotContain("STALE", chat, StringComparison.Ordinal);
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
 }

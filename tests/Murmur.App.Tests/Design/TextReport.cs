@@ -15,9 +15,14 @@ internal static class TextReport
           .Append(" · matched: ").Append(comparison.Matches.Count).Append(" (").Append(N(comparison.MatchedPercent)).Append(" %)")
           .Append(" · missing in the app: ").Append(comparison.Missing.Count)
           .Append(" · geometry errors: ").Append(comparison.GeometryErrors)
-          .Append(" · extra in the app (informational): ").Append(comparison.Extra.Count).Append("\n\n");
+          .Append(" · extra in the app (informational): ").Append(comparison.Extra.Count)
+          .Append(" · excluded placeholders: ").Append(comparison.Excluded.Count).Append("\n\n");
+        var byKind = comparison.Matches.GroupBy(m => m.Via).ToDictionary(g => g.Key, g => g.Count());
+        sb.Append("Found by text: ").Append(byKind.GetValueOrDefault(MatchKind.Exact))
+          .Append(" · as part of the block text: ").Append(byKind.GetValueOrDefault(MatchKind.BlockText))
+          .Append(" · as a fragment of a longer app text: ").Append(byKind.GetValueOrDefault(MatchKind.Fragment)).Append("\n\n");
         sb.Append("Texts are matched by whitespace-collapsed, case-sensitive text; duplicates by the nearest position. A matched text is an error when its first line is more than ")
-          .Append(TextTolerance.OffsetPx).Append(" px off in x or in vertical centre, its total line width differs by more than ")
+          .Append(TextTolerance.OffsetPx).Append(" px off in x, or the baseline of its first line more than ").Append(TextTolerance.BaselinePx).Append(" px off (placeholders: the vertical centre; no width or line check), its total line width differs by more than ")
           .Append(TextTolerance.WidthPercent).Append(" %, the line count differs, or the font size, weight or family (Inter / Geist Mono) differs. ")
           .Append("`<Board>.text.png`: blue = reference line boxes, red = app line boxes.\n\n");
 
@@ -28,14 +33,15 @@ internal static class TextReport
         }
         else
         {
-            sb.Append("| Text | Problems | Reference (x, centre y, font) | App (x, centre y, font) | App source |\n| --- | --- | --- | --- | --- |\n");
+            sb.Append("| Text | Problems | Reference (x, baseline, font) | App (x, baseline, font) | Found by | App source |\n| --- | --- | --- | --- | --- | --- |\n");
             foreach (var m in comparison.BySeverity)
             {
                 sb.Append("| ").Append(Cell(m.Reference.Text))
                   .Append(" | ").Append(string.Join("; ", m.Problems))
-                  .Append(" | ").Append(N(m.Reference.First.X)).Append(", ").Append(N(m.Reference.First.CenterY)).Append(", ").Append(m.Reference.FontDescription)
-                  .Append(" | ").Append(N(m.App.First.X)).Append(", ").Append(N(m.App.First.CenterY)).Append(", ").Append(m.App.FontDescription)
-                  .Append(" | ").Append(m.App.Source)
+                  .Append(" | ").Append(N(m.Reference.First.X)).Append(", ").Append(N(Vertical(m.Reference))).Append(", ").Append(m.Reference.FontDescription)
+                  .Append(" | ").Append(N(m.App.First.X)).Append(", ").Append(N(Vertical(m.App, m.Reference.Placeholder))).Append(", ").Append(m.App.FontDescription)
+                  .Append(" | ").Append(m.ViaText)
+                  .Append(" | ").Append(m.App.Source).Append(m.App.Trimmed ? " (trimmed)" : string.Empty)
                   .Append(" |\n");
             }
 
@@ -55,6 +61,22 @@ internal static class TextReport
                 sb.Append("| ").Append(Cell(t.Text)).Append(t.Placeholder ? " (placeholder)" : string.Empty)
                   .Append(" | ").Append(N(t.First.X)).Append(", ").Append(N(t.First.CenterY))
                   .Append(" | ").Append(t.FontDescription).Append(" | ").Append(t.Lines.Count).Append(" |\n");
+            }
+
+            sb.Append('\n');
+        }
+
+        sb.Append("## Excluded placeholders (not in the gates)\n\n");
+        if (comparison.Excluded.Count == 0)
+        {
+            sb.Append("None.\n\n");
+        }
+        else
+        {
+            sb.Append("| Text | Reference (x, centre y) | Reason |\n| --- | --- | --- |\n");
+            foreach (var (item, reason) in comparison.Excluded)
+            {
+                sb.Append("| ").Append(Cell(item.Text)).Append(" | ").Append(N(item.First.X)).Append(", ").Append(N(item.First.CenterY)).Append(" | excluded: ").Append(reason).Append(" |\n");
             }
 
             sb.Append('\n');
@@ -100,6 +122,8 @@ internal static class TextReport
 
         return image;
     }
+
+    private static double Vertical(TextItem item, bool centre = false) => centre || item.Placeholder || double.IsNaN(item.First.Baseline) ? item.First.CenterY : item.First.Baseline;
 
     private static string Cell(string text)
     {

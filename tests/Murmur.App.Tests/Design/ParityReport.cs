@@ -29,7 +29,8 @@ internal sealed record BoardResult(
     double? MaxShape,
     double? MinText,
     int? MaxErrors,
-    IReadOnlyList<string> Notes)
+    IReadOnlyList<string> Notes,
+    string RunId = "")
 {
     public double TextMatchedPercent => TextReference == 0 ? 100 : 100.0 * TextMatched / TextReference;
 
@@ -63,6 +64,7 @@ internal sealed record BoardResult(
         Line("maxShape", MaxShape is { } a ? D(a) : string.Empty);
         Line("minText", MinText is { } b ? D(b) : string.Empty);
         Line("maxErrors", MaxErrors is { } c ? I(c) : string.Empty);
+        Line("runId", RunId);
         foreach (var note in Notes)
         {
             Line("note", note.Replace('\n', ' '));
@@ -117,7 +119,8 @@ internal sealed record BoardResult(
             values["maxShape"].Length == 0 ? null : D("maxShape"),
             values["minText"].Length == 0 ? null : D("minText"),
             values["maxErrors"].Length == 0 ? null : I("maxErrors"),
-            notes);
+            notes,
+            values.GetValueOrDefault("runId") ?? string.Empty);
     }
 }
 
@@ -140,6 +143,9 @@ internal sealed record BoardRun(
 internal static class ParityReport
 {
     private static readonly Lock Gate = new();
+
+    /// <summary>Tells the results of this process from the ones an earlier run left in the folder.</summary>
+    private static readonly string RunId = Guid.NewGuid().ToString("N");
 
     /// <summary>Where the run writes; <c>MURMUR_PARITY_DIR</c> overrides the default <c>artifacts/design-parity</c> of the checkout.</summary>
     public static string Directory =>
@@ -184,7 +190,8 @@ internal static class ParityReport
             board.MaxShapeMismatchPercent,
             board.MinTextMatchedPercent,
             board.MaxTextGeometryErrors,
-            run.Notes);
+            run.Notes,
+            RunId);
         lock (Gate)
         {
             File.WriteAllText(Path.Combine(Directory, board.Name + ".result.txt"), result.Serialize());
@@ -219,12 +226,20 @@ internal static class ParityReport
     public static string BuildReport(string directory)
     {
         var results = new Dictionary<string, BoardResult>(StringComparer.Ordinal);
+        var newest = DateTime.MinValue;
+        var newestRun = string.Empty;
         foreach (var file in System.IO.Directory.EnumerateFiles(directory, "*.result.txt"))
         {
             try
             {
                 var result = BoardResult.Parse(File.ReadAllText(file));
                 results[result.Name] = result;
+                var written = File.GetLastWriteTimeUtc(file);
+                if (written > newest)
+                {
+                    newest = written;
+                    newestRun = result.RunId;
+                }
             }
             catch (Exception ex) when (ex is KeyNotFoundException or FormatException or ArgumentOutOfRangeException)
             {
@@ -258,7 +273,8 @@ internal static class ParityReport
             var gates = (r.MaxShape is null && r.MinText is null && r.MaxErrors is null)
                 ? "not enforced"
                 : $"{(r.MaxShape is { } a ? P(a) : "—")} / {(r.MinText is { } b ? P1(b) : "—")} / {(r.MaxErrors is { } c ? c.ToString(CultureInfo.InvariantCulture) : "—")}";
-            var notes = string.Join("; ", r.Notes.Append(r.SizeDiffers ? "render size differs from the reference" : null!).Where(n => n is not null));
+            var stale = r.RunId != newestRun ? "STALE: from an earlier run" : null;
+            var notes = string.Join("; ", r.Notes.Append(r.SizeDiffers ? "render size differs from the reference" : null!).Prepend(stale!).Where(n => n is not null));
             sb.Append("| ").Append(r.Name)
               .Append(" | ").Append(r.Width).Append('x').Append(r.Height)
               .Append(" | ").Append(P(r.ShapeDrawn))

@@ -28,6 +28,12 @@ $ErrorActionPreference = 'Stop'
 $root = Resolve-Path (Join-Path $PSScriptRoot '..' '..')
 Push-Location $root
 try {
+    $out = if ($env:MURMUR_PARITY_DIR) { $env:MURMUR_PARITY_DIR } else { Join-Path $root 'artifacts' 'design-parity' }
+    if ($Board.Count -eq 0 -and (Test-Path $out)) {
+        # A full run starts clean, so no result of an earlier run can pass for a current one (single boards keep the rest).
+        Remove-Item -Recurse -Force $out
+    }
+
     $testArgs = @('test', '--project', 'tests/Murmur.App.Tests', '-c', 'Release')
     if ($NoBuild) { $testArgs += '--no-build' }
     if ($Board.Count -gt 0) { $env:MURMUR_PARITY_BOARDS = $Board -join ',' }
@@ -36,7 +42,6 @@ try {
     & dotnet @testArgs
     if ($LASTEXITCODE -ne 0) { throw "dotnet test failed with exit code $LASTEXITCODE" }
 
-    $out = if ($env:MURMUR_PARITY_DIR) { $env:MURMUR_PARITY_DIR } else { Join-Path $root 'artifacts' 'design-parity' }
     Write-Host ''
     Write-Host "Report: $(Join-Path $out 'report.md')"
     Write-Host ''

@@ -44,6 +44,10 @@ internal enum BoardScreen
 /// Rectangles of the reference that are not compared, only for content the app cannot reproduce: the video frame
 /// placeholder, waveform bars the canvas draws from a formula, and the [VERSION] / [LICENSE] / [X.X] GB placeholders.
 /// </param>
+/// <param name="ExcludedTexts">
+/// Canvas texts that are placeholders the app replaces with real values (<c>[VERSION]</c>, <c>[X.X] GB</c>, paths with <c>[USER]</c>) or that
+/// belong to the video frame: left out of the text gates, listed as excluded in the text report. Explicit, each with its reason.
+/// </param>
 /// <param name="MaxShapeMismatchPercent">The shape-layer mismatch of drawn pixels (total) above which the test fails; <c>null</c> = report only. Screen tasks set it.</param>
 /// <param name="MinTextMatchedPercent">The share of reference texts the app must have (by text); <c>null</c> = report only.</param>
 /// <param name="MaxTextGeometryErrors">The most matched texts allowed to be off in position, width, lines, size, weight or family; <c>null</c> = report only.</param>
@@ -56,8 +60,12 @@ internal sealed record DesignBoard(
     IReadOnlyList<IgnoreRect> Ignored,
     double? MaxShapeMismatchPercent = null,
     double? MinTextMatchedPercent = null,
-    int? MaxTextGeometryErrors = null)
+    int? MaxTextGeometryErrors = null,
+    IReadOnlyList<ExcludedText>? ExcludedTexts = null)
 {
+    /// <summary>The page colour of the theme (docs/design/tokens.json): what the comparison treats as background.</summary>
+    public (byte R, byte G, byte B) Background => ImageComparer.CanvasColor(Dark);
+
     /// <summary>The main screens have the 240 px sidebar of the canvas; the onboarding fills the window.</summary>
     public bool HasSidebar => Screen is BoardScreen.Library or BoardScreen.Recording or BoardScreen.Session or BoardScreen.Chat or BoardScreen.Settings;
 
@@ -77,6 +85,15 @@ internal sealed record DesignBoard(
 /// <summary>The table of the 22 screen artboards. <c>OnbComponents</c> and <c>OnbComponentsDark</c> are component sheets and are not rendered.</summary>
 internal static class DesignBoards
 {
+    private static readonly ExcludedText Version = new("[VERSION]", "canvas placeholder; the app shows its real version");
+    private static readonly ExcludedText License = new("[LICENSE]", "canvas placeholder; the app shows its real license", Contains: true);
+    private static readonly ExcludedText UserPath = new("[USER]", "canvas placeholder; the path is the user's real folder", Contains: true);
+    private static readonly ExcludedText SizeSmall = new("[X.X] GB", "canvas placeholder; the app shows the real model size");
+    private static readonly ExcludedText SizeLarge = new("[XX] GB", "canvas placeholder; the app shows the real model size");
+    private static readonly ExcludedText FreeSpace = new("[N] GB free", "canvas placeholder; the app shows the real free space");
+    private static readonly ExcludedText VideoPlaceholder = new("[Screen recording frame]", "canvas placeholder of the video frame; the app shows the video");
+    private static readonly ExcludedText VideoChip = new("H.264", "label of the canvas video placeholder; the app shows the video", Contains: true);
+
     private const string WaveformReason = "waveform bars the canvas draws from a formula";
 
     public static IReadOnlyList<string> Excluded { get; } = ["OnbComponents", "OnbComponentsDark"];
@@ -126,7 +143,8 @@ internal static class DesignBoards
                 [
                     new IgnoreRect(273, 165, 535, 301, "Session: screen-recording frame placeholder (the app shows the video, not a placeholder)"),
                     new IgnoreRect(292, 497, 498, 66, "Session: " + WaveformReason),
-                ]));
+                ],
+                ExcludedTexts: [VideoPlaceholder, VideoChip]));
             boards.Add(new("Chat" + suffix, BoardScreen.Chat, dark, 1440, 1080, []));
             boards.Add(new(
                 "Settings" + suffix,
@@ -137,7 +155,8 @@ internal static class DesignBoards
                 [
                     new IgnoreRect(822, 1611 + shift, 70, 17, "Settings: [VERSION] placeholder", TextOnly: true),
                     new IgnoreRect(853, 1638 + shift, 70, 18, "Settings: [LICENSE] placeholder", TextOnly: true),
-                ]));
+                ],
+                ExcludedTexts: [Version, License, UserPath]));
             boards.Add(new("Onb1Welcome" + suffix, BoardScreen.Onboarding1Welcome, dark, 1280, 800, []));
             boards.Add(new(
                 "Onb2Audio" + suffix,
@@ -155,7 +174,8 @@ internal static class DesignBoards
                 [
                     new IgnoreRect(547, 497, 65, 16, "Onboarding 3: [X.X] GB placeholder", TextOnly: true),
                     new IgnoreRect(942, 497, 57, 16, "Onboarding 3: [XX] GB placeholder", TextOnly: true),
-                ]));
+                ],
+                ExcludedTexts: [SizeSmall, SizeLarge]));
             boards.Add(new(
                 "Onb3ModelsReady" + suffix,
                 BoardScreen.Onboarding3ModelsReady,
@@ -165,14 +185,16 @@ internal static class DesignBoards
                 [
                     new IgnoreRect(547, 462, 65, 16, "Onboarding 3 ready: [X.X] GB placeholder", TextOnly: true),
                     new IgnoreRect(942, 462, 57, 16, "Onboarding 3 ready: [XX] GB placeholder", TextOnly: true),
-                ]));
+                ],
+                ExcludedTexts: [SizeSmall, SizeLarge]));
             boards.Add(new(
                 "Onb4Preferences" + suffix,
                 BoardScreen.Onboarding4Preferences,
                 dark,
                 1280,
                 800,
-                [new IgnoreRect(792, 404, 92, 18, "Onboarding 4: [N] GB free placeholder", TextOnly: true)]));
+                [new IgnoreRect(792, 404, 92, 18, "Onboarding 4: [N] GB free placeholder", TextOnly: true)],
+                ExcludedTexts: [FreeSpace, UserPath]));
             boards.Add(new("Onb5FirstRecording" + suffix, BoardScreen.Onboarding5FirstRecording, dark, 1280, 800, []));
         }
 

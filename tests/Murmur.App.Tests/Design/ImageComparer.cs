@@ -54,6 +54,14 @@ internal sealed class ImageComparison
 /// </summary>
 internal static class ImageComparer
 {
+    /// <summary>Page background of a theme, from <c>docs/design/tokens.json</c> (<c>color.canvas</c> / <c>colorDark.canvas</c>).</summary>
+    public static (byte R, byte G, byte B) CanvasColor(bool dark)
+    {
+        using var document = System.Text.Json.JsonDocument.Parse(File.ReadAllText(RepoPaths.TokensJson));
+        var hex = document.RootElement.GetProperty(dark ? "colorDark" : "color").GetProperty("canvas").GetString()!.TrimStart('#');
+        return (Convert.ToByte(hex[..2], 16), Convert.ToByte(hex[2..4], 16), Convert.ToByte(hex[4..6], 16));
+    }
+
     /// <summary>The width of the sidebar strip of the main screens (the 240 px column and its hairline).</summary>
     public const int SidebarWidth = 241;
 
@@ -68,18 +76,26 @@ internal static class ImageComparer
         PixelImage actual,
         IReadOnlyList<IgnoreRect>? ignored = null,
         bool hasSidebar = false,
-        int tolerance = DefaultTolerance)
+        int tolerance = DefaultTolerance,
+        (byte R, byte G, byte B)? background = null)
     {
         ArgumentNullException.ThrowIfNull(reference);
         ArgumentNullException.ThrowIfNull(actual);
         ignored ??= [];
+
+        // Both images are compared over the larger of the two sizes; what an image does not have is page background.
+        var sizeDiffers = reference.Width != actual.Width || reference.Height != actual.Height;
+        var corner0 = (((reference.Height - 1) * reference.Width) + (reference.Width - 1)) * 4;
+        var bg = background ?? (reference.Rgba[corner0], reference.Rgba[corner0 + 1], reference.Rgba[corner0 + 2]);
+        var width = Math.Max(reference.Width, actual.Width);
+        var height = Math.Max(reference.Height, actual.Height);
+        reference = reference.PaddedTo(width, height, bg);
+        actual = actual.PaddedTo(width, height, bg);
         var diff = new PixelImage(reference.Width, reference.Height);
         long sidebarCompared = 0, sidebarMismatched = 0, contentCompared = 0, contentMismatched = 0, ignoredPixels = 0;
         long drawnSidebarCompared = 0, drawnSidebarMismatched = 0, drawnContentCompared = 0, drawnContentMismatched = 0;
 
-        // The page background: the bottom right pixel of the reference (every artboard leaves it empty).
-        var corner = (((reference.Height - 1) * reference.Width) + (reference.Width - 1)) * 4;
-        byte bgR = reference.Rgba[corner], bgG = reference.Rgba[corner + 1], bgB = reference.Rgba[corner + 2];
+        byte bgR = bg.Item1, bgG = bg.Item2, bgB = bg.Item3;
 
         for (var y = 0; y < reference.Height; y++)
         {
@@ -105,8 +121,8 @@ internal static class ImageComparer
                     continue;
                 }
 
-                var onlyApp = x < actual.Width && y < actual.Height && !HasMatch(actual, reference, x, y, tolerance);
-                var onlyReference = !(x < actual.Width && y < actual.Height) || !HasMatch(reference, actual, x, y, tolerance);
+                var onlyApp = !HasMatch(actual, reference, x, y, tolerance);
+                var onlyReference = !HasMatch(reference, actual, x, y, tolerance);
                 var mismatch = onlyApp || onlyReference;
                 if (onlyApp && onlyReference)
                 {
@@ -163,20 +179,32 @@ internal static class ImageComparer
             DrawnSidebar = drawnSidebar,
             DrawnContent = drawnContent,
             IgnoredPixels = ignoredPixels,
-            SizeDiffers = reference.Width != actual.Width || reference.Height != actual.Height,
+            SizeDiffers = sizeDiffers,
             Diff = diff,
         };
     }
 
     private static bool IsDrawn(PixelImage image, int x, int y, byte bgR, byte bgG, byte bgB, int tolerance)
     {
-        if (x >= image.Width || y >= image.Height)
-        {
-            return false;
-        }
-
         var o = ((y * image.Width) + x) * 4;
         return Math.Abs(image.Rgba[o] - bgR) > tolerance || Math.Abs(image.Rgba[o + 1] - bgG) > tolerance || Math.Abs(image.Rgba[o + 2] - bgB) > tolerance;
+    }
+
+    /// <summary>The image on a larger page of the given colour (the same image when it already has that size).</summary>
+    private static PixelImage PaddedTo(this PixelImage image, int width, int height, (byte R, byte G, byte B) background)
+    {
+        if (image.Width == width && image.Height == height)
+        {
+            return image;
+        }
+
+        var padded = PixelImage.Filled(width, height, background.R, background.G, background.B);
+        for (var y = 0; y < image.Height; y++)
+        {
+            Buffer.BlockCopy(image.Rgba, y * image.Width * 4, padded.Rgba, y * width * 4, image.Width * 4);
+        }
+
+        return padded;
     }
 
     /// <summary>The pixel of <paramref name="source"/> at (x, y) against the pixels of <paramref name="target"/> around it.</summary>

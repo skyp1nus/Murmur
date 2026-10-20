@@ -21,6 +21,12 @@ for arg in "$@"; do
   esac
 done
 
+out="${MURMUR_PARITY_DIR:-$root/artifacts/design-parity}"
+if [ "${#args[@]}" -eq 0 ]; then
+  # A full run starts clean, so no result of an earlier run can pass for a current one (single boards keep the rest).
+  rm -rf "$out"
+fi
+
 if [ "${#args[@]}" -gt 0 ]; then
   MURMUR_PARITY_BOARDS="$(IFS=,; echo "${args[*]}")"
   export MURMUR_PARITY_BOARDS
@@ -33,7 +39,6 @@ else
   dotnet test --project tests/Murmur.App.Tests -c Release "${filter[@]}"
 fi
 
-out="${MURMUR_PARITY_DIR:-$root/artifacts/design-parity}"
 echo
 echo "Report: $out/report.md"
 echo

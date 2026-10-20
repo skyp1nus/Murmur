@@ -1,7 +1,8 @@
+using System.Text;
 using System.Text.Json;
-using System.Text.RegularExpressions;
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Controls.Documents;
 using Avalonia.Controls.Presenters;
 using Avalonia.Media;
 using Avalonia.Media.TextFormatting;
@@ -10,8 +11,8 @@ using Murmur.App.Controls;
 
 namespace Murmur.App.Tests.Design;
 
-/// <summary>A line box of a text, in page (window) pixels.</summary>
-internal readonly record struct LineBox(double X, double Y, double W, double H)
+/// <summary>A line box of a text, in page (window) pixels; <c>Baseline</c> is the y of the baseline (NaN when unknown).</summary>
+internal readonly record struct LineBox(double X, double Y, double W, double H, double Baseline = double.NaN)
 {
     public double CenterY => Y + (H / 2);
 
@@ -20,8 +21,83 @@ internal readonly record struct LineBox(double X, double Y, double W, double H)
     public double Bottom => Y + H;
 }
 
+/// <summary>
+/// The layout of an app text, kept to measure parts of it (a fragment of a paragraph) later: the raw text, where each character of
+/// the whitespace-collapsed text came from, and the position of the layout in the window.
+/// </summary>
+internal sealed class AppTextLayout(string raw, int[] normalizedToRaw, TextLayout layout, Point origin, Func<LineBox, bool> isVisible)
+{
+    public string Raw { get; } = raw;
+
+    /// <summary>The line boxes of the part [start, start + length) of the normalised text, one per line it touches.</summary>
+    public IReadOnlyList<LineBox> Range(int start, int length)
+    {
+        if (length <= 0 || start < 0 || start + length > normalizedToRaw.Length)
+        {
+            return [];
+        }
+
+        var rawStart = normalizedToRaw[start];
+        var rawEnd = normalizedToRaw[start + length - 1] + 1;
+        // The rectangles of one line (one per text run) are joined.
+        var lineRects = new List<Rect>();
+        foreach (var rect in layout.HitTestTextRange(rawStart, rawEnd - rawStart))
+        {
+            var at = lineRects.FindIndex(r => Math.Abs(r.Y - rect.Y) < 1);
+            if (at >= 0)
+            {
+                lineRects[at] = lineRects[at].Union(rect);
+            }
+            else
+            {
+                lineRects.Add(rect);
+            }
+        }
+
+        var result = new List<LineBox>();
+        foreach (var rect in lineRects.OrderBy(r => r.Y))
+        {
+            var (lineTop, baseline) = LineOf(rect.Y + (rect.Height / 2));
+            var box = new LineBox(origin.X + rect.X, origin.Y + rect.Y, rect.Width, rect.Height, origin.Y + lineTop + baseline);
+            if (isVisible(box))
+            {
+                result.Add(box);
+            }
+        }
+
+        return result;
+    }
+
+    private (double Top, double Baseline) LineOf(double y)
+    {
+        var top = 0.0;
+        foreach (var line in layout.TextLines)
+        {
+            if (y < top + line.Height)
+            {
+                return (top, line.Baseline);
+            }
+
+            top += line.Height;
+        }
+
+        return layout.TextLines.Count == 0 ? (0, 0) : (top - layout.TextLines[^1].Height, layout.TextLines[^1].Baseline);
+    }
+}
+
 /// <summary>One text of the canvas (a reference text node) or of the app (a text control): its line boxes and its font.</summary>
-internal sealed record TextItem(string Text, IReadOnlyList<LineBox> Lines, double FontSize, int FontWeight, bool Mono, string Source, bool Placeholder = false)
+internal sealed record TextItem(
+    string Text,
+    IReadOnlyList<LineBox> Lines,
+    double FontSize,
+    int FontWeight,
+    bool Mono,
+    string Source,
+    bool Placeholder = false,
+    int BlockId = -1,
+    string BlockText = "",
+    bool Trimmed = false,
+    AppTextLayout? Layout = null)
 {
     public LineBox First => Lines[0];
 
@@ -30,10 +106,48 @@ internal sealed record TextItem(string Text, IReadOnlyList<LineBox> Lines, doubl
     public string FontDescription => $"{(Mono ? "Geist Mono" : "Inter")} {FontSize:0.#}/{FontWeight}";
 }
 
-/// <summary>Reads the texts of the canvas from <c>docs/design/reference/&lt;Board&gt;.text.json</c>.</summary>
-internal static partial class ReferenceTexts
+/// <summary>Whitespace-collapsed text with the raw index of every character.</summary>
+internal static class TextNormalizer
 {
-    public static string Normalize(string? text) => Whitespace().Replace(text ?? string.Empty, " ").Trim();
+    public static string Normalize(string? text) => Normalize(text ?? string.Empty, out _);
+
+    public static string Normalize(string raw, out int[] map)
+    {
+        var sb = new StringBuilder(raw.Length);
+        var indices = new List<int>(raw.Length);
+        var pendingSpace = -1;
+        for (var i = 0; i < raw.Length; i++)
+        {
+            if (char.IsWhiteSpace(raw[i]))
+            {
+                if (sb.Length > 0 && pendingSpace < 0)
+                {
+                    pendingSpace = i;
+                }
+
+                continue;
+            }
+
+            if (pendingSpace >= 0)
+            {
+                sb.Append(' ');
+                indices.Add(pendingSpace);
+                pendingSpace = -1;
+            }
+
+            sb.Append(raw[i]);
+            indices.Add(i);
+        }
+
+        map = [.. indices];
+        return sb.ToString();
+    }
+}
+
+/// <summary>Reads the texts of the canvas from <c>docs/design/reference/&lt;Board&gt;.text.json</c>.</summary>
+internal static class ReferenceTexts
+{
+    public static string Normalize(string? text) => TextNormalizer.Normalize(text);
 
     public static IReadOnlyList<TextItem> Load(string board)
     {
@@ -46,13 +160,20 @@ internal static partial class ReferenceTexts
             var placeholder = node.TryGetProperty("placeholder", out var p) && p.GetBoolean();
             if (placeholder && node.TryGetProperty("box", out var box))
             {
-                lines.Add(ReadBox(box));
+                // The text starts at the content box (textX) and is centred on centerY; the box height is the line height.
+                var b = ReadBox(box, double.NaN);
+                var x = node.TryGetProperty("textX", out var tx) ? tx.GetDouble() : b.X;
+                var centerY = node.TryGetProperty("centerY", out var cy) ? cy.GetDouble() : b.CenterY;
+                lines.Add(new LineBox(x, centerY - (b.H / 2), b.W, b.H));
             }
             else
             {
+                var baseline = node.TryGetProperty("baseline", out var bl) && bl.ValueKind == JsonValueKind.Number ? bl.GetDouble() : double.NaN;
+                var first = true;
                 foreach (var line in node.GetProperty("lines").EnumerateArray())
                 {
-                    lines.Add(ReadBox(line));
+                    lines.Add(ReadBox(line, first ? baseline : double.NaN));
+                    first = false;
                 }
             }
 
@@ -69,16 +190,16 @@ internal static partial class ReferenceTexts
                 node.GetProperty("fontWeight").GetInt32(),
                 family.Contains("Geist Mono", StringComparison.OrdinalIgnoreCase),
                 "reference",
-                placeholder));
+                placeholder,
+                node.TryGetProperty("blockId", out var id) && id.ValueKind == JsonValueKind.Number ? id.GetInt32() : -1,
+                node.TryGetProperty("blockText", out var bt) ? Normalize(bt.GetString()) : string.Empty));
         }
 
         return result;
     }
 
-    private static LineBox ReadBox(JsonElement e) => new(e.GetProperty("x").GetDouble(), e.GetProperty("y").GetDouble(), e.GetProperty("w").GetDouble(), e.GetProperty("h").GetDouble());
-
-    [GeneratedRegex(@"\s+")]
-    private static partial Regex Whitespace();
+    private static LineBox ReadBox(JsonElement e, double baseline) =>
+        new(e.GetProperty("x").GetDouble(), e.GetProperty("y").GetDouble(), e.GetProperty("w").GetDouble(), e.GetProperty("h").GetDouble(), baseline);
 }
 
 /// <summary>Collects the texts the app draws from the visual tree: every line of every text control, in window pixels.</summary>
@@ -87,7 +208,6 @@ internal static class AppTexts
     public static IReadOnlyList<TextItem> Collect(Window window)
     {
         var result = new List<TextItem>();
-        var size = new Rect(0, 0, window.Bounds.Width, window.Bounds.Height);
         foreach (var visual in window.GetVisualDescendants())
         {
             TextItem? item = visual switch
@@ -97,16 +217,9 @@ internal static class AppTexts
                 TranscriptTextControl transcript => FromTranscript(window, transcript),
                 _ => null,
             };
-            if (item is null)
+            if (item is not null)
             {
-                continue;
-            }
-
-            // Lines scrolled out of the window are not on the board.
-            var inside = item.Lines.Where(l => new Rect(l.X, l.Y, l.W, l.H).Intersects(size)).ToArray();
-            if (inside.Length > 0)
-            {
-                result.Add(item with { Lines = inside });
+                result.Add(item);
             }
         }
 
@@ -115,33 +228,36 @@ internal static class AppTexts
 
     private static TextItem? FromTextBlock(Window window, TextBlock block)
     {
-        if (!block.IsEffectivelyVisible || string.IsNullOrWhiteSpace(block.Text) || block.Bounds.Width <= 0)
+        var text = string.IsNullOrEmpty(block.Text) ? block.Inlines?.Text : block.Text;
+        if (!IsShown(block) || string.IsNullOrWhiteSpace(text) || block.Bounds.Width <= 0)
         {
             return null;
         }
 
-        return Build(window, block, block.Text!, block.TextLayout, block.Padding, block.FontSize, (int)block.FontWeight, block.FontFamily, Describe(block));
+        var layout = block.TextLayout;
+        var trimmed = block.TextTrimming != TextTrimming.None && layout.TextLines.Any(l => l.HasCollapsed);
+        return Build(window, block, text, layout, block.Padding, block.FontSize, (int)block.FontWeight, block.FontFamily, trimmed);
     }
 
     private static TextItem? FromPresenter(Window window, TextPresenter presenter)
     {
-        if (!presenter.IsEffectivelyVisible || string.IsNullOrWhiteSpace(presenter.Text) || presenter.Bounds.Width <= 0)
+        if (!IsShown(presenter) || string.IsNullOrWhiteSpace(presenter.Text) || presenter.Bounds.Width <= 0)
         {
             return null;
         }
 
-        return Build(window, presenter, presenter.Text!, presenter.TextLayout, default, presenter.FontSize, (int)presenter.FontWeight, presenter.FontFamily, Describe(presenter));
+        return Build(window, presenter, presenter.Text!, presenter.TextLayout, default, presenter.FontSize, (int)presenter.FontWeight, presenter.FontFamily, false);
     }
 
     /// <summary>The control keeps its layout private: build the same one (same text, font, width) to read its lines.</summary>
     private static TextItem? FromTranscript(Window window, TranscriptTextControl control)
     {
-        if (!control.IsEffectivelyVisible || string.IsNullOrWhiteSpace(control.Text) || control.Bounds.Width <= 0)
+        if (!IsShown(control) || string.IsNullOrWhiteSpace(control.Text) || control.Bounds.Width <= 0)
         {
             return null;
         }
 
-        using var layout = new TextLayout(
+        var layout = new TextLayout(
             control.Text!,
             new Typeface(control.FontFamily, FontStyle.Normal, control.FontWeight),
             control.FontSize,
@@ -155,30 +271,75 @@ internal static class AppTexts
             double.PositiveInfinity,
             control.LineHeight,
             control.LetterSpacing);
-        return Build(window, control, control.Text!, layout, default, control.FontSize, (int)control.FontWeight, control.FontFamily, Describe(control));
+        return Build(window, control, control.Text!, layout, default, control.FontSize, (int)control.FontWeight, control.FontFamily, false);
     }
 
-    private static TextItem? Build(Window window, Visual owner, string text, TextLayout layout, Thickness padding, double size, int weight, FontFamily family, string source)
+    /// <summary>Visible, and neither it nor an ancestor is fully transparent.</summary>
+    private static bool IsShown(Visual visual) =>
+        visual.IsEffectivelyVisible && visual.Opacity > 0 && !visual.GetVisualAncestors().Any(a => a.Opacity <= 0);
+
+    private static TextItem? Build(Window window, Visual owner, string raw, TextLayout layout, Thickness padding, double size, int weight, FontFamily family, bool trimmed)
     {
+        var originPoint = owner.TranslatePoint(new Point(padding.Left, padding.Top), window);
+        if (originPoint is not { } origin)
+        {
+            return null;
+        }
+
+        // Lines outside the window, or outside an ancestor that clips (a scroll area), are not on the board.
+        var clip = ClipOf(window, owner);
+        bool Visible(LineBox box) => new Rect(box.X, box.Y, box.W, box.H).Intersects(clip);
+
         var lines = new List<LineBox>();
-        var y = padding.Top;
+        var y = origin.Y;
         foreach (var line in layout.TextLines)
         {
             if (line.Width > 0)
             {
-                var origin = owner.TranslatePoint(new Point(padding.Left + line.Start, y), window);
-                if (origin is { } point)
+                var box = new LineBox(origin.X + line.Start, y, line.Width, line.Height, y + line.Baseline);
+                if (Visible(box))
                 {
-                    lines.Add(new LineBox(point.X, point.Y, line.Width, line.Height));
+                    lines.Add(box);
                 }
             }
 
             y += line.Height;
         }
 
-        return lines.Count == 0
-            ? null
-            : new TextItem(ReferenceTexts.Normalize(text), lines, size, weight, family.Name.Contains("Geist Mono", StringComparison.OrdinalIgnoreCase), source);
+        if (lines.Count == 0)
+        {
+            return null;
+        }
+
+        var normalized = TextNormalizer.Normalize(raw, out var map);
+        return new TextItem(
+            normalized,
+            lines,
+            size,
+            weight,
+            family.Name.Contains("Geist Mono", StringComparison.OrdinalIgnoreCase),
+            Describe(owner),
+            Trimmed: trimmed,
+            Layout: new AppTextLayout(raw, map, layout, origin, Visible));
+    }
+
+    /// <summary>The window, narrowed by every ancestor that clips its content.</summary>
+    private static Rect ClipOf(Window window, Visual owner)
+    {
+        var clip = new Rect(0, 0, window.Bounds.Width, window.Bounds.Height);
+        foreach (var ancestor in owner.GetVisualAncestors())
+        {
+            if (ancestor is Control { ClipToBounds: true } or ScrollViewer or ScrollContentPresenter && ancestor != window)
+            {
+                var corner = ancestor.TranslatePoint(default, window);
+                if (corner is { } point)
+                {
+                    clip = clip.Intersect(new Rect(point, ancestor.Bounds.Size));
+                }
+            }
+        }
+
+        return clip;
     }
 
     private static string Describe(Visual visual)

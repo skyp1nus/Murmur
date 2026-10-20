@@ -1,3 +1,4 @@
+using Avalonia.Animation;
 using Avalonia.Controls;
 using Avalonia.Controls.Documents;
 using Avalonia.Controls.Presenters;
@@ -94,7 +95,7 @@ internal sealed class DesignScene : IDisposable
     public void Settle()
     {
         UiHarness.Pump(4);
-        Thread.Sleep(600);
+        DisableTransitions(Window);
         UiHarness.Pump(4);
         foreach (var orb in Window.GetVisualDescendants().OfType<OrbControl>().ToArray())
         {
@@ -145,9 +146,10 @@ internal sealed class DesignScene : IDisposable
     private void WaitForStableFrame()
     {
         byte[]? previous = null;
-        for (var attempt = 0; attempt < 30; attempt++)
+        for (var attempt = 0; attempt < 50; attempt++)
         {
             UiHarness.Pump(3);
+            DisableTransitions(Window);
             var frame = Render().Rgba;
             if (previous is not null && frame.AsSpan().SequenceEqual(previous))
             {
@@ -155,10 +157,10 @@ internal sealed class DesignScene : IDisposable
             }
 
             previous = frame;
-            Thread.Sleep(100);
+            Thread.Sleep(20);
         }
 
-        Notes.Add("The frame did not settle: it kept changing for 3 s.");
+        Notes.Add("The frame did not settle: it kept changing for 50 renders.");
     }
 
     /// <summary>
@@ -173,6 +175,22 @@ internal sealed class DesignScene : IDisposable
         return Render();
     }
 
+    /// <summary>
+    /// Removes every transition of the visual tree (they run in real time and would make the render depend on how busy the machine is);
+    /// the end state of a property change is what is drawn. Controls that appear later are caught by the next call.
+    /// </summary>
+    public static void DisableTransitions(Window window)
+    {
+        window.Transitions = null;
+        foreach (var visual in window.GetVisualDescendants())
+        {
+            if (visual is Animatable { Transitions: not null } animatable)
+            {
+                animatable.Transitions = null;
+            }
+        }
+    }
+
     /// <summary>Sets every glyph-drawing control of the window to a transparent foreground (animation priority beats local values, styles and templates).</summary>
     public static void HideText(Window window)
     {
@@ -182,14 +200,7 @@ internal sealed class DesignScene : IDisposable
             {
                 case TextBlock block:
                     block.SetValue(TextElement.ForegroundProperty, Brushes.Transparent, BindingPriority.Animation);
-                    if (block.Inlines is { } inlines)
-                    {
-                        foreach (var inline in inlines)
-                        {
-                            inline.SetValue(TextElement.ForegroundProperty, Brushes.Transparent, BindingPriority.Animation);
-                        }
-                    }
-
+                    HideInlines(block.Inlines);
                     break;
                 case TextPresenter presenter:
                     presenter.SetValue(TextElement.ForegroundProperty, Brushes.Transparent, BindingPriority.Animation);
@@ -197,6 +208,24 @@ internal sealed class DesignScene : IDisposable
                 case TranscriptTextControl transcript:
                     transcript.SetValue(TranscriptTextControl.ForegroundProperty, Brushes.Transparent, BindingPriority.Animation);
                     break;
+            }
+        }
+    }
+
+    /// <summary>The runs of a text block, and the runs inside its spans, however deep.</summary>
+    private static void HideInlines(InlineCollection? inlines)
+    {
+        if (inlines is null)
+        {
+            return;
+        }
+
+        foreach (var inline in inlines)
+        {
+            inline.SetValue(TextElement.ForegroundProperty, Brushes.Transparent, BindingPriority.Animation);
+            if (inline is Span span)
+            {
+                HideInlines(span.Inlines);
             }
         }
     }

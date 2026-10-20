@@ -41,6 +41,7 @@ public sealed class DesignParityTests
 
         Assert.Equal((board.Width, board.Height), (actual.Width, actual.Height));
         var shapesReference = PixelImage.LoadPng(board.ShapesReferencePath);
+        Assert.Equal((board.Width, board.Height), (shapesReference.Width, shapesReference.Height));
         var referenceTexts = ReferenceTexts.Load(name);
         var run = new BoardRun(
             board,
@@ -48,12 +49,12 @@ public sealed class DesignParityTests
             actual,
             shapesReference,
             shapes,
-            ImageComparer.Compare(reference, actual, board.Ignored, board.HasSidebar),
-            ImageComparer.Compare(reference, actual, board.Ignored, board.HasSidebar, ImageComparer.LenientTolerance),
-            ImageComparer.Compare(shapesReference, shapes, board.ShapeIgnored, board.HasSidebar),
+            ImageComparer.Compare(reference, actual, board.Ignored, board.HasSidebar, background: board.Background),
+            ImageComparer.Compare(reference, actual, board.Ignored, board.HasSidebar, ImageComparer.LenientTolerance, board.Background),
+            ImageComparer.Compare(shapesReference, shapes, board.ShapeIgnored, board.HasSidebar, background: board.Background),
             referenceTexts,
             appTexts,
-            TextMatcher.Compare(referenceTexts, appTexts),
+            TextMatcher.Compare(referenceTexts, appTexts, board.ExcludedTexts),
             notes);
         var result = ParityReport.Write(run);
 
@@ -92,9 +93,12 @@ public sealed class DesignParityTests
     {
         foreach (var board in DesignBoards.All)
         {
-            using var codec = SKCodec.Create(board.ReferencePath);
-            Assert.NotNull(codec);
-            Assert.Equal((board.Width, board.Height), (codec.Info.Width, codec.Info.Height));
+            foreach (var path in new[] { board.ReferencePath, board.ShapesReferencePath })
+            {
+                using var codec = SKCodec.Create(path);
+                Assert.NotNull(codec);
+                Assert.Equal((board.Width, board.Height), (codec.Info.Width, codec.Info.Height));
+            }
         }
     }
 

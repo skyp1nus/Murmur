@@ -1,6 +1,10 @@
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Controls.Documents;
 using Avalonia.Headless;
+using Avalonia.Controls.Primitives;
+using Avalonia.VisualTree;
+using Murmur.App.Controls;
 using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Styling;
@@ -11,10 +15,11 @@ namespace Murmur.App.Tests.Design;
 [Trait("Category", "DesignParity")]
 public sealed class TextGeometryTests
 {
-    private static TextItem Item(string text, double x, double centerY, double width = 100, double size = 14, int weight = 400, bool mono = false, int lines = 1)
+    private static TextItem Item(string text, double x, double centerY, double width = 100, double size = 14, int weight = 400, bool mono = false, int lines = 1, bool placeholder = false, string blockText = "", int blockId = -1, double? baseline = null)
     {
-        var boxes = Enumerable.Range(0, lines).Select(i => new LineBox(x, centerY - 8.5 + (i * 17), width / lines, 17)).ToArray();
-        return new TextItem(text, boxes, size, weight, mono, "test");
+        // A 17 px line box whose baseline is 13 px below its top.
+        var boxes = Enumerable.Range(0, lines).Select(i => new LineBox(x, centerY - 8.5 + (i * 17), width / lines, 17, placeholder ? double.NaN : baseline is { } b ? b + (i * 17) : centerY + 4.5 + (i * 17))).ToArray();
+        return new TextItem(text, boxes, size, weight, mono, "test", placeholder, blockId, blockText);
     }
 
     private static Window Show(Control content, double width = 400, double height = 300)
@@ -171,9 +176,11 @@ public sealed class TextGeometryTests
         var reference = Item("Settings", 100, 100, width: 100, size: 14, weight: 500);
 
         Assert.False(TextMatcher.Measure(reference, Item("Settings", 102, 98, width: 102.9, size: 14.4, weight: 500)).HasProblems);
+        Assert.True(TextMatcher.Measure(reference, Item("Settings", 100, 100, weight: 500, baseline: 107.1)).HasProblems, "the baseline, not the line box, is compared");
+        Assert.False(TextMatcher.Measure(reference, Item("Settings", 100, 130, weight: 500, baseline: 104.5 + 1.9)).HasProblems, "a taller line box with the same baseline is fine");
 
         var shifted = TextMatcher.Measure(reference, Item("Settings", 103, 104.5, width: 100, size: 14, weight: 500));
-        Assert.Equal(["x +3 px", "y +4.5 px"], shifted.Problems);
+        Assert.Equal(["x +3 px", "baseline +4.5 px"], shifted.Problems);
         Assert.Equal(3, shifted.DeltaX);
 
         var wide = TextMatcher.Measure(reference, Item("Settings", 100, 100, width: 104, size: 14, weight: 500));
@@ -239,6 +246,308 @@ public sealed class TextGeometryTests
         Assert.True(markdown.IndexOf("| Far |", StringComparison.Ordinal) < markdown.IndexOf("| Near |", StringComparison.Ordinal));
         Assert.Contains("| Gone |", markdown, StringComparison.Ordinal);
         Assert.Contains("| New |", markdown, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData(48, 48)]
+    [InlineData(44, 48.4)]
+    [InlineData(36, 42.12)]
+    [InlineData(15, 18.15)]
+    [InlineData(15, 30)]
+    public async Task TheBaseline_OfALineHeightSmallerOrLargerThanTheFont_IsWhereTheGlyphsSit(double size, double lineHeight)
+    {
+        var (items, ink) = await UiHarness.Session.Dispatch(
+            () =>
+            {
+                var block = new TextBlock { Text = "HEHE", FontFamily = new FontFamily("fonts:Inter#Inter"), FontSize = size, LineHeight = lineHeight, Foreground = Brushes.Black };
+                Canvas.SetLeft(block, 20);
+                Canvas.SetTop(block, 30);
+                var window = Show(block, 400, 200);
+                var texts = AppTexts.Collect(window);
+                var frame = Capture(window);
+                window.Close();
+                return (texts, frame);
+            },
+            TestContext.Current.CancellationToken);
+
+        var line = items.Single(t => t.Text == "HEHE").First;
+        var (_, top, _, bottom) = InkBox(ink, 0, 0, 400, 200);
+
+        // Capital letters stand on the baseline and are 0.727 em high (Inter).
+        Assert.Equal(line.Baseline, bottom, 1.5);
+        Assert.Equal(line.Baseline - (0.727 * size), top, 2.0);
+        Assert.True(line.Y <= line.Baseline && line.Baseline <= line.Bottom + 1);
+    }
+
+    [Fact]
+    public async Task AppTexts_ReadsInlinesAndSpans_AndResolvesAFragmentToItsRect()
+    {
+        var (items, ink) = await UiHarness.Session.Dispatch(
+            () =>
+            {
+                var block = new TextBlock { FontFamily = new FontFamily("fonts:Inter#Inter"), FontSize = 15, Foreground = Brushes.Black };
+                block.Inlines!.Add(new Run("Both: full-text plus semantic. Answers come back with "));
+                var span = new Span();
+                span.Inlines.Add(new Run("timestamps"));
+                block.Inlines.Add(span);
+                block.Inlines.Add(new Run(", so one click takes you there."));
+                Canvas.SetLeft(block, 20);
+                Canvas.SetTop(block, 30);
+                var window = Show(block, 700, 100);
+                var texts = AppTexts.Collect(window);
+                var frame = Capture(window);
+                window.Close();
+                return (texts, frame);
+            },
+            TestContext.Current.CancellationToken);
+
+        var whole = items.Single();
+        Assert.Equal("Both: full-text plus semantic. Answers come back with timestamps, so one click takes you there.", whole.Text);
+        var at = whole.Text.IndexOf("timestamps", StringComparison.Ordinal);
+        var range = whole.Layout!.Range(at, "timestamps".Length);
+        var box = Assert.Single(range);
+
+        // Ink between the end of "with " and the comma: the rect of "timestamps" starts where its glyphs start.
+        var (left, _, right, _) = InkBox(ink, (int)Math.Floor(box.X) - 3, 25, (int)Math.Ceiling(box.W) + 6, 30);
+        Assert.InRange(left, box.X - 3, box.X + 3);
+        Assert.InRange(right, box.Right - 3, box.Right + 4);
+        Assert.Equal(whole.First.Baseline, box.Baseline, 0.5);
+    }
+
+    [Fact]
+    public async Task AppTexts_SkipsTextOutOfAScrollArea_TransparentTextAndMarksTrimmedOnes()
+    {
+        var items = await UiHarness.Session.Dispatch(
+            () =>
+            {
+                var rows = new StackPanel();
+                for (var i = 0; i < 6; i++)
+                {
+                    rows.Children.Add(new TextBlock { Text = "Row " + i, Height = 30 });
+                }
+
+                var scroll = new ScrollViewer { Height = 70, Width = 200, Content = rows };
+                var invisible = new TextBlock { Text = "Transparent", Opacity = 0 };
+                var parent = new Border { Opacity = 0, Child = new TextBlock { Text = "Inside transparent parent" } };
+                var trimmed = new TextBlock { Text = "A text that is far too long for its box", Width = 80, TextTrimming = TextTrimming.CharacterEllipsis, TextWrapping = TextWrapping.NoWrap };
+                var panel = new StackPanel { Width = 300 };
+                panel.Children.Add(scroll);
+                panel.Children.Add(invisible);
+                panel.Children.Add(parent);
+                panel.Children.Add(trimmed);
+                var window = Show(panel, 400, 300);
+                var texts = AppTexts.Collect(window);
+                window.Close();
+                return texts;
+            },
+            TestContext.Current.CancellationToken);
+
+        Assert.Contains(items, t => t.Text == "Row 0");
+        Assert.Contains(items, t => t.Text == "Row 1");
+        Assert.DoesNotContain(items, t => t.Text == "Row 5");
+        Assert.DoesNotContain(items, t => t.Text == "Transparent");
+        Assert.DoesNotContain(items, t => t.Text == "Inside transparent parent");
+        Assert.True(items.Single(t => t.Text.StartsWith("A text that", StringComparison.Ordinal)).Trimmed);
+        Assert.False(items.Single(t => t.Text == "Row 0").Trimmed);
+    }
+
+    [Fact]
+    public async Task AppTexts_ReadsTheTextPresenterOfATextBoxWithTypedText_WhereItIsDrawn()
+    {
+        var (items, ink) = await UiHarness.Session.Dispatch(
+            () =>
+            {
+                var box = new TextBox { Text = "Typed words", Width = 240, FontSize = 14, FontFamily = new FontFamily("fonts:Inter#Inter"), Foreground = Brushes.Black };
+                Canvas.SetLeft(box, 20);
+                Canvas.SetTop(box, 20);
+                var window = Show(box, 400, 100);
+                var texts = AppTexts.Collect(window);
+                var frame = Capture(window);
+                window.Close();
+                return (texts, frame);
+            },
+            TestContext.Current.CancellationToken);
+
+        var typed = items.Single(t => t.Text == "Typed words");
+        Assert.Contains("TextPresenter", typed.Source, StringComparison.Ordinal);
+        var (left, top, right, bottom) = InkBox(ink, 25, 22, 230, 40);
+        Assert.InRange(left, typed.First.X - 2, typed.First.X + 3);
+        Assert.InRange(right, typed.First.Right - 3, typed.First.Right + 2);
+        Assert.InRange(bottom, typed.First.Baseline - 1, typed.First.Baseline + 5);
+        Assert.True(top < typed.First.Baseline);
+    }
+
+    [Fact]
+    public async Task AppTexts_ReadsTheTranscriptControl_WhereItIsDrawn()
+    {
+        var (items, ink) = await UiHarness.Session.Dispatch(
+            () =>
+            {
+                var control = new TranscriptTextControl
+                {
+                    Text = "Both: full-text plus semantic. Answers come back with timestamps, so one click takes you to the exact moment in the recording.",
+                    FontFamily = new FontFamily("fonts:Inter#Inter"),
+                    FontSize = 15,
+                    LineHeight = 24,
+                    Foreground = Brushes.Black,
+                    Width = 300,
+                };
+                Canvas.SetLeft(control, 20);
+                Canvas.SetTop(control, 20);
+                var window = Show(control, 400, 200);
+                var texts = AppTexts.Collect(window);
+                var frame = Capture(window);
+                window.Close();
+                return (texts, frame);
+            },
+            TestContext.Current.CancellationToken);
+
+        var item = items.Single();
+        Assert.True(item.Lines.Count >= 3);
+        var (left, top, right, bottom) = InkBox(ink, 0, 0, 400, 200);
+        Assert.InRange(left, item.Lines.Min(l => l.X) - 1, item.Lines.Min(l => l.X) + 3);
+        Assert.InRange(right, item.Lines.Max(l => l.Right) - 4, item.Lines.Max(l => l.Right) + 2);
+        Assert.InRange(top, item.First.Y, item.First.Baseline);
+        Assert.InRange(bottom, item.Lines[^1].Baseline - 1, item.Lines[^1].Bottom + 1);
+    }
+
+    [Fact]
+    public void ThePlaceholder_IsComparedByItsTextXAndCentre_NotByWidthOrLines()
+    {
+        var reference = Item("Search transcript", 877.33, 237.16, width: 515, size: 14, placeholder: true);
+
+        var good = TextMatcher.Measure(reference, Item("Search transcript", 878, 238.5, width: 120, size: 14));
+        var wrong = TextMatcher.Measure(reference, Item("Search transcript", 900, 250, width: 120, size: 16, lines: 2));
+
+        Assert.False(good.HasProblems);
+        Assert.Equal(["x +22.7 px", "y (centre) +12.8 px", "size 14 -> 16"], wrong.Problems);
+    }
+
+    [Fact]
+    public void ExcludedPlaceholders_AreListedButNeverCountedAsMissing()
+    {
+        var reference = new[] { Item("Settings", 10, 10), Item("[VERSION]", 10, 40), Item("Project license — [LICENSE]", 10, 70), Item(@"C:\Users\[USER]\Murmur", 10, 100) };
+        var app = new[] { Item("Settings", 10, 10), Item("0.4.0", 10, 40) };
+        ExcludedText[] excluded = [new("[VERSION]", "version"), new("[LICENSE]", "license", Contains: true), new("[USER]", "path", Contains: true)];
+
+        var result = TextMatcher.Compare(reference, app, excluded);
+
+        Assert.Equal(1, result.ReferenceCount);
+        Assert.Equal(100, result.MatchedPercent);
+        Assert.Empty(result.Missing);
+        Assert.Equal(["[VERSION]", "Project license — [LICENSE]", @"C:\Users\[USER]\Murmur"], result.Excluded.Select(e => e.Item.Text));
+        Assert.Equal(["version", "license", "path"], result.Excluded.Select(e => e.Reason));
+        var markdown = TextReport.Markdown(DesignBoards.Get("Settings"), result);
+        Assert.Contains("excluded: license", markdown, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ADuplicateBeyondTheDistanceLimit_IsMissingAndExtra_ButAUniqueTextIsFoundAnywhere()
+    {
+        var far = 162 + TextTolerance.MatchDistancePx + 10;
+        var duplicates = TextMatcher.Compare([Item("Library", 56, 162), Item("Library", 273, 30)], [Item("Library", 56, far), Item("Library", 273, 30)]);
+        var unique = TextMatcher.Compare([Item("Library", 56, 162)], [Item("Library", 56, far)]);
+
+        Assert.Single(duplicates.Matches);
+        Assert.Single(duplicates.Missing);
+        Assert.Single(duplicates.Extra);
+        Assert.Single(unique.Matches);
+        Assert.Contains("baseline", unique.Matches[0].Problems[0], StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Fragments_AreFoundInTheWholeBlockOrInALongerText_AndSayHow()
+    {
+        var (app, whole) = await UiHarness.Session.Dispatch(
+            () =>
+            {
+                var block = new TextBlock { FontFamily = new FontFamily("fonts:Inter#Inter"), FontSize = 15, Foreground = Brushes.Black };
+                block.Inlines!.Add(new Run("Both: full-text plus semantic. Answers come back with "));
+                block.Inlines.Add(new Run("timestamps"));
+                block.Inlines.Add(new Run(", so one click takes you there."));
+                var other = new TextBlock { Text = "Great. What about PDF export? We need it for our reports.", FontFamily = new FontFamily("fonts:Inter#Inter"), FontSize = 15 };
+                Canvas.SetLeft(block, 20);
+                Canvas.SetTop(block, 30);
+                Canvas.SetLeft(other, 20);
+                Canvas.SetTop(other, 80);
+                var canvas = new Canvas { Width = 700, Height = 150 };
+                canvas.Children.Add(block);
+                canvas.Children.Add(other);
+                var window = Show(canvas, 700, 150);
+                var texts = AppTexts.Collect(window);
+                window.Close();
+                return (texts, texts[0]);
+            },
+            TestContext.Current.CancellationToken);
+
+        var block0 = whole;
+        var at = block0.Text.IndexOf("timestamps", StringComparison.Ordinal);
+        var rect = block0.Layout!.Range(at, 10)[0];
+        var fullText = block0.Text;
+        var reference = new[]
+        {
+            Item("Both: full-text plus semantic. Answers come back with", 20, block0.First.CenterY, width: rect.X - 20, size: 15, blockText: fullText, blockId: 7, baseline: block0.First.Baseline),
+            Item("timestamps", rect.X, block0.First.CenterY, width: rect.W, size: 15, blockText: fullText, blockId: 7, baseline: block0.First.Baseline),
+            Item("What about PDF export?", 20 + 55, 80 + 11, width: 150, size: 15, baseline: 80 + 15.5),
+        };
+
+        var result = TextMatcher.Compare(reference, app);
+
+        Assert.Equal(3, result.Matches.Count);
+        Assert.Equal([MatchKind.BlockText, MatchKind.BlockText, MatchKind.Fragment], result.Matches.Select(m => m.Via));
+        Assert.Empty(result.Extra);
+        var stamp = result.Matches[1];
+        Assert.Equal(rect.X, stamp.App.First.X, 0.5);
+        Assert.Equal("timestamps", stamp.App.Text);
+        Assert.Equal(100, result.MatchedPercent);
+    }
+
+    [Fact]
+    public async Task HideText_ReachesNestedSpans_AndLeavesAnIconAlone()
+    {
+        var (before, after) = await UiHarness.Session.Dispatch(
+            () =>
+            {
+                var panel = new StackPanel { Width = 300, Spacing = 8, Background = Brushes.White };
+                var block = new TextBlock { FontSize = 20, Foreground = Brushes.Black };
+                var outer = new Span();
+                var inner = new Span();
+                inner.Inlines.Add(new Run("Deeply nested") { Foreground = Brushes.Black });
+                outer.Inlines.Add(inner);
+                block.Inlines!.Add(outer);
+                panel.Children.Add(block);
+                panel.Children.Add(new PathIcon { Data = Geometry.Parse("M0,0 L20,0 L20,20 L0,20 Z"), Foreground = Brushes.Red, Width = 20, Height = 20 });
+                var window = Show(panel);
+                var first = Capture(window);
+                DesignScene.HideText(window);
+                UiHarness.Pump(4);
+                var second = Capture(window);
+                window.Close();
+                return (first, second);
+            },
+            TestContext.Current.CancellationToken);
+
+        Assert.True(Count(before, p => p.R < 80 && p.G < 80 && p.B < 80) > 50, "the nested run was drawn dark before");
+        Assert.Equal(0, Count(after, p => p.R < 80 && p.G < 80 && p.B < 80));
+        Assert.True(Count(after, p => p.R > 200 && p.G < 60 && p.B < 60) > 200, "the icon keeps its colour");
+    }
+
+    [Fact]
+    public async Task DisableTransitions_RemovesEveryTransitionOfTheTree()
+    {
+        var left = await UiHarness.Session.Dispatch(
+            () =>
+            {
+                var button = new Button { Content = "Go" };
+                var window = Show(button);
+                DesignScene.DisableTransitions(window);
+                var count = window.GetVisualDescendants().OfType<Avalonia.Animation.Animatable>().Count(a => a.Transitions is { Count: > 0 });
+                window.Close();
+                return count;
+            },
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal(0, left);
     }
 
     private readonly record struct PixelColor(byte R, byte G, byte B);
