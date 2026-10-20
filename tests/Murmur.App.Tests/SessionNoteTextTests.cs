@@ -64,14 +64,14 @@ public sealed class SessionNoteTextTests
         using (UiCulture.Override("en"))
         {
             Assert.Equal(
-                "Microphone unavailable: Windows blocks access (Settings → Privacy & security → Microphone). Recording system audio only.",
+                "Microphone unavailable: Windows blocks access (Settings → Privacy & security → Microphone).\nRecording system audio only.",
                 SessionNoteText.Describe(stored));
         }
 
         using (UiCulture.Override("uk"))
         {
             Assert.Equal(
-                "Мікрофон недоступний: Windows забороняє доступ (Параметри → Конфіденційність і безпека → Мікрофон). Записую лише системний звук.",
+                "Мікрофон недоступний: Windows забороняє доступ (Параметри → Конфіденційність і безпека → Мікрофон).\nЗаписую лише системний звук.",
                 SessionNoteText.Describe(stored));
         }
     }
@@ -114,8 +114,27 @@ public sealed class SessionNoteTextTests
         using var en = UiCulture.Override("en");
 
         Assert.Equal(
-            "Writing audio failed: disk full Recording stopped. Screen recording skipped frames: the computer couldn’t keep up.",
+            "Writing audio failed: disk full\nRecording stopped.\nScreen recording skipped frames: the computer couldn’t keep up.",
             SessionNoteText.Describe("Writing audio failed: disk full\nRecording stopped.\nrec.screen.dropped"));
+    }
+
+    [Fact]
+    public void ACodeWhoseTextTakesADetail_ButHasNone_ShowsTheUnknownErrorText()
+    {
+        using (UiCulture.Override("en"))
+        {
+            Assert.Equal("Indexing failed: Unknown error", SessionNoteText.Describe("proc.index.failed"));
+        }
+
+        Assert.Equal($"Індексування не вдалося: {Strings.Get("Session_UnknownError", "uk")!.TrimEnd('.')}", SessionNoteText.Describe("proc.index.failed", "uk"));
+        Assert.Equal("Microphone unavailable: Unknown error.", SessionNoteText.Describe("rec.mic.unavailable", "en"));
+    }
+
+    [Fact]
+    public void TheRecoveryCode_IsWordedInBothLanguages()
+    {
+        Assert.Equal("The app stopped while recording and no audio could be recovered.", SessionNoteText.Describe(SessionNotes.RecoveryLost, "en"));
+        Assert.Contains("відновити", SessionNoteText.Describe(SessionNotes.RecoveryLost, "uk"), StringComparison.Ordinal);
     }
 
     [Theory]

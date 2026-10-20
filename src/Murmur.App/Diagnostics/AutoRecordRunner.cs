@@ -226,7 +226,7 @@ public sealed class AutoRecordRunner
             };
 
             return session.State == SessionState.Failed
-                ? report with { Error = session.Error ?? "The session failed." }
+                ? report with { Error = SessionNoteText.Describe(session.Error, UiCulture.English) ?? "The session failed." }
                 : report;
         }
         finally

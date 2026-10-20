@@ -25,7 +25,7 @@ public readonly record struct SessionNote(string? Code, string? Detail, string T
 /// <para><b>Codes.</b> Recorder: <see cref="MicrophoneDenied"/>, <see cref="SystemAudioDenied"/>,
 /// <see cref="MicrophoneUnavailable"/> and <see cref="SystemAudioUnavailable"/> (detail = the OS message),
 /// <see cref="OnlySystemAudio"/>, <see cref="OnlyMicrophone"/>, <see cref="ScreenFramesDropped"/>,
-/// <see cref="ScreenCpuFallback"/>, <see cref="ScreenOther"/>, <see cref="ScreenStopped"/>. Processing:
+/// <see cref="ScreenCpuFallback"/>, <see cref="ScreenOther"/>, <see cref="ScreenStopped"/>, <see cref="RecoveryLost"/>. Processing:
 /// <see cref="AsrMissing"/>, <see cref="IndexFailed"/> (detail = the reason). <see cref="KnownCodes"/> lists them all.</para>
 /// </remarks>
 public static class SessionNotes
@@ -60,11 +60,14 @@ public static class SessionNotes
 
     private const char DetailSeparator = '|';
 
+    /// <summary>The app stopped while recording and no audio could be recovered (set by the start-up recovery).</summary>
+    public const string RecoveryLost = "rec.recovery.lost";
+
     /// <summary>Every code Core can store, for the App to map and for tests to enumerate.</summary>
     public static IReadOnlyList<string> KnownCodes { get; } =
     [
         MicrophoneDenied, SystemAudioDenied, MicrophoneUnavailable, SystemAudioUnavailable, OnlySystemAudio, OnlyMicrophone,
-        ScreenFramesDropped, ScreenCpuFallback, ScreenOther, ScreenStopped, AsrMissing, IndexFailed,
+        ScreenFramesDropped, ScreenCpuFallback, ScreenOther, ScreenStopped, RecoveryLost, AsrMissing, IndexFailed,
     ];
 
     /// <summary>The stable code stored in the session for a recorder warning.</summary>
@@ -87,6 +90,16 @@ public static class SessionNotes
     {
         ArgumentException.ThrowIfNullOrEmpty(code);
         return string.IsNullOrWhiteSpace(detail) ? code : code + DetailSeparator + Flatten(detail);
+    }
+
+    /// <summary>
+    /// A technical message (an exception text) as one stored line: line breaks become spaces, so <see cref="Parse"/> keeps it
+    /// as one free-text note. Use it for every free text put into a stored problem list.
+    /// </summary>
+    public static string FreeText(string text)
+    {
+        ArgumentNullException.ThrowIfNull(text);
+        return Flatten(text);
     }
 
     /// <summary>Joins two stored texts as lines; either may be <c>null</c>.</summary>

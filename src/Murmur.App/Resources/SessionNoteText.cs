@@ -24,6 +24,7 @@ internal static class SessionNoteText
         SessionNotes.ScreenCpuFallback => nameof(Strings.Recording_ScreenCpuFallback),
         SessionNotes.ScreenOther => nameof(Strings.Recording_ScreenProblems),
         SessionNotes.ScreenStopped => nameof(Strings.Recording_ScreenStopped),
+        SessionNotes.RecoveryLost => nameof(Strings.Note_RecoveryLost),
         SessionNotes.AsrMissing => nameof(Strings.Note_AsrMissing),
         SessionNotes.IndexFailed => nameof(Strings.Note_IndexFailed),
         _ => null,
@@ -38,7 +39,7 @@ internal static class SessionNoteText
 
     /// <summary>
     /// The text of a stored problem list (<c>SessionRecord.Error</c>, a status message) in the UI language, or in
-    /// <paramref name="language"/> (<c>en</c>/<c>uk</c>) when given; several notes are joined with a space. <c>null</c> for nothing.
+    /// <paramref name="language"/> (<c>en</c>/<c>uk</c>) when given; several notes are joined with a line break (the views wrap text). <c>null</c> for nothing.
     /// </summary>
     public static string? Describe(string? stored, string? language = null)
     {
@@ -59,7 +60,7 @@ internal static class SessionNoteText
             parts[i] = DescribeNote(notes[i], language);
         }
 
-        return string.Join(' ', parts);
+        return string.Join('\n', parts);
     }
 
     /// <summary>The text of one note; free text and unknown codes as they are.</summary>
@@ -71,6 +72,13 @@ internal static class SessionNoteText
         }
 
         var format = language is null ? Strings.Get(key) : Strings.Get(key, language) ?? Strings.Get(key, UiCulture.English) ?? key;
-        return format.Contains('{', StringComparison.Ordinal) ? UiText.Format(format, note.Detail ?? string.Empty) : format;
+        if (!format.Contains('{', StringComparison.Ordinal))
+        {
+            return format;
+        }
+
+        // A code whose text takes a detail but came without one still reads well: "… Unknown error" (no final period: the text may add its own).
+        var detail = note.Detail ?? (language is null ? Strings.Session_UnknownError : Strings.Get(nameof(Strings.Session_UnknownError), language) ?? Strings.Get(nameof(Strings.Session_UnknownError), UiCulture.English) ?? string.Empty).TrimEnd('.');
+        return UiText.Format(format, detail);
     }
 }

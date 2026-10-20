@@ -14,6 +14,17 @@ public sealed class SessionNotesTests
         Assert.Equal("rec.mic.unavailable|device busy again", SessionNotes.Format(SessionNotes.MicrophoneUnavailable, " device busy\r\nagain "));
 
     [Fact]
+    public void FreeText_IsOneLine_SoParseKeepsItWhole()
+    {
+        var stored = SessionNotes.FreeText("Writing audio failed:\r\ndisk full\n at X ");
+
+        Assert.Equal("Writing audio failed: disk full at X", stored);
+        var note = Assert.Single(SessionNotes.Parse(stored));
+        Assert.False(note.IsCode);
+        Assert.Equal(stored, note.Text);
+    }
+
+    [Fact]
     public void Parse_SplitsCodesAndDetails()
     {
         var notes = SessionNotes.Parse("rec.mic.unavailable|a|b\nrec.only.system");

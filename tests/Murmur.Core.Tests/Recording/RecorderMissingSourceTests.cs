@@ -221,6 +221,17 @@ public sealed class RecorderMissingSourceTests : IDisposable
     }
 
     [Fact]
+    public void DescribeSkippedTracks_TrimsTheDetail()
+    {
+        var warning = Recorder.DescribeSkippedTracks(
+            [(AudioDeviceKind.Microphone, new InvalidOperationException("  device busy. \n"))],
+            hasMicrophone: false,
+            hasSystemAudio: true);
+
+        Assert.Equal("rec.mic.unavailable|device busy\nrec.only.system", warning);
+    }
+
+    [Fact]
     public void DescribeSkippedTracks_IsNullWhenNothingWasLost() =>
         Assert.Null(Recorder.DescribeSkippedTracks([], hasMicrophone: true, hasSystemAudio: true));
 }

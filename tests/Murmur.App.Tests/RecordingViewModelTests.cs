@@ -496,7 +496,7 @@ public sealed class RecordingViewModelTests : IDisposable
     {
         // Core stores codes; the inline text is the App's, in the UI language.
         _recorder.StartWarning = SessionNotes.Join(SessionNotes.Format(SessionNotes.MicrophoneDenied), SessionNotes.Format(SessionNotes.OnlySystemAudio));
-        var warning = string.Join(' ', Resources.Strings.Note_MicDenied, Resources.Strings.Note_OnlySystem);
+        var warning = string.Join('\n', Resources.Strings.Note_MicDenied, Resources.Strings.Note_OnlySystem);
         var vm = Create();
 
         await vm.StartStopCommand.ExecuteAsync(null);

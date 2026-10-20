@@ -170,6 +170,9 @@
   <data name="Note_OnlyMic" xml:space="preserve">
     <value>Recording the microphone only.</value>
   </data>
+  <data name="Note_RecoveryLost" xml:space="preserve">
+    <value>The app stopped while recording and no audio could be recovered.</value>
+  </data>
   <data name="Note_AsrMissing" xml:space="preserve">
     <value>The Parakeet model isn’t installed.</value>
   </data>

@@ -169,6 +169,9 @@
   <data name="Note_OnlyMic" xml:space="preserve">
     <value>Записую лише мікрофон.</value>
   </data>
+  <data name="Note_RecoveryLost" xml:space="preserve">
+    <value>Застосунок зупинився під час запису, звук відновити не вдалося.</value>
+  </data>
   <data name="Note_AsrMissing" xml:space="preserve">
     <value>Модель Parakeet не встановлена.</value>
   </data>

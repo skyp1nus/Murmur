@@ -390,7 +390,7 @@ public sealed class Recorder : IRecorder
             }
             else
             {
-                var message = string.IsNullOrWhiteSpace(error.Message) ? error.GetType().Name : error.Message.TrimEnd('.');
+                var message = string.IsNullOrWhiteSpace(error.Message) ? error.GetType().Name : error.Message.Trim().TrimEnd('.');
                 parts.Add(SessionNotes.Format(mic ? SessionNotes.MicrophoneUnavailable : SessionNotes.SystemAudioUnavailable, message));
             }
         }
@@ -824,7 +824,7 @@ public sealed class Recorder : IRecorder
                 HasMicrophone = active.Tracks.Exists(t => t.Kind == AudioDeviceKind.Microphone),
                 HasSystemAudio = active.Tracks.Exists(t => t.Kind == AudioDeviceKind.SystemOutput),
                 ScreenSegments = [.. active.Segments],
-                Error = JoinMessages(error ?? screenError, active.WarningText),
+                Error = JoinMessages((error ?? screenError) is { } failure ? SessionNotes.FreeText(failure) : null, active.WarningText),
             };
 
             active.Record = record;
@@ -1008,7 +1008,7 @@ public sealed class Recorder : IRecorder
 
         try
         {
-            await _store.UpdateSessionAsync(active.Record with { State = SessionState.Failed, Error = error.Message }, CancellationToken.None).ConfigureAwait(false);
+            await _store.UpdateSessionAsync(active.Record with { State = SessionState.Failed, Error = SessionNotes.FreeText(error.Message) }, CancellationToken.None).ConfigureAwait(false);
         }
         catch (Exception)
         {
