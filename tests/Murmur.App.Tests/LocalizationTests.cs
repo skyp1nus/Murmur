@@ -434,17 +434,17 @@ public sealed partial class LocalizationTests
                     var window = UiHarness.Show(shell);
                     var result = (
                         window.GetVisualDescendants().OfType<TextBlock>().Where(t => t.IsEffectivelyVisible).Select(t => t.Text).ToArray(),
-                        window.GetVisualDescendants().OfType<Button>().Where(b => b is not Avalonia.Controls.Primitives.ToggleButton && b.IsEffectivelyVisible).Select(b => b.Content as string).ToArray(),
-                        window.GetVisualDescendants().OfType<Avalonia.Controls.Primitives.ToggleButton>().Select(b => b.Content as string).ToArray(),
-                        window.GetVisualDescendants().OfType<TextBox>().Single().PlaceholderText);
+                        window.GetVisualDescendants().OfType<Button>().Where(b => b is not Avalonia.Controls.Primitives.ToggleButton && b.IsEffectivelyVisible && b.Content is string).Select(b => (string)b.Content!).ToArray(),
+                        window.GetVisualDescendants().OfType<Button>().Where(b => b.Classes.Contains("filter")).Select(b => b.GetVisualDescendants().OfType<TextBlock>().Single(t => t.IsEffectivelyVisible).Text).ToArray(),
+                        window.GetVisualDescendants().OfType<TextBox>().Single(t => t.IsEffectivelyVisible).PlaceholderText);
                     window.Close();
                     return result;
                 }),
             TestContext.Current.CancellationToken);
 
         Assert.Contains("No recordings yet", texts);
-        Assert.Equal(["New recording", "New recording"], buttons);
-        Assert.Equal(["Today", "This week", "All"], pills);
+        Assert.Equal(["Start recording", "New recording"], buttons);
+        Assert.Equal(["All", "Today", "This week", "This month", "Pick dates"], pills);
         Assert.Equal("Search titles and text", placeholder);
     }
 

@@ -56,9 +56,6 @@
   <data name="Library_AskAll" xml:space="preserve">
     <value>Запитати свою бібліотеку</value>
   </data>
-  <data name="Library_BadgeSystem" xml:space="preserve">
-    <value>Системний</value>
-  </data>
   <data name="Library_NothingFound" xml:space="preserve">
     <value>Нічого не знайдено</value>
   </data>
@@ -1003,5 +1000,199 @@
   </data>
   <data name="Storage_NotAbsolute" xml:space="preserve">
     <value>Вкажіть повний шлях до папки, наприклад C:\Записи.</value>
+  </data>
+  <!-- Shell and Library of the canvas (phase 4.1): sidebar, top bar, New recording / Ask your library cards, day groups, languages. -->
+  <data name="Nav_Recording" xml:space="preserve">
+    <value>Запис</value>
+  </data>
+  <data name="Nav_Recent" xml:space="preserve">
+    <value>Нещодавні</value>
+  </data>
+  <data name="Nav_Chats" xml:space="preserve">
+    <value>Чати</value>
+  </data>
+  <data name="Nav_OfflineRecording" xml:space="preserve">
+    <value>Під час запису жодна модель не завантажена</value>
+  </data>
+  <data name="Hint_Record" xml:space="preserve">
+    <value>Запис</value>
+  </data>
+  <data name="Library_Heading" xml:space="preserve">
+    <value>Що записуємо сьогодні?</value>
+  </data>
+  <data name="Library_RecordingCardText" xml:space="preserve">
+    <value>Мікрофон і системний звук записуються окремими доріжками. Транскрипція починається одразу після зупинки.</value>
+  </data>
+  <data name="Library_AskCardText" xml:space="preserve">
+    <value>Шукає в усіх транскрипціях і відповідає з позначками часу. Модель працює локально.</value>
+  </data>
+  <data name="Library_AskPlaceholder" xml:space="preserve">
+    <value>Що ми вирішили щодо експорту в PDF?</value>
+  </data>
+  <data name="Library_AskLabel" xml:space="preserve">
+    <value>Запитання до вашої бібліотеки</value>
+  </data>
+  <data name="Library_AskSend" xml:space="preserve">
+    <value>Надіслати</value>
+  </data>
+  <data name="Library_Suggestion1" xml:space="preserve">
+    <value>Мої завдання на цей тиждень</value>
+  </data>
+  <data name="Library_Suggestion2" xml:space="preserve">
+    <value>Хто згадував бюджет?</value>
+  </data>
+  <data name="Library_Suggestion3" xml:space="preserve">
+    <value>Підсумуй учорашнє</value>
+  </data>
+  <data name="Library_RecordingsTitle" xml:space="preserve">
+    <value>Записи</value>
+  </data>
+  <data name="Library_SearchLabel" xml:space="preserve">
+    <value>Пошук записів</value>
+  </data>
+  <data name="Library_FilterLabel" xml:space="preserve">
+    <value>Фільтр за датою</value>
+  </data>
+  <data name="Library_FilterMonth" xml:space="preserve">
+    <value>Цей місяць</value>
+  </data>
+  <data name="Library_FilterPick" xml:space="preserve">
+    <value>Обрати дати</value>
+  </data>
+  <data name="Library_RangeClear" xml:space="preserve">
+    <value>Скинути дати</value>
+  </data>
+  <data name="Library_GroupYesterday" xml:space="preserve">
+    <value>Учора</value>
+  </data>
+  <data name="Library_SearchResults" xml:space="preserve">
+    <value>Результати пошуку</value>
+  </data>
+  <data name="Library_RangeText" xml:space="preserve">
+    <value>{0} – {1}</value>
+    <comment>{0} = first day, {1} = last day</comment>
+  </data>
+  <data name="Library_ShortDate" xml:space="preserve">
+    <value>{1} {0}</value>
+    <comment>{0} = month, {1} = day</comment>
+  </data>
+  <data name="Library_DayHeading" xml:space="preserve">
+    <value>{0}, {2} {1}</value>
+    <comment>{0} = weekday, {1} = month, {2} = day</comment>
+  </data>
+  <data name="Library_RowWeekday" xml:space="preserve">
+    <value>{0}, {1}</value>
+    <comment>{0} = weekday, {1} = time</comment>
+  </data>
+  <data name="Library_MetaSeparator" xml:space="preserve">
+    <value> · </value>
+  </data>
+  <data name="Library_ListSeparator" xml:space="preserve">
+    <value>, </value>
+  </data>
+  <data name="Library_SourceMic" xml:space="preserve">
+    <value>мікрофон</value>
+  </data>
+  <data name="Library_SourceSystem" xml:space="preserve">
+    <value>системний звук</value>
+  </data>
+  <data name="Library_SourceScreen" xml:space="preserve">
+    <value>екран</value>
+  </data>
+  <data name="Weekday_Mon" xml:space="preserve">
+    <value>пн</value>
+  </data>
+  <data name="Weekday_Tue" xml:space="preserve">
+    <value>вт</value>
+  </data>
+  <data name="Weekday_Wed" xml:space="preserve">
+    <value>ср</value>
+  </data>
+  <data name="Weekday_Thu" xml:space="preserve">
+    <value>чт</value>
+  </data>
+  <data name="Weekday_Fri" xml:space="preserve">
+    <value>пт</value>
+  </data>
+  <data name="Weekday_Sat" xml:space="preserve">
+    <value>сб</value>
+  </data>
+  <data name="Weekday_Sun" xml:space="preserve">
+    <value>нд</value>
+  </data>
+  <data name="Lang_bg" xml:space="preserve">
+    <value>Болгарська</value>
+  </data>
+  <data name="Lang_hr" xml:space="preserve">
+    <value>Хорватська</value>
+  </data>
+  <data name="Lang_cs" xml:space="preserve">
+    <value>Чеська</value>
+  </data>
+  <data name="Lang_da" xml:space="preserve">
+    <value>Данська</value>
+  </data>
+  <data name="Lang_nl" xml:space="preserve">
+    <value>Нідерландська</value>
+  </data>
+  <data name="Lang_en" xml:space="preserve">
+    <value>Англійська</value>
+  </data>
+  <data name="Lang_et" xml:space="preserve">
+    <value>Естонська</value>
+  </data>
+  <data name="Lang_fi" xml:space="preserve">
+    <value>Фінська</value>
+  </data>
+  <data name="Lang_fr" xml:space="preserve">
+    <value>Французька</value>
+  </data>
+  <data name="Lang_de" xml:space="preserve">
+    <value>Німецька</value>
+  </data>
+  <data name="Lang_el" xml:space="preserve">
+    <value>Грецька</value>
+  </data>
+  <data name="Lang_hu" xml:space="preserve">
+    <value>Угорська</value>
+  </data>
+  <data name="Lang_it" xml:space="preserve">
+    <value>Італійська</value>
+  </data>
+  <data name="Lang_lv" xml:space="preserve">
+    <value>Латвійська</value>
+  </data>
+  <data name="Lang_lt" xml:space="preserve">
+    <value>Литовська</value>
+  </data>
+  <data name="Lang_mt" xml:space="preserve">
+    <value>Мальтійська</value>
+  </data>
+  <data name="Lang_pl" xml:space="preserve">
+    <value>Польська</value>
+  </data>
+  <data name="Lang_pt" xml:space="preserve">
+    <value>Португальська</value>
+  </data>
+  <data name="Lang_ro" xml:space="preserve">
+    <value>Румунська</value>
+  </data>
+  <data name="Lang_sk" xml:space="preserve">
+    <value>Словацька</value>
+  </data>
+  <data name="Lang_sl" xml:space="preserve">
+    <value>Словенська</value>
+  </data>
+  <data name="Lang_es" xml:space="preserve">
+    <value>Іспанська</value>
+  </data>
+  <data name="Lang_sv" xml:space="preserve">
+    <value>Шведська</value>
+  </data>
+  <data name="Lang_ru" xml:space="preserve">
+    <value>Російська</value>
+  </data>
+  <data name="Lang_uk" xml:space="preserve">
+    <value>Українська</value>
   </data>
 </root>

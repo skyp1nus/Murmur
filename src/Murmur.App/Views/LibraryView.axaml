@@ -2,219 +2,448 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="using:Murmur.App.ViewModels"
              xmlns:res="using:Murmur.App.Resources"
+             xmlns:controls="using:Murmur.App.Controls"
              x:Class="Murmur.App.Views.LibraryView"
              x:DataType="vm:LibraryViewModel">
 
-  <Grid RowDefinitions="Auto,Auto,*"
-        RowSpacing="{StaticResource Space.24}">
+  <!--
+    The Library page of the canvas (Main.dc.html) as one virtualised list, so the whole page scrolls like the canvas does and a long
+    library only builds the rows on screen: the fixed blocks first (heading with the two cards, Recordings with its search box, the
+    filters), then the day headings with their rows, the search results, or the empty card.
+  -->
+  <ListBox x:Name="Page"
+           Classes="library"
+           ItemsSource="{Binding Entries}"
+           ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+    <ListBox.DataTemplates>
 
-    <!-- Header: wordmark, search, primary action -->
-    <Grid Grid.Row="0"
-          ColumnDefinitions="Auto,*,Auto"
-          ColumnSpacing="{StaticResource Space.24}">
-      <TextBlock Grid.Column="0"
-                 Classes="heading"
-                 VerticalAlignment="Center"
-                 Text="Murmur" />
-      <TextBox Grid.Column="1"
-               Classes="pill"
-               HorizontalAlignment="Right"
-               Width="360"
-               VerticalAlignment="Center"
-               PlaceholderText="{x:Static res:Strings.Library_SearchPlaceholder}"
-               Text="{Binding SearchText}" />
-      <Button Grid.Column="2"
-              Classes="primary"
-              VerticalAlignment="Center"
-              Content="{x:Static res:Strings.Library_NewRecording}"
-              Command="{Binding NewRecordingCommand}" />
-    </Grid>
+      <!-- What are we recording today? + the two cards -->
+      <DataTemplate DataType="vm:LibraryHeroEntry">
+        <StackPanel DataContext="{Binding Library}"
+                    x:DataType="vm:LibraryViewModel"
+                    Margin="{StaticResource Margin.HeroTop}"
+                    Spacing="{StaticResource Space.24}">
+          <TextBlock Classes="heading page"
+                     TextWrapping="Wrap"
+                     Text="{x:Static res:Strings.Library_Heading}" />
 
-    <!-- Date filters, the inline error and the library-wide chat -->
-    <Grid Grid.Row="1"
-          ColumnDefinitions="Auto,*,Auto"
-          ColumnSpacing="{StaticResource Space.24}">
-      <StackPanel Grid.Column="0"
-                  Orientation="Horizontal"
-                  Spacing="{StaticResource Space.8}">
-        <ToggleButton Classes="pill"
-                      Content="{x:Static res:Strings.Library_FilterToday}"
-                      IsChecked="{Binding IsTodayFilter, Mode=TwoWay}" />
-        <ToggleButton Classes="pill"
-                      Content="{x:Static res:Strings.Library_FilterWeek}"
-                      IsChecked="{Binding IsWeekFilter, Mode=TwoWay}" />
-        <ToggleButton Classes="pill"
-                      Content="{x:Static res:Strings.Library_FilterAll}"
-                      IsChecked="{Binding IsAllFilter, Mode=TwoWay}" />
-      </StackPanel>
-      <TextBlock Grid.Column="1"
-                 Classes="bodySm"
-                 VerticalAlignment="Center"
-                 TextWrapping="Wrap"
-                 IsVisible="{Binding HasError}"
-                 Text="{Binding Error}" />
-      <Button Grid.Column="2"
-              Classes="outline"
-              VerticalAlignment="Center"
-              Content="{x:Static res:Strings.Library_AskAll}"
-              IsVisible="{Binding CanAskAll}"
-              Command="{Binding AskAllCommand}" />
-    </Grid>
+          <controls:AutoFitPanel MinColumnWidth="{StaticResource Size.CardMinWidth}"
+                                 Spacing="{StaticResource Space.16}">
 
-    <!-- Session list (virtualised: ListBox uses a VirtualizingStackPanel) -->
-    <Border Grid.Row="2"
-            Classes="card"
-            Padding="{StaticResource Inset.8}"
-            IsVisible="{Binding ShowSessionList}">
-      <ListBox Classes="sessions"
-               ItemsSource="{Binding Sessions}"
-               SelectedItem="{Binding SelectedSession, Mode=TwoWay}"
-               ScrollViewer.HorizontalScrollBarVisibility="Disabled">
-        <ListBox.ItemTemplate>
-          <DataTemplate x:DataType="vm:SessionItemViewModel">
-            <Grid ColumnDefinitions="*,Auto,Auto"
-                  ColumnSpacing="{StaticResource Space.24}"
-                  Margin="{StaticResource Inset.16}">
-              <StackPanel Grid.Column="0"
-                          VerticalAlignment="Center">
-                <TextBlock Classes="body"
-                           FontWeight="{StaticResource FontWeight.BodyMedium}"
+            <!-- New recording -->
+            <Border Classes="heroCard">
+              <Grid ColumnDefinitions="Auto,*"
+                    ColumnSpacing="28">
+                <Panel Grid.Column="0"
+                       Width="{StaticResource Size.HeroOrb}"
+                       Height="{StaticResource Size.HeroOrb}"
+                       VerticalAlignment="Center">
+                  <controls:OrbDisc Glow="True" />
+                  <Border Width="{StaticResource Size.HeroPlate}"
+                          Height="{StaticResource Size.HeroPlate}"
+                          CornerRadius="{StaticResource Radius.Pill}"
+                          Background="{DynamicResource Brush.OrbPlate}"
+                          BoxShadow="{StaticResource Shadow.Subtle}">
+                    <Ellipse Width="{StaticResource Size.HeroDot}"
+                             Height="{StaticResource Size.HeroDot}"
+                             Fill="{DynamicResource Brush.OrbDot}" />
+                  </Border>
+                </Panel>
+
+                <StackPanel Grid.Column="1"
+                            VerticalAlignment="Center"
+                            Spacing="{StaticResource Space.16}">
+                  <StackPanel Spacing="6">
+                    <TextBlock Classes="cardTitle"
+                               Text="{x:Static res:Strings.Library_NewRecording}" />
+                    <TextBlock Classes="paragraph"
+                               Text="{x:Static res:Strings.Library_RecordingCardText}" />
+                  </StackPanel>
+
+                  <WrapPanel ItemSpacing="{StaticResource Space.8}"
+                             LineSpacing="{StaticResource Space.8}">
+                    <ToggleButton Classes="source"
+                                  IsChecked="{Binding Microphone, Mode=TwoWay}"
+                                  IsEnabled="{Binding MicrophoneAvailable}">
+                      <StackPanel Orientation="Horizontal"
+                                  Spacing="{StaticResource Space.8}">
+                        <controls:IconControl Width="{StaticResource Size.ToggleIcon}"
+                                              Height="{StaticResource Size.ToggleIcon}"
+                                              Data="{StaticResource Icon.Mic}" />
+                        <TextBlock Classes="t13 plain"
+                                   Foreground="{Binding $parent[ContentPresenter].Foreground}"
+                                   Text="{x:Static res:Strings.Common_Microphone}" />
+                      </StackPanel>
+                    </ToggleButton>
+                    <ToggleButton Classes="source"
+                                  IsChecked="{Binding SystemAudio, Mode=TwoWay}"
+                                  IsEnabled="{Binding SystemAudioAvailable}">
+                      <StackPanel Orientation="Horizontal"
+                                  Spacing="{StaticResource Space.8}">
+                        <controls:IconControl Width="{StaticResource Size.ToggleIcon}"
+                                              Height="{StaticResource Size.ToggleIcon}"
+                                              Data="{StaticResource Icon.Speaker}" />
+                        <TextBlock Classes="t13 plain"
+                                   Foreground="{Binding $parent[ContentPresenter].Foreground}"
+                                   Text="{x:Static res:Strings.Recording_SystemAudio}" />
+                      </StackPanel>
+                    </ToggleButton>
+                    <ToggleButton Classes="source"
+                                  IsChecked="{Binding Screen, Mode=TwoWay}"
+                                  IsEnabled="{Binding ScreenAvailable}">
+                      <StackPanel Orientation="Horizontal"
+                                  Spacing="{StaticResource Space.8}">
+                        <controls:IconControl Width="{StaticResource Size.ToggleIcon}"
+                                              Height="{StaticResource Size.ToggleIcon}"
+                                              Data="{StaticResource Icon.Screen}" />
+                        <TextBlock Classes="t13 plain"
+                                   Foreground="{Binding $parent[ContentPresenter].Foreground}"
+                                   Text="{x:Static res:Strings.Common_Screen}" />
+                      </StackPanel>
+                    </ToggleButton>
+                  </WrapPanel>
+
+                  <StackPanel Orientation="Horizontal"
+                              Spacing="{StaticResource Space.12}">
+                    <Button Classes="start"
+                            Command="{Binding StartRecordingCommand}"
+                            Content="{x:Static res:Strings.Recording_Start}" />
+                    <TextBlock Classes="monoMeta muted"
+                               VerticalAlignment="Center"
+                               IsVisible="{Binding HasRecordHotkey}"
+                               Text="{Binding RecordHotkeyText}" />
+                  </StackPanel>
+                </StackPanel>
+              </Grid>
+            </Border>
+
+            <!-- Ask your library -->
+            <Border Classes="heroCard"
+                    IsVisible="{Binding CanAskAll}">
+              <Grid RowDefinitions="Auto,*,Auto,*,Auto">
+                <StackPanel Grid.Row="0"
+                            Spacing="6">
+                  <TextBlock Classes="cardTitle"
+                             Text="{x:Static res:Strings.Library_AskAll}" />
+                  <TextBlock Classes="paragraph"
+                             Text="{x:Static res:Strings.Library_AskCardText}" />
+                </StackPanel>
+
+                <Border Grid.Row="2"
+                        Classes="askBox"
+                        Margin="0,20">
+                  <Grid ColumnDefinitions="*,Auto"
+                        ColumnSpacing="{StaticResource Space.8}">
+                    <TextBox Grid.Column="0"
+                             Classes="bare ask"
+                             AutomationProperties.Name="{x:Static res:Strings.Library_AskLabel}"
+                             PlaceholderText="{x:Static res:Strings.Library_AskPlaceholder}"
+                             Text="{Binding AskQuestion, Mode=TwoWay}">
+                      <TextBox.KeyBindings>
+                        <KeyBinding Gesture="Enter"
+                                    Command="{Binding AskCommand}" />
+                      </TextBox.KeyBindings>
+                    </TextBox>
+                    <Button Grid.Column="1"
+                            Classes="start send"
+                            AutomationProperties.Name="{x:Static res:Strings.Library_AskSend}"
+                            Command="{Binding AskCommand}">
+                      <controls:IconControl Width="{StaticResource Size.NavIcon}"
+                                            Height="{StaticResource Size.NavIcon}"
+                                            Data="{StaticResource Icon.ArrowUp}" />
+                    </Button>
+                  </Grid>
+                </Border>
+
+                <ItemsControl Grid.Row="4"
+                              ItemsSource="{Binding Suggestions}">
+                  <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                      <WrapPanel ItemSpacing="{StaticResource Space.8}"
+                                 LineSpacing="{StaticResource Space.8}" />
+                    </ItemsPanelTemplate>
+                  </ItemsControl.ItemsPanel>
+                  <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="x:String">
+                      <Button Classes="suggestion"
+                              Command="{Binding $parent[ItemsControl].((vm:LibraryViewModel)DataContext).AskSuggestionCommand}"
+                              CommandParameter="{Binding}">
+                        <TextBlock Classes="t13"
+                                   Foreground="{Binding $parent[ContentPresenter].Foreground}"
+                                   Text="{Binding}" />
+                      </Button>
+                    </DataTemplate>
+                  </ItemsControl.ItemTemplate>
+                </ItemsControl>
+              </Grid>
+            </Border>
+          </controls:AutoFitPanel>
+        </StackPanel>
+      </DataTemplate>
+
+      <!-- Recordings + the search box -->
+      <DataTemplate DataType="vm:LibraryHeaderEntry">
+        <Grid DataContext="{Binding Library}"
+              x:DataType="vm:LibraryViewModel"
+              Margin="{StaticResource Margin.RecordingsTop}"
+              ColumnDefinitions="*,Auto"
+              ColumnSpacing="{StaticResource Space.16}">
+          <TextBlock Grid.Column="0"
+                     Classes="cardTitle"
+                     VerticalAlignment="Center"
+                     Text="{x:Static res:Strings.Library_RecordingsTitle}" />
+          <Border Grid.Column="1"
+                  Classes="searchBox"
+                  Width="{StaticResource Size.SearchBoxWidth}">
+            <Grid ColumnDefinitions="Auto,*"
+                  ColumnSpacing="10">
+              <controls:IconControl Grid.Column="0"
+                                    Width="{StaticResource Size.SearchIcon}"
+                                    Height="{StaticResource Size.SearchIcon}"
+                                    TextElement.Foreground="{DynamicResource Brush.Smoke}"
+                                    Data="{StaticResource Icon.Search}" />
+              <TextBox Grid.Column="1"
+                       Classes="bare"
+                       AutomationProperties.Name="{x:Static res:Strings.Library_SearchLabel}"
+                       PlaceholderText="{x:Static res:Strings.Library_SearchPlaceholder}"
+                       Text="{Binding SearchText, Mode=TwoWay}" />
+            </Grid>
+          </Border>
+        </Grid>
+      </DataTemplate>
+
+      <!-- Date filters -->
+      <DataTemplate DataType="vm:LibraryFiltersEntry">
+        <WrapPanel DataContext="{Binding Library}"
+                   x:DataType="vm:LibraryViewModel"
+                   Margin="{StaticResource Margin.FiltersTop}"
+                   ItemSpacing="6"
+                   LineSpacing="6"
+                   AutomationProperties.Name="{x:Static res:Strings.Library_FilterLabel}">
+          <Button Classes="filter"
+                  Classes.on="{Binding IsAllFilter}"
+                  Command="{Binding SetFilterCommand}"
+                  CommandParameter="{x:Static vm:LibraryFilter.All}">
+            <StackPanel Orientation="Horizontal"
+                        Spacing="{StaticResource Space.8}">
+              <Ellipse Classes="chipDot"
+                       IsVisible="{Binding IsAllFilter}" />
+              <TextBlock Classes="t13 plain"
+                         Foreground="{Binding $parent[ContentPresenter].Foreground}"
+                         Text="{x:Static res:Strings.Library_FilterAll}" />
+            </StackPanel>
+          </Button>
+          <Button Classes="filter"
+                  Classes.on="{Binding IsTodayFilter}"
+                  Command="{Binding SetFilterCommand}"
+                  CommandParameter="{x:Static vm:LibraryFilter.Today}">
+            <StackPanel Orientation="Horizontal"
+                        Spacing="{StaticResource Space.8}">
+              <Ellipse Classes="chipDot"
+                       IsVisible="{Binding IsTodayFilter}" />
+              <TextBlock Classes="t13 plain"
+                         Foreground="{Binding $parent[ContentPresenter].Foreground}"
+                         Text="{x:Static res:Strings.Library_FilterToday}" />
+            </StackPanel>
+          </Button>
+          <Button Classes="filter"
+                  Classes.on="{Binding IsWeekFilter}"
+                  Command="{Binding SetFilterCommand}"
+                  CommandParameter="{x:Static vm:LibraryFilter.Week}">
+            <StackPanel Orientation="Horizontal"
+                        Spacing="{StaticResource Space.8}">
+              <Ellipse Classes="chipDot"
+                       IsVisible="{Binding IsWeekFilter}" />
+              <TextBlock Classes="t13 plain"
+                         Foreground="{Binding $parent[ContentPresenter].Foreground}"
+                         Text="{x:Static res:Strings.Library_FilterWeek}" />
+            </StackPanel>
+          </Button>
+          <Button Classes="filter"
+                  Classes.on="{Binding IsMonthFilter}"
+                  Command="{Binding SetFilterCommand}"
+                  CommandParameter="{x:Static vm:LibraryFilter.Month}">
+            <StackPanel Orientation="Horizontal"
+                        Spacing="{StaticResource Space.8}">
+              <Ellipse Classes="chipDot"
+                       IsVisible="{Binding IsMonthFilter}" />
+              <TextBlock Classes="t13 plain"
+                         Foreground="{Binding $parent[ContentPresenter].Foreground}"
+                         Text="{x:Static res:Strings.Library_FilterMonth}" />
+            </StackPanel>
+          </Button>
+          <Button x:Name="PickDates"
+                  Classes="filter"
+                  Classes.on="{Binding IsRangeFilter}">
+            <Button.Flyout>
+              <Flyout Placement="BottomEdgeAlignedLeft">
+                <StackPanel Spacing="{StaticResource Space.12}">
+                  <controls:DateRangeCalendar RangeCommand="{Binding PickRangeCommand}" />
+                  <Button Classes="outline compact"
+                          HorizontalAlignment="Right"
+                          Command="{Binding ClearRangeCommand}"
+                          Content="{x:Static res:Strings.Library_RangeClear}" />
+                </StackPanel>
+              </Flyout>
+            </Button.Flyout>
+            <StackPanel Orientation="Horizontal"
+                        Spacing="6">
+              <Ellipse Classes="chipDot"
+                       IsVisible="{Binding IsRangeFilter}" />
+              <controls:IconControl Width="{StaticResource Size.FilterIcon}"
+                                    Height="{StaticResource Size.FilterIcon}"
+                                    Data="{StaticResource Icon.Calendar}" />
+              <TextBlock Classes="t13 plain"
+                         Foreground="{Binding $parent[ContentPresenter].Foreground}"
+                         Text="{Binding RangeText}" />
+            </StackPanel>
+          </Button>
+        </WrapPanel>
+      </DataTemplate>
+
+      <!-- A day heading -->
+      <DataTemplate DataType="vm:LibraryGroupEntry">
+        <TextBlock Classes="t13 muted"
+                   Margin="{StaticResource Margin.GroupTop}"
+                   Text="{Binding Title}" />
+      </DataTemplate>
+
+      <!-- An inline error or "Searching…" -->
+      <DataTemplate DataType="vm:LibraryNoticeEntry">
+        <TextBlock Classes="t14 muted"
+                   Margin="{StaticResource Margin.FiltersTop}"
+                   TextWrapping="Wrap"
+                   Text="{Binding Text}" />
+      </DataTemplate>
+
+      <!-- Nothing recorded yet, or nothing matches -->
+      <DataTemplate DataType="vm:LibraryEmptyEntry">
+        <Border Classes="heroCard"
+                Margin="{StaticResource Margin.GroupTop}">
+          <StackPanel Spacing="{StaticResource Space.24}"
+                      HorizontalAlignment="Center"
+                      MaxWidth="{StaticResource Size.SettingsWrap}">
+            <TextBlock Classes="headingSm"
+                       HorizontalAlignment="Center"
+                       TextAlignment="Center"
+                       TextWrapping="Wrap"
+                       Text="{Binding Title}" />
+            <TextBlock Classes="body"
+                       HorizontalAlignment="Center"
+                       TextAlignment="Center"
+                       TextWrapping="Wrap"
+                       Foreground="{DynamicResource Brush.Graphite}"
+                       Text="{Binding Text}" />
+            <Button Classes="primary"
+                    HorizontalAlignment="Center"
+                    IsVisible="{Binding CanRecord}"
+                    Content="{x:Static res:Strings.Library_NewRecording}"
+                    Command="{Binding Library.NewRecordingCommand}" />
+          </StackPanel>
+        </Border>
+      </DataTemplate>
+
+      <!-- A recording -->
+      <DataTemplate DataType="vm:SessionItemViewModel">
+        <Border Classes="rowCard"
+                Classes.top="{Binding HasTopCorners}"
+                Classes.bottom="{Binding HasBottomCorners}">
+          <Button Classes="libraryRow"
+                  Command="{Binding OpenCommand}">
+            <Grid ColumnDefinitions="Auto,*,Auto,Auto"
+                  ColumnSpacing="{StaticResource Space.16}">
+              <Border Grid.Column="0"
+                      Classes="rowTile">
+                <Panel>
+                  <controls:IconControl Width="{StaticResource Size.NavIcon}"
+                                        Height="{StaticResource Size.NavIcon}"
+                                        IsVisible="{Binding IsScreenIcon}"
+                                        Data="{StaticResource Icon.Screen}" />
+                  <controls:IconControl Width="{StaticResource Size.NavIcon}"
+                                        Height="{StaticResource Size.NavIcon}"
+                                        IsVisible="{Binding IsMicrophoneIcon}"
+                                        Data="{StaticResource Icon.Mic}" />
+                  <controls:IconControl Width="{StaticResource Size.NavIcon}"
+                                        Height="{StaticResource Size.NavIcon}"
+                                        IsVisible="{Binding IsSystemAudioIcon}"
+                                        Data="{StaticResource Icon.Speaker}" />
+                </Panel>
+              </Border>
+
+              <StackPanel Grid.Column="1"
+                          VerticalAlignment="Center"
+                          Spacing="3">
+                <TextBlock Classes="t15 medium"
                            TextTrimming="CharacterEllipsis"
                            Text="{Binding Title}" />
-                <TextBlock Classes="bodySm"
-                           Foreground="{DynamicResource Brush.Smoke}"
-                           Text="{Binding DateText}" />
-              </StackPanel>
-              <StackPanel Grid.Column="1"
-                          Orientation="Horizontal"
-                          Spacing="{StaticResource Space.8}"
-                          VerticalAlignment="Center">
-                <Border Classes="badge"
-                        IsVisible="{Binding HasStatus}">
-                  <TextBlock Classes="caption"
-                             Text="{Binding StatusText}" />
-                </Border>
-                <Border Classes="badge"
-                        IsVisible="{Binding HasMicrophone}">
-                  <TextBlock Classes="caption"
-                             Text="{x:Static res:Strings.Common_Microphone}" />
-                </Border>
-                <Border Classes="badge"
-                        IsVisible="{Binding HasSystemAudio}">
-                  <TextBlock Classes="caption"
-                             Text="{x:Static res:Strings.Library_BadgeSystem}" />
-                </Border>
-                <Border Classes="badge"
-                        IsVisible="{Binding HasScreen}">
-                  <TextBlock Classes="caption"
-                             Text="{x:Static res:Strings.Common_Screen}" />
-                </Border>
-              </StackPanel>
-              <TextBlock Grid.Column="2"
-                         Classes="mono"
-                         VerticalAlignment="Center"
-                         Foreground="{DynamicResource Brush.Graphite}"
-                         Text="{Binding DurationText}" />
-            </Grid>
-          </DataTemplate>
-        </ListBox.ItemTemplate>
-      </ListBox>
-    </Border>
-
-    <!-- Transcript search: title, time chip, snippet (virtualised like the session list) -->
-    <Grid Grid.Row="2"
-          RowDefinitions="Auto,*"
-          RowSpacing="{StaticResource Space.12}"
-          IsVisible="{Binding ShowSearchResults}">
-      <TextBlock Grid.Row="0"
-                 Classes="bodySm"
-                 Foreground="{DynamicResource Brush.Smoke}"
-                 TextWrapping="Wrap"
-                 IsVisible="{Binding HasSearchStatus}"
-                 Text="{Binding SearchStatusText}" />
-      <Border Grid.Row="1"
-              Classes="card"
-              Padding="{StaticResource Inset.8}"
-              IsVisible="{Binding HasSearchResults}">
-        <ListBox x:Name="SearchResultList"
-                 Classes="sessions"
-                 ItemsSource="{Binding SearchResults}"
-                 SelectedItem="{Binding SelectedSearchResult, Mode=TwoWay}"
-                 ScrollViewer.HorizontalScrollBarVisibility="Disabled">
-          <ListBox.ItemTemplate>
-            <DataTemplate x:DataType="vm:SearchResultViewModel">
-              <StackPanel Margin="{StaticResource Inset.16}"
-                          Spacing="{StaticResource Space.4}">
-                <Grid ColumnDefinitions="Auto,*"
-                      ColumnSpacing="{StaticResource Space.8}">
-                  <Border Grid.Column="0"
-                          Classes="chip"
-                          IsVisible="{Binding HasTime}">
-                    <TextBlock Text="{Binding TimeText}" />
-                  </Border>
-                  <TextBlock Grid.Column="1"
-                             Classes="body"
+                <TextBlock Classes="t13 muted"
+                           TextTrimming="CharacterEllipsis"
+                           Text="{Binding MetaText}" />
+                <TextBlock Classes="t13 muted"
+                           TextTrimming="CharacterEllipsis"
+                           IsVisible="{Binding ShowSnippet}"
+                           Text="{Binding Snippet}" />
+                <StackPanel Orientation="Horizontal"
+                            Spacing="10"
+                            Margin="0,4,0,0"
+                            IsVisible="{Binding ShowProgress}">
+                  <ProgressBar Classes="rowBar"
+                               Value="{Binding ProgressPercent}" />
+                  <TextBlock Classes="t12 graphite"
                              VerticalAlignment="Center"
-                             FontWeight="{StaticResource FontWeight.BodyMedium}"
-                             TextTrimming="CharacterEllipsis"
-                             Text="{Binding Title}" />
-                </Grid>
-                <TextBlock Classes="bodySm"
-                           Foreground="{DynamicResource Brush.Graphite}"
+                             Text="{Binding ProgressText}" />
+                </StackPanel>
+              </StackPanel>
+
+              <TextBlock Grid.Column="2"
+                         Classes="monoMeta graphite"
+                         VerticalAlignment="Center"
+                         Text="{Binding ClockText}" />
+              <controls:IconControl Grid.Column="3"
+                                    Width="{StaticResource Size.RowChevron}"
+                                    Height="{StaticResource Size.RowChevron}"
+                                    TextElement.Foreground="{DynamicResource Brush.Ash}"
+                                    Data="{StaticResource Icon.Chevron}" />
+            </Grid>
+          </Button>
+        </Border>
+      </DataTemplate>
+
+      <!-- A transcript hit -->
+      <DataTemplate DataType="vm:SearchResultViewModel">
+        <Border Classes="rowCard"
+                Classes.top="{Binding HasTopCorners}"
+                Classes.bottom="{Binding HasBottomCorners}">
+          <Button Classes="libraryRow"
+                  Command="{Binding OpenCommand}">
+            <Grid ColumnDefinitions="*,Auto,Auto"
+                  ColumnSpacing="{StaticResource Space.16}">
+              <StackPanel Grid.Column="0"
+                          VerticalAlignment="Center"
+                          Spacing="3">
+                <TextBlock Classes="t15 medium"
+                           TextTrimming="CharacterEllipsis"
+                           Text="{Binding Title}" />
+                <TextBlock Classes="t13 muted"
                            TextWrapping="Wrap"
                            MaxLines="2"
                            TextTrimming="CharacterEllipsis"
                            Text="{Binding Snippet}" />
               </StackPanel>
-            </DataTemplate>
-          </ListBox.ItemTemplate>
-        </ListBox>
-      </Border>
-      <Border Grid.Row="1"
-              Classes="card"
-              Width="560"
-              HorizontalAlignment="Center"
-              VerticalAlignment="Center"
-              IsVisible="{Binding ShowNoSearchResults}">
-        <StackPanel Spacing="{StaticResource Space.16}">
-          <TextBlock Classes="headingSm"
-                     HorizontalAlignment="Center"
-                     TextAlignment="Center"
-                     Text="{x:Static res:Strings.Library_NothingFound}" />
-          <TextBlock Classes="body"
-                     HorizontalAlignment="Center"
-                     TextAlignment="Center"
-                     TextWrapping="Wrap"
-                     Foreground="{DynamicResource Brush.Graphite}"
-                     Text="{x:Static res:Strings.Library_NoMatches}" />
-        </StackPanel>
-      </Border>
-    </Grid>
-
-    <!-- Empty state (phase 0) -->
-    <Border Grid.Row="2"
-            Classes="card"
-            Width="560"
-            HorizontalAlignment="Center"
-            VerticalAlignment="Center"
-            IsVisible="{Binding ShowEmptyState}">
-      <StackPanel Spacing="{StaticResource Space.24}"
-                  HorizontalAlignment="Stretch">
-        <TextBlock Classes="headingSm"
-                   HorizontalAlignment="Center"
-                   TextAlignment="Center"
-                   Text="{Binding EmptyTitle}" />
-        <TextBlock Classes="body"
-                   HorizontalAlignment="Center"
-                   TextAlignment="Center"
-                   TextWrapping="Wrap"
-                   Foreground="{DynamicResource Brush.Graphite}"
-                   Text="{Binding EmptyText}" />
-        <Button Classes="primary"
-                HorizontalAlignment="Center"
-                Content="{x:Static res:Strings.Library_NewRecording}"
-                Command="{Binding NewRecordingCommand}" />
-      </StackPanel>
-    </Border>
-  </Grid>
+              <TextBlock Grid.Column="1"
+                         Classes="monoMeta graphite"
+                         VerticalAlignment="Center"
+                         IsVisible="{Binding HasTime}"
+                         Text="{Binding TimeText}" />
+              <controls:IconControl Grid.Column="2"
+                                    Width="{StaticResource Size.RowChevron}"
+                                    Height="{StaticResource Size.RowChevron}"
+                                    TextElement.Foreground="{DynamicResource Brush.Ash}"
+                                    Data="{StaticResource Icon.Chevron}" />
+            </Grid>
+          </Button>
+        </Border>
+      </DataTemplate>
+    </ListBox.DataTemplates>
+  </ListBox>
 </UserControl>

@@ -46,6 +46,12 @@ internal sealed class DesignRig : IDisposable
             var session = Sessions.Make(record.Title, record.StartedAt, record.Duration, record.Microphone, record.SystemAudio, record.Screen, transcribing ? SessionState.Transcribing : SessionState.Recorded);
             Records.Add(session);
             SessionStore.Add(session);
+
+            // The language and first line of the row come from the stored transcript (the one still being transcribed shows its language only).
+            var line = record.Snippet is null
+                ? []
+                : (IReadOnlyList<TranscriptSegment>)[new TranscriptSegment(Speaker.Me, TimeSpan.Zero, TimeSpan.FromSeconds(5), record.Snippet, [])];
+            Transcripts.PerSession[session.Id] = new Transcript(session.Id, line, "design", record.LanguageCode);
             if (record.TranscribingPercent is { } percent)
             {
                 Processing.Set(new SessionProcessingStatus(session.Id, SessionProcessingStage.Transcribing, percent / 100.0));
@@ -66,7 +72,7 @@ internal sealed class DesignRig : IDisposable
             Launcher,
             action => action(),
             path => DesignDemoData.OnboardingFreeBytes);
-        Library = new LibraryViewModel(SessionStore, Time, Processing, action => action(), keywordSearch: new FakeSearchIndex(), assistant: Assistant, recorder: Recorder);
+        Library = new LibraryViewModel(SessionStore, Time, Processing, action => action(), keywordSearch: new FakeSearchIndex(), assistant: Assistant, recorder: Recorder, transcripts: Transcripts, settings: Store);
         Recording = new RecordingViewModel(Recorder, Capture, SessionStore, action => action(), Store);
         Shell = new ShellViewModel(
             Library,

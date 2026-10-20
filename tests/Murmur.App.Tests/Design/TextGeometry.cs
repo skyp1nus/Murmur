@@ -182,6 +182,14 @@ internal static class ReferenceTexts
                 continue;
             }
 
+            if (!placeholder && !double.IsNaN(lines[0].Baseline) && !PlausibleBaseline(lines[0]))
+            {
+                // The marker that measured the baseline became a flex item of its own when the text sits directly in a flex container
+                // (nav links, buttons, chips): it was centred in the container, so the value is the container's centre, not a baseline.
+                // Such a text is compared by the centre of its line box instead.
+                lines[0] = lines[0] with { Baseline = double.NaN };
+            }
+
             var family = node.GetProperty("fontFamily").GetString() ?? string.Empty;
             result.Add(new TextItem(
                 Normalize(node.GetProperty("text").GetString()),
@@ -197,6 +205,9 @@ internal static class ReferenceTexts
 
         return result;
     }
+
+    /// <summary>A baseline of Inter / Geist Mono lies 0.75 to 0.85 of the line box below its top; anything far from that is a measuring artefact.</summary>
+    internal static bool PlausibleBaseline(LineBox first) => first.H > 0 && (first.Baseline - first.Y) / first.H is >= 0.65 and <= 0.95;
 
     private static LineBox ReadBox(JsonElement e, double baseline) =>
         new(e.GetProperty("x").GetDouble(), e.GetProperty("y").GetDouble(), e.GetProperty("w").GetDouble(), e.GetProperty("h").GetDouble(), baseline);

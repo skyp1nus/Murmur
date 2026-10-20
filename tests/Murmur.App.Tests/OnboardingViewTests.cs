@@ -239,7 +239,7 @@ public sealed class OnboardingViewTests
 
         Assert.Equal(new Thickness(0), onboarding.Margin);
         Assert.False(onboarding.Item2);
-        Assert.Equal(new Thickness(48), library.Margin);
+        Assert.Equal(new Thickness(0), library.Margin);
         Assert.True(library.Item2);
         Assert.True(onboarding.Item3 > library.Item3);
     }

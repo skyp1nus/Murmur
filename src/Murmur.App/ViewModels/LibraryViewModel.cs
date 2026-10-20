@@ -6,6 +6,7 @@ using Murmur.Core.Intelligence;
 using Murmur.Core.Processing;
 using Murmur.Core.Recording;
 using Murmur.Core.Sessions;
+using Murmur.Core.Settings;
 
 namespace Murmur.App.ViewModels;
 
@@ -14,9 +15,18 @@ public enum LibraryFilter
     Today,
     Week,
     All,
+
+    /// <summary>The current calendar month, from its first day.</summary>
+    Month,
+
+    /// <summary>The days chosen with "Pick dates" (<see cref="LibraryViewModel.RangeStart"/> to <see cref="LibraryViewModel.RangeEnd"/>), by start date.</summary>
+    Range,
 }
 
-/// <summary>The Library screen: sessions from <see cref="ISessionStore"/>, a date filter and the pill search.</summary>
+/// <summary>The sources the New recording card has switched on.</summary>
+public readonly record struct RecordingSources(bool Microphone, bool SystemAudio, bool Screen);
+
+/// <summary>The Library screen: the New recording and Ask your library cards, then the sessions from <see cref="ISessionStore"/> by day, a date filter and the pill search.</summary>
 /// <remarks>
 /// <para><b>Search.</b> Without a transcript search the pill filters the list by title. With one (an
 /// <see cref="IAssistant"/> and/or an <see cref="ISearchIndex"/>) the list is replaced by search results: title matches
@@ -43,6 +53,10 @@ public sealed partial class LibraryViewModel : ObservableObject, IDisposable
     private readonly IAssistant? _assistant;
     private readonly Action<Action> _post;
     private readonly IRecorder? _recorder;
+    private readonly ITranscriptStore? _transcripts;
+    private readonly SettingsWriter? _settings;
+    private readonly Dictionary<SessionId, (string? Language, string? FirstLine)> _details = [];
+    private CancellationTokenSource? _detailsCts;
     private readonly Dictionary<SessionId, SessionItemViewModel> _rows = [];
     private IReadOnlyList<SessionRecord> _loaded = [];
     private int _version;
@@ -60,6 +74,8 @@ public sealed partial class LibraryViewModel : ObservableObject, IDisposable
     /// Tells which session is being recorded right now; a stored session still in the "recording" state that is not that one
     /// was left behind (a crash) and may be fixed by a recovery running in the background, so it is re-read now and then.
     /// </param>
+    /// <param name="transcripts">Where the language and the first line of each row's transcript come from; <c>null</c> = rows without them.</param>
+    /// <param name="settings">Where the Screen switch of the New recording card is kept (<c>ScreenByDefault</c>, like the Settings); <c>null</c> = not kept.</param>
     public LibraryViewModel(
         ISessionStore store,
         TimeProvider time,
@@ -67,7 +83,9 @@ public sealed partial class LibraryViewModel : ObservableObject, IDisposable
         Action<Action>? post = null,
         ISearchIndex? keywordSearch = null,
         IAssistant? assistant = null,
-        IRecorder? recorder = null)
+        IRecorder? recorder = null,
+        ITranscriptStore? transcripts = null,
+        ISettingsStore? settings = null)
     {
         ArgumentNullException.ThrowIfNull(store);
         ArgumentNullException.ThrowIfNull(time);
@@ -77,11 +95,17 @@ public sealed partial class LibraryViewModel : ObservableObject, IDisposable
         _keywordSearch = keywordSearch;
         _assistant = assistant;
         _recorder = recorder;
+        _transcripts = transcripts;
+        _settings = settings is null ? null : new SettingsWriter(settings);
         _post = post ?? (action => Avalonia.Threading.Dispatcher.UIThread.Post(action));
         if (processing is not null)
         {
             processing.ProgressChanged += OnProcessingChanged;
         }
+
+        Screen = settings?.Current.ScreenByDefault ?? false;
+        Suggestions = [Strings.Library_Suggestion1, Strings.Library_Suggestion2, Strings.Library_Suggestion3];
+        Entries.SetHead(new LibraryHeroEntry(this), new LibraryHeaderEntry(this), new LibraryFiltersEntry(this));
     }
 
     /// <summary>Rows currently shown. Replaced wholesale on every change (one notification, cheap for a virtualised list).</summary>
@@ -128,12 +152,83 @@ public sealed partial class LibraryViewModel : ObservableObject, IDisposable
     [ObservableProperty]
     public partial SearchResultViewModel? SelectedSearchResult { get; set; }
 
-    /// <summary>Shows "Запитати AI по всіх записах" (the shell sets it when it can open a library-wide chat).</summary>
+    /// <summary>Shows the Ask your library card (the shell sets it when it can open a library-wide chat).</summary>
     [ObservableProperty]
     public partial bool CanAskAll { get; set; }
 
+    /// <summary>The three latest recordings whatever the filter and the search say: the sidebar's Recent list.</summary>
+    [ObservableProperty]
+    public partial IReadOnlyList<SessionRecord> Recent { get; private set; } = [];
+
+    /// <summary>The page as one flat list for a single virtualised scroller: hero, header, filters, then the day groups and rows (or the search results, or the empty card).</summary>
+    public LibraryEntryList Entries { get; } = [];
+
+    // ---- the New recording card ---------------------------------------------------------------------------------------
+
+    /// <summary>The Microphone switch: "Start recording" records the microphone.</summary>
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(StartRecordingCommand))]
+    public partial bool Microphone { get; set; } = true;
+
+    /// <summary>The System audio switch.</summary>
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(StartRecordingCommand))]
+    public partial bool SystemAudio { get; set; } = true;
+
+    /// <summary>The Screen switch; kept as the "screen by default" setting, like the Settings screen does.</summary>
+    [ObservableProperty]
+    public partial bool Screen { get; set; }
+
+    /// <summary>A microphone can be recorded (the shell copies it from the recording screen); a switch that cannot be used is disabled.</summary>
+    [ObservableProperty]
+    public partial bool MicrophoneAvailable { get; set; } = true;
+
+    [ObservableProperty]
+    public partial bool SystemAudioAvailable { get; set; } = true;
+
+    [ObservableProperty]
+    public partial bool ScreenAvailable { get; set; } = true;
+
+    /// <summary>The record hotkey as key caps ("Ctrl Shift R") for the line beside the button; empty = none.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasRecordHotkey))]
+    public partial string RecordHotkeyText { get; set; } = string.Empty;
+
+    public bool HasRecordHotkey => RecordHotkeyText.Length > 0;
+
+    // ---- the Ask your library card --------------------------------------------------------------------------------------
+
+    /// <summary>The question being typed in the card's box.</summary>
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(AskCommand))]
+    public partial string AskQuestion { get; set; } = string.Empty;
+
+    /// <summary>The suggestion chips under the box.</summary>
+    public IReadOnlyList<string> Suggestions { get; }
+
+    // ---- the date filter ---------------------------------------------------------------------------------------------------
+
+    /// <summary>First day of the picked range (a calendar day, local); <c>null</c> until "Pick dates" was used.</summary>
+    [ObservableProperty]
+    public partial DateTime? RangeStart { get; private set; }
+
+    /// <summary>Last day of the picked range, included.</summary>
+    [ObservableProperty]
+    public partial DateTime? RangeEnd { get; private set; }
+
+    /// <summary>"Pick dates", or the chosen days ("Oct 5 – Oct 12") while the range filters.</summary>
+    public string RangeText => Filter == LibraryFilter.Range && RangeStart is { } start && RangeEnd is { } end
+        ? start.Date == end.Date ? UiFormat.ShortDate(start) : UiText.Format(Strings.Library_RangeText, UiFormat.ShortDate(start), UiFormat.ShortDate(end))
+        : Strings.Library_FilterPick;
+
     /// <summary>Raised when the user asks for a new recording.</summary>
     public event Action? NewRecordingRequested;
+
+    /// <summary>Raised by "Start recording" of the New recording card, with the sources its switches have on.</summary>
+    public event Action<RecordingSources>? StartRecordingRequested;
+
+    /// <summary>Raised when the user sends a question (or a suggestion) from the Ask your library card.</summary>
+    public event Action<string>? AskRequested;
 
     /// <summary>Raised when the user opens a session row.</summary>
     public event Action<SessionRecord>? SessionOpened;
@@ -200,7 +295,35 @@ public sealed partial class LibraryViewModel : ObservableObject, IDisposable
         set => SelectFilter(LibraryFilter.All, value, nameof(IsAllFilter));
     }
 
+    public bool IsMonthFilter
+    {
+        get => Filter == LibraryFilter.Month;
+        set => SelectFilter(LibraryFilter.Month, value, nameof(IsMonthFilter));
+    }
+
+    /// <summary>The picked days filter the list (the "Pick dates" chip has the dot). Turning it off goes back to All.</summary>
+    public bool IsRangeFilter
+    {
+        get => Filter == LibraryFilter.Range;
+        set
+        {
+            if (!value && Filter == LibraryFilter.Range)
+            {
+                Filter = LibraryFilter.All;
+            }
+            else
+            {
+                OnPropertyChanged(nameof(IsRangeFilter));
+            }
+        }
+    }
+
+    internal bool IsFilteredNow => IsFiltered;
+
     private bool IsFiltered => Filter != LibraryFilter.All || !string.IsNullOrWhiteSpace(SearchText) || _loaded.Count > 0;
+
+    /// <summary>The last background read of the rows' transcript lines (for tests).</summary>
+    internal Task DetailsTask { get; private set; } = Task.CompletedTask;
 
     /// <summary>Loads the sessions of the current filter from the store.</summary>
     public async Task LoadAsync()
@@ -209,6 +332,8 @@ public sealed partial class LibraryViewModel : ObservableObject, IDisposable
         IsLoading = true;
         try
         {
+            // The sidebar's Recent list is the same whatever the filter says; with a filter it needs a query of its own.
+            var recent = Filter == LibraryFilter.All ? null : await ListRecentAsync();
             var records = await _store.ListSessionsAsync(CreateQuery(), CancellationToken.None);
             if (version != _version)
             {
@@ -216,6 +341,8 @@ public sealed partial class LibraryViewModel : ObservableObject, IDisposable
             }
 
             _loaded = records;
+            _recentPool = recent ?? [.. records.Take(RecentPoolSize)];
+            UpdateRecent();
             Error = null;
         }
         catch (Exception ex)
@@ -252,6 +379,9 @@ public sealed partial class LibraryViewModel : ObservableObject, IDisposable
         _search?.Cancel();
         _search?.Dispose();
         _search = null;
+        _detailsCts?.Cancel();
+        _detailsCts?.Dispose();
+        _detailsCts = null;
     }
 
     /// <summary>A session by id: from the loaded rows, else from the store; <c>null</c> when it no longer exists.</summary>
@@ -281,14 +411,110 @@ public sealed partial class LibraryViewModel : ObservableObject, IDisposable
     [RelayCommand]
     private void AskAll() => AskAllRequested?.Invoke();
 
+    /// <summary>"Start recording" of the New recording card: needs a source switched on.</summary>
+    [RelayCommand(CanExecute = nameof(CanStartRecording))]
+    private void StartRecording() => StartRecordingRequested?.Invoke(new RecordingSources(Microphone, SystemAudio, Screen));
+
+    private bool CanStartRecording() => Microphone || SystemAudio;
+
+    /// <summary>The send button (or Enter) of the Ask your library card.</summary>
+    [RelayCommand(CanExecute = nameof(CanAsk))]
+    private void Ask()
+    {
+        var question = AskQuestion.Trim();
+        AskQuestion = string.Empty;
+        AskRequested?.Invoke(question);
+    }
+
+    private bool CanAsk() => !string.IsNullOrWhiteSpace(AskQuestion);
+
+    /// <summary>A suggestion chip: asks that question at once.</summary>
+    [RelayCommand]
+    private void AskSuggestion(string? question)
+    {
+        if (!string.IsNullOrWhiteSpace(question))
+        {
+            AskRequested?.Invoke(question);
+        }
+    }
+
     [RelayCommand]
     private void SetFilter(LibraryFilter filter) => Filter = filter;
+
+    /// <summary>The calendar of "Pick dates" chose days: the first one filters to that day alone, the second one to the whole range.</summary>
+    [RelayCommand]
+    private void PickRange(DateRange range) => ApplyRange(range.First, range.Last);
+
+    /// <summary>"Clear dates" in the calendar flyout: back to all recordings.</summary>
+    [RelayCommand]
+    private void ClearRange()
+    {
+        if (Filter == LibraryFilter.Range)
+        {
+            Filter = LibraryFilter.All;
+        }
+    }
+
+    /// <summary>
+    /// Filters to the recordings that started between two days (inclusive, in either order); the calendar of "Pick dates" calls it
+    /// when the second day is chosen.
+    /// </summary>
+    public void ApplyRange(DateTime first, DateTime second)
+    {
+        var start = first.Date <= second.Date ? first.Date : second.Date;
+        var end = first.Date <= second.Date ? second.Date : first.Date;
+        var wasRange = Filter == LibraryFilter.Range;
+        RangeStart = start;
+        RangeEnd = end;
+        OnPropertyChanged(nameof(RangeText));
+        if (wasRange)
+        {
+            // The filter stays "range", so only the days changed: load again.
+            LoadTask = LoadAsync();
+        }
+        else
+        {
+            Filter = LibraryFilter.Range;
+        }
+    }
+
+    /// <summary>Takes the "screen by default" setting into the Screen switch (the Settings may have changed it) and the recording options the platform offers.</summary>
+    internal void RefreshRecordingOptions(bool microphoneAvailable, bool systemAudioAvailable, bool screenAvailable)
+    {
+        MicrophoneAvailable = microphoneAvailable;
+        SystemAudioAvailable = systemAudioAvailable;
+        ScreenAvailable = screenAvailable;
+    }
+
+    /// <summary>Re-reads the "screen by default" setting into the Screen switch.</summary>
+    internal void RefreshDefaults(ISettingsStore? settings)
+    {
+        if (settings is not null && Screen != settings.Current.ScreenByDefault)
+        {
+            _suppressScreenSave = true;
+            Screen = settings.Current.ScreenByDefault;
+            _suppressScreenSave = false;
+        }
+    }
+
+    partial void OnScreenChanged(bool value)
+    {
+        if (!_suppressScreenSave && _settings is not null)
+        {
+            _ = _settings.UpdateAsync(s => s with { ScreenByDefault = value });
+        }
+    }
+
+    private bool _suppressScreenSave;
 
     partial void OnFilterChanged(LibraryFilter value)
     {
         OnPropertyChanged(nameof(IsTodayFilter));
         OnPropertyChanged(nameof(IsWeekFilter));
         OnPropertyChanged(nameof(IsAllFilter));
+        OnPropertyChanged(nameof(IsMonthFilter));
+        OnPropertyChanged(nameof(IsRangeFilter));
+        OnPropertyChanged(nameof(RangeText));
         LoadTask = LoadAsync();
     }
 
@@ -330,7 +556,15 @@ public sealed partial class LibraryViewModel : ObservableObject, IDisposable
         {
             row.ApplyProcessing(status);
         }
+
+        UpdateRecent();
     });
+
+    partial void OnSearchResultsChanged(IReadOnlyList<SearchResultViewModel> value) => RefreshEntries();
+
+    partial void OnIsSearchingChanged(bool value) => RefreshEntries();
+
+    partial void OnSearchErrorChanged(string? value) => RefreshEntries();
 
     partial void OnSessionsChanged(IReadOnlyList<SessionItemViewModel> value)
     {
@@ -341,9 +575,17 @@ public sealed partial class LibraryViewModel : ObservableObject, IDisposable
         OnPropertyChanged(nameof(EmptyText));
     }
 
-    partial void OnIsLoadingChanged(bool value) => OnPropertyChanged(nameof(ShowEmptyState));
+    partial void OnIsLoadingChanged(bool value)
+    {
+        OnPropertyChanged(nameof(ShowEmptyState));
+        RefreshEntries();
+    }
 
-    partial void OnErrorChanged(string? value) => OnPropertyChanged(nameof(HasError));
+    partial void OnErrorChanged(string? value)
+    {
+        OnPropertyChanged(nameof(HasError));
+        RefreshEntries();
+    }
 
     private void RaiseSearchLayoutChanged()
     {
@@ -354,6 +596,7 @@ public sealed partial class LibraryViewModel : ObservableObject, IDisposable
         OnPropertyChanged(nameof(HasSearchStatus));
         OnPropertyChanged(nameof(ShowSessionList));
         OnPropertyChanged(nameof(ShowEmptyState));
+        RefreshEntries();
     }
 
     private void SelectFilter(LibraryFilter filter, bool selected, string propertyName)
@@ -378,6 +621,10 @@ public sealed partial class LibraryViewModel : ObservableObject, IDisposable
                 return new SessionQuery(From: StartOfLocalDay(now.Date));
             case LibraryFilter.Week:
                 return new SessionQuery(From: StartOfLocalDay(now.Date.AddDays(-6)));
+            case LibraryFilter.Month:
+                return new SessionQuery(From: StartOfLocalDay(new DateTime(now.Year, now.Month, 1)));
+            case LibraryFilter.Range when RangeStart is { } start && RangeEnd is { } end:
+                return new SessionQuery(From: StartOfLocalDay(start.Date), To: StartOfLocalDay(end.Date.AddDays(1)));
             default:
                 return new SessionQuery();
         }
@@ -408,13 +655,244 @@ public sealed partial class LibraryViewModel : ObservableObject, IDisposable
                     live = null;
                 }
 
-                var row = new SessionItemViewModel(record, _time, live);
+                var row = new SessionItemViewModel(record, _time, live, OpenRow);
                 rows.Add(row);
                 _rows[record.Id] = row;
             }
         }
 
         Sessions = rows;
+        ApplyDetails(rows);
+        RefreshEntries();
+    }
+
+    /// <summary>Newest sessions the Recent list picks from (a few more than it shows, so recordings still being transcribed can be skipped).</summary>
+    private const int RecentPoolSize = 10;
+
+    private IReadOnlyList<SessionRecord> _recentPool = [];
+
+    /// <summary>
+    /// The sidebar's list: the newest recordings that are ready to open. One that is still being transcribed is left out until it is
+    /// done (the canvas lists Client demo, Voice note and Interview while "Weekly team sync" is at 64 %).
+    /// </summary>
+    private void UpdateRecent()
+    {
+        var recent = new List<SessionRecord>(SidebarViewModel.RecentCount);
+        foreach (var record in _recentPool)
+        {
+            var live = _processing?.GetStatus(record.Id);
+            var busy = live is { Stage: SessionProcessingStage.Queued or SessionProcessingStage.BuildingPeaks or SessionProcessingStage.Transcribing or SessionProcessingStage.Saving };
+            if (!busy)
+            {
+                recent.Add(record);
+                if (recent.Count == SidebarViewModel.RecentCount)
+                {
+                    break;
+                }
+            }
+        }
+
+        if (!recent.SequenceEqual(Recent))
+        {
+            Recent = recent;
+        }
+    }
+
+    private void OpenRow(SessionItemViewModel row) => SessionOpened?.Invoke(row.Record);
+
+    private void OpenResult(SearchResultViewModel result) => SearchResultOpened?.Invoke(result.Record, result.At);
+
+    /// <summary>The three newest sessions without any filter, for the sidebar; empty when the store fails (the page reports that itself).</summary>
+    private async Task<IReadOnlyList<SessionRecord>?> ListRecentAsync()
+    {
+        try
+        {
+            return await _store.ListSessionsAsync(new SessionQuery(Limit: RecentPoolSize), CancellationToken.None);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            return null;
+        }
+    }
+
+    // The page as a flat list -------------------------------------------------------------------------------------------
+
+    /// <summary>
+    /// Rebuilds everything after the three fixed blocks: the inline error, then either the search results, the day groups with
+    /// their rows, or the empty card. Called whenever the state those depend on changes; an unchanged result touches nothing.
+    /// </summary>
+    private void RefreshEntries()
+    {
+        var tail = new List<object>(Sessions.Count + 8);
+        if (Error is { } error)
+        {
+            tail.Add(new LibraryNoticeEntry(error));
+        }
+
+        if (ShowSearchResults)
+        {
+            if (SearchStatusText is { } status)
+            {
+                tail.Add(new LibraryNoticeEntry(status));
+            }
+
+            if (HasSearchResults)
+            {
+                tail.Add(new LibraryGroupEntry(Strings.Library_SearchResults));
+                for (var i = 0; i < SearchResults.Count; i++)
+                {
+                    SearchResults[i].Position = PositionOf(i, SearchResults.Count);
+                }
+
+                tail.AddRange(SearchResults);
+            }
+            else if (ShowNoSearchResults)
+            {
+                tail.Add(new LibraryEmptyEntry(this, NoMatches: true));
+            }
+        }
+        else if (Sessions.Count > 0)
+        {
+            AddGroups(tail);
+        }
+        else if (ShowEmptyState)
+        {
+            tail.Add(new LibraryEmptyEntry(this, NoMatches: false));
+        }
+
+        Entries.ReplaceTail(tail);
+    }
+
+    /// <summary>Day groups newest first: Today, Yesterday, This week (the five days before), then one heading per older day.</summary>
+    private void AddGroups(List<object> tail)
+    {
+        var index = 0;
+        while (index < Sessions.Count)
+        {
+            var first = Sessions[index];
+            var title = GroupTitle(first.Record.StartedAt, out var key);
+            var end = index + 1;
+            while (end < Sessions.Count)
+            {
+                GroupTitle(Sessions[end].Record.StartedAt, out var next);
+                if (next != key)
+                {
+                    break;
+                }
+
+                end++;
+            }
+
+            tail.Add(new LibraryGroupEntry(title));
+            for (var i = index; i < end; i++)
+            {
+                Sessions[i].Position = PositionOf(i - index, end - index);
+                tail.Add(Sessions[i]);
+            }
+
+            index = end;
+        }
+    }
+
+    private static RowPosition PositionOf(int index, int count) =>
+        count == 1 ? RowPosition.Only : index == 0 ? RowPosition.First : index == count - 1 ? RowPosition.Last : RowPosition.Middle;
+
+    /// <summary>The heading of the group a start time belongs to, and a key that is equal for the starts of one group.</summary>
+    private string GroupTitle(DateTimeOffset startedAt, out DateTime key)
+    {
+        var local = TimeZoneInfo.ConvertTime(startedAt, _time.LocalTimeZone);
+        var days = UiFormat.DaysAgo(local, _time);
+        switch (days)
+        {
+            case <= 0:
+                key = DateTime.MinValue;
+                return Strings.Library_FilterToday;
+            case 1:
+                key = DateTime.MinValue.AddDays(1);
+                return Strings.Library_GroupYesterday;
+            case <= 6:
+                key = DateTime.MinValue.AddDays(2);
+                return Strings.Library_FilterWeek;
+            default:
+                key = local.Date;
+                return UiFormat.DayHeading(local);
+        }
+    }
+
+    // The language and first line of each row's transcript ---------------------------------------------------------------
+
+    /// <summary>
+    /// Shows what is known of the rows' transcripts now and reads the rest in the background, newest first, one at a time (a long
+    /// library does not stall the UI, and a newer load or search cancels the older one).
+    /// </summary>
+    private void ApplyDetails(IReadOnlyList<SessionItemViewModel> rows)
+    {
+        _detailsCts?.Cancel();
+        _detailsCts?.Dispose();
+        _detailsCts = null;
+        if (_transcripts is null)
+        {
+            return;
+        }
+
+        List<SessionItemViewModel>? pending = null;
+        foreach (var row in rows)
+        {
+            if (_details.TryGetValue(row.Id, out var known))
+            {
+                row.ApplyTranscript(known.Language, known.FirstLine);
+            }
+            else
+            {
+                (pending ??= []).Add(row);
+            }
+        }
+
+        if (pending is null)
+        {
+            DetailsTask = Task.CompletedTask;
+            return;
+        }
+
+        var cts = new CancellationTokenSource();
+        _detailsCts = cts;
+        DetailsTask = ReadDetailsAsync(pending, cts.Token);
+    }
+
+    private async Task ReadDetailsAsync(List<SessionItemViewModel> rows, CancellationToken cancellationToken)
+    {
+        var transcripts = _transcripts!;
+        foreach (var row in rows)
+        {
+            if (cancellationToken.IsCancellationRequested)
+            {
+                return;
+            }
+
+            Murmur.Core.Transcription.Transcript? transcript;
+            try
+            {
+                var id = row.Id;
+                transcript = await Task.Run(async () => await transcripts.GetTranscriptAsync(id, cancellationToken), cancellationToken).ConfigureAwait(true);
+            }
+            catch (OperationCanceledException)
+            {
+                return;
+            }
+            catch (Exception)
+            {
+                continue;
+            }
+
+            if (transcript is null || cancellationToken.IsCancellationRequested)
+            {
+                continue;
+            }
+
+            var line = transcript.Segments.Count > 0 ? transcript.Segments[0].Text : null;
+            _details[row.Id] = (transcript.Language, line);
+            row.ApplyTranscript(transcript.Language, line);
+        }
     }
 
     // Rows left in the "recording" state ------------------------------------------------------------------------------
@@ -625,7 +1103,9 @@ public sealed partial class LibraryViewModel : ObservableObject, IDisposable
 
     private async Task<IReadOnlyList<SearchResultViewModel>> BuildResultsAsync(string query, IReadOnlyList<SearchHit> hits, CancellationToken cancellationToken)
     {
-        var from = CreateQuery().From;
+        var window = CreateQuery();
+        var from = window.From;
+        var to = window.To;
         var rows = new List<SearchResultViewModel>(hits.Count + 4);
         var known = new Dictionary<SessionId, SessionRecord?>();
         foreach (var record in _loaded)
@@ -633,7 +1113,7 @@ public sealed partial class LibraryViewModel : ObservableObject, IDisposable
             known[record.Id] = record;
             if (record.Title.Contains(query, StringComparison.OrdinalIgnoreCase))
             {
-                rows.Add(new SearchResultViewModel(record, null, string.Empty, _time));
+                rows.Add(new SearchResultViewModel(record, null, string.Empty, _time) { OpenAction = OpenResult });
             }
         }
 
@@ -655,12 +1135,12 @@ public sealed partial class LibraryViewModel : ObservableObject, IDisposable
                 known[id] = record;
             }
 
-            if (record is null || (from is { } start && record.StartedAt < start))
+            if (record is null || (from is { } start && record.StartedAt < start) || (to is { } stop && record.StartedAt >= stop))
             {
                 continue;
             }
 
-            rows.Add(new SearchResultViewModel(record, hit.Chunk.Start, hit.Chunk.Text, _time));
+            rows.Add(new SearchResultViewModel(record, hit.Chunk.Start, hit.Chunk.Text, _time) { OpenAction = OpenResult });
         }
 
         return rows;

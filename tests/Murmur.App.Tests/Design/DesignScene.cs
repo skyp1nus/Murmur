@@ -266,6 +266,7 @@ internal sealed class DesignScene : IDisposable
     {
         var shell = rig.Shell;
         await rig.Library.LoadAsync();
+        await PumpUntilAsync(rig.Library.DetailsTask);
         switch (board.Screen)
         {
             case BoardScreen.Library:
@@ -327,6 +328,9 @@ internal sealed class DesignScene : IDisposable
     private static async Task AskAsync(DesignRig rig, List<string> notes)
     {
         rig.Shell.ShowLibraryChat();
+
+        // The chat screen provides the Chats list through the sidebar's hook (until it does, the list is empty and hidden).
+        rig.Shell.Sidebar!.SetChats([.. DesignDemoData.SidebarChats.Select((title, index) => new SidebarEntry(title, isActive: index == 0))]);
         var chat = rig.Shell.LibraryChat!.Chat;
         foreach (var exchange in DesignDemoData.Chat)
         {

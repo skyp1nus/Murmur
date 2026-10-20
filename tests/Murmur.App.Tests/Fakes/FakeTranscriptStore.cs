@@ -7,6 +7,9 @@ internal sealed class FakeTranscriptStore : ITranscriptStore
 {
     public Transcript? Transcript { get; set; }
 
+    /// <summary>Transcripts by session; a session in here is answered with its own, any other with <see cref="Transcript"/>.</summary>
+    public Dictionary<SessionId, Transcript> PerSession { get; } = [];
+
     public Exception? ReadFailure { get; set; }
 
     public int Reads { get; private set; }
@@ -20,6 +23,11 @@ internal sealed class FakeTranscriptStore : ITranscriptStore
     public ValueTask<Transcript?> GetTranscriptAsync(SessionId id, CancellationToken cancellationToken)
     {
         Reads++;
-        return ReadFailure is { } failure ? throw failure : ValueTask.FromResult(Transcript);
+        if (ReadFailure is { } failure)
+        {
+            throw failure;
+        }
+
+        return ValueTask.FromResult(PerSession.TryGetValue(id, out var own) ? own : Transcript);
     }
 }

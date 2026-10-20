@@ -150,7 +150,7 @@ public sealed partial class SettingsViewTests
             "Settings_Title", "Settings_ModelsTitle", "Settings_DevicesTitle", "Settings_StorageTitle", "Settings_HotkeysTitle",
             "Settings_AppearanceTitle", "Settings_AboutTitle", "Models_AiNote", "Hotkeys_Record", "Hotkeys_ToggleScreen", "Hotkeys_ShowApp",
             "Storage_Change", "Storage_Open", "Appearance_ThemeLight", "Appearance_ThemeDark", "Appearance_ThemeSystem",
-            "Appearance_OnboardingRestart", "Nav_Library", "Nav_Settings", "Nav_OfflineTitle", "Devices_ScreenByDefault",
+            "Appearance_OnboardingRestart", "Nav_Library", "Nav_Settings", "Devices_ScreenByDefault",
         })
         {
             Assert.Contains(Text(key), texts);
@@ -269,7 +269,7 @@ public sealed partial class SettingsViewTests
                 UiHarness.Pump(4);
                 var chat = (Page: rig.Shell.CurrentPage, ChatOn: On(Strings.Common_AskAi));
 
-                window.GetVisualDescendants().OfType<Button>().Single(b => b.Classes.Contains("primary") && b.GetVisualDescendants().OfType<TextBlock>().Any(t => t.Text == Strings.Library_NewRecording && t.Parent is StackPanel))
+                window.GetVisualDescendants().OfType<Button>().Single(b => b.Classes.Contains("side") && b.IsEffectivelyVisible && b.GetVisualDescendants().OfType<TextBlock>().Any(t => t.Text == Strings.Library_NewRecording))
                     .Command!.Execute(null);
                 UiHarness.Pump(4);
                 var recording = (Page: rig.Shell.CurrentPage, Sidebars: Sidebars());
@@ -298,7 +298,7 @@ public sealed partial class SettingsViewTests
         Assert.True(snapshot.chat.ChatOn);
 
         Assert.IsType<RecordingViewModel>(snapshot.recording.Page);
-        Assert.Equal(0, snapshot.recording.Sidebars);
+        Assert.Equal(1, snapshot.recording.Sidebars);
     }
 
     [Fact]
@@ -335,8 +335,8 @@ public sealed partial class SettingsViewTests
                 var start = scroller.Offset.Y;
                 var about = rig.Settings.Sections.Single(s => s.Id == SettingsViewModel.AboutSectionId);
 
-                var link = window.GetVisualDescendants().OfType<Button>().Single(b => b.Classes.Contains("sub") && Equals(b.CommandParameter, about));
-                link.Command!.Execute(link.CommandParameter);
+                var link = window.GetVisualDescendants().OfType<Button>().Single(b => b.Classes.Contains("sub") && b.GetVisualDescendants().OfType<TextBlock>().Any(t => t.Text == about.Title));
+                link.Command!.Execute(null);
                 UiHarness.Pump(6);
                 var result = (start, scroller.Offset.Y);
                 window.Close();
