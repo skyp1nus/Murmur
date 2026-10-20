@@ -22,6 +22,10 @@ internal sealed class FakeLlamaServerScript : IDisposable
             f.write(str(os.getpid()))
         UNHEALTHY = __UNHEALTHY__
         EXIT_CODE = __EXIT__
+        STARTUP_LINE = "__STARTUP__"
+        if STARTUP_LINE:
+            sys.stderr.write(STARTUP_LINE + "\n")
+            sys.stderr.flush()
         if EXIT_CODE >= 0:
             sys.stderr.write("load_model: failed to load model 'fake.gguf'\n")
             sys.stderr.write("llama_server: exiting due to model loading error\n")
@@ -69,14 +73,16 @@ internal sealed class FakeLlamaServerScript : IDisposable
         http.server.ThreadingHTTPServer(("127.0.0.1", port), Handler).serve_forever()
         """;
 
-    public FakeLlamaServerScript(int unhealthyPolls = 0, int exitCode = -1)
+    /// <param name="startupLine">A line the server prints to stderr before it listens (e.g. llama.cpp's "no usable GPU found").</param>
+    public FakeLlamaServerScript(int unhealthyPolls = 0, int exitCode = -1, string startupLine = "")
     {
         Directory = Path.Combine(Path.GetTempPath(), "murmur-fake-llama-" + Guid.NewGuid().ToString("N"));
         System.IO.Directory.CreateDirectory(Directory);
         ServerPath = Path.Combine(Directory, "llama-server");
         var script = Template
             .Replace("__UNHEALTHY__", unhealthyPolls.ToString(CultureInfo.InvariantCulture), StringComparison.Ordinal)
-            .Replace("__EXIT__", exitCode.ToString(CultureInfo.InvariantCulture), StringComparison.Ordinal);
+            .Replace("__EXIT__", exitCode.ToString(CultureInfo.InvariantCulture), StringComparison.Ordinal)
+            .Replace("__STARTUP__", startupLine, StringComparison.Ordinal);
         File.WriteAllText(ServerPath, script.ReplaceLineEndings("\n"));
         if (!OperatingSystem.IsWindows())
         {

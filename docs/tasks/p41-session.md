@@ -34,8 +34,23 @@ AI rules stay: never while recording; the model loads lazily in the worker and u
      runs, then Overview, Key points, Action items — each item with a time chip that seeks; **Regenerate**.
    - Ask AI: the existing per-session chat, restyled to the Ask AI look (scope fixed to this recording).
 5. Keep every existing behaviour (playback sync D-035, warnings, interrupted sessions, missing files) — restyle.
-6. Parity: content area of `Session` / `SessionDark` ≤ 2 % with the demo state (Transcript tab, 12:21, "timestamps"
-   search hit); ignore rectangle only for the video frame and the waveform bars; set `MaxMismatchPercent`.
+6. Parity: content area of `Session` / `SessionDark` within the parity gates with the demo state (Transcript tab, 12:21, "timestamps"
+   search hit); ignore rectangle only for the video frame and the waveform bars; set the three parity gates (below).
 7. Tests: Core formatters (golden files), summarizer with a fake `ILlm` (chunking, citation resolution, cancel), storage
    migration and delete cascade; App: tabs, export flow, filters, speed, search navigation, summary states.
 8. Report (Ukrainian): mismatch before/after, what still differs, test results.
+
+## Parity gates (D-041)
+`DesignParityTests` measure three things per board (report: `artifacts/design-parity/report.md`, per board `<Board>.side.png`,
+`<Board>.shapes.side.png`, `<Board>.text.md`, `<Board>.text.png`):
+- **Shape layer** (app rendered with every glyph transparent vs `reference/<Board>.notext.png`, symmetric, tolerance 5/255):
+  `MaxShapeMismatchPercent` ≤ **4 %** of drawn pixels (onboarding steps 3 and 4: ≤ 10 % until measured lower).
+- **Text matched** (reference texts from `reference/<Board>.text.json` found in the app by exact text): `MinTextMatchedPercent`
+  ≥ **95 %**; every text still missing is either a documented deviation (`docs/design/DEVIATIONS.md`) or demo data the
+  app cannot produce — list them in the report.
+- **Text geometry** (matched texts: |Δx| and |Δ centre y| ≤ 2 px, width within 3 %, same line count, size, weight, family):
+  `MaxTextGeometryErrors` ≤ **2**.
+Set the three gates for your boards in `DesignBoards.cs` at the values you reach (not looser than above) so CI keeps them.
+Pixel-level text differences (Chromium vs Skia rasterisation) are not a gate. Work from `<Board>.text.md` (sorted list of
+text errors) and the side-by-sides; check visually at the end that nothing differs that the metrics miss (e.g. icon
+shapes, orb look, hover/selected states drawn on the board).

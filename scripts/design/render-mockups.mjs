@@ -1,6 +1,7 @@
 // Renders every artboard of the Claude Design canvas to docs/design/reference/<Board>.png (CSS px, scale 1,
 // full page height at the canvas width, animations off, reduced motion), plus <Board>.notext.png (the same page with
-// every glyph transparent: shapes, fills, borders, icons) and <Board>.text.json (each text node's line boxes and font).
+// every glyph transparent: shapes, fills, borders, icons) and <Board>.text.json (each text node's line boxes, first-line
+// baseline, block-level ancestor and font; inputs' placeholders with their text start and vertical centre).
 //
 // The .dc.html artboards need the canvas runtime to render: put it next to them as support.js (it is the canvas's
 // `artifact-type/dc-runtime.js`, not stored in this repo) together with the Inter / Geist Mono font files and a
@@ -43,8 +44,11 @@ for (const file of canvas.order) {
   // Text geometry: every visible text node with its line boxes and font, for the app-side text comparison.
   const texts = await page.evaluate(() => {
     const out = [];
+    const blockIds = new Map();
+    const nodes = [];
     const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
-    for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+    for (let n = walker.nextNode(); n; n = walker.nextNode()) nodes.push(n);
+    for (const node of nodes) {
       const text = node.textContent.replace(/\s+/g, ' ').trim();
       const el = node.parentElement;
       if (!text || !el || el.closest('style,script,helmet,title')) continue;
@@ -55,12 +59,25 @@ for (const file of canvas.order) {
       const lines = [...range.getClientRects()].filter(r => r.width > 0 && r.height > 0)
         .map(r => ({ x: +r.x.toFixed(2), y: +(r.y + window.scrollY).toFixed(2), w: +r.width.toFixed(2), h: +r.height.toFixed(2) }));
       if (lines.length === 0) continue;
-      out.push({ text, lines, fontFamily: cs.fontFamily, fontSize: parseFloat(cs.fontSize), fontWeight: +cs.fontWeight, letterSpacing: cs.letterSpacing, lineHeight: cs.lineHeight, color: cs.color });
+      // The first line's baseline, read from a zero-size inline-block marker placed before the text (its bottom edge
+      // sits on the baseline), so the app side can compare baselines instead of line boxes.
+      const marker = document.createElement('span');
+      marker.style.cssText = 'display:inline-block;width:0;height:0;vertical-align:baseline;padding:0;margin:0;border:0';
+      node.parentNode.insertBefore(marker, node);
+      const baseline = +(marker.getBoundingClientRect().bottom + window.scrollY).toFixed(2);
+      marker.remove();
+      // The nearest block-level ancestor: texts split around inline chips or highlights share it.
+      let block = el;
+      while (block.parentElement && /^inline/.test(getComputedStyle(block).display)) block = block.parentElement;
+      if (!blockIds.has(block)) blockIds.set(block, blockIds.size);
+      out.push({ text, lines, baseline, blockId: blockIds.get(block), blockText: block.innerText.replace(/\s+/g, ' ').trim(), fontFamily: cs.fontFamily, fontSize: parseFloat(cs.fontSize), fontWeight: +cs.fontWeight, letterSpacing: cs.letterSpacing, lineHeight: cs.lineHeight, color: cs.color });
     }
     for (const input of document.querySelectorAll('input[placeholder],textarea[placeholder]')) {
       const r = input.getBoundingClientRect();
       const cs = getComputedStyle(input);
-      out.push({ text: input.placeholder.replace(/\s+/g, ' ').trim(), placeholder: true, box: { x: r.x, y: r.y + window.scrollY, w: r.width, h: r.height }, lines: [], fontFamily: cs.fontFamily, fontSize: parseFloat(cs.fontSize), fontWeight: +cs.fontWeight, letterSpacing: cs.letterSpacing, lineHeight: cs.lineHeight, color: cs.color });
+      // A placeholder has no text node: its text starts at the content box's left edge and is centred vertically.
+      const textX = r.x + parseFloat(cs.borderLeftWidth) + parseFloat(cs.paddingLeft);
+      out.push({ text: input.placeholder.replace(/\s+/g, ' ').trim(), placeholder: true, box: { x: r.x, y: r.y + window.scrollY, w: r.width, h: r.height }, textX: +textX.toFixed(2), centerY: +(r.y + window.scrollY + r.height / 2).toFixed(2), lines: [], fontFamily: cs.fontFamily, fontSize: parseFloat(cs.fontSize), fontWeight: +cs.fontWeight, letterSpacing: cs.letterSpacing, lineHeight: cs.lineHeight, color: cs.color });
     }
     return out;
   });

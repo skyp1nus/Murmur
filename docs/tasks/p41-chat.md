@@ -26,7 +26,22 @@ Branch `design/chat` (based on `phase4` after wave 2). Boards: `Chat`, `ChatDark
    chat" affordance consistent with the canvas (e.g. the Ask AI nav item starts a new chat when the current one is not
    empty — choose and describe). The Library's "Ask your library" hand-off (from `p41-shell-library`) opens a new thread.
 4. Streaming, cancellation, missing-model states, AI-busy-while-recording states keep working — restyle them.
-5. Parity: content area of `Chat` / `ChatDark` ≤ 2 % with the two drawn exchanges; set `MaxMismatchPercent`.
+5. Parity: content area of `Chat` / `ChatDark` within the parity gates with the two drawn exchanges; set the three parity gates (below).
 6. Tests: storage (threads, order, cascade on session delete), view models (thread lifecycle, regenerate replaces the last
    answer, copy, scope pills), sidebar list.
 7. Report (Ukrainian): mismatch before/after, what still differs, test results.
+
+## Parity gates (D-041)
+`DesignParityTests` measure three things per board (report: `artifacts/design-parity/report.md`, per board `<Board>.side.png`,
+`<Board>.shapes.side.png`, `<Board>.text.md`, `<Board>.text.png`):
+- **Shape layer** (app rendered with every glyph transparent vs `reference/<Board>.notext.png`, symmetric, tolerance 5/255):
+  `MaxShapeMismatchPercent` ≤ **4 %** of drawn pixels (onboarding steps 3 and 4: ≤ 10 % until measured lower).
+- **Text matched** (reference texts from `reference/<Board>.text.json` found in the app by exact text): `MinTextMatchedPercent`
+  ≥ **95 %**; every text still missing is either a documented deviation (`docs/design/DEVIATIONS.md`) or demo data the
+  app cannot produce — list them in the report.
+- **Text geometry** (matched texts: |Δx| and |Δ centre y| ≤ 2 px, width within 3 %, same line count, size, weight, family):
+  `MaxTextGeometryErrors` ≤ **2**.
+Set the three gates for your boards in `DesignBoards.cs` at the values you reach (not looser than above) so CI keeps them.
+Pixel-level text differences (Chromium vs Skia rasterisation) are not a gate. Work from `<Board>.text.md` (sorted list of
+text errors) and the side-by-sides; check visually at the end that nothing differs that the metrics miss (e.g. icon
+shapes, orb look, hover/selected states drawn on the board).

@@ -597,7 +597,7 @@ public sealed class SessionViewModelTests : IDisposable
         var vm = _fixture.Create();
         await vm.LoadAsync();
 
-        _fixture.Processing.Raise(new SessionProcessingStatus(_fixture.Record.Id, SessionProcessingStage.ModelMissing, 0, SessionProcessor.AsrNotInstalledMessage));
+        _fixture.Processing.Raise(new SessionProcessingStatus(_fixture.Record.Id, SessionProcessingStage.ModelMissing, 0, SessionProcessor.AsrNotInstalledCode));
 
         Assert.Equal(TranscriptStatus.AsrMissing, vm.Status);
     }

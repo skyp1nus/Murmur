@@ -13,6 +13,9 @@
      "h": 20
     }
    ],
+   "baseline": 41,
+   "blockId": 0,
+   "blockText": "Murmur",
    "fontFamily": "Inter, ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
    "fontSize": 17,
    "fontWeight": 600,
@@ -30,6 +33,9 @@
      "h": 17
     }
    ],
+   "baseline": 96,
+   "blockId": 1,
+   "blockText": "New recording",
    "fontFamily": "Inter, ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
    "fontSize": 14,
    "fontWeight": 500,
@@ -47,6 +53,9 @@
      "h": 17
     }
    ],
+   "baseline": 162,
+   "blockId": 2,
+   "blockText": "Library",
    "fontFamily": "Inter, ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
    "fontSize": 14,
    "fontWeight": 500,
@@ -64,6 +73,9 @@
      "h": 17
     }
    ],
+   "baseline": 204,
+   "blockId": 3,
+   "blockText": "Ask AI",
    "fontFamily": "Inter, ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
    "fontSize": 14,
    "fontWeight": 400,
@@ -81,6 +93,9 @@
      "h": 17
     }
    ],
+   "baseline": 246,
+   "blockId": 4,
+   "blockText": "Settings",
    "fontFamily": "Inter, ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
    "fontSize": 14,
    "fontWeight": 400,
@@ -98,6 +113,9 @@
      "h": 15
     }
    ],
+   "baseline": 302,
+   "blockId": 5,
+   "blockText": "Recent",
    "fontFamily": "Inter, ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
    "fontSize": 12,
    "fontWeight": 400,
@@ -115,6 +133,9 @@
      "h": 16
     }
    ],
+   "baseline": 331,
+   "blockId": 6,
+   "blockText": "Client demo — Q4 roadmap",
    "fontFamily": "Inter, ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
    "fontSize": 13,
    "fontWeight": 400,
@@ -132,6 +153,9 @@
      "h": 16
     }
    ],
+   "baseline": 369,
+   "blockId": 7,
+   "blockText": "Voice note",
    "fontFamily": "Inter, ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
    "fontSize": 13,
    "fontWeight": 400,
@@ -149,6 +173,9 @@
      "h": 16
     }
    ],
+   "baseline": 407,
+   "blockId": 8,
+   "blockText": "Interview — Senior .NET",
    "fontFamily": "Inter, ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
    "fontSize": 13,
    "fontWeight": 400,
@@ -166,6 +193,9 @@
      "h": 16
     }
    ],
+   "baseline": 1322.11,
+   "blockId": 9,
+   "blockText": "Fully offline",
    "fontFamily": "Inter, ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
    "fontSize": 13,
    "fontWeight": 500,
@@ -189,6 +219,9 @@
      "h": 15
     }
    ],
+   "baseline": 1349.11,
+   "blockId": 10,
+   "blockText": "Recordings and models stay on this PC",
    "fontFamily": "Inter, ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
    "fontSize": 12,
    "fontWeight": 400,
@@ -206,6 +239,9 @@
      "h": 17
     }
    ],
+   "baseline": 35.5,
+   "blockId": 11,
+   "blockText": "Library",
    "fontFamily": "Inter, ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
    "fontSize": 14,
    "fontWeight": 400,
@@ -223,6 +259,9 @@
      "h": 16
     }
    ],
+   "baseline": 30,
+   "blockId": 12,
+   "blockText": "Record Ctrl Shift R",
    "fontFamily": "Inter, ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
    "fontSize": 13,
    "fontWeight": 400,
@@ -240,6 +279,9 @@
      "h": 16
     }
    ],
+   "baseline": 34,
+   "blockId": 13,
+   "blockText": "Ctrl Shift R",
    "fontFamily": "\"Geist Mono\", ui-monospace, monospace",
    "fontSize": 12,
    "fontWeight": 400,
@@ -257,6 +299,9 @@
      "h": 44
     }
    ],
+   "baseline": 126,
+   "blockId": 14,
+   "blockText": "What are we recording today?",
    "fontFamily": "Inter, ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
    "fontSize": 36,
    "fontWeight": 300,
@@ -274,6 +319,9 @@
      "h": 29
     }
    ],
+   "baseline": 213.11,
+   "blockId": 15,
+   "blockText": "New recording",
    "fontFamily": "Inter, ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
    "fontSize": 24,
    "fontWeight": 300,
@@ -303,6 +351,9 @@
      "h": 17
     }
    ],
+   "baseline": 241.11,
+   "blockId": 16,
+   "blockText": "Mic and system audio are recorded as separate tracks. Transcription starts as soon as you stop.",
    "fontFamily": "Inter, ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
    "fontSize": 14,
    "fontWeight": 400,
@@ -320,6 +371,9 @@
      "h": 16
     }
    ],
+   "baseline": 322.11,
+   "blockId": 17,
+   "blockText": "Microphone",
    "fontFamily": "Inter, ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
    "fontSize": 13,
    "fontWeight": 500,
@@ -337,6 +391,9 @@
      "h": 16
     }
    ],
+   "baseline": 366.11,
+   "blockId": 18,
+   "blockText": "System audio",
    "fontFamily": "Inter, ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
    "fontSize": 13,
    "fontWeight": 500,
@@ -354,6 +411,9 @@
      "h": 16
     }
    ],
+   "baseline": 366.11,
+   "blockId": 19,
+   "blockText": "Screen",
    "fontFamily": "Inter, ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
    "fontSize": 13,
    "fontWeight": 500,
@@ -371,6 +431,9 @@
      "h": 17
     }
    ],
+   "baseline": 422.11,
+   "blockId": 20,
+   "blockText": "Start recording",
    "fontFamily": "Inter, ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
    "fontSize": 14,
    "fontWeight": 500,
@@ -388,6 +451,9 @@
      "h": 17
     }
    ],
+   "baseline": 426.61,
+   "blockId": 21,
+   "blockText": "Ctrl Shift R",
    "fontFamily": "\"Geist Mono\", ui-monospace, monospace",
    "fontSize": 13,
    "fontWeight": 400,
@@ -405,6 +471,9 @@
      "h": 29
     }
    ],
+   "baseline": 213.11,
+   "blockId": 22,
+   "blockText": "Ask your library",
    "fontFamily": "Inter, ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
    "fontSize": 24,
    "fontWeight": 300,
@@ -428,6 +497,9 @@
      "h": 17
     }
    ],
+   "baseline": 241.11,
+   "blockId": 23,
+   "blockText": "Searches every transcript and answers with timestamps. The model runs locally.",
    "fontFamily": "Inter, ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
    "fontSize": 14,
    "fontWeight": 400,
@@ -463,6 +535,9 @@
      "h": 17
     }
    ],
+   "baseline": 333.11,
+   "blockId": 24,
+   "blockText": "Question for your library",
    "fontFamily": "Inter, ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
    "fontSize": 14,
    "fontWeight": 400,
@@ -480,6 +555,9 @@
      "h": 16
     }
    ],
+   "baseline": 388.11,
+   "blockId": 25,
+   "blockText": "My action items this week",
    "fontFamily": "Inter, ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
    "fontSize": 13,
    "fontWeight": 400,
@@ -497,6 +575,9 @@
      "h": 16
     }
    ],
+   "baseline": 388.11,
+   "blockId": 26,
+   "blockText": "Who mentioned the budget?",
    "fontFamily": "Inter, ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
    "fontSize": 13,
    "fontWeight": 400,
@@ -514,6 +595,9 @@
      "h": 16
     }
    ],
+   "baseline": 428.11,
+   "blockId": 27,
+   "blockText": "Summarize yesterday",
    "fontFamily": "Inter, ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
    "fontSize": 13,
    "fontWeight": 400,
@@ -531,6 +615,9 @@
      "h": 29
     }
    ],
+   "baseline": 560.61,
+   "blockId": 28,
+   "blockText": "Recordings",
    "fontFamily": "Inter, ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
    "fontSize": 24,
    "fontWeight": 300,
@@ -554,6 +641,9 @@
      "h": 17
     }
    ],
+   "baseline": 565.61,
+   "blockId": 29,
+   "blockText": "Search recordings",
    "fontFamily": "Inter, ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
    "fontSize": 14,
    "fontWeight": 400,
@@ -571,6 +661,9 @@
      "h": 16
     }
    ],
+   "baseline": 609.11,
+   "blockId": 30,
+   "blockText": "All",
    "fontFamily": "Inter, ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
    "fontSize": 13,
    "fontWeight": 500,
@@ -588,6 +681,9 @@
      "h": 16
     }
    ],
+   "baseline": 614.11,
+   "blockId": 31,
+   "blockText": "Today",
    "fontFamily": "Inter, ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
    "fontSize": 13,
    "fontWeight": 400,
@@ -605,6 +701,9 @@
      "h": 16
     }
    ],
+   "baseline": 614.11,
+   "blockId": 32,
+   "blockText": "This week",
    "fontFamily": "Inter, ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
    "fontSize": 13,
    "fontWeight": 400,
@@ -622,6 +721,9 @@
      "h": 16
     }
    ],
+   "baseline": 614.11,
+   "blockId": 33,
+   "blockText": "This month",
    "fontFamily": "Inter, ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
    "fontSize": 13,
    "fontWeight": 400,
@@ -639,6 +741,9 @@
      "h": 16
     }
    ],
+   "baseline": 609.11,
+   "blockId": 34,
+   "blockText": "Pick dates",
    "fontFamily": "Inter, ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
    "fontSize": 13,
    "fontWeight": 400,
@@ -656,6 +761,9 @@
      "h": 16
     }
    ],
+   "baseline": 659.11,
+   "blockId": 35,
+   "blockText": "Today",
    "fontFamily": "Inter, ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
    "fontSize": 13,
    "fontWeight": 400,
@@ -673,6 +781,9 @@
      "h": 19
     }
    ],
+   "baseline": 704.11,
+   "blockId": 36,
+   "blockText": "Client demo — Q4 roadmap",
    "fontFamily": "Inter, ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
    "fontSize": 15,
    "fontWeight": 500,
@@ -690,6 +801,9 @@
      "h": 16
     }
    ],
+   "baseline": 724.11,
+   "blockId": 37,
+   "blockText": "10:30 · English · Mic, system audio, screen",
    "fontFamily": "Inter, ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
    "fontSize": 13,
    "fontWeight": 400,
@@ -707,6 +821,9 @@
      "h": 16
     }
    ],
+   "baseline": 743.11,
+   "blockId": 38,
+   "blockText": "…PDF export moves to next sprint: first we finish meeting summaries and action items.",
    "fontFamily": "Inter, ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
    "fontSize": 13,
    "fontWeight": 400,
@@ -724,6 +841,9 @@
      "h": 17
     }
    ],
+   "baseline": 722.11,
+   "blockId": 39,
+   "blockText": "47:12",
    "fontFamily": "\"Geist Mono\", ui-monospace, monospace",
    "fontSize": 13,
    "fontWeight": 400,
@@ -741,6 +861,9 @@
      "h": 19
     }
    ],
+   "baseline": 794.11,
+   "blockId": 40,
+   "blockText": "Voice note",
    "fontFamily": "Inter, ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
    "fontSize": 15,
    "fontWeight": 500,
@@ -758,6 +881,9 @@
      "h": 16
     }
    ],
+   "baseline": 814.11,
+   "blockId": 41,
+   "blockText": "09:05 · English · Mic",
    "fontFamily": "Inter, ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
    "fontSize": 13,
    "fontWeight": 400,
@@ -775,6 +901,9 @@
      "h": 16
     }
    ],
+   "baseline": 833.11,
+   "blockId": 42,
+   "blockText": "Idea: draw the waveform from cached peaks instead of computing it on every open.",
    "fontFamily": "Inter, ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
    "fontSize": 13,
    "fontWeight": 400,
@@ -792,6 +921,9 @@
      "h": 17
     }
    ],
+   "baseline": 812.11,
+   "blockId": 43,
+   "blockText": "03:18",
    "fontFamily": "\"Geist Mono\", ui-monospace, monospace",
    "fontSize": 13,
    "fontWeight": 400,
@@ -809,6 +941,9 @@
      "h": 19
     }
    ],
+   "baseline": 884.11,
+   "blockId": 44,
+   "blockText": "Weekly team sync",
    "fontFamily": "Inter, ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
    "fontSize": 15,
    "fontWeight": 500,
@@ -826,6 +961,9 @@
      "h": 16
     }
    ],
+   "baseline": 904.11,
+   "blockId": 45,
+   "blockText": "08:00 · English · Mic, system audio",
    "fontFamily": "Inter, ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
    "fontSize": 13,
    "fontWeight": 400,
@@ -843,6 +981,9 @@
      "h": 15
     }
    ],
+   "baseline": 926.11,
+   "blockId": 46,
+   "blockText": "Transcribing · 64%",
    "fontFamily": "Inter, ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
    "fontSize": 12,
    "fontWeight": 400,
@@ -860,6 +1001,9 @@
      "h": 17
     }
    ],
+   "baseline": 903.61,
+   "blockId": 47,
+   "blockText": "58:40",
    "fontFamily": "\"Geist Mono\", ui-monospace, monospace",
    "fontSize": 13,
    "fontWeight": 400,
@@ -877,6 +1021,9 @@
      "h": 16
     }
    ],
+   "baseline": 979.11,
+   "blockId": 48,
+   "blockText": "Yesterday",
    "fontFamily": "Inter, ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
    "fontSize": 13,
    "fontWeight": 400,
@@ -894,6 +1041,9 @@
      "h": 19
     }
    ],
+   "baseline": 1024.11,
+   "blockId": 49,
+   "blockText": "Interview — Senior .NET",
    "fontFamily": "Inter, ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
    "fontSize": 15,
    "fontWeight": 500,
@@ -911,6 +1061,9 @@
      "h": 16
     }
    ],
+   "baseline": 1044.11,
+   "blockId": 50,
+   "blockText": "16:00 · English · Mic, system audio",
    "fontFamily": "Inter, ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
    "fontSize": 13,
    "fontWeight": 400,
@@ -928,6 +1081,9 @@
      "h": 16
     }
    ],
+   "baseline": 1063.11,
+   "blockId": 51,
+   "blockText": "…I'd start with a lock-free ring buffer and keep the capture callback allocation-free.",
    "fontFamily": "Inter, ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
    "fontSize": 13,
    "fontWeight": 400,
@@ -945,6 +1101,9 @@
      "h": 17
     }
    ],
+   "baseline": 1042.11,
+   "blockId": 52,
+   "blockText": "1:02:15",
    "fontFamily": "\"Geist Mono\", ui-monospace, monospace",
    "fontSize": 13,
    "fontWeight": 400,
@@ -962,6 +1121,9 @@
      "h": 19
     }
    ],
+   "baseline": 1114.11,
+   "blockId": 53,
+   "blockText": "QA team sync",
    "fontFamily": "Inter, ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
    "fontSize": 15,
    "fontWeight": 500,
@@ -979,6 +1141,9 @@
      "h": 16
     }
    ],
+   "baseline": 1134.11,
+   "blockId": 54,
+   "blockText": "11:00 · English · Mic, system audio, screen",
    "fontFamily": "Inter, ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
    "fontSize": 13,
    "fontWeight": 400,
@@ -996,6 +1161,9 @@
      "h": 16
     }
    ],
+   "baseline": 1153.11,
+   "blockId": 55,
+   "blockText": "…we'll leave Windows 11 ARM testing for later and do x64 first.",
    "fontFamily": "Inter, ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
    "fontSize": 13,
    "fontWeight": 400,
@@ -1013,6 +1181,9 @@
      "h": 17
     }
    ],
+   "baseline": 1132.11,
+   "blockId": 56,
+   "blockText": "34:09",
    "fontFamily": "\"Geist Mono\", ui-monospace, monospace",
    "fontSize": 13,
    "fontWeight": 400,
@@ -1030,6 +1201,9 @@
      "h": 16
     }
    ],
+   "baseline": 1206.11,
+   "blockId": 57,
+   "blockText": "This week",
    "fontFamily": "Inter, ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
    "fontSize": 13,
    "fontWeight": 400,
@@ -1047,6 +1221,9 @@
      "h": 19
     }
    ],
+   "baseline": 1251.11,
+   "blockId": 58,
+   "blockText": "Sprint retro",
    "fontFamily": "Inter, ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
    "fontSize": 15,
    "fontWeight": 500,
@@ -1064,6 +1241,9 @@
      "h": 16
     }
    ],
+   "baseline": 1271.11,
+   "blockId": 59,
+   "blockText": "Mon, 14:00 · English · Mic, system audio",
    "fontFamily": "Inter, ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
    "fontSize": 13,
    "fontWeight": 400,
@@ -1081,6 +1261,9 @@
      "h": 16
     }
    ],
+   "baseline": 1290.11,
+   "blockId": 60,
+   "blockText": "…what went well: the AOT build in CI no longer breaks after dependency updates.",
    "fontFamily": "Inter, ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
    "fontSize": 13,
    "fontWeight": 400,
@@ -1098,6 +1281,9 @@
      "h": 17
     }
    ],
+   "baseline": 1269.11,
+   "blockId": 61,
+   "blockText": "41:27",
    "fontFamily": "\"Geist Mono\", ui-monospace, monospace",
    "fontSize": 13,
    "fontWeight": 400,
@@ -1114,6 +1300,8 @@
     "w": 362,
     "h": 21
    },
+   "textX": 902.31,
+   "centerY": 319.61,
    "lines": [],
    "fontFamily": "Inter, ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
    "fontSize": 15,
@@ -1131,6 +1319,8 @@
     "w": 300,
     "h": 19
    },
+   "textX": 1033.31,
+   "centerY": 552.11,
    "lines": [],
    "fontFamily": "Inter, ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
    "fontSize": 14,

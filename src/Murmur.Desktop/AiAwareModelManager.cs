@@ -50,7 +50,16 @@ internal sealed class AiAwareModelManager : IModelManager
 
     public ModelStatus GetStatus(string id) => _inner.GetStatus(id);
 
-    public Task InstallAsync(string id, CancellationToken cancellationToken) => _inner.InstallAsync(id, cancellationToken);
+    public async Task InstallAsync(string id, CancellationToken cancellationToken)
+    {
+        // A runtime that is installed already may be replaced by a reinstall; Windows refuses to overwrite a running server.
+        if (Find(id) is { Kind: ModelKind.LlmRuntime } && _inner.GetStatus(id).State == ModelInstallState.Installed)
+        {
+            await _llm.UnloadAsync(cancellationToken).ConfigureAwait(false);
+        }
+
+        await _inner.InstallAsync(id, cancellationToken).ConfigureAwait(false);
+    }
 
     public async Task RemoveAsync(string id, CancellationToken cancellationToken)
     {
@@ -64,19 +73,33 @@ internal sealed class AiAwareModelManager : IModelManager
 
     private bool IsAiItem(string id)
     {
+        var model = Find(id);
+        return model?.Kind switch
+        {
+            ModelKind.LlmRuntime => true,
+            ModelKind.Chat or ModelKind.Embedding => _itemPath(id) is { } path && _isModelInUse(path),
+            _ => false,
+        };
+    }
+
+    /// <summary>The listed item, else an unlisted one (a GPU build of the runtime) that the inner manager still knows by id.</summary>
+    private ModelInfo? Find(string id)
+    {
         foreach (var model in _inner.Catalog)
         {
             if (string.Equals(model.Id, id, StringComparison.Ordinal))
             {
-                return model.Kind switch
-                {
-                    ModelKind.LlmRuntime => true,
-                    ModelKind.Chat or ModelKind.Embedding => _itemPath(id) is { } path && _isModelInUse(path),
-                    _ => false,
-                };
+                return model;
             }
         }
 
-        return false;
+        try
+        {
+            return _inner.GetStatus(id).Model;
+        }
+        catch (ArgumentException)
+        {
+            return null;
+        }
     }
 }

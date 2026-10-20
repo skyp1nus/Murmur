@@ -28,8 +28,23 @@ src/Murmur.App/** (Settings views and view models), tests/Murmur.App.Tests/**. T
    without changing the drawn sections — propose a placement consistent with the canvas (e.g. an **Appearance** section
    before About) and describe it in the report; they are not on the board, so the board's parity is measured with them
    placed below About or collapsed — say which.
-7. Parity: content area of `Settings` / `SettingsDark` ≤ 2 % in the drawn state (E4B at 42 %, CPU selected, the drawn
-   devices and path, `[VERSION]`/`[LICENSE]` ignored); set `MaxMismatchPercent`.
+7. Parity: content area of `Settings` / `SettingsDark` within the parity gates in the drawn state (E4B at 42 %, CPU selected, the drawn
+   devices and path, `[VERSION]`/`[LICENSE]` ignored); set the three parity gates (below).
 8. Tests: sections navigation, acceleration states (supported/unsupported/missing runtime/downloading/fallback), the rest
    as today.
 9. Report (Ukrainian): mismatch before/after, what still differs, test results.
+
+## Parity gates (D-041)
+`DesignParityTests` measure three things per board (report: `artifacts/design-parity/report.md`, per board `<Board>.side.png`,
+`<Board>.shapes.side.png`, `<Board>.text.md`, `<Board>.text.png`):
+- **Shape layer** (app rendered with every glyph transparent vs `reference/<Board>.notext.png`, symmetric, tolerance 5/255):
+  `MaxShapeMismatchPercent` ≤ **4 %** of drawn pixels (onboarding steps 3 and 4: ≤ 10 % until measured lower).
+- **Text matched** (reference texts from `reference/<Board>.text.json` found in the app by exact text): `MinTextMatchedPercent`
+  ≥ **95 %**; every text still missing is either a documented deviation (`docs/design/DEVIATIONS.md`) or demo data the
+  app cannot produce — list them in the report.
+- **Text geometry** (matched texts: |Δx| and |Δ centre y| ≤ 2 px, width within 3 %, same line count, size, weight, family):
+  `MaxTextGeometryErrors` ≤ **2**.
+Set the three gates for your boards in `DesignBoards.cs` at the values you reach (not looser than above) so CI keeps them.
+Pixel-level text differences (Chromium vs Skia rasterisation) are not a gate. Work from `<Board>.text.md` (sorted list of
+text errors) and the side-by-sides; check visually at the end that nothing differs that the metrics miss (e.g. icon
+shapes, orb look, hover/selected states drawn on the board).

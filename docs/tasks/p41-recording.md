@@ -34,9 +34,24 @@ x ≥ 241). Truth: `docs/design/source/Recording*.dc.html` and `docs/design/refe
    (copies a short English/Ukrainian notice to the clipboard; the button shows "Copied" for 2 s). The note under the cards.
 3. Keep every existing behaviour (warnings, mic permission card, screen faults, device fallbacks) — restyle into the canvas
    layout, do not drop.
-4. Parity: content area of `Recording` / `RecordingDark` ≤ 2 % (demo data: 00:24:13, the title, -18 / -24 dB, the two
-   devices, screen off); set `MaxMismatchPercent` for the content area of both boards.
+4. Parity: content area of `Recording` / `RecordingDark` within the parity gates (demo data: 00:24:13, the title, -18 / -24 dB, the two
+   devices, screen off); set the three parity gates (below).
 5. Tests: Core — pause/resume timing (elapsed, file length = recorded time, screen segments around a pause, stop while
    paused, allocation-free writer with pauses, crash recovery); App — pause button states, hotkey, copy message, title
    rename. Windows-only parts (WASAPI/WGC behaviour under pause) get Windows tests with `[Trait("Category","Windows")]`.
 6. Report (Ukrainian): mismatch before/after, what still differs, test results.
+
+## Parity gates (D-041)
+`DesignParityTests` measure three things per board (report: `artifacts/design-parity/report.md`, per board `<Board>.side.png`,
+`<Board>.shapes.side.png`, `<Board>.text.md`, `<Board>.text.png`):
+- **Shape layer** (app rendered with every glyph transparent vs `reference/<Board>.notext.png`, symmetric, tolerance 5/255):
+  `MaxShapeMismatchPercent` ≤ **4 %** of drawn pixels (onboarding steps 3 and 4: ≤ 10 % until measured lower).
+- **Text matched** (reference texts from `reference/<Board>.text.json` found in the app by exact text): `MinTextMatchedPercent`
+  ≥ **95 %**; every text still missing is either a documented deviation (`docs/design/DEVIATIONS.md`) or demo data the
+  app cannot produce — list them in the report.
+- **Text geometry** (matched texts: |Δx| and |Δ centre y| ≤ 2 px, width within 3 %, same line count, size, weight, family):
+  `MaxTextGeometryErrors` ≤ **2**.
+Set the three gates for your boards in `DesignBoards.cs` at the values you reach (not looser than above) so CI keeps them.
+Pixel-level text differences (Chromium vs Skia rasterisation) are not a gate. Work from `<Board>.text.md` (sorted list of
+text errors) and the side-by-sides; check visually at the end that nothing differs that the metrics miss (e.g. icon
+shapes, orb look, hover/selected states drawn on the board).

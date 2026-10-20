@@ -196,7 +196,7 @@ public sealed class RecoveryService
             HasMicrophone = hasMicrophone,
             HasSystemAudio = hasSystem,
             State = hasMicrophone || hasSystem ? SessionState.Interrupted : SessionState.Failed,
-            Error = hasMicrophone || hasSystem ? null : "The app stopped while recording and no audio could be recovered.",
+            Error = hasMicrophone || hasSystem ? null : SessionNotes.RecoveryLost,
         };
 
         await _store.UpdateSessionAsync(updated, cancellationToken).ConfigureAwait(false);

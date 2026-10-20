@@ -1,7 +1,10 @@
 using System.Text.Json;
 using Murmur.App.Diagnostics;
+using Murmur.App.Localization;
+using Murmur.App.Resources;
 using Murmur.App.Tests.Fakes;
 using Murmur.App.ViewModels;
+using Murmur.Core.Capture;
 using Murmur.Core.Recording;
 using Murmur.Core.Sessions;
 
@@ -278,8 +281,9 @@ public sealed class AutoRecordTests : IDisposable
     [Fact]
     public async Task Run_WhenTheMicrophoneIsDenied_RecordsAndReportsTheWarning()
     {
-        const string warning = "Мікрофон недоступний: Windows забороняє доступ (Параметри → Конфіденційність і безпека → Мікрофон). Записую лише системний звук.";
-        _recorder.StartWarning = warning;
+        // The recorder stores codes; the report is always English, whatever the UI language is.
+        using var ukrainian = UiCulture.Override(UiCulture.Ukrainian);
+        _recorder.StartWarning = SessionNotes.Join(SessionNotes.Format(SessionNotes.MicrophoneDenied), SessionNotes.Format(SessionNotes.OnlySystemAudio));
         _recorder.Elapsed = TimeSpan.FromSeconds(1.2);
         _recorder.Stats = new RecorderStats(0, 200, 0, 0);
         var path = Path.Combine(_dir, "perf.json");
@@ -292,8 +296,9 @@ public sealed class AutoRecordTests : IDisposable
         var root = doc.RootElement;
         Assert.False(root.TryGetProperty("error", out _));
         var warnings = root.GetProperty("warnings");
-        Assert.Equal(1, warnings.GetArrayLength());
-        Assert.Equal(warning, warnings[0].GetString());
+        Assert.Equal(
+            [Strings.Get("Note_MicDenied", "en"), Strings.Get("Note_OnlySystem", "en")],
+            warnings.EnumerateArray().Select(w => w.GetString()));
         Assert.Equal(200, root.GetProperty("recorderStats").GetProperty("systemFrames").GetInt64());
         Assert.True(root.GetProperty("durationS").GetDouble() > 0);
         Assert.Equal(32, root.GetProperty("session").GetProperty("id").GetString()!.Length);
@@ -304,7 +309,7 @@ public sealed class AutoRecordTests : IDisposable
     public async Task Run_WhenTheStopAddsAFailure_ReportsItAfterTheStartWarning()
     {
         _recorder.StartWarning = "Mic denied.";
-        _recorder.StopError = "Screen failed. Mic denied.";
+        _recorder.StopError = "Screen failed.\nMic denied.";
         var path = Path.Combine(_dir, "perf.json");
         var runner = CreateRunner(new AutoRecordOptions(1, Screen: false, path, IdleSeconds: 0));
 
@@ -318,16 +323,16 @@ public sealed class AutoRecordTests : IDisposable
     [Fact]
     public async Task Run_WithScreenProblems_ReportsTheFaultCountAndTheirTextsInOrder()
     {
-        const string slow = "Запис екрана пропустив кадри: компʼютер не встигав.";
-        const string stopped = "Запис екрана зупинився через помилку; звук записується далі.";
+        var slow = Strings.Get("Recording_ScreenFramesDropped", "en");
+        var stopped = Strings.Get("Recording_ScreenStopped", "en");
         _recorder.StartWarning = "Mic denied.";
         _recorder.AfterStart = () =>
         {
-            _recorder.RaiseWarning(slow);
-            _recorder.RaiseWarning(slow);
-            _recorder.FailScreen(stopped);
+            _recorder.RaiseWarning(CaptureFaultKind.FramesDropped);
+            _recorder.RaiseWarning(CaptureFaultKind.FramesDropped);
+            _recorder.FailScreen();
         };
-        _recorder.StopError = $"Mic denied. {slow} {stopped}";
+        _recorder.StopError = SessionNotes.Join("Mic denied.", SessionNotes.Join(SessionNotes.ScreenFramesDropped, SessionNotes.ScreenStopped));
         _recorder.Stats = new RecorderStats(0, 200, 0, 0, ScreenFaults: 3);
         var path = Path.Combine(_dir, "perf.json");
         var runner = CreateRunner(new AutoRecordOptions(1, Screen: true, path, IdleSeconds: 0));

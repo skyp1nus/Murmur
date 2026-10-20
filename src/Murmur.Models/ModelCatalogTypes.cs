@@ -8,7 +8,10 @@ public enum ModelPackaging
     /// <summary>Every file is installed as is, at its <see cref="ModelFileSpec.RelativePath"/> below the item's target.</summary>
     Files,
 
-    /// <summary>A single .zip archive; the folder that contains <see cref="ModelCatalogItem.ExecutableName"/> becomes the target.</summary>
+    /// <summary>
+    /// A .zip archive; the folder that contains <see cref="ModelCatalogItem.ExecutableName"/> becomes the target. Further files
+    /// of the item are archives of the same kind extracted into that folder (companion libraries such as the CUDA runtime).
+    /// </summary>
     Zip,
 
     /// <summary>A single .tar.gz archive; the folder that contains <see cref="ModelCatalogItem.ExecutableName"/> becomes the target.</summary>
@@ -66,6 +69,15 @@ public sealed record ModelFileSpec(
 /// <param name="Packaging">What to do with the downloads.</param>
 /// <param name="ExecutableName">For archives: the file whose folder is installed (<c>llama-server</c>).</param>
 /// <param name="Repo">Hugging Face repository, recorded in <c>gguf/models.json</c> for chat and embedding models.</param>
+/// <param name="Listed">
+/// <c>false</c>: not part of <see cref="ModelManager.Catalog"/> (so the model list and the AI bundle do not offer it) but
+/// installable by id. The GPU builds of the runtime are unlisted: the Settings acceleration control installs them on demand.
+/// </param>
+/// <param name="RequirePins">
+/// <c>true</c>: the item is installed only when every source of every file carries its SHA-256 and size (fail closed). A
+/// catalog built with <see cref="ModelCatalogSources.PinHashes"/> sets it for items whose pins are not known yet, so an
+/// unverified binary is never downloaded and run; <see cref="ModelManager.InstallAsync"/> refuses it with "not pinned yet".
+/// </param>
 public sealed record ModelCatalogItem(
     ModelInfo Info,
     string TargetPath,
@@ -73,9 +85,17 @@ public sealed record ModelCatalogItem(
     IReadOnlyList<ModelFileSpec> Files,
     ModelPackaging Packaging = ModelPackaging.Files,
     string? ExecutableName = null,
-    string? Repo = null)
+    string? Repo = null,
+    bool Listed = true,
+    bool RequirePins = false)
 {
     public string Id => Info.Id;
+
+    /// <summary>Why the item cannot be installed yet because a pin is missing, or <c>null</c>.</summary>
+    public string? UnpinnedReason =>
+        RequirePins && Files.Any(file => file.Sources.Any(source => source.Sha256 is null || source.SizeBytes is null))
+            ? $"'{Id}' is not pinned yet: the catalog has no SHA-256 and size for its download, so it is not installed unverified"
+            : null;
 }
 
 /// <summary>Base addresses of the hosts the catalog downloads from; tests point them at a local server.</summary>

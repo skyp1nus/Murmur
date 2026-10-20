@@ -36,14 +36,14 @@ namespace Murmur.Core.Recording;
 /// <b>Missing sources.</b> A requested source that cannot be created or started (no device, Windows privacy settings
 /// denying microphone access) is released and its track skipped: the session records the other track, its
 /// <see cref="SessionRecord.HasMicrophone"/>/<see cref="SessionRecord.HasSystemAudio"/> say what was recorded and a
-/// Ukrainian warning is kept in <see cref="SessionRecord.Error"/> while the state stays healthy. Only when no audio
+/// warning (a stable code, see <see cref="SessionNotes"/>) is kept in <see cref="SessionRecord.Error"/> while the state stays healthy. Only when no audio
 /// track starts does <see cref="StartAsync"/> fail (with the first failure) and the session end in
 /// <see cref="SessionState.Failed"/>.
 /// </para>
 /// <para>
 /// <b>Screen faults.</b> The recorder listens to <see cref="IScreenRecorder.Faulted"/> for the lifetime of each segment.
 /// Every fault is counted in <see cref="RecorderStats.ScreenFaults"/>. A non-fatal one is told apart by its
-/// <see cref="CaptureFault.Kind"/> (never by its message), raises <see cref="Warning"/> once per distinct user text and adds that text to the session's warnings (<see cref="SessionRecord.Error"/>). A fatal one
+/// <see cref="CaptureFault.Kind"/> (never by its message), raises <see cref="Warning"/> once per distinct code and adds that code to the session's warnings (<see cref="SessionRecord.Error"/>). Core never words a problem for the user: the App maps the codes to text. A fatal one
 /// marks the segment failed (<see cref="IsScreenRecording"/> turns false at once), raises <see cref="Warning"/> with
 /// <see cref="RecorderWarning.ScreenStopped"/> and ends the segment like "screen off" does (its file and real end stay
 /// on the timeline); the audio is never touched and the screen may be switched on again. Faults arrive on capture
@@ -249,8 +249,12 @@ public sealed class Recorder : IRecorder
         }
     }
 
+    /// <summary>
+    /// The title of a session started without one: a neutral English "Untitled — Oct 18, 01:12". The App always passes a
+    /// localized title, so this one shows up in logs and tests only.
+    /// </summary>
     internal static string DefaultTitle(DateTimeOffset startedAt) =>
-        string.Create(CultureInfo.InvariantCulture, $"Запис {startedAt:yyyy-MM-dd HH:mm}");
+        string.Create(CultureInfo.InvariantCulture, $"Untitled — {startedAt:MMM d, HH:mm}");
 
     private async ValueTask<ActiveRecording> StartCoreAsync(RecordingOptions options, CancellationToken cancellationToken)
     {
@@ -364,15 +368,10 @@ public sealed class Recorder : IRecorder
         }
     }
 
-    /// <summary>Microphone warning when Windows privacy settings deny access (no other track was lost).</summary>
-    internal const string MicrophoneAccessDeniedWarning =
-        "Мікрофон недоступний: Windows забороняє доступ (Параметри → Конфіденційність і безпека → Мікрофон).";
-
-    internal const string SystemAudioAccessDeniedWarning = "Системний звук недоступний: Windows забороняє доступ.";
-
     /// <summary>
-    /// Human-readable (Ukrainian) note about the requested tracks that could not start, or <c>null</c> when none was
-    /// lost. Stored in <see cref="SessionRecord.Error"/> of a session that still records.
+    /// The stored note (see <see cref="SessionNotes"/>: one code per line, the OS message as detail) about the requested
+    /// tracks that could not start, or <c>null</c> when none was lost. Kept in <see cref="SessionRecord.Error"/> of a
+    /// session that still records.
     /// </summary>
     internal static string? DescribeSkippedTracks(IReadOnlyList<(AudioDeviceKind Kind, Exception Error)> failures, bool hasMicrophone, bool hasSystemAudio)
     {
@@ -387,24 +386,33 @@ public sealed class Recorder : IRecorder
             var mic = kind == AudioDeviceKind.Microphone;
             if (IsAccessDenied(error))
             {
-                parts.Add(mic ? MicrophoneAccessDeniedWarning : SystemAudioAccessDeniedWarning);
+                parts.Add(SessionNotes.Format(mic ? SessionNotes.MicrophoneDenied : SessionNotes.SystemAudioDenied));
             }
             else
             {
-                parts.Add((mic ? "Мікрофон недоступний: " : "Системний звук недоступний: ") + error.Message.TrimEnd('.') + ".");
+                var message = string.IsNullOrWhiteSpace(error.Message) ? error.GetType().Name : error.Message.Trim().TrimEnd('.');
+                parts.Add(SessionNotes.Format(mic ? SessionNotes.MicrophoneUnavailable : SessionNotes.SystemAudioUnavailable, message));
             }
         }
 
         if (hasMicrophone != hasSystemAudio)
         {
-            parts.Add(hasSystemAudio ? "Записую лише системний звук." : "Записую лише мікрофон.");
+            parts.Add(SessionNotes.Format(hasSystemAudio ? SessionNotes.OnlySystemAudio : SessionNotes.OnlyMicrophone));
         }
 
-        return string.Join(" ", parts);
+        return string.Join('\n', parts);
     }
 
-    private static string? JoinMessages(string? first, string? second) =>
-        first is null ? second : second is null ? first : first + " " + second;
+    private static string? JoinMessages(string? first, string? second) => SessionNotes.Join(first, second);
+
+    /// <summary>The warning code of a screen fault.</summary>
+    internal static RecorderWarningCode ScreenWarningCode(CaptureFault fault) =>
+        fault.IsFatal ? RecorderWarningCode.ScreenStopped : fault.Kind switch
+        {
+            CaptureFaultKind.FramesDropped => RecorderWarningCode.ScreenFramesDropped,
+            CaptureFaultKind.CpuFallback => RecorderWarningCode.ScreenCpuFallback,
+            _ => RecorderWarningCode.ScreenOther,
+        };
 
     private static bool IsAccessDenied(Exception error)
     {
@@ -591,7 +599,7 @@ public sealed class Recorder : IRecorder
         Interlocked.Increment(ref active.ScreenFaults);
         try
         {
-            // The technical detail is for the console; the user gets the short text.
+            // The technical detail is for the console; the user gets the App's text for the code.
             Console.Error.WriteLine($"Murmur: {fault.Source} {(fault.IsFatal ? "fatal fault" : "warning")}: {fault.Message}");
         }
         catch (Exception)
@@ -599,25 +607,20 @@ public sealed class Recorder : IRecorder
             // A broken console must not break the capture thread.
         }
 
-        string text;
         if (fault.IsFatal)
         {
             // The first fatal fault fixes where the segment ends on the session timeline.
             Interlocked.CompareExchange(ref run.FaultElapsedTicks, _time.GetElapsedTime(active.StartTimestamp).Ticks, -1);
             run.Failed = true;
-            text = ScreenFaultTexts.Stopped;
-        }
-        else
-        {
-            text = ScreenFaultTexts.Describe(fault.Kind);
         }
 
-        // The session keeps each user text once, and so does the UI: a fault whose text is already known adds nothing.
+        // The session keeps each code once, and so does the UI: a fault whose code is already known adds nothing.
         // A fatal fault always reaches the UI (the pill must turn off).
-        var isNew = active.AddWarning(text);
+        var code = ScreenWarningCode(fault);
+        var isNew = active.AddWarning(SessionNotes.Format(SessionNotes.CodeOf(code)));
         if (fault.IsFatal || isNew)
         {
-            RaiseWarning(new RecorderWarning(fault.Source, text, ScreenStopped: fault.IsFatal, fault.Kind));
+            RaiseWarning(new RecorderWarning(fault.Source, code, ScreenStopped: fault.IsFatal, fault.Kind));
         }
 
         if (fault.IsFatal && Interlocked.Exchange(ref run.StopScheduled, 1) == 0)
@@ -821,7 +824,7 @@ public sealed class Recorder : IRecorder
                 HasMicrophone = active.Tracks.Exists(t => t.Kind == AudioDeviceKind.Microphone),
                 HasSystemAudio = active.Tracks.Exists(t => t.Kind == AudioDeviceKind.SystemOutput),
                 ScreenSegments = [.. active.Segments],
-                Error = JoinMessages(error ?? screenError, active.WarningText),
+                Error = JoinMessages((error ?? screenError) is { } failure ? SessionNotes.FreeText(failure) : null, active.WarningText),
             };
 
             active.Record = record;
@@ -1005,7 +1008,7 @@ public sealed class Recorder : IRecorder
 
         try
         {
-            await _store.UpdateSessionAsync(active.Record with { State = SessionState.Failed, Error = error.Message }, CancellationToken.None).ConfigureAwait(false);
+            await _store.UpdateSessionAsync(active.Record with { State = SessionState.Failed, Error = SessionNotes.FreeText(error.Message) }, CancellationToken.None).ConfigureAwait(false);
         }
         catch (Exception)
         {

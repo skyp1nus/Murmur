@@ -350,7 +350,7 @@ public sealed partial class FirstRecordingStepViewModel : OnboardingStepViewMode
         if (finished.State != SessionState.Recorded)
         {
             // The recorder could not keep any track: nothing to transcribe, and the pipeline will not touch the session.
-            Fail(UiText.Format(Strings.Onb5_RecordFailed, finished.Error ?? finished.State.ToString()));
+            Fail(UiText.Format(Strings.Onb5_RecordFailed, SessionNoteText.Describe(finished.Error) ?? finished.State.ToString()));
             return;
         }
 
@@ -379,7 +379,7 @@ public sealed partial class FirstRecordingStepViewModel : OnboardingStepViewMode
                 EnterWaitingForModel();
                 break;
             case SessionProcessingStage.Failed:
-                Fail(UiText.Format(Strings.Onb5_TranscribeFailed, status!.Message ?? string.Empty));
+                Fail(UiText.Format(Strings.Onb5_TranscribeFailed, SessionNoteText.Describe(status!.Message) ?? string.Empty));
                 break;
             case SessionProcessingStage.Indexing:
             case SessionProcessingStage.Completed:

@@ -150,6 +150,76 @@
   <data name="Recording_ScreenProblems" xml:space="preserve">
     <value>There were problems while recording the screen.</value>
   </data>
+  <data name="Note_MicDenied" xml:space="preserve">
+    <value>Microphone unavailable: Windows blocks access (Settings → Privacy &amp; security → Microphone).</value>
+  </data>
+  <data name="Note_SystemDenied" xml:space="preserve">
+    <value>System audio unavailable: Windows blocks access.</value>
+  </data>
+  <data name="Note_MicUnavailable" xml:space="preserve">
+    <value>Microphone unavailable: {0}.</value>
+    <comment>{0} = reason from the system</comment>
+  </data>
+  <data name="Note_SystemUnavailable" xml:space="preserve">
+    <value>System audio unavailable: {0}.</value>
+    <comment>{0} = reason from the system</comment>
+  </data>
+  <data name="Note_OnlySystem" xml:space="preserve">
+    <value>Recording system audio only.</value>
+  </data>
+  <data name="Note_OnlyMic" xml:space="preserve">
+    <value>Recording the microphone only.</value>
+  </data>
+  <data name="Note_RecoveryLost" xml:space="preserve">
+    <value>The app stopped while recording and no audio could be recovered.</value>
+  </data>
+  <data name="Note_AsrMissing" xml:space="preserve">
+    <value>The Parakeet model isn’t installed.</value>
+  </data>
+  <data name="Note_IndexFailed" xml:space="preserve">
+    <value>Indexing failed: {0}</value>
+    <comment>{0} = reason</comment>
+  </data>
+  <data name="Recording_DefaultTitle" xml:space="preserve">
+    <value>Untitled — {1} {0}, {2}</value>
+    <comment>Title of a recording started without a name. {0} = day, {1} = month, {2} = time (HH:mm)</comment>
+  </data>
+  <data name="TitleMonth_01" xml:space="preserve">
+    <value>Jan</value>
+  </data>
+  <data name="TitleMonth_02" xml:space="preserve">
+    <value>Feb</value>
+  </data>
+  <data name="TitleMonth_03" xml:space="preserve">
+    <value>Mar</value>
+  </data>
+  <data name="TitleMonth_04" xml:space="preserve">
+    <value>Apr</value>
+  </data>
+  <data name="TitleMonth_05" xml:space="preserve">
+    <value>May</value>
+  </data>
+  <data name="TitleMonth_06" xml:space="preserve">
+    <value>Jun</value>
+  </data>
+  <data name="TitleMonth_07" xml:space="preserve">
+    <value>Jul</value>
+  </data>
+  <data name="TitleMonth_08" xml:space="preserve">
+    <value>Aug</value>
+  </data>
+  <data name="TitleMonth_09" xml:space="preserve">
+    <value>Sep</value>
+  </data>
+  <data name="TitleMonth_10" xml:space="preserve">
+    <value>Oct</value>
+  </data>
+  <data name="TitleMonth_11" xml:space="preserve">
+    <value>Nov</value>
+  </data>
+  <data name="TitleMonth_12" xml:space="preserve">
+    <value>Dec</value>
+  </data>
   <data name="Session_TabTranscript" xml:space="preserve">
     <value>Transcript</value>
   </data>

@@ -13,6 +13,9 @@
      "h": 20
     }
    ],
+   "baseline": 41,
+   "blockId": 0,
+   "blockText": "Murmur",
    "fontFamily": "Inter, ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
    "fontSize": 17,
    "fontWeight": 600,
@@ -30,6 +33,9 @@
      "h": 17
     }
    ],
+   "baseline": 96,
+   "blockId": 1,
+   "blockText": "New recording",
    "fontFamily": "Inter, ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
    "fontSize": 14,
    "fontWeight": 500,
@@ -47,6 +53,9 @@
      "h": 17
     }
    ],
+   "baseline": 162,
+   "blockId": 2,
+   "blockText": "Library",
    "fontFamily": "Inter, ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
    "fontSize": 14,
    "fontWeight": 400,
@@ -64,6 +73,9 @@
      "h": 17
     }
    ],
+   "baseline": 204,
+   "blockId": 3,
+   "blockText": "Ask AI",
    "fontFamily": "Inter, ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
    "fontSize": 14,
    "fontWeight": 500,
@@ -81,6 +93,9 @@
      "h": 17
     }
    ],
+   "baseline": 246,
+   "blockId": 4,
+   "blockText": "Settings",
    "fontFamily": "Inter, ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
    "fontSize": 14,
    "fontWeight": 400,
@@ -98,6 +113,9 @@
      "h": 15
     }
    ],
+   "baseline": 302,
+   "blockId": 5,
+   "blockText": "Chats",
    "fontFamily": "Inter, ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
    "fontSize": 12,
    "fontWeight": 400,
@@ -115,6 +133,9 @@
      "h": 16
     }
    ],
+   "baseline": 331,
+   "blockId": 6,
+   "blockText": "PDF export",
    "fontFamily": "Inter, ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
    "fontSize": 13,
    "fontWeight": 500,
@@ -132,6 +153,9 @@
      "h": 16
     }
    ],
+   "baseline": 369,
+   "blockId": 7,
+   "blockText": "Action items this week",
    "fontFamily": "Inter, ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
    "fontSize": 13,
    "fontWeight": 400,
@@ -149,6 +173,9 @@
      "h": 16
     }
    ],
+   "baseline": 996,
+   "blockId": 8,
+   "blockText": "Fully offline",
    "fontFamily": "Inter, ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
    "fontSize": 13,
    "fontWeight": 500,
@@ -172,6 +199,9 @@
      "h": 15
     }
    ],
+   "baseline": 1023,
+   "blockId": 9,
+   "blockText": "Recordings and models stay on this PC",
    "fontFamily": "Inter, ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
    "fontSize": 12,
    "fontWeight": 400,
@@ -189,6 +219,9 @@
      "h": 16
     }
    ],
+   "baseline": 30,
+   "blockId": 10,
+   "blockText": "Whole library",
    "fontFamily": "Inter, ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
    "fontSize": 13,
    "fontWeight": 500,
@@ -206,6 +239,9 @@
      "h": 16
     }
    ],
+   "baseline": 30,
+   "blockId": 11,
+   "blockText": "Client demo — Q4 roadmap",
    "fontFamily": "Inter, ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
    "fontSize": 13,
    "fontWeight": 500,
@@ -223,6 +259,9 @@
      "h": 15
     }
    ],
+   "baseline": 30,
+   "blockId": 12,
+   "blockText": "Gemma 4 E4B · local",
    "fontFamily": "Inter, ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
    "fontSize": 12,
    "fontWeight": 400,
@@ -240,6 +279,9 @@
      "h": 19
     }
    ],
+   "baseline": 113,
+   "blockId": 13,
+   "blockText": "What did we decide about PDF export?",
    "fontFamily": "Inter, ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
    "fontSize": 15,
    "fontWeight": 400,
@@ -257,6 +299,9 @@
      "h": 16
     }
    ],
+   "baseline": 180.25,
+   "blockId": 14,
+   "blockText": "Murmur",
    "fontFamily": "Inter, ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
    "fontSize": 13,
    "fontWeight": 500,
@@ -274,6 +319,9 @@
      "h": 20
     }
    ],
+   "baseline": 222.25,
+   "blockId": 15,
+   "blockText": "PDF export was moved to next sprint — meeting summaries and action items come first 12:52. The client said they need PDFs for their reports 12:40.",
    "fontFamily": "Inter, ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
    "fontSize": 16,
    "fontWeight": 400,
@@ -291,6 +339,9 @@
      "h": 16
     }
    ],
+   "baseline": 216.75,
+   "blockId": 15,
+   "blockText": "PDF export was moved to next sprint — meeting summaries and action items come first 12:52. The client said they need PDFs for their reports 12:40.",
    "fontFamily": "\"Geist Mono\", ui-monospace, monospace",
    "fontSize": 12,
    "fontWeight": 400,
@@ -314,6 +365,9 @@
      "h": 20
     }
    ],
+   "baseline": 222.25,
+   "blockId": 15,
+   "blockText": "PDF export was moved to next sprint — meeting summaries and action items come first 12:52. The client said they need PDFs for their reports 12:40.",
    "fontFamily": "Inter, ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
    "fontSize": 16,
    "fontWeight": 400,
@@ -331,6 +385,9 @@
      "h": 16
     }
    ],
+   "baseline": 243.14,
+   "blockId": 15,
+   "blockText": "PDF export was moved to next sprint — meeting summaries and action items come first 12:52. The client said they need PDFs for their reports 12:40.",
    "fontFamily": "\"Geist Mono\", ui-monospace, monospace",
    "fontSize": 12,
    "fontWeight": 400,
@@ -348,6 +405,9 @@
      "h": 20
     }
    ],
+   "baseline": 248.64,
+   "blockId": 15,
+   "blockText": "PDF export was moved to next sprint — meeting summaries and action items come first 12:52. The client said they need PDFs for their reports 12:40.",
    "fontFamily": "Inter, ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
    "fontSize": 16,
    "fontWeight": 400,
@@ -371,6 +431,9 @@
      "h": 20
     }
    ],
+   "baseline": 291.03,
+   "blockId": 16,
+   "blockText": "In the sprint retro, the team also agreed to review the report template with the designer before starting Retro · 31:05.",
    "fontFamily": "Inter, ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
    "fontSize": 16,
    "fontWeight": 400,
@@ -388,6 +451,9 @@
      "h": 16
     }
    ],
+   "baseline": 311.92,
+   "blockId": 16,
+   "blockText": "In the sprint retro, the team also agreed to review the report template with the designer before starting Retro · 31:05.",
    "fontFamily": "\"Geist Mono\", ui-monospace, monospace",
    "fontSize": 12,
    "fontWeight": 400,
@@ -405,6 +471,9 @@
      "h": 20
     }
    ],
+   "baseline": 317.42,
+   "blockId": 16,
+   "blockText": "In the sprint retro, the team also agreed to review the report template with the designer before starting Retro · 31:05.",
    "fontFamily": "Inter, ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
    "fontSize": 16,
    "fontWeight": 400,
@@ -422,6 +491,9 @@
      "h": 15
     }
    ],
+   "baseline": 352.81,
+   "blockId": 17,
+   "blockText": "Sources",
    "fontFamily": "Inter, ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
    "fontSize": 12,
    "fontWeight": 400,
@@ -439,6 +511,9 @@
      "h": 16
     }
    ],
+   "baseline": 391.81,
+   "blockId": 18,
+   "blockText": "Client demo",
    "fontFamily": "Inter, ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
    "fontSize": 13,
    "fontWeight": 500,
@@ -456,6 +531,9 @@
      "h": 16
     }
    ],
+   "baseline": 390.81,
+   "blockId": 19,
+   "blockText": "12:52",
    "fontFamily": "\"Geist Mono\", ui-monospace, monospace",
    "fontSize": 12,
    "fontWeight": 400,
@@ -479,6 +557,9 @@
      "h": 16
     }
    ],
+   "baseline": 414.81,
+   "blockId": 20,
+   "blockText": "“PDF export moves to next sprint…”",
    "fontFamily": "Inter, ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
    "fontSize": 13,
    "fontWeight": 400,
@@ -496,6 +577,9 @@
      "h": 16
     }
    ],
+   "baseline": 391.81,
+   "blockId": 21,
+   "blockText": "Client demo",
    "fontFamily": "Inter, ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
    "fontSize": 13,
    "fontWeight": 500,
@@ -513,6 +597,9 @@
      "h": 16
     }
    ],
+   "baseline": 390.81,
+   "blockId": 22,
+   "blockText": "12:40",
    "fontFamily": "\"Geist Mono\", ui-monospace, monospace",
    "fontSize": 12,
    "fontWeight": 400,
@@ -536,6 +623,9 @@
      "h": 16
     }
    ],
+   "baseline": 414.81,
+   "blockId": 23,
+   "blockText": "“What about PDF export? We need it for our reports.”",
    "fontFamily": "Inter, ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
    "fontSize": 13,
    "fontWeight": 400,
@@ -553,6 +643,9 @@
      "h": 16
     }
    ],
+   "baseline": 391.81,
+   "blockId": 24,
+   "blockText": "Sprint retro",
    "fontFamily": "Inter, ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
    "fontSize": 13,
    "fontWeight": 500,
@@ -570,6 +663,9 @@
      "h": 16
     }
    ],
+   "baseline": 390.81,
+   "blockId": 25,
+   "blockText": "31:05",
    "fontFamily": "\"Geist Mono\", ui-monospace, monospace",
    "fontSize": 12,
    "fontWeight": 400,
@@ -593,6 +689,9 @@
      "h": 16
     }
    ],
+   "baseline": 414.81,
+   "blockId": 26,
+   "blockText": "“…let's show the report template to the designer first.”",
    "fontFamily": "Inter, ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
    "fontSize": 13,
    "fontWeight": 400,
@@ -610,6 +709,9 @@
      "h": 19
     }
    ],
+   "baseline": 563.81,
+   "blockId": 27,
+   "blockText": "And who's sending the demo invite?",
    "fontFamily": "Inter, ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
    "fontSize": 15,
    "fontWeight": 400,
@@ -627,6 +729,9 @@
      "h": 16
     }
    ],
+   "baseline": 631.06,
+   "blockId": 28,
+   "blockText": "Murmur",
    "fontFamily": "Inter, ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
    "fontSize": 13,
    "fontWeight": 500,
@@ -644,6 +749,9 @@
      "h": 20
     }
    ],
+   "baseline": 669.06,
+   "blockId": 29,
+   "blockText": "You are — you promised to send it the same day 13:24.",
    "fontFamily": "Inter, ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
    "fontSize": 16,
    "fontWeight": 400,
@@ -661,6 +769,9 @@
      "h": 16
     }
    ],
+   "baseline": 663.56,
+   "blockId": 29,
+   "blockText": "You are — you promised to send it the same day 13:24.",
    "fontFamily": "\"Geist Mono\", ui-monospace, monospace",
    "fontSize": 12,
    "fontWeight": 400,
@@ -678,6 +789,9 @@
      "h": 20
     }
    ],
+   "baseline": 669.06,
+   "blockId": 29,
+   "blockText": "You are — you promised to send it the same day 13:24.",
    "fontFamily": "Inter, ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
    "fontSize": 16,
    "fontWeight": 400,
@@ -695,6 +809,9 @@
      "h": 17
     }
    ],
+   "baseline": 1026,
+   "blockId": 30,
+   "blockText": "Question",
    "fontFamily": "Inter, ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
    "fontSize": 14,
    "fontWeight": 400,
@@ -712,6 +829,9 @@
      "h": 15
     }
    ],
+   "baseline": 1045,
+   "blockId": 31,
+   "blockText": "Answers are based only on your transcripts. Check them against the timestamps.",
    "fontFamily": "Inter, ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
    "fontSize": 12,
    "fontWeight": 400,
@@ -728,6 +848,8 @@
     "w": 678,
     "h": 57
    },
+   "textX": 482.31,
+   "centerY": 984.5,
    "lines": [],
    "fontFamily": "Inter, ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
    "fontSize": 15,
