@@ -33,7 +33,7 @@
      "h": 17
     }
    ],
-   "baseline": 96,
+   "baseline": 101.5,
    "blockId": 1,
    "blockText": "New recording",
    "fontFamily": "Inter, ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
@@ -53,7 +53,7 @@
      "h": 17
     }
    ],
-   "baseline": 162,
+   "baseline": 167.5,
    "blockId": 2,
    "blockText": "Library",
    "fontFamily": "Inter, ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
@@ -73,7 +73,7 @@
      "h": 17
     }
    ],
-   "baseline": 204,
+   "baseline": 209.5,
    "blockId": 3,
    "blockText": "Ask AI",
    "fontFamily": "Inter, ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
@@ -93,7 +93,7 @@
      "h": 17
     }
    ],
-   "baseline": 246,
+   "baseline": 251.5,
    "blockId": 4,
    "blockText": "Settings",
    "fontFamily": "Inter, ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
@@ -133,7 +133,7 @@
      "h": 16
     }
    ],
-   "baseline": 331,
+   "baseline": 336,
    "blockId": 6,
    "blockText": "Client demo — Q4 roadmap",
    "fontFamily": "Inter, ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
@@ -153,7 +153,7 @@
      "h": 16
     }
    ],
-   "baseline": 369,
+   "baseline": 374,
    "blockId": 7,
    "blockText": "Voice note",
    "fontFamily": "Inter, ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
@@ -173,7 +173,7 @@
      "h": 16
     }
    ],
-   "baseline": 407,
+   "baseline": 412,
    "blockId": 8,
    "blockText": "Interview — Senior .NET",
    "fontFamily": "Inter, ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
@@ -193,7 +193,7 @@
      "h": 16
     }
    ],
-   "baseline": 1016,
+   "baseline": 1021,
    "blockId": 9,
    "blockText": "Fully offline",
    "fontFamily": "Inter, ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
@@ -299,7 +299,7 @@
      "h": 16
     }
    ],
-   "baseline": 30,
+   "baseline": 35,
    "blockId": 14,
    "blockText": "Export",
    "fontFamily": "Inter, ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
@@ -619,7 +619,7 @@
      "h": 16
     }
    ],
-   "baseline": 183.16,
+   "baseline": 188.16,
    "blockId": 29,
    "blockText": "Transcript",
    "fontFamily": "Inter, ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
@@ -639,7 +639,7 @@
      "h": 16
     }
    ],
-   "baseline": 183.16,
+   "baseline": 188.16,
    "blockId": 30,
    "blockText": "Summary",
    "fontFamily": "Inter, ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
@@ -659,7 +659,7 @@
      "h": 16
     }
    ],
-   "baseline": 183.16,
+   "baseline": 188.16,
    "blockId": 31,
    "blockText": "Ask AI",
    "fontFamily": "Inter, ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
@@ -705,7 +705,7 @@
      "h": 14
     }
    ],
-   "baseline": 295.16,
+   "baseline": 299.16,
    "blockId": 33,
    "blockText": "Y",
    "fontFamily": "Inter, ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
@@ -791,7 +791,7 @@
      "h": 14
     }
    ],
-   "baseline": 390.16,
+   "baseline": 394.16,
    "blockId": 37,
    "blockText": "O",
    "fontFamily": "Inter, ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
@@ -871,7 +871,7 @@
      "h": 14
     }
    ],
-   "baseline": 461.16,
+   "baseline": 465.16,
    "blockId": 41,
    "blockText": "Y",
    "fontFamily": "Inter, ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
@@ -997,7 +997,7 @@
      "h": 14
     }
    ],
-   "baseline": 556.16,
+   "baseline": 560.16,
    "blockId": 45,
    "blockText": "O",
    "fontFamily": "Inter, ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
@@ -1077,7 +1077,7 @@
      "h": 14
     }
    ],
-   "baseline": 627.16,
+   "baseline": 631.16,
    "blockId": 49,
    "blockText": "Y",
    "fontFamily": "Inter, ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
@@ -1163,7 +1163,7 @@
      "h": 14
     }
    ],
-   "baseline": 722.16,
+   "baseline": 726.16,
    "blockId": 53,
    "blockText": "O",
    "fontFamily": "Inter, ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
@@ -1243,7 +1243,7 @@
      "h": 14
     }
    ],
-   "baseline": 793.16,
+   "baseline": 797.16,
    "blockId": 57,
    "blockText": "Y",
    "fontFamily": "Inter, ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
