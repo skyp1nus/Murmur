@@ -31,7 +31,8 @@ dotnet run -c Release --project tests/Murmur.Benchmarks
 ```
 
 ## Перевірка на Windows
-- Windows-поведінку (WASAPI, WGC/MF, AOT win-x64, старт) доводить CI: `ci.yml` (тести, AOT, `startup`, `capture-e2e`), `perf-record.yml` (1 год запису; запуск — зміна `.github/perf-request.txt`), `asr.yml` (бенч 1 год ASR), `ai-eval.yml` (Gemma 4). Раннер без GPU (WARP) і з забороненим мікрофоном — не плутати це з багами продукту.
+- Щоденна перевірка Windows-поведінки (WASAPI, WGC/MF, AOT win-x64, старт) — на ПК власника: `pwsh scripts/verify-local.ps1` (за замовчуванням build + тести + AOT win-x64 + старт; `-Capture`, `-Perf`, `-Asr`, `-AiEval`, `-All`, `-Tone`). Звіт — `artifacts/local-verify/<час>/report.md`, його додають у PR.
+- GitHub Actions — мінімально (рішення власника, 2026-10-19): на кожен PR лише Linux-джоб `ci.yml`; Windows-джоби `ci.yml` (тести, AOT, `startup`, `capture-e2e`) — з міткою `ci:windows` на PR або вручну; `asr.yml`, `ai-eval.yml`, `perf-record.yml`, `models.yml` і бенчмарки — лише вручну (`workflow_dispatch`). Раннер без GPU (WARP) і з забороненим мікрофоном — не плутати це з багами продукту.
 - Теги `phase-N-done` — рядком у `.github/phase-tags.txt` (створює `tags.yml`).
 
 ## Середовище

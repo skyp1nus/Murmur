@@ -3,9 +3,8 @@ name: asr
 # Real-model ASR tests and the PLAN.md phase 2 budget "1 h audio -> text < 3 min on CPU".
 # Kept apart from ci.yml (which has no model downloads) so it does not slow down pull requests.
 
+# Manual only (owner decision 2026-10-19): the same bench runs locally with `pwsh scripts/verify-local.ps1 -Asr`.
 on:
-  push:
-    branches: [master, night-run]
   workflow_dispatch:
 
 concurrency:
