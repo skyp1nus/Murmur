@@ -9,12 +9,12 @@ namespace Murmur.App.Tests.Fakes;
 /// <summary>A session folder in a temp directory plus every fake a <see cref="SessionViewModel"/> needs.</summary>
 internal sealed class SessionFixture : IDisposable
 {
-    public SessionFixture(SessionState state = SessionState.Ready, bool withAudio = true, TimeSpan? duration = null)
+    public SessionFixture(SessionState state = SessionState.Ready, bool withAudio = true, TimeSpan? duration = null, SessionRecord? record = null)
     {
         Directory = Path.Combine(Path.GetTempPath(), "murmur-app-tests", Guid.NewGuid().ToString("N"));
         System.IO.Directory.CreateDirectory(Directory);
         Files = new SessionFiles(Directory);
-        Record = Sessions.Make("Щотижневий стендап команди", UiHarness.Now.AddHours(-1), duration ?? TimeSpan.FromHours(1), state: state);
+        Record = record ?? Sessions.Make("Щотижневий стендап команди", UiHarness.Now.AddHours(-1), duration ?? TimeSpan.FromHours(1), state: state);
         if (withAudio)
         {
             // The view model only checks that the files exist; the fake player never reads them.
