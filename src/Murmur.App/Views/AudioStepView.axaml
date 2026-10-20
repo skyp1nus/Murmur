@@ -8,8 +8,8 @@
              x:DataType="vm:AudioStepViewModel">
 
   <!-- Step 2: two device cards with live level meters, and a card about the microphone permission. -->
-  <StackPanel HorizontalAlignment="Stretch"
-              Spacing="{StaticResource Space.40}">
+  <StackPanel Classes="onbStep audio"
+              HorizontalAlignment="Stretch">
 
     <StackPanel Spacing="{StaticResource Space.12}"
                 HorizontalAlignment="Center">

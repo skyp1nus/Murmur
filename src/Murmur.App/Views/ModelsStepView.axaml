@@ -8,8 +8,8 @@
              x:DataType="vm:ModelsStepViewModel">
 
   <!-- Step 3: the required transcription model downloads by itself; the AI model is chosen. -->
-  <StackPanel HorizontalAlignment="Stretch"
-              Spacing="{StaticResource Onb.Space.Models}">
+  <StackPanel Classes="onbStep"
+              HorizontalAlignment="Stretch">
 
     <StackPanel Spacing="{StaticResource Space.12}"
                 HorizontalAlignment="Center">

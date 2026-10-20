@@ -8,8 +8,8 @@
              x:DataType="vm:FirstRecordingStepViewModel">
 
   <!-- Step 5: a ten-second recording, the orb that follows the voice, the countdown and the recognised text. -->
-  <StackPanel HorizontalAlignment="Stretch"
-              Spacing="{StaticResource Space.32}">
+  <StackPanel Classes="onbStep voice"
+              HorizontalAlignment="Stretch">
 
     <StackPanel Spacing="{StaticResource Space.12}"
                 HorizontalAlignment="Center">
@@ -24,8 +24,6 @@
       <controls:GlassOrbControl x:Name="VoiceOrb"
                                 Classes="voice"
                                 HorizontalAlignment="Center"
-                                Width="{StaticResource Size.OnbVoiceOrb}"
-                                Height="{StaticResource Size.OnbVoiceOrb}"
                                 IsActive="{Binding IsRecording}" />
       <Border x:Name="Countdown"
               Classes="countdown">

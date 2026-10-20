@@ -1,7 +1,9 @@
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Media;
+using Avalonia.Media.Imaging;
 using Avalonia.Media.Immutable;
+using Avalonia.Platform;
 using Avalonia.Rendering.Composition;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
@@ -38,10 +40,7 @@ public sealed class GlassOrbControl : Panel
     public static readonly StyledProperty<double> BodyFractionProperty =
         AvaloniaProperty.Register<GlassOrbControl, double>(nameof(BodyFraction), 1.0);
 
-    /// <summary>
-    /// Radius of the halo's <see cref="BlurEffect"/> in px; 0 = no halo (the wordmark). Avalonia's radius is not the standard
-    /// deviation of CSS <c>blur()</c>: the values in the styles are fitted against the Chromium render of the canvas.
-    /// </summary>
+    /// <summary>Standard deviation of the halo's Gaussian blur in px (CSS <c>blur()</c>); 0 = no halo (the wordmark).</summary>
     public static readonly StyledProperty<double> HaloBlurProperty =
         AvaloniaProperty.Register<GlassOrbControl, double>(nameof(HaloBlur));
 
@@ -200,7 +199,7 @@ public sealed class GlassOrbControl : Panel
             double.IsInfinity(availableSize.Width) ? 240 : availableSize.Width,
             double.IsInfinity(availableSize.Height) ? 240 : availableSize.Height);
         var size = new Size(side, side);
-        _halo.Measure(new Rect(size).Inflate(Math.Ceiling(HaloBlur)).Size);
+        _halo.Measure(new Rect(size).Inflate(Math.Ceiling(HaloBlur * 3)).Size);
         _body.Measure(size);
         return size;
     }
@@ -211,7 +210,7 @@ public sealed class GlassOrbControl : Panel
         var rect = new Rect(finalSize);
 
         // An effect is clipped to the bounds of its control: the halo layer reaches three standard deviations past the orb.
-        var pad = Math.Ceiling(HaloBlur);
+        var pad = Math.Ceiling(HaloBlur * 3);
         _halo.Arrange(rect.Inflate(pad));
         _body.Arrange(rect);
         PushFrame();
@@ -343,7 +342,7 @@ public sealed class GlassOrbControl : Panel
 
         if (ElementComposition.GetElementVisual(_halo) is { } halo)
         {
-            var pad = Math.Ceiling(HaloBlur);
+            var pad = Math.Ceiling(HaloBlur * 3);
             halo.CenterPoint = new Vector3D(centre.X + pad, centre.Y + pad, 0);
             halo.Scale = new Vector3D(_appliedHalo, _appliedHalo, 1);
             halo.Opacity = (float)(1 - _appliedFade);
@@ -369,6 +368,146 @@ public sealed class GlassOrbControl : Panel
     /// <summary>One CSS gradient layer: colour, centre in the element (0..1), the stop (share of the farthest corner) where it fades out.</summary>
     private readonly record struct Blob(Color Colour, double X, double Y, double Reach);
 
+
+    /// <summary>The blurred sphere as a premultiplied bitmap at 1/<see cref="Scale"/> of the size.</summary>
+    private static class HaloImage
+    {
+        public const int Scale = 4;
+
+        public static WriteableBitmap Create(double diameter, double sigma, Size layer, Color blue, Color ember)
+        {
+            var width = (int)Math.Ceiling(layer.Width / Scale);
+            var height = (int)Math.Ceiling(layer.Height / Scale);
+            var plane = new float[width * height * 4];
+
+            // 1. The sphere: the CSS gradients over the lavender base, premultiplied, with a one-pixel soft rim.
+            Blob[] blobs =
+            [
+                new(Pink, 0.72, 0.20, 0.50),
+                new(ember, 0.20, 0.80, 0.55),
+                new(blue, 0.74, 0.70, 0.58),
+                new(Highlight, 0.32, 0.26, 0.30),
+            ];
+            var radius = diameter / 2;
+            var left = (layer.Width - diameter) / 2;
+            var top = (layer.Height - diameter) / 2;
+            var reach = new double[blobs.Length];
+            for (var b = 0; b < blobs.Length; b++)
+            {
+                var dx = Math.Max(blobs[b].X, 1 - blobs[b].X);
+                var dy = Math.Max(blobs[b].Y, 1 - blobs[b].Y);
+                reach[b] = Math.Sqrt((dx * dx) + (dy * dy)) * diameter * blobs[b].Reach;
+            }
+
+            for (var j = 0; j < height; j++)
+            {
+                for (var i = 0; i < width; i++)
+                {
+                    var x = ((i + 0.5) * Scale) - left;
+                    var y = ((j + 0.5) * Scale) - top;
+                    var coverage = Math.Clamp(((radius - Math.Sqrt(((x - radius) * (x - radius)) + ((y - radius) * (y - radius)))) / Scale) + 0.5, 0, 1);
+                    if (coverage <= 0)
+                    {
+                        continue;
+                    }
+
+                    double r = Lavender.R, g = Lavender.G, bl = Lavender.B;
+                    for (var b = 0; b < blobs.Length; b++)
+                    {
+                        var ddx = x - (blobs[b].X * diameter);
+                        var ddy = y - (blobs[b].Y * diameter);
+                        var a = Math.Max(0, 1 - (Math.Sqrt((ddx * ddx) + (ddy * ddy)) / reach[b]));
+                        r += (blobs[b].Colour.R - r) * a;
+                        g += (blobs[b].Colour.G - g) * a;
+                        bl += (blobs[b].Colour.B - bl) * a;
+                    }
+
+                    var o = ((j * width) + i) * 4;
+                    plane[o] = (float)(r / 255 * coverage);
+                    plane[o + 1] = (float)(g / 255 * coverage);
+                    plane[o + 2] = (float)(bl / 255 * coverage);
+                    plane[o + 3] = (float)coverage;
+                }
+            }
+
+            // 2. The Gaussian, separable, the outside is transparent.
+            var sigmaPixels = sigma / Scale;
+            var half = (int)Math.Ceiling(3 * sigmaPixels);
+            var kernel = new float[(2 * half) + 1];
+            var sum = 0f;
+            for (var k = -half; k <= half; k++)
+            {
+                kernel[k + half] = (float)Math.Exp(-(k * k) / (2 * sigmaPixels * sigmaPixels));
+                sum += kernel[k + half];
+            }
+
+            for (var k = 0; k < kernel.Length; k++)
+            {
+                kernel[k] /= sum;
+            }
+
+            var temp = new float[plane.Length];
+            Convolve(plane, temp, width, height, kernel, half, horizontal: true);
+            Convolve(temp, plane, width, height, kernel, half, horizontal: false);
+
+            // 3. Premultiplied BGRA.
+            var bitmap = new WriteableBitmap(new PixelSize(width, height), new Vector(96, 96), PixelFormat.Bgra8888, AlphaFormat.Premul);
+            using (var frame = bitmap.Lock())
+            {
+                var bytes = new byte[width * height * 4];
+                for (var p = 0; p < width * height; p++)
+                {
+                    bytes[(p * 4) + 0] = ToByte(plane[(p * 4) + 2]);
+                    bytes[(p * 4) + 1] = ToByte(plane[(p * 4) + 1]);
+                    bytes[(p * 4) + 2] = ToByte(plane[p * 4]);
+                    bytes[(p * 4) + 3] = ToByte(plane[(p * 4) + 3]);
+                }
+
+                for (var row = 0; row < height; row++)
+                {
+                    System.Runtime.InteropServices.Marshal.Copy(bytes, row * width * 4, frame.Address + (row * frame.RowBytes), width * 4);
+                }
+            }
+
+            return bitmap;
+        }
+
+        private static byte ToByte(float value) => (byte)Math.Clamp((int)MathF.Round(value * 255f), 0, 255);
+
+        private static void Convolve(float[] source, float[] target, int width, int height, float[] kernel, int half, bool horizontal)
+        {
+            for (var j = 0; j < height; j++)
+            {
+                for (var i = 0; i < width; i++)
+                {
+                    float c0 = 0, c1 = 0, c2 = 0, c3 = 0;
+                    for (var k = -half; k <= half; k++)
+                    {
+                        var x = horizontal ? i + k : i;
+                        var y = horizontal ? j : j + k;
+                        if (x < 0 || y < 0 || x >= width || y >= height)
+                        {
+                            continue;
+                        }
+
+                        var w = kernel[k + half];
+                        var o = ((y * width) + x) * 4;
+                        c0 += source[o] * w;
+                        c1 += source[o + 1] * w;
+                        c2 += source[o + 2] * w;
+                        c3 += source[o + 3] * w;
+                    }
+
+                    var t = ((j * width) + i) * 4;
+                    target[t] = c0;
+                    target[t + 1] = c1;
+                    target[t + 2] = c2;
+                    target[t + 3] = c3;
+                }
+            }
+        }
+    }
+
     /// <summary>The painted layer: the sphere (with its inner glow) or the halo (the same sphere, blurred).</summary>
     private sealed class Layer : Control
     {
@@ -378,6 +517,8 @@ public sealed class GlassOrbControl : Panel
         private IBrush? _base;
         private IBrush? _glow;
         private Size _brushesFor;
+        private WriteableBitmap? _haloBitmap;
+        private (double Diameter, double Sigma, Color Blue, Color Ember) _haloKey;
 
         public Layer(GlassOrbControl owner, bool isHalo)
         {
@@ -390,7 +531,8 @@ public sealed class GlassOrbControl : Panel
             _blobs = null;
             _glow = null;
             _brushesFor = default;
-            Effect = _isHalo && _owner.HaloBlur > 0 ? new ImmutableBlurEffect(_owner.HaloBlur) : null;
+            _haloBitmap?.Dispose();
+            _haloBitmap = null;
             IsVisible = !_isHalo || _owner.HaloBlur > 0;
             InvalidateVisual();
         }
@@ -404,24 +546,55 @@ public sealed class GlassOrbControl : Panel
             }
 
             var side = Math.Min(_owner._size.Width, _owner._size.Height);
-            var diameter = _isHalo ? side : side * _owner.BodyFraction;
+            if (_isHalo)
+            {
+                RenderHalo(context, side);
+                return;
+            }
+
+            var diameter = side * _owner.BodyFraction;
             var rect = new Rect((Bounds.Width - diameter) / 2, (Bounds.Height - diameter) / 2, diameter, diameter);
             EnsureBrushes(diameter);
 
-            // The halo's opacity is part of what gets blurred (CSS: blur first, then the group's opacity; blurring is linear, so
-            // both orders agree). A composition-level opacity on a layer with an effect does not.
-            using (_isHalo ? context.PushOpacity(_owner.HaloOpacity) : default)
+            context.DrawEllipse(_base, null, rect);
+            foreach (var blob in _blobs!)
             {
-                context.DrawEllipse(_base, null, rect);
-                foreach (var blob in _blobs!)
-                {
-                    context.DrawEllipse(blob, null, rect);
-                }
+                context.DrawEllipse(blob, null, rect);
+            }
 
-                if (!_isHalo && _glow is not null)
-                {
-                    context.DrawEllipse(_glow, null, rect);
-                }
+            if (_glow is not null)
+            {
+                context.DrawEllipse(_glow, null, rect);
+            }
+        }
+
+        /// <summary>
+        /// The halo is the sphere blurred with a Gaussian of the CSS <c>blur()</c>'s standard deviation, drawn with the group opacity.
+        /// It is computed once on the CPU at a fraction of the size (a blurred image has no detail to lose) and cached, because the
+        /// blur effect of the renderer does not reproduce the canvas (its radius is not the standard deviation and the layer is
+        /// composited differently), and the halo is the one part of the orb that must match the reference.
+        /// </summary>
+        private void RenderHalo(DrawingContext context, double diameter)
+        {
+            var sigma = _owner.HaloBlur;
+            if (sigma <= 0 || diameter <= 0)
+            {
+                return;
+            }
+
+            var key = (diameter, sigma, _owner._blue, _owner._ember);
+            if (_haloBitmap is null || _haloKey != key)
+            {
+                _haloBitmap?.Dispose();
+                _haloBitmap = HaloImage.Create(diameter, sigma, Bounds.Size, _owner._blue, _owner._ember);
+                _haloKey = key;
+            }
+
+            using (context.PushOpacity(_owner.HaloOpacity))
+            {
+                var scale = HaloImage.Scale;
+                var target = new Rect(0, 0, _haloBitmap.PixelSize.Width * scale, _haloBitmap.PixelSize.Height * scale);
+                context.DrawImage(_haloBitmap, new Rect(_haloBitmap.Size), target);
             }
         }
 

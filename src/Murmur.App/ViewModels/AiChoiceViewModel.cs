@@ -27,10 +27,10 @@ public sealed partial class AiChoiceViewModel : ObservableObject
     /// </summary>
     public string Name => WithoutActiveParameters(Row.Name);
 
-    private static string WithoutActiveParameters(string name)
+    internal static string WithoutActiveParameters(string name)
     {
         var cut = name.LastIndexOf(' ');
-        if (cut > 0 && name.Length - cut >= 3 && name[cut + 1] == 'A' && name[^1] == 'B' && name.AsSpan(cut + 2, name.Length - cut - 3).IndexOfAnyExceptInRange('0', '9') < 0)
+        if (cut > 0 && name.Length - cut >= 4 && name[cut + 1] == 'A' && name[^1] == 'B' && name.AsSpan(cut + 2, name.Length - cut - 3).IndexOfAnyExceptInRange('0', '9') < 0)
         {
             return name[..cut];
         }
