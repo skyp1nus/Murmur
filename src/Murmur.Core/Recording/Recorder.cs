@@ -60,7 +60,20 @@ namespace Murmur.Core.Recording;
 /// promptly (the audio stop is queued right after it).
 /// </para>
 /// <para>
-/// <b>Threads.</b> <see cref="StartAsync"/>, <see cref="StopAsync"/> and <see cref="SetScreenEnabledAsync"/> are
+/// <b>Pause.</b> The session timeline (<see cref="Elapsed"/>, sample <c>n</c> of a file at <c>n / 16000</c> s, screen
+/// offsets) leaves the paused time out. <see cref="PauseAsync"/> asks the writer thread to drain what the sources have
+/// delivered so far, flush the resampler (its pending tail belongs to the audio before the pause) and switch to discarding;
+/// the call returns when the writer has done it and the timeline is frozen at that moment. The sources keep running (no
+/// device is re-opened) and the writer throws their audio away, so nothing is written and the levels are zero.
+/// <see cref="ResumeAsync"/> does the opposite handshake: the writer discards the rest of the pause, restarts the
+/// resampler and the timeline continues from the frozen value, so the files continue with no gap and no silence. The
+/// screen segment in progress ends at the pause call (like "screen off"); when the screen was on, a new segment starts
+/// on resume. The writer's steady state allocates nothing in either mode. A crash while paused leaves the files of a
+/// normal interrupted session. A pause or resume in the wrong state is a no-op. <see cref="StopAsync"/> works while
+/// paused and ends the files exactly where the pause left them.
+/// </para>
+/// <para>
+/// <b>Threads.</b> <see cref="StartAsync"/>, <see cref="PauseAsync"/>, <see cref="ResumeAsync"/>, <see cref="StopAsync"/> and <see cref="SetScreenEnabledAsync"/> are
 /// serialized. <see cref="StateChanged"/> is raised on the calling thread (or a thread-pool thread for an automatic
 /// stop) while that serialization is held, so handlers must not call back into the recorder synchronously.
 /// <see cref="Levels"/>, <see cref="Stats"/> and <see cref="Elapsed"/> are lock-free and cheap. The steady-state writer
@@ -72,6 +85,13 @@ public sealed class Recorder : IRecorder
     private const int ReadFrames = 4096;
     private const int WarmupIterations = 8;
     private const double LevelHalfLifeSeconds = 0.12;
+
+    // What the writer thread does with the audio of the sources (ActiveRecording.Mode). The two "requested" values are
+    // the handshake of PauseAsync / ResumeAsync: the writer moves on to the next mode and signals ModeChanged.
+    private const int ModeRecording = 0;
+    private const int ModePauseRequested = 1;
+    private const int ModePaused = 2;
+    private const int ModeResumeRequested = 3;
 
     private readonly ICapture _capture;
     private readonly ISessionStore _store;
@@ -111,7 +131,7 @@ public sealed class Recorder : IRecorder
 
     public SessionRecord? Current => _active?.Record;
 
-    public TimeSpan Elapsed => _active is { } active ? _time.GetElapsedTime(active.StartTimestamp) : TimeSpan.Zero;
+    public TimeSpan Elapsed => _active is { } active ? MonotonicElapsed(active) : TimeSpan.Zero;
 
     public AudioLevels Levels => _active is { } active
         ? new AudioLevels(BitConverter.Int32BitsToSingle(Volatile.Read(ref active.MicrophoneLevelBits)), BitConverter.Int32BitsToSingle(Volatile.Read(ref active.SystemLevelBits)))
@@ -182,9 +202,21 @@ public sealed class Recorder : IRecorder
         await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
-            if (_state != RecorderState.Recording || _active is not { } active)
+            if (_state is not (RecorderState.Recording or RecorderState.Paused) || _active is not { } active)
             {
                 throw new InvalidOperationException("Not recording.");
+            }
+
+            if (_state == RecorderState.Paused)
+            {
+                // No segment can run on a timeline that stands still: only decide whether one starts on resume.
+                if (enabled && !_capture.Capabilities.Screen)
+                {
+                    throw new NotSupportedException("Screen capture is not available.");
+                }
+
+                active.ScreenOnResume = enabled;
+                return;
             }
 
             if (enabled)
@@ -231,12 +263,113 @@ public sealed class Recorder : IRecorder
         }
     }
 
-    public async ValueTask<SessionRecord> StopAsync(CancellationToken cancellationToken)
+    public async ValueTask PauseAsync(CancellationToken cancellationToken)
     {
         await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
             if (_state != RecorderState.Recording || _active is not { } active)
+            {
+                return;
+            }
+
+            // The screen segment ends where the pause is called (the end is read on this thread, as for "screen off"); the
+            // audio handshake runs next to its finalize, so neither waits for the other.
+            active.ScreenOnResume = active.Open is { Failed: false };
+            var pauseMark = SessionElapsed(active);
+            var screenStop = StopScreenSegmentAsync(active, CancellationToken.None).AsTask();
+
+            long at;
+            try
+            {
+                at = await SwitchWriterModeAsync(active, ModePauseRequested).ConfigureAwait(false);
+            }
+            catch
+            {
+                await SettleAsync(screenStop).ConfigureAwait(false);
+                throw;
+            }
+
+            SetState(RecorderState.Paused);
+
+            try
+            {
+                await screenStop.ConfigureAwait(false);
+            }
+            catch (Exception ex)
+            {
+                // The audio is paused. A segment the screen recorder has not left is marked failed at the pause mark: it is no
+                // longer recorded (IsScreenRecording turns false), its end on the timeline is the pause, and the resume finishes it
+                // (or the final stop does) before it starts the next one.
+                LogError("finalizing the screen segment at the pause failed", ex);
+                if (active.Open is { } open)
+                {
+                    Interlocked.CompareExchange(ref open.FaultElapsedTicks, pauseMark.Ticks, -1);
+                    open.Failed = true;
+                }
+
+                WarnScreenStopped(active);
+            }
+        }
+        finally
+        {
+            _gate.Release();
+        }
+    }
+
+    public async ValueTask ResumeAsync(CancellationToken cancellationToken)
+    {
+        await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            if (_state != RecorderState.Paused || _active is not { } active)
+            {
+                return;
+            }
+
+            var at = await SwitchWriterModeAsync(active, ModeResumeRequested).ConfigureAwait(false);
+            active.Clock = active.Clock.ResumedAt(at);
+            SetState(RecorderState.Recording);
+
+            if (active.Open is { Failed: true })
+            {
+                // A segment that could not be finalized at the pause: try once more, so the new one does not start under it.
+                try
+                {
+                    await StopScreenSegmentAsync(active, CancellationToken.None).ConfigureAwait(false);
+                }
+                catch (Exception ex)
+                {
+                    LogError("finalizing the failed screen segment at the resume failed", ex);
+                }
+            }
+
+            if (active.ScreenOnResume && active.Open is null && _capture.Capabilities.Screen)
+            {
+                // The audio is recording again; a screen that cannot start must not fail the resume.
+                try
+                {
+                    await StartScreenSegmentAsync(active, cancellationToken).ConfigureAwait(false);
+                }
+                catch (Exception ex)
+                {
+                    LogError("starting the screen segment at the resume failed", ex);
+                    WarnScreenStopped(active);
+                }
+            }
+        }
+        finally
+        {
+            _gate.Release();
+        }
+    }
+
+    public async ValueTask<SessionRecord> StopAsync(CancellationToken cancellationToken)
+    {
+        await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            if (_state is not (RecorderState.Recording or RecorderState.Paused) || _active is not { } active)
             {
                 throw new InvalidOperationException("Not recording.");
             }
@@ -288,6 +421,7 @@ public sealed class Recorder : IRecorder
             }
 
             active.StartTimestamp = _time.GetTimestamp();
+            active.Clock = SessionClock.StartedAt(active.StartTimestamp);
             List<Track>? notStarted = null;
             foreach (var track in active.Tracks)
             {
@@ -498,7 +632,7 @@ public sealed class Recorder : IRecorder
         // Media time 0 of the segment file is the moment StartSegmentAsync is called (IScreenRecorder), so the offset is
         // read on the session clock as the last step before the call: nothing awaitable sits in between, and however
         // long the screen recorder takes to start, its first frame covers that time.
-        var run = new ScreenRun(index, _time.GetElapsedTime(active.StartTimestamp));
+        var run = new ScreenRun(index, SessionElapsed(active));
 
         // Subscribed before the start: a fault raised while the segment starts belongs to this segment too.
         run.Handler = fault => OnScreenFaulted(active, run, fault);
@@ -538,7 +672,7 @@ public sealed class Recorder : IRecorder
         // takes the stop time and returns from its synchronous part promptly (IScreenRecorder.StopSegmentAsync), so the
         // audio stop queued right after by StopCoreAsync runs next to the finalize instead of after it. Hopping to the
         // thread pool here would not help: its work queue can run the audio stop first.
-        var end = _time.GetElapsedTime(active.StartTimestamp);
+        var end = SessionElapsed(active);
         try
         {
             await active.Screen.StopSegmentAsync(cancellationToken).ConfigureAwait(false);
@@ -610,7 +744,7 @@ public sealed class Recorder : IRecorder
         if (fault.IsFatal)
         {
             // The first fatal fault fixes where the segment ends on the session timeline.
-            Interlocked.CompareExchange(ref run.FaultElapsedTicks, _time.GetElapsedTime(active.StartTimestamp).Ticks, -1);
+            Interlocked.CompareExchange(ref run.FaultElapsedTicks, SessionElapsed(active).Ticks, -1);
             run.Failed = true;
         }
 
@@ -652,7 +786,7 @@ public sealed class Recorder : IRecorder
             await _gate.WaitAsync().ConfigureAwait(false);
             try
             {
-                if (ReferenceEquals(_active, active) && _state == RecorderState.Recording)
+                if (ReferenceEquals(_active, active) && _state is RecorderState.Recording or RecorderState.Paused)
                 {
                     if (ReferenceEquals(active.Open, run))
                     {
@@ -728,7 +862,7 @@ public sealed class Recorder : IRecorder
             await _gate.WaitAsync().ConfigureAwait(false);
             try
             {
-                if (ReferenceEquals(_active, active) && _state == RecorderState.Recording)
+                if (ReferenceEquals(_active, active) && _state is RecorderState.Recording or RecorderState.Paused)
                 {
                     await StopCoreAsync(active).ConfigureAwait(false);
                 }
@@ -747,7 +881,7 @@ public sealed class Recorder : IRecorder
     private async ValueTask<SessionRecord> StopCoreAsync(ActiveRecording active)
     {
         SetState(RecorderState.Stopping);
-        var stopElapsed = _time.GetElapsedTime(active.StartTimestamp);
+        var stopElapsed = SessionElapsed(active);
         try
         {
             // The screen segment and the audio stop together: the segment's end is read as its stop is requested (see
@@ -854,6 +988,7 @@ public sealed class Recorder : IRecorder
                 _active = null;
                 active.StopSignal.Dispose();
                 active.FlushRequest.Dispose();
+                active.ModeChanged.Dispose();
                 SetState(RecorderState.Idle);
             }
         }
@@ -921,7 +1056,8 @@ public sealed class Recorder : IRecorder
                 {
                     if (active.WriterError is null)
                     {
-                        Drain(active, track, stopElapsed);
+                        // Stopped while paused: what the sources delivered since the pause is not part of the recording.
+                        Drain(active, track, stopElapsed, discard: Volatile.Read(ref active.Mode) == ModePaused);
                         var tail = track.Resampler.Flush(track.Output);
                         track.Writer.Append(track.Output.AsSpan(0, tail));
                     }
@@ -1004,6 +1140,7 @@ public sealed class Recorder : IRecorder
         {
             active.StopSignal.Dispose();
             active.FlushRequest.Dispose();
+            active.ModeChanged.Dispose();
         }
 
         try
@@ -1032,13 +1169,59 @@ public sealed class Recorder : IRecorder
                 active.MaxCycleTicks = Math.Max(active.MaxCycleTicks, iterationStart - previousStart);
                 previousStart = iterationStart;
                 var stopping = active.StopSignal.IsSet;
-                var elapsed = _time.GetElapsedTime(active.StartTimestamp);
-                foreach (var track in active.Tracks)
+                var elapsed = SessionElapsed(active);
+                var mode = Volatile.Read(ref active.Mode);
+                if (mode == ModePauseRequested)
                 {
-                    Drain(active, track, elapsed);
+                    // The timeline stops now, at the time this iteration pads the faulted tracks to: at once and in place, so the
+                    // padding and the frozen timeline are one value.
+                    elapsed = SessionElapsed(active);
+                    active.Clock.Freeze(elapsed);
                 }
 
-                UpdateLevels(active);
+                if (mode is ModePaused or ModeResumeRequested)
+                {
+                    // Paused: the sources run on, their audio is thrown away and the meters stay at zero.
+                    foreach (var track in active.Tracks)
+                    {
+                        Drain(active, track, elapsed, discard: true);
+                    }
+
+                    ZeroLevels(active);
+                    if (mode == ModeResumeRequested)
+                    {
+                        // Everything the sources delivered up to here belongs to the pause; what follows is kept.
+                        Volatile.Write(ref active.ModeChangedAt, _time.GetTimestamp());
+                        Volatile.Write(ref active.Mode, ModeRecording);
+                        active.ModeChanged.Set();
+                    }
+                }
+                else
+                {
+                    foreach (var track in active.Tracks)
+                    {
+                        Drain(active, track, elapsed, discard: false);
+                    }
+
+                    UpdateLevels(active);
+                    if (mode == ModePauseRequested)
+                    {
+                        // Everything delivered so far is in the files; the resampler's pending tail goes with it and the
+                        // resampler starts afresh at the resume, so no sample of the pause leaks into the audio after it.
+                        foreach (var track in active.Tracks)
+                        {
+                            var tail = track.Resampler.Flush(track.Output);
+                            track.Writer.Append(track.Output.AsSpan(0, tail));
+                            track.Resampler.Reset();
+                        }
+
+                        ZeroLevels(active);
+
+                        Volatile.Write(ref active.ModeChangedAt, _time.GetTimestamp());
+                        Volatile.Write(ref active.Mode, ModePaused);
+                        active.ModeChanged.Set();
+                    }
+                }
 
                 if (_time.GetElapsedTime(lastFlush) >= _settings.FlushInterval)
                 {
@@ -1116,8 +1299,11 @@ public sealed class Recorder : IRecorder
         active.Flusher?.Join();
     }
 
-    /// <summary>Moves what is in the ring right now to the file; pads a faulted track with silence up to the target time.</summary>
-    private static void Drain(ActiveRecording active, Track track, TimeSpan elapsed)
+    /// <summary>
+    /// Moves what is in the ring right now to the file (or drops it while <paramref name="discard"/>); pads a faulted track
+    /// with silence up to the target time on the session timeline.
+    /// </summary>
+    private static void Drain(ActiveRecording active, Track track, TimeSpan elapsed, bool discard)
     {
         // Read the flag before draining: a source writes its last frames before it reports the fault, so once the flag
         // is seen every frame it ever wrote is in the ring and the silence goes strictly after them.
@@ -1132,7 +1318,16 @@ public sealed class Recorder : IRecorder
                 break;
             }
 
-            Feed(track, track.Input.AsSpan(0, frames * channels));
+            if (discard)
+            {
+                // Paused: the audio is dropped, but the source's peak is taken so the first level after the resume is fresh.
+                track.Capture.TakePeak();
+            }
+            else
+            {
+                Feed(track, track.Input.AsSpan(0, frames * channels));
+            }
+
             pending -= frames;
         }
 
@@ -1165,6 +1360,17 @@ public sealed class Recorder : IRecorder
         var produced = track.Resampler.Process(interleaved, track.Output);
         track.Writer.Append(track.Output.AsSpan(0, produced));
         Volatile.Write(ref track.FramesConsumed, track.FramesConsumed + (interleaved.Length / track.Channels));
+    }
+
+    private static void ZeroLevels(ActiveRecording active)
+    {
+        foreach (var track in active.Tracks)
+        {
+            track.Level = 0f;
+        }
+
+        Volatile.Write(ref active.MicrophoneLevelBits, 0);
+        Volatile.Write(ref active.SystemLevelBits, 0);
     }
 
     private void UpdateLevels(ActiveRecording active)
@@ -1242,6 +1448,75 @@ public sealed class Recorder : IRecorder
         active.FinalStats = new StrongBox<RecorderStats>(stats);
     }
 
+    /// <summary>
+    /// What <see cref="Elapsed"/> reports: the timeline, never stepping back for any reader. The timeline itself stops at the
+    /// writer's pause mark, which can be a few microseconds before a value a poller read a moment earlier; the largest value any
+    /// reader has seen is therefore kept, and a reader gets at least that.
+    /// </summary>
+    private TimeSpan MonotonicElapsed(ActiveRecording active)
+    {
+        var now = SessionElapsed(active).Ticks;
+        var seen = Volatile.Read(ref active.ElapsedHighWater);
+        while (now > seen)
+        {
+            var previous = Interlocked.CompareExchange(ref active.ElapsedHighWater, now, seen);
+            if (previous == seen)
+            {
+                return TimeSpan.FromTicks(now);
+            }
+
+            seen = previous;
+        }
+
+        return TimeSpan.FromTicks(seen);
+    }
+
+    /// <summary>The recorded time of <paramref name="active"/> on the session timeline (the paused time is left out).</summary>
+    private TimeSpan SessionElapsed(ActiveRecording active) => active.Clock.Now(_time);
+
+    /// <summary>
+    /// Asks the writer thread to move to the next mode (pause or resume) and waits until it has, so the audio on both sides
+    /// of the change is exactly the audio the writer had drained when it switched.
+    /// </summary>
+    /// <returns>The clock timestamp at which the writer switched.</returns>
+    private static async ValueTask<long> SwitchWriterModeAsync(ActiveRecording active, int requested)
+    {
+        active.ModeChanged.Reset();
+        Volatile.Write(ref active.Mode, requested);
+        await Task.Run(() =>
+        {
+            // The writer answers within one period; it only stays silent when it has died (WriterError, auto-stop on its way).
+            while (!active.ModeChanged.Wait(25))
+            {
+                if (active.Writer is not { IsAlive: true } || active.WriterError is not null)
+                {
+                    throw new InvalidOperationException("The audio writer is not running.");
+                }
+            }
+        }).ConfigureAwait(false);
+        return Volatile.Read(ref active.ModeChangedAt);
+    }
+
+    private static async ValueTask SettleAsync(Task task)
+    {
+        try
+        {
+            await task.ConfigureAwait(false);
+        }
+        catch (Exception)
+        {
+            // The caller is already reporting another failure.
+        }
+    }
+
+    /// <summary>The screen could not be (re)started or finalized around a pause: tell the UI and keep the code in the session.</summary>
+    private void WarnScreenStopped(ActiveRecording active)
+    {
+        const RecorderWarningCode code = RecorderWarningCode.ScreenStopped;
+        active.AddWarning(SessionNotes.Format(SessionNotes.CodeOf(code)));
+        RaiseWarning(new RecorderWarning("screen", code, ScreenStopped: true));
+    }
+
     private void SetState(RecorderState state)
     {
         _state = state;
@@ -1272,6 +1547,24 @@ public sealed class Recorder : IRecorder
         public string? DisplayId { get; } = displayId;
 
         public long StartTimestamp { get; set; }
+
+        /// <summary>Maps the time source to the session timeline; replaced (never mutated) by pause and resume.</summary>
+        public volatile SessionClock Clock = SessionClock.StartedAt(0);
+
+        /// <summary>What the writer does with the audio (<c>ModeRecording</c>...); changed by the gate holder and by the writer.</summary>
+        public int Mode;
+
+        /// <summary>Set by the writer when it has switched mode; the gate holder waits for it.</summary>
+        public readonly ManualResetEventSlim ModeChanged = new(false, spinCount: 0);
+
+        /// <summary>The time source's timestamp at which the writer switched mode.</summary>
+        public long ModeChangedAt;
+
+        /// <summary>The largest <see cref="Elapsed"/> handed out so far, in ticks (Interlocked).</summary>
+        public long ElapsedHighWater;
+
+        /// <summary>The screen was on when the recording was paused (or was switched on while paused): a segment starts on resume.</summary>
+        public bool ScreenOnResume;
 
         public Thread? Writer { get; set; }
 
@@ -1327,6 +1620,30 @@ public sealed class Recorder : IRecorder
 
         /// <summary>Final counters, set once by <see cref="FreezeStats"/> during the stop; <c>null</c> before.</summary>
         public volatile StrongBox<RecorderStats>? FinalStats;
+    }
+
+    /// <summary>
+    /// Maps the time source to the session timeline: <c>offset</c> is the timeline value at <c>baseTimestamp</c>, and the
+    /// timeline then advances with the time source while <c>running</c>. Immutable, so a reader needs no lock.
+    /// </summary>
+    private sealed class SessionClock(long baseTimestamp, TimeSpan offset)
+    {
+        private long _frozenTicks = -1;
+
+        public static SessionClock StartedAt(long timestamp) => new(timestamp, TimeSpan.Zero);
+
+        /// <summary>The timeline value; once <see cref="Freeze"/> has run, that value and no other.</summary>
+        public TimeSpan Now(TimeProvider time)
+        {
+            var frozen = Volatile.Read(ref _frozenTicks);
+            return frozen >= 0 ? TimeSpan.FromTicks(frozen) : offset + time.GetElapsedTime(baseTimestamp);
+        }
+
+        /// <summary>Stops this clock at <paramref name="at"/> (the writer thread, once per pause; allocation-free).</summary>
+        public void Freeze(TimeSpan at) => Volatile.Write(ref _frozenTicks, Math.Max(0, at.Ticks));
+
+        /// <summary>A running clock that continues from the frozen value at <paramref name="timestamp"/>.</summary>
+        public SessionClock ResumedAt(long timestamp) => new(timestamp, TimeSpan.FromTicks(Math.Max(0, Volatile.Read(ref _frozenTicks))));
     }
 
     private sealed class ScreenRun(int index, TimeSpan offset)

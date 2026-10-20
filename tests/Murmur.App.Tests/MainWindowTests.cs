@@ -107,7 +107,7 @@ public sealed class MainWindowTests
                 var result = (
                     window.GetVisualDescendants().OfType<RecordingView>().Any(),
                     window.GetVisualDescendants().OfType<LibraryView>().Any(),
-                    window.GetVisualDescendants().OfType<Button>().Where(b => b is not ToggleButton).Select(b => b.Content as string).ToArray());
+                    window.GetVisualDescendants().OfType<Button>().Where(b => b is not ToggleButton).Select(b => b.Content as string ?? b.GetVisualDescendants().OfType<TextBlock>().FirstOrDefault()?.Text).ToArray());
                 window.Close();
                 return result;
             },

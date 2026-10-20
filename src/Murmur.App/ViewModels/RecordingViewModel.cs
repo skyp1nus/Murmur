@@ -10,14 +10,16 @@ using Murmur.Core.Settings;
 namespace Murmur.App.ViewModels;
 
 /// <summary>
-/// The Recording screen: source toggles, device pickers, the timer and the start/stop button.
+/// The Recording screen: the editable title, the timer, the source pills, device pickers, the pause and stop buttons, the
+/// Tracks card (levels, bars and device names) and the "Let people know" message.
 /// </summary>
 /// <remarks>
 /// Before recording the pills choose the sources. While recording only the screen pill stays enabled (it maps to
 /// <see cref="IRecorder.SetScreenEnabledAsync"/>). The view polls <see cref="Refresh"/> at about 4 Hz while
-/// recording; the orb polls <see cref="Level"/> from its own render tick. No per-buffer events are used.
+/// recording or paused; the orb polls <see cref="Level"/> from its own render tick. No per-buffer events are used.
+/// While <see cref="RecorderState.Paused"/> the timer stands still, the orb rests and the tracks say "Paused".
 /// </remarks>
-public sealed partial class RecordingViewModel : ObservableObject, ILevelSource
+public sealed partial class RecordingViewModel : ObservableObject, ILevelSource, IFillsFrame
 {
     private readonly IRecorder _recorder;
     private readonly ICapture _capture;
@@ -27,6 +29,17 @@ public sealed partial class RecordingViewModel : ObservableObject, ILevelSource
     private readonly TimeProvider _time;
     private SessionId? _sessionId;
     private bool _stopRequested;
+    private bool _pauseBusy;
+    private string _committedTitle = string.Empty;
+    private bool _titleEdited;
+    private bool _microphoneRequested;
+    private bool _systemAudioRequested;
+    private string _microphoneName = string.Empty;
+    private string _systemAudioName = string.Empty;
+    private CancellationTokenSource? _copiedReset;
+
+    /// <summary>The rename in flight (never faults: it reports its own failure); the stop waits for it.</summary>
+    private Task _renameTask = Task.CompletedTask;
 
     /// <summary>The stop in flight; meaningful only while it has not completed (a completed one is ignored).</summary>
     private Task? _stopTask;
@@ -54,6 +67,7 @@ public sealed partial class RecordingViewModel : ObservableObject, ILevelSource
         ScreenAvailable = capture.Capabilities.Screen;
         RefreshDevices();
         ApplyDefaults();
+        NewTitle();
         ApplyState(recorder.State);
         _recorder.StateChanged += OnRecorderStateChanged;
         _recorder.Warning += OnRecorderWarning;
@@ -79,6 +93,29 @@ public sealed partial class RecordingViewModel : ObservableObject, ILevelSource
 
     [ObservableProperty]
     public partial AudioDevice? SelectedSystemDevice { get; set; }
+
+    /// <summary>The title field: the title of the running session, or of the next one before the recording starts.</summary>
+    [ObservableProperty]
+    public partial string Title { get; set; } = string.Empty;
+
+    /// <summary>The "Copy message" button was pressed a moment ago: it reads "Copied".</summary>
+    [ObservableProperty]
+    public partial bool MessageCopied { get; set; }
+
+    /// <summary>"You · microphone": its level, bars and device (shown while the recording runs).</summary>
+    public RecordingTrackViewModel MicrophoneTrack { get; } = new(isMicrophone: true);
+
+    /// <summary>"Others · system audio".</summary>
+    public RecordingTrackViewModel SystemTrack { get; } = new(isMicrophone: false);
+
+    /// <summary>
+    /// Writes text to the clipboard and tells whether it did (<c>false</c>: the window has no clipboard); set by the view (the
+    /// clipboard belongs to the window). <c>null</c> = no clipboard at all, so <see cref="CopyMessageCommand"/> does nothing.
+    /// </summary>
+    public Func<string, Task<bool>>? ClipboardWriter { get; set; }
+
+    /// <summary>How long "Copied" stays on the button.</summary>
+    internal static readonly TimeSpan CopiedFor = TimeSpan.FromSeconds(2);
 
     /// <summary>Elapsed time as <c>HH:MM:SS</c>, shown in Geist Mono.</summary>
     [ObservableProperty]
@@ -113,6 +150,30 @@ public sealed partial class RecordingViewModel : ObservableObject, ILevelSource
 
     public bool IsRecording => State == RecorderState.Recording;
 
+    /// <summary>Paused: the timer stands still, nothing is written.</summary>
+    public bool IsPaused => State == RecorderState.Paused;
+
+    /// <summary>Recording or paused: the session is open (the Tracks card, the pause and stop buttons).</summary>
+    public bool IsRunning => State is RecorderState.Recording or RecorderState.Paused;
+
+    /// <summary>Nothing is recording: the sources and devices can be chosen.</summary>
+    public bool IsSetup => State == RecorderState.Idle;
+
+    /// <summary>"Pause", or "Resume" while paused.</summary>
+    public string PauseLabel => IsPaused ? Strings.Recording_Resume : Strings.Recording_Pause;
+
+    /// <summary>The line under the timer: the auto-save note, or the pause note.</summary>
+    public string TimerNote => IsPaused ? Strings.Recording_PausedNote : Strings.Recording_AutoSaved;
+
+    /// <summary>The label of the screen pill: "Screen · 1080p" when on, "Screen off" when off.</summary>
+    public string ScreenLabel => Screen ? ScreenOnLabel() : Strings.Recording_ScreenOff;
+
+    /// <summary>"Copy message", or "Copied" for a moment after it was copied.</summary>
+    public string CopyLabel => MessageCopied ? Strings.Recording_Copied : Strings.Recording_CopyMessage;
+
+    /// <summary>The pause button works while recording or paused, and not while a pause or resume is still being applied.</summary>
+    public bool CanPauseResume => !_pauseBusy && IsRunning;
+
     /// <summary>Starting or stopping: nothing may be changed.</summary>
     public bool IsBusy => State is RecorderState.Starting or RecorderState.Stopping;
 
@@ -127,7 +188,7 @@ public sealed partial class RecordingViewModel : ObservableObject, ILevelSource
 
     public bool CanGoBack => State == RecorderState.Idle;
 
-    public string StartStopLabel => IsRecording ? Strings.Common_Stop : Strings.Recording_Start;
+    public string StartStopLabel => IsRunning ? Strings.Recording_StopAndTranscribe : Strings.Recording_Start;
 
     public bool HasError => Error is not null;
 
@@ -180,15 +241,20 @@ public sealed partial class RecordingViewModel : ObservableObject, ILevelSource
         TimerText = UiFormat.Duration(TimeSpan.Zero);
         RefreshDevices();
         ApplyDefaults();
+        NewTitle();
     }
 
-    /// <summary>Polls the elapsed time. Called by the view at about 4 Hz while recording.</summary>
+    /// <summary>Polls the elapsed time and the levels. Called by the view at about 4 Hz while recording or paused.</summary>
     public void Refresh()
     {
-        if (State == RecorderState.Recording)
+        if (State is RecorderState.Recording or RecorderState.Paused)
         {
             TimerText = UiFormat.Duration(_recorder.Elapsed);
-            SyncScreenWithRecorder();
+            UpdateTracks();
+            if (State == RecorderState.Recording)
+            {
+                SyncScreenWithRecorder();
+            }
         }
     }
 
@@ -197,7 +263,7 @@ public sealed partial class RecordingViewModel : ObservableObject, ILevelSource
     public async Task StartStopAsync()
     {
         Error = null;
-        if (State == RecorderState.Recording)
+        if (State is RecorderState.Recording or RecorderState.Paused)
         {
             await StopAsync();
         }
@@ -220,12 +286,12 @@ public sealed partial class RecordingViewModel : ObservableObject, ILevelSource
         }
 
         _stopTask = null;
-        if (State != RecorderState.Recording)
+        if (State is not (RecorderState.Recording or RecorderState.Paused))
         {
             return Task.CompletedTask;
         }
 
-        if (_recorder.State != RecorderState.Recording)
+        if (_recorder.State is not (RecorderState.Recording or RecorderState.Paused))
         {
             // The recorder ended the session by itself and its state change has not arrived yet: apply it now (that
             // reports the automatic stop) instead of asking the recorder to stop a session it no longer has.
@@ -249,10 +315,19 @@ public sealed partial class RecordingViewModel : ObservableObject, ILevelSource
         _stopRequested = true;
         try
         {
+            // A rename that is still being written finishes first: the stop must not overtake it.
+            await _renameTask;
             var session = await _recorder.StopAsync(CancellationToken.None);
+            if (_committedTitle.Length > 0)
+            {
+                // The recorder's record still has the title the session started with; the user may have changed it since.
+                session = session with { Title = _committedTitle };
+            }
+
             _sessionId = null;
             ApplyState(_recorder.State);
             TimerText = UiFormat.Duration(TimeSpan.Zero);
+            ResetTracks();
 
             // The session's own text (Error below) carries every warning of the recording.
             ClearNotices();
@@ -289,6 +364,7 @@ public sealed partial class RecordingViewModel : ObservableObject, ILevelSource
         {
             RecorderState.Idle => State == RecorderState.Idle,
             RecorderState.Recording => State == RecorderState.Recording,
+            RecorderState.Paused => State == RecorderState.Paused,
             _ => false,
         };
         if (!settled || !StartStopCommand.CanExecute(null))
@@ -308,9 +384,16 @@ public sealed partial class RecordingViewModel : ObservableObject, ILevelSource
     /// </summary>
     internal Task ToggleScreenFromHotkeyAsync()
     {
-        if (State != RecorderState.Recording || _recorder.State != RecorderState.Recording || !ScreenAvailable || !PendingScreenChange.IsCompleted)
+        if (State is not (RecorderState.Recording or RecorderState.Paused) || _recorder.State != State || !ScreenAvailable || !PendingScreenChange.IsCompleted)
         {
             return Task.CompletedTask;
+        }
+
+        if (State == RecorderState.Paused)
+        {
+            // Paused, nothing records: the pill is what the next resume starts.
+            Screen = !Screen;
+            return PendingScreenChange;
         }
 
         SyncScreenWithRecorder();
@@ -318,12 +401,178 @@ public sealed partial class RecordingViewModel : ObservableObject, ILevelSource
         return PendingScreenChange;
     }
 
+    /// <summary>
+    /// The pause hotkey: pauses a recording or resumes a paused one, exactly like the pause button. Ignored when nothing is
+    /// recording, while the recorder is starting or stopping, and while an earlier pause or resume is still being applied.
+    /// Completes when the change has.
+    /// </summary>
+    internal Task TogglePauseFromHotkeyAsync()
+    {
+        var settled = _recorder.State switch
+        {
+            RecorderState.Recording => State == RecorderState.Recording,
+            RecorderState.Paused => State == RecorderState.Paused,
+            _ => false,
+        };
+        return settled && PauseResumeCommand.CanExecute(null) ? PauseResumeCommand.ExecuteAsync(null) : Task.CompletedTask;
+    }
+
+    /// <summary>Pauses the recording, or resumes it when it is paused.</summary>
+    [RelayCommand(CanExecute = nameof(CanPauseResume))]
+    public async Task PauseResumeAsync()
+    {
+        if (_pauseBusy)
+        {
+            return;
+        }
+
+        var resuming = State == RecorderState.Paused;
+        SetPauseBusy(true);
+        try
+        {
+            if (resuming)
+            {
+                await _recorder.ResumeAsync(CancellationToken.None);
+            }
+            else
+            {
+                await _recorder.PauseAsync(CancellationToken.None);
+            }
+        }
+        catch (Exception ex)
+        {
+            Error = UiText.Format(resuming ? Strings.Recording_ResumeFailed : Strings.Recording_PauseFailed, ex.Message);
+        }
+        finally
+        {
+            ApplyState(_recorder.State);
+            SetPauseBusy(false);
+        }
+    }
+
+    private void SetPauseBusy(bool busy)
+    {
+        _pauseBusy = busy;
+        OnPropertyChanged(nameof(CanPauseResume));
+        PauseResumeCommand.NotifyCanExecuteChanged();
+    }
+
+    /// <summary>
+    /// Takes what the title field says: while recording it renames the session (Enter or leaving the field); before the
+    /// recording starts it is the title the recording will get. An empty text goes back to the title it had. Completes when
+    /// the rename has been stored.
+    /// </summary>
+    public Task CommitTitleAsync()
+    {
+        var text = Title.Trim();
+        if (text.Length == 0 || text == _committedTitle)
+        {
+            Title = _committedTitle;
+            return Task.CompletedTask;
+        }
+
+        if (State == RecorderState.Idle)
+        {
+            _committedTitle = text;
+            _titleEdited = true;
+            Title = text;
+            return Task.CompletedTask;
+        }
+
+        // Only a running (or paused) session can be renamed: not one that is starting or stopping (the stop has the last word).
+        if (State is not (RecorderState.Recording or RecorderState.Paused) || _stopRequested || _sessionId is not { } id)
+        {
+            Title = _committedTitle;
+            return Task.CompletedTask;
+        }
+
+        var previous = _renameTask;
+        _renameTask = RenameAfterAsync(previous, id, text);
+        return _renameTask;
+    }
+
+    private async Task RenameAfterAsync(Task previous, SessionId id, string title)
+    {
+        await previous;
+        await RenameAsync(id, title);
+    }
+
+    /// <summary>Esc in the title field: back to the title it had.</summary>
+    public void CancelTitle() => Title = _committedTitle;
+
+    private async Task RenameAsync(SessionId id, string title)
+    {
+        try
+        {
+            // Only the title column is written: the recorder and the transcription pipeline own the rest of the row.
+            await _store.RenameSessionAsync(id, title, CancellationToken.None);
+            if (_sessionId == id)
+            {
+                _committedTitle = title;
+                Title = title;
+            }
+        }
+        catch (Exception ex)
+        {
+            // A late answer for a session that is over (or another one) is not this screen's business any more.
+            if (_sessionId == id)
+            {
+                Error = UiText.Format(Strings.Recording_RenameFailed, ex.Message);
+                Title = _committedTitle;
+            }
+        }
+    }
+
+    /// <summary>Copies the notice for the other people on the call to the clipboard; the button reads "Copied" for two seconds.</summary>
+    [RelayCommand]
+    public async Task CopyMessageAsync()
+    {
+        if (ClipboardWriter is not { } write)
+        {
+            return;
+        }
+
+        try
+        {
+            if (!await write(Strings.Recording_MessageToCopy))
+            {
+                Error = UiText.Format(Strings.Recording_CopyFailed, Strings.Recording_ClipboardUnavailable);
+                return;
+            }
+        }
+        catch (Exception ex)
+        {
+            Error = UiText.Format(Strings.Recording_CopyFailed, ex.Message);
+            return;
+        }
+
+        Error = null;
+
+        MessageCopied = true;
+        _copiedReset?.Cancel();
+        _copiedReset = new CancellationTokenSource();
+        _ = ResetCopiedAsync(_copiedReset.Token);
+    }
+
+    private async Task ResetCopiedAsync(CancellationToken token)
+    {
+        try
+        {
+            await Task.Delay(CopiedFor, _time, token);
+            _post(() => MessageCopied = false);
+        }
+        catch (OperationCanceledException)
+        {
+            // Pressed again: the newer timer owns the label.
+        }
+    }
+
     [RelayCommand(CanExecute = nameof(CanGoBack))]
     private void Back() => BackRequested?.Invoke();
 
     private bool CanStartStop() => State switch
     {
-        RecorderState.Recording => true,
+        RecorderState.Recording or RecorderState.Paused => true,
         RecorderState.Idle => (Microphone && MicrophoneAvailable) || (SystemAudio && SystemAudioAvailable),
         _ => false,
     };
@@ -337,7 +586,11 @@ public sealed partial class RecordingViewModel : ObservableObject, ILevelSource
             MicrophoneDeviceId: SelectedMicrophone is { IsDefault: false } mic ? mic.Id : null,
             SystemDeviceId: SelectedSystemDevice is { IsDefault: false } output ? output.Id : null,
             DisplayId: SavedDisplayId(),
-            Title: UiFormat.DefaultTitle(_time.GetLocalNow(), _time));
+            Title: _titleEdited ? _committedTitle : UiFormat.DefaultTitle(_time.GetLocalNow(), _time));
+        _microphoneRequested = options.Microphone;
+        _systemAudioRequested = options.SystemAudio;
+        _microphoneName = SelectedMicrophone?.Name ?? string.Empty;
+        _systemAudioName = SelectedSystemDevice?.Name ?? string.Empty;
 
         try
         {
@@ -345,7 +598,12 @@ public sealed partial class RecordingViewModel : ObservableObject, ILevelSource
             ClearNotices();
             var session = await _recorder.StartAsync(options, CancellationToken.None);
             _sessionId = session.Id;
+            _committedTitle = session.Title;
+            _titleEdited = false;
+            Title = session.Title;
             TimerText = UiFormat.Duration(TimeSpan.Zero);
+            ResetTracks();
+            UpdateTracks();
 
             // The recorder skipped a track it could not start (e.g. Windows denies the microphone): say so inline.
             if (SessionNoteText.Describe(session.Error) is { Length: > 0 } warning)
@@ -482,7 +740,7 @@ public sealed partial class RecordingViewModel : ObservableObject, ILevelSource
     private void ApplyWarning(RecorderWarning warning)
     {
         // A warning that arrives after the recording has ended belongs to the session text, not to a notice.
-        if (_recorder.State is not (RecorderState.Starting or RecorderState.Recording))
+        if (_recorder.State is not (RecorderState.Starting or RecorderState.Recording or RecorderState.Paused))
         {
             return;
         }
@@ -536,7 +794,7 @@ public sealed partial class RecordingViewModel : ObservableObject, ILevelSource
 
     private void ApplyState(RecorderState state)
     {
-        var wasActive = State is RecorderState.Recording or RecorderState.Stopping;
+        var wasActive = State is RecorderState.Recording or RecorderState.Paused or RecorderState.Stopping;
         if (State != state)
         {
             State = state;
@@ -547,6 +805,11 @@ public sealed partial class RecordingViewModel : ObservableObject, ILevelSource
             // The recorder stopped on its own (every audio source failed). Tell the user why - but only for the session this
             // screen started: a recording another screen runs (the onboarding's trial) ends in its own way.
             AutoStopReport = ReportAutoStopAsync();
+        }
+
+        if (state == RecorderState.Idle)
+        {
+            ResetTracks();
         }
     }
 
@@ -568,13 +831,19 @@ public sealed partial class RecordingViewModel : ObservableObject, ILevelSource
         _sessionId = null;
         Error = reason;
         TimerText = UiFormat.Duration(TimeSpan.Zero);
+        ResetTracks();
     }
 
     partial void OnStateChanged(RecorderState value)
     {
         NotifyStateDependents();
         StartStopCommand.NotifyCanExecuteChanged();
+        PauseResumeCommand.NotifyCanExecuteChanged();
         BackCommand.NotifyCanExecuteChanged();
+        if (value is RecorderState.Recording or RecorderState.Paused)
+        {
+            UpdateTracks();
+        }
     }
 
     partial void OnShowOrbChanged(bool value) => OnPropertyChanged(nameof(OrbActive));
@@ -591,9 +860,12 @@ public sealed partial class RecordingViewModel : ObservableObject, ILevelSource
 
     partial void OnNoticeChanged(string? value) => OnPropertyChanged(nameof(HasNotice));
 
+    partial void OnMessageCopiedChanged(bool value) => OnPropertyChanged(nameof(CopyLabel));
+
     partial void OnScreenChanged(bool value)
     {
-        if (_suppressScreenChange || State != RecorderState.Recording)
+        OnPropertyChanged(nameof(ScreenLabel));
+        if (_suppressScreenChange || State is not (RecorderState.Recording or RecorderState.Paused))
         {
             return;
         }
@@ -622,6 +894,126 @@ public sealed partial class RecordingViewModel : ObservableObject, ILevelSource
         }
     }
 
+    /// <summary>The title of the next recording: "Untitled — Oct 18, 01:12" until the user types one.</summary>
+    private void NewTitle()
+    {
+        if (State != RecorderState.Idle)
+        {
+            return;
+        }
+
+        _committedTitle = UiFormat.DefaultTitle(_time.GetLocalNow(), _time);
+        _titleEdited = false;
+        Title = _committedTitle;
+    }
+
+    /// <summary>"Screen · 1080p": the height of what the video holds (the display, scaled down to the encoder's limit).</summary>
+    private string ScreenOnLabel()
+    {
+        var options = new ScreenCaptureOptions();
+        var id = SavedDisplayId();
+        DisplayInfo? display = null;
+        if (ScreenAvailable)
+        {
+            foreach (var candidate in _capture.GetDisplays())
+            {
+                if (id is not null ? candidate.Id == id : candidate.IsPrimary)
+                {
+                    display = candidate;
+                    break;
+                }
+            }
+        }
+
+        return display is { Height: > 0 } shown
+            ? UiText.Format(Strings.Recording_ScreenOn, Math.Min(shown.Height, options.MaxHeight).ToString(System.Globalization.CultureInfo.InvariantCulture))
+            : Strings.Common_Screen;
+    }
+
+    /// <summary>Shows what each track does now: its level while recording, the state word otherwise. The strip moves only while recording.</summary>
+    private void UpdateTracks()
+    {
+        if (State is not (RecorderState.Recording or RecorderState.Paused))
+        {
+            return;
+        }
+
+        var session = _recorder.Current;
+        var levels = _recorder.Levels;
+        var paused = State == RecorderState.Paused;
+        var micRequested = session is null ? _microphoneRequested : _microphoneRequested || session.HasMicrophone;
+        var systemRequested = session is null ? _systemAudioRequested : _systemAudioRequested || session.HasSystemAudio;
+
+        MicrophoneTrack.Apply(
+            TrackState(micRequested, session?.HasMicrophone ?? micRequested, paused, SessionNotes.MicrophoneDenied, session?.Error),
+            levels.Microphone,
+            TrackDetail(MicrophoneTrack, _microphoneName, loopback: false, SessionNotes.MicrophoneDenied, session?.Error),
+            push: !paused);
+        SystemTrack.Apply(
+            TrackState(systemRequested, session?.HasSystemAudio ?? systemRequested, paused, SessionNotes.SystemAudioDenied, session?.Error),
+            levels.SystemAudio,
+            TrackDetail(SystemTrack, _systemAudioName, loopback: true, SessionNotes.SystemAudioDenied, session?.Error),
+            push: !paused);
+    }
+
+    private static RecordingTrackState TrackState(bool requested, bool recorded, bool paused, string deniedCode, string? sessionError)
+    {
+        if (!requested)
+        {
+            return RecordingTrackState.Off;
+        }
+
+        if (!recorded)
+        {
+            return HasCode(sessionError, deniedCode) ? RecordingTrackState.Denied : RecordingTrackState.Unavailable;
+        }
+
+        return paused ? RecordingTrackState.Paused : RecordingTrackState.Active;
+    }
+
+    private string TrackDetail(RecordingTrackViewModel track, string device, bool loopback, string deniedCode, string? sessionError)
+    {
+        var requested = track.IsMicrophone ? _microphoneRequested : _systemAudioRequested;
+        var recorded = track.IsMicrophone ? _recorder.Current?.HasMicrophone ?? requested : _recorder.Current?.HasSystemAudio ?? requested;
+        if (!requested)
+        {
+            return Strings.Recording_TrackOffDetail;
+        }
+
+        if (!recorded)
+        {
+            return HasCode(sessionError, deniedCode)
+                ? (track.IsMicrophone ? Strings.Note_MicDenied : Strings.Note_SystemDenied)
+                : Strings.Recording_TrackLostDetail;
+        }
+
+        if (string.IsNullOrEmpty(device))
+        {
+            return string.Empty;
+        }
+
+        return loopback ? UiText.Format(Strings.Recording_Loopback, device) : device;
+    }
+
+    private static bool HasCode(string? sessionError, string code)
+    {
+        foreach (var note in SessionNotes.Parse(sessionError))
+        {
+            if (note.Code == code)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private void ResetTracks()
+    {
+        MicrophoneTrack.Reset();
+        SystemTrack.Reset();
+    }
+
     private void OnSourceChoiceChanged()
     {
         OnPropertyChanged(nameof(SourceHint));
@@ -632,6 +1024,12 @@ public sealed partial class RecordingViewModel : ObservableObject, ILevelSource
     private void NotifyStateDependents()
     {
         OnPropertyChanged(nameof(IsRecording));
+        OnPropertyChanged(nameof(IsPaused));
+        OnPropertyChanged(nameof(IsRunning));
+        OnPropertyChanged(nameof(IsSetup));
+        OnPropertyChanged(nameof(PauseLabel));
+        OnPropertyChanged(nameof(TimerNote));
+        OnPropertyChanged(nameof(CanPauseResume));
         OnPropertyChanged(nameof(OrbActive));
         OnPropertyChanged(nameof(IsBusy));
         OnPropertyChanged(nameof(CanToggleMicrophone));

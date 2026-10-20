@@ -7,7 +7,19 @@ public interface ISessionStore
     /// <summary>Creates the session row and its folder.</summary>
     ValueTask<SessionRecord> CreateSessionAsync(string title, DateTimeOffset startedAt, CancellationToken cancellationToken);
 
+    /// <summary>
+    /// Writes every column of the row except the title (the title is the user's: <see cref="RenameSessionAsync"/> is the only way
+    /// to change it, so a writer holding an older copy of the record — the recorder, the transcription pipeline — can never put an
+    /// old title back). A session that does not exist throws <see cref="KeyNotFoundException"/>.
+    /// </summary>
     ValueTask UpdateSessionAsync(SessionRecord session, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Changes the title of a session and nothing else (<c>UPDATE sessions SET title = $title WHERE id = $id</c>), so it cannot
+    /// roll back the state, duration or warnings that another writer stored meanwhile. A session that does not exist throws
+    /// <see cref="KeyNotFoundException"/>.
+    /// </summary>
+    ValueTask RenameSessionAsync(SessionId id, string title, CancellationToken cancellationToken);
 
     ValueTask<SessionRecord?> GetSessionAsync(SessionId id, CancellationToken cancellationToken);
 

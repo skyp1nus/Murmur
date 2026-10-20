@@ -586,8 +586,27 @@ public sealed class SettingsViewModelTests : IDisposable
         var rig = new Rig();
         var rows = rig.Vm.Hotkeys.Rows;
 
-        Assert.Equal(["Ctrl Shift R", "Ctrl Shift S", "Ctrl Shift M"], rows.Select(r => r.DisplayText));
-        Assert.Equal([HotkeyAction.ToggleRecording, HotkeyAction.ToggleScreen, HotkeyAction.ShowApp], rows.Select(r => r.Action));
+        Assert.Equal(["Ctrl Shift R", "Ctrl Shift S", "Ctrl Shift M", "Ctrl Shift P"], rows.Select(r => r.DisplayText));
+        Assert.Equal([HotkeyAction.ToggleRecording, HotkeyAction.ToggleScreen, HotkeyAction.ShowApp, HotkeyAction.TogglePause], rows.Select(r => r.Action));
+    }
+
+    [Fact]
+    public async Task Hotkeys_ThePauseRow_SavesItsOwnSetting_AndRefusesAGestureAnotherRowHas()
+    {
+        var rig = new Rig();
+        var hotkeys = rig.Vm.Hotkeys;
+        var row = hotkeys.Rows.Single(r => r.Action == HotkeyAction.TogglePause);
+
+        row.CaptureCommand.Execute(null);
+        hotkeys.HandleKey(Avalonia.Input.Key.F9, Avalonia.Input.KeyModifiers.Control | Avalonia.Input.KeyModifiers.Alt);
+        await hotkeys.LastSave;
+        Assert.Equal("Ctrl+Alt+F9", rig.Store.Current.PauseHotkey);
+        Assert.Equal("Ctrl+Shift+R", rig.Store.Current.RecordHotkey);
+
+        row.CaptureCommand.Execute(null);
+        hotkeys.HandleKey(Avalonia.Input.Key.R, Avalonia.Input.KeyModifiers.Control | Avalonia.Input.KeyModifiers.Shift);
+        Assert.Equal("Ctrl+Alt+F9", rig.Store.Current.PauseHotkey);
+        Assert.NotNull(row.Error);
     }
 
     [Fact]

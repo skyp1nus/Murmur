@@ -78,6 +78,24 @@ internal static class DesignDemoData
     /// <summary>Peak levels of the two tracks: −18 dB and −24 dB.</summary>
     public static (float Microphone, float SystemAudio) RecordingLevels { get; } = (DbToPeak(-18), DbToPeak(-24));
 
+    /// <summary>
+    /// The 26 ink bars of a track of the canvas (<c>bars(seed, level)</c> of Recording.dc.html: heights 4..32 px of a sine mix), as
+    /// linear peaks the level history takes; the canvas draws them from a formula, the board ignores the strip, the demo only keeps it from being flat.
+    /// </summary>
+    public static IReadOnlyList<float> RecordingBars(double seed, double level)
+    {
+        var peaks = new List<float>();
+        for (var i = 0; i < 26; i++)
+        {
+            var v = Math.Abs((Math.Sin((i * 0.9) + seed) * 0.6) + (Math.Sin((i * 2.3) + (seed * 2)) * 0.4));
+            var height = Math.Max(4, Math.Round(v * 32 * level));
+            var normalized = Math.Clamp((height - 4) / 28, 0, 1);
+            peaks.Add((float)Math.Pow(10, ((normalized * 60) - 60) / 20));
+        }
+
+        return peaks;
+    }
+
     // ---- Session --------------------------------------------------------------------------------------------------------
 
     public static string SessionTitle => Recordings[0].Title;
@@ -189,10 +207,10 @@ internal static class DesignDemoData
     [
         ("Ask AI", "Sidebar 'Chats' list: provided by the chat screen through SidebarViewModel.SetChats (the harness fills it with the canvas chats until p41-chat does)"),
         ("Library", "The two visually hidden form labels of the canvas ('Question for your library', 'Search recordings') are accessibility names in the app, not text; the language of a recording that is still transcribing comes from a transcript Core only stores when it is done"),
-        ("Recording", "Editable title field ('Untitled — Oct 18, 01:12'), Pause, per-track cards with dB values and device names, 'Let people know' card with Copy message, the breadcrumb"),
+        ("Recording", "The strip of the Tracks bars is drawn from live levels, the canvas draws it from a formula (ignored rectangles); the 'future' bars are light stubs, not a formula"),
         ("Session", "Summary tab content (Overview, Decisions, Action items), transcript search with the 'timestamps' hit, the video frame, Export menu, speaker avatars, the 1x speed and You/Others mute buttons"),
         ("Chat", "Scope chips (Whole library / Client demo), model badge ('Gemma 4 E4B · local'), inline timestamp chips inside the answer text, Sources cards with quotes, copy/retry actions, the chats list"),
-        ("Settings", "Pause hotkey row, Acceleration segmented control (CPU / DirectML / CUDA), screen-recording format line, [VERSION] and [LICENSE] placeholders, the Appearance section exists in the app but not on the canvas"),
+        ("Settings", "Acceleration segmented control (CPU / DirectML / CUDA), screen-recording format line, [VERSION] and [LICENSE] placeholders, the Appearance section exists in the app but not on the canvas"),
         ("Onboarding", "Placeholders [X.X] GB, [XX] GB and [N] GB free are replaced by the real sizes"),
     ];
 

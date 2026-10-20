@@ -136,7 +136,11 @@ internal static class DesignBoards
                 [
                     new IgnoreRect(1100, 173, 276, 36, "Recording: microphone " + WaveformReason),
                     new IgnoreRect(1100, 301, 276, 36, "Recording: system audio " + WaveformReason),
-                ]));
+                ],
+                // Set at integration with the shell frame: reached 0.77 % / 0.94 % shape, every text found, 1 geometry error.
+                MaxShapeMismatchPercent: dark ? 1.2 : 1.0,
+                MinTextMatchedPercent: 100,
+                MaxTextGeometryErrors: 1));
             boards.Add(new(
                 "Session" + suffix,
                 BoardScreen.Session,

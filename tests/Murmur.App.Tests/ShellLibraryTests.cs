@@ -789,9 +789,11 @@ public sealed class ShellLibraryTests
 
         Assert.False(rig.Shell.PageUsesFrameInset);
         rig.Shell.ShowRecording();
-        Assert.True(rig.Shell.PageUsesFrameInset);
+        Assert.False(rig.Shell.PageUsesFrameInset);
+        rig.Shell.ShowSettings();
+        Assert.True(rig.Shell.PageUsesFrameInset); // not restyled yet (p41-settings)
         Assert.IsAssignableFrom<IFillsFrame>(rig.Library);
-        Assert.False(typeof(IFillsFrame).IsAssignableFrom(typeof(RecordingViewModel)));
+        Assert.True(typeof(IFillsFrame).IsAssignableFrom(typeof(RecordingViewModel)));
     }
 
     [Fact]

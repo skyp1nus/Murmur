@@ -103,6 +103,38 @@ public sealed class WindowsGlobalHotkeysTests
 
     [Fact]
     [Trait("Category", "Windows")]
+    public void TogglePause_RegistersLikeTheOtherActions_AndRaisesItsOwnAction()
+    {
+        Assert.SkipUnless(OperatingSystem.IsWindows(), WindowsOnly);
+        using var hotkeys = new WindowsGlobalHotkeys();
+        var gesture = Gesture.Next();
+        var pressedActions = new List<HotkeyAction>();
+        using var pressed = new ManualResetEventSlim(false);
+        hotkeys.Pressed += action =>
+        {
+            lock (pressedActions)
+            {
+                pressedActions.Add(action);
+            }
+
+            pressed.Set();
+        };
+
+        Assert.Equal(HotkeyRegistration.Registered, hotkeys.Register(HotkeyAction.TogglePause, gesture));
+        Assert.Equal(HotkeyRegistration.Taken, hotkeys.Register(HotkeyAction.ShowApp, gesture));
+
+        PressOrSkip(gesture, pressed);
+
+        lock (pressedActions)
+        {
+            Assert.Equal([HotkeyAction.TogglePause], pressedActions);
+        }
+
+        Assert.Equal(HotkeyRegistration.Cleared, hotkeys.Register(HotkeyAction.TogglePause, null));
+    }
+
+    [Fact]
+    [Trait("Category", "Windows")]
     public void SameGesture_FromAnotherInstance_IsTaken_WithWin32Error1409()
     {
         Assert.SkipUnless(OperatingSystem.IsWindows(), WindowsOnly);

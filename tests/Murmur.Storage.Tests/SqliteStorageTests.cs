@@ -84,7 +84,6 @@ public sealed class SqliteStorageTests : IDisposable
         var created = await storage.CreateSessionAsync("Draft", T0, Ct);
         var updated = created with
         {
-            Title = "Quarterly review",
             Duration = TimeSpan.FromMilliseconds(3_723_456),
             State = SessionState.Failed,
             HasMicrophone = true,
@@ -102,7 +101,7 @@ public sealed class SqliteStorageTests : IDisposable
 
         Assert.NotNull(read);
         Assert.Equal(updated.Id, read.Id);
-        Assert.Equal(updated.Title, read.Title);
+        Assert.Equal("Draft", read.Title); // the title is changed by RenameSessionAsync only
         Assert.Equal(updated.StartedAt, read.StartedAt);
         Assert.Equal(updated.Duration, read.Duration);
         Assert.Equal(updated.State, read.State);
@@ -110,6 +109,79 @@ public sealed class SqliteStorageTests : IDisposable
         Assert.True(read.HasSystemAudio);
         Assert.Equal(updated.ScreenSegments, read.ScreenSegments);
         Assert.Equal(updated.Error, read.Error);
+    }
+
+    [Fact]
+    public async Task Update_NeverChangesTheTitle_SoAnOldCopyOfTheRecordCannotPutAnOldTitleBack()
+    {
+        var storage = Open();
+        var created = await storage.CreateSessionAsync("Draft", T0, Ct);
+        await storage.RenameSessionAsync(created.Id, "Chosen by the user", Ct);
+
+        await storage.UpdateSessionAsync(created with { Title = "Draft", State = SessionState.Recorded, Duration = TimeSpan.FromSeconds(9) }, Ct);
+
+        var read = await storage.GetSessionAsync(created.Id, Ct);
+        Assert.Equal("Chosen by the user", read!.Title);
+        Assert.Equal(SessionState.Recorded, read.State);
+        Assert.Equal(TimeSpan.FromSeconds(9), read.Duration);
+    }
+
+    [Fact]
+    public async Task Rename_ChangesTheTitleOnly()
+    {
+        var storage = Open();
+        var created = await storage.CreateSessionAsync("Draft", T0, Ct);
+        var full = created with
+        {
+            Duration = TimeSpan.FromSeconds(5),
+            State = SessionState.Recorded,
+            HasMicrophone = true,
+            Error = "rec.mic.denied",
+            ScreenSegments = [new ScreenSegment(0, TimeSpan.Zero, TimeSpan.FromSeconds(3))],
+        };
+        await storage.UpdateSessionAsync(full, Ct);
+
+        await storage.RenameSessionAsync(created.Id, "Új név — “quoted”", Ct);
+
+        var read = await storage.GetSessionAsync(created.Id, Ct);
+        Assert.Equal("Új név — “quoted”", read!.Title);
+        Assert.Equal(full.StartedAt, read.StartedAt);
+        Assert.Equal(full.Duration, read.Duration);
+        Assert.Equal(full.State, read.State);
+        Assert.True(read.HasMicrophone);
+        Assert.Equal(full.Error, read.Error);
+        Assert.Equal(full.ScreenSegments, read.ScreenSegments);
+    }
+
+    [Fact]
+    public async Task Rename_UnknownSession_Throws()
+    {
+        var storage = Open();
+
+        await Assert.ThrowsAsync<KeyNotFoundException>(async () => await storage.RenameSessionAsync(SessionId.New(), "x", Ct));
+    }
+
+    [Fact]
+    public async Task Rename_RacingWithUpdates_NeverRollsBackTheRestOfTheRow()
+    {
+        var storage = Open();
+        var created = await storage.CreateSessionAsync("Draft", T0, Ct);
+
+        await Task.WhenAll(Enumerable.Range(0, 40).Select(i => Task.Run(async () =>
+        {
+            if (i % 2 == 0)
+            {
+                await storage.RenameSessionAsync(created.Id, "title " + i, Ct);
+            }
+            else
+            {
+                await storage.UpdateSessionAsync(created with { State = SessionState.Recorded, Duration = TimeSpan.FromSeconds(i) }, Ct);
+            }
+        }, Ct)));
+
+        var read = await storage.GetSessionAsync(created.Id, Ct);
+        Assert.StartsWith("title ", read!.Title, StringComparison.Ordinal);
+        Assert.Equal(SessionState.Recorded, read.State);
     }
 
     [Fact]

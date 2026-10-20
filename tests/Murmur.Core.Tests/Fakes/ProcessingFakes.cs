@@ -170,7 +170,17 @@ internal sealed class FakeRecorder : IRecorder
 
     public ValueTask SetScreenEnabledAsync(bool enabled, CancellationToken cancellationToken) => throw new NotSupportedException();
 
+    public ValueTask PauseAsync(CancellationToken cancellationToken) => throw new NotSupportedException();
+
+    public ValueTask ResumeAsync(CancellationToken cancellationToken) => throw new NotSupportedException();
+
     public ValueTask<SessionRecord> StopAsync(CancellationToken cancellationToken) => throw new NotSupportedException();
+
+    /// <summary>Raises Recording -&gt; Paused, like a pause of the real recorder.</summary>
+    public void Pause() => Set(RecorderState.Paused);
+
+    /// <summary>Raises Paused -&gt; Recording.</summary>
+    public void Resume() => Set(RecorderState.Recording);
 
     private void Set(RecorderState state)
     {

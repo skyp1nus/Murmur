@@ -1,3 +1,4 @@
+using Avalonia;
 using Avalonia.VisualTree;
 using Murmur.App.Controls;
 using Avalonia.Headless;
@@ -63,7 +64,7 @@ public sealed class ScreenshotTests
             () =>
             {
                 var window = UiHarness.Show(shell);
-                UiHarness.BreatheOrb(window.GetVisualDescendants().OfType<OrbControl>().Single());
+                UiHarness.BreatheOrb(window.GetVisualDescendants().OfType<GlassOrbControl>().Single());
                 UiHarness.Pump();
                 UiHarness.Save(window, Path("phase1-recording-active.png"));
                 window.Close();
@@ -75,7 +76,8 @@ public sealed class ScreenshotTests
 
     /// <summary>
     /// The orb's own timer runs on real time and may tick while a slow (first) window is being shown. Whatever it did
-    /// before, the committed screenshot must come out the same, or every test run rewrites the tracked file.
+    /// before, the committed screenshot must come out the same, or every test run rewrites the tracked file. Nothing is left out:
+    /// every pixel of the page must be identical.
     /// </summary>
     [Fact]
     public async Task RecordingActive_RendersTheSameFrame_WhateverTheOrbTimerDidBefore()
@@ -115,8 +117,9 @@ public sealed class ScreenshotTests
     /// </summary>
     private static byte[] RenderActive(int strayTicks)
     {
-        var window = UiHarness.Show(ActiveShell());
-        var orb = window.GetVisualDescendants().OfType<OrbControl>().Single();
+        var shell = ActiveShell();
+        var window = UiHarness.Show(shell);
+        var orb = window.GetVisualDescendants().OfType<GlassOrbControl>().Single();
         for (var i = 0; i < strayTicks; i++)
         {
             Thread.Sleep(70 + (i * 13));
@@ -125,11 +128,29 @@ public sealed class ScreenshotTests
 
         if (strayTicks > 0)
         {
-            Assert.True(orb.SmoothedLevel > 0, "The stray ticks should have started the animation.");
+            Assert.True(orb.AppliedFrames > 1, "The stray ticks should have started the animation.");
         }
 
         UiHarness.BreatheOrb(orb);
-        UiHarness.Pump();
+
+        // The compositor caches the blurred halo at the scale it was last drawn at; whatever the stray ticks left behind is
+        // thrown away by drawing both layers of the orb afresh.
+        foreach (var layer in orb.Children)
+        {
+            layer.InvalidateVisual();
+        }
+
+        // The page polls the levels on its own timer, and every poll moves the level strips on by one sample: fill them with the
+        // levels the recorder reports (ActiveShell), so a poll that ran (or not) while the window was shown leaves the frame as it was.
+        foreach (var (track, level) in new[] { (shell.Recording.MicrophoneTrack, 0.45f), (shell.Recording.SystemTrack, 0.7f) })
+        {
+            for (var i = 0; i < Murmur.App.Controls.LevelHistory.PastCount; i++)
+            {
+                track.History.Push(level);
+            }
+        }
+
+        UiHarness.Pump(8);
         var pixels = UiHarness.Pixels(window);
         window.Close();
         return pixels;
