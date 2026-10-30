@@ -104,6 +104,21 @@ internal static unsafe class IMFMediaEngine
         ((delegate* unmanaged[MemberFunction]<nint, long*, int>)ComCall.Vtbl(self)[44])(self, pts);
 }
 
+/// <summary>
+/// mfmediaengine.h IMFMediaEngineEx (IMFMediaEngine 3..44 + own methods), IID 83015EAD-B1E6-40D0-A98A-37145FFE1AD1; reached
+/// with QueryInterface on the engine. Diagnostic use only (seek recovery).
+/// </summary>
+internal static unsafe class IMFMediaEngineEx
+{
+    // [51] HRESULT FrameStep(BOOL Forward)
+    public static int FrameStep(nint self, int forward) =>
+        ((delegate* unmanaged[MemberFunction]<nint, int, int>)ComCall.Vtbl(self)[51])(self, forward);
+
+    // [80] HRESULT SetCurrentTimeEx(double seekTime, MF_MEDIA_ENGINE_SEEK_MODE seekMode)
+    public static int SetCurrentTimeEx(nint self, double seconds, int mode) =>
+        ((delegate* unmanaged[MemberFunction]<nint, double, int, int>)ComCall.Vtbl(self)[80])(self, seconds, mode);
+}
+
 /// <summary>mfmediaengine.h IMFMediaError (IUnknown-based), IID FC0E10D2-AB2A-4501-A951-06BB1075184C.</summary>
 internal static unsafe class IMFMediaError
 {

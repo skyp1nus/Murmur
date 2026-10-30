@@ -291,45 +291,76 @@ internal struct SeekQueue
     }
 }
 
-/// <summary>What <see cref="SeekRecovery"/> asks the player to do.</summary>
+/// <summary>What <see cref="SeekRecovery"/> asks the player to do (the cures are tried in this order).</summary>
 internal enum SeekRecoveryStep
 {
     /// <summary>Nothing (yet).</summary>
-    None,
+    None = 0,
 
     /// <summary>Copy the presented frame once more although the engine reports no new one.</summary>
-    Retransfer,
+    Retransfer = 1,
 
     /// <summary>Send the seek to the same target again (through the seek queue).</summary>
-    Reseek,
+    Reseek = 2,
+
+    /// <summary>Seek 1 ms before the target.</summary>
+    ReseekNudged = 3,
+
+    /// <summary>Seek clearly away from the target (the frame there is only a detour).</summary>
+    SeekAway = 4,
+
+    /// <summary>Seek to the target again after <see cref="SeekAway"/>.</summary>
+    SeekBack = 5,
+
+    /// <summary>IMFMediaEngineEx::SetCurrentTimeEx(target, NORMAL).</summary>
+    SeekExNormal = 6,
+
+    /// <summary>IMFMediaEngineEx::SetCurrentTimeEx(target, APPROXIMATE).</summary>
+    SeekExApproximate = 7,
+
+    /// <summary>IMFMediaEngineEx::FrameStep(forward).</summary>
+    FrameStep = 8,
+
+    /// <summary>Seek to the target again after <see cref="FrameStep"/>.</summary>
+    FrameStepBack = 9,
+
+    /// <summary>Play() immediately followed by Pause().</summary>
+    PlayPause = 10,
 }
 
 /// <summary>
-/// Self-recovery for a rare Media Engine race (D-035): after a very fast seek while paused, SEEKED arrives (~5 ms) but the
-/// presented frame is still the old one and OnVideoStreamTick never reports a new time stamp, so the old picture stays up.
-/// Armed by every seek request; frames presented while a seek is in flight or queued belong to older targets and only move
-/// the baseline, so only a time stamp that is new after the queue went idle disarms it. When the queue has been idle for
-/// <see cref="Delay"/> without one, and the engine is settled (paused, not seeking, has data), it asks for up to
-/// <see cref="MaxAttempts"/> steps: first a forced re-copy of the presented frame (no side effects), then the seek again
-/// (the last one nudged by 1 ms, in case the engine ignores a seek to the time it is already at). When the target lies
-/// inside the frame that is shown (a seek within the frame, Seek(0) on frame 0) only the re-copy is taken. Pure; one per
-/// player, UI thread; allocation-free.
+/// Self-recovery for a rare Media Engine race (D-035): after a seek while paused, SEEKED arrives (~5 ms), currentTime is the
+/// target, but the presented frame is still the old one and OnVideoStreamTick never reports another time stamp, so the old
+/// picture stays up. Armed by every seek request. The seek worked as soon as the presented frame is the target's (it starts
+/// at or before the target, no more than one frame period before it; whenever it arrived) or, after the queue went idle,
+/// another time stamp than before was presented. Frames presented while a seek is in flight or queued belong to older
+/// targets and only move the baseline. When the queue has been idle for <see cref="Delay"/> without success and the engine is
+/// settled (paused, not seeking, has data), it asks for the next of <see cref="MaxAttempts"/> cures, one per wait, in the
+/// order of <see cref="SeekRecoveryStep"/> (this ladder is diagnostic: which one un-sticks the engine is read from
+/// <see cref="TakeHealedBy"/> in the CI log). Pure; one per player, UI thread; allocation-free.
 /// </summary>
 internal struct SeekRecovery
 {
-    /// <summary>Steps taken per seek target at most: one <see cref="SeekRecoveryStep.Retransfer"/>, then re-seeks.</summary>
-    public const int MaxAttempts = 3;
+    /// <summary>Cures tried per seek target at most (the steps from <see cref="SeekRecoveryStep.Retransfer"/> to <see cref="SeekRecoveryStep.PlayPause"/>).</summary>
+    public const int MaxAttempts = 10;
 
     /// <summary>Checks that found the engine not settled (playing, seeking, no data) before the recovery gives up.</summary>
     public const int MaxUnsettled = 10;
 
+    /// <summary>Length (100 ns) of the frame assumed while the frame period is unknown.</summary>
+    public const long DefaultFramePeriod = 400_000;
+
     private static readonly TimeSpan Nudge = TimeSpan.FromMilliseconds(1);
+    private static readonly TimeSpan Away = TimeSpan.FromMilliseconds(200);
 
     private bool _armed;
+    private bool _ignoreNewFrame;
     private long _baselinePts;
     private long _quietSince;
     private int _attempts;
     private int _unsettled;
+    private SeekRecoveryStep _lastStep;
+    private SeekRecoveryStep _healedBy;
     private TimeSpan _target;
 
     public SeekRecovery(long delay)
@@ -346,41 +377,64 @@ internal struct SeekRecovery
     /// <summary>The target the armed seek asked for.</summary>
     public readonly TimeSpan Target => _target;
 
-    /// <summary>What a <see cref="SeekRecoveryStep.Reseek"/> just taken must seek to: the target, the last attempt 1 ms before it.</summary>
-    public readonly TimeSpan ReseekTarget => _attempts >= MaxAttempts && _target > Nudge ? _target - Nudge : _target;
+    /// <summary>Where a seek step must seek to: the target, <see cref="SeekRecoveryStep.ReseekNudged"/> 1 ms before it (not below 0), <see cref="SeekRecoveryStep.SeekAway"/> 200 ms away.</summary>
+    public readonly TimeSpan TargetFor(SeekRecoveryStep step) => step switch
+    {
+        SeekRecoveryStep.ReseekNudged => _target > Nudge ? _target - Nudge : _target,
+        SeekRecoveryStep.SeekAway => _target >= Away ? _target - Away : _target + Away,
+        _ => _target,
+    };
 
     /// <summary>Forgets everything (a file was opened or closed).</summary>
     public void Reset()
     {
         _armed = false;
+        _ignoreNewFrame = false;
         _quietSince = FrameChangeTracker.None;
         _attempts = 0;
         _unsettled = 0;
+        _lastStep = SeekRecoveryStep.None;
+        _healedBy = SeekRecoveryStep.None;
     }
 
     /// <summary>A seek to <paramref name="target"/> was requested while the engine presented <paramref name="presentedPts"/>.</summary>
     public void Arm(TimeSpan target, long presentedPts)
     {
+        Reset();
         _armed = true;
         _target = target;
         _baselinePts = presentedPts;
-        _quietSince = FrameChangeTracker.None;
-        _attempts = 0;
-        _unsettled = 0;
     }
 
     /// <summary>The picture is moving on its own (Play) or is no longer of interest.</summary>
     public void Disarm() => _armed = false;
 
     /// <summary>
-    /// True when the seek is done (<paramref name="seekBusy"/> false), still no other time stamp than the one before it was
-    /// done was presented, and that has lasted <see cref="Delay"/>: the caller then reads the engine state and calls
-    /// <see cref="Take"/>. Cheap: no engine calls needed to evaluate it.
+    /// The step after which the seek turned out to work (once; <see cref="SeekRecoveryStep.None"/> when no step was taken
+    /// before it worked, or nothing happened since the last call).
     /// </summary>
-    public bool IsDue(long now, bool seekBusy, long presentedPts)
+    public SeekRecoveryStep TakeHealedBy()
+    {
+        var by = _healedBy;
+        _healedBy = SeekRecoveryStep.None;
+        return by;
+    }
+
+    /// <summary>
+    /// True when the seek is done (<paramref name="seekBusy"/> false), did not show its frame, and that has lasted
+    /// <see cref="Delay"/>: the caller then reads the engine state and calls <see cref="Take"/>. Cheap: no engine calls.
+    /// <paramref name="framePeriod"/> (100 ns, 0 = unknown) is the length of a frame.
+    /// </summary>
+    public bool IsDue(long now, bool seekBusy, long presentedPts, long framePeriod = 0)
     {
         if (!_armed)
         {
+            return false;
+        }
+
+        if (Covers(presentedPts, framePeriod))
+        {
+            Succeeded(); // the target's own frame is up, whenever it arrived
             return false;
         }
 
@@ -392,9 +446,9 @@ internal struct SeekRecovery
             return false;
         }
 
-        if (presentedPts != _baselinePts && presentedPts != FrameChangeTracker.None)
+        if (!_ignoreNewFrame && presentedPts != _baselinePts && presentedPts != FrameChangeTracker.None)
         {
-            _armed = false; // a new frame was presented after the last seek was done: it worked
+            Succeeded(); // a new frame was presented after the last seek was done
             return false;
         }
 
@@ -410,9 +464,9 @@ internal struct SeekRecovery
     /// <summary>
     /// Takes the next step after <see cref="IsDue"/> said true. An engine that is not <paramref name="engineSettled"/>
     /// (playing, seeking, no data yet) costs no attempt: the wait starts over, up to <see cref="MaxUnsettled"/> times.
-    /// <paramref name="framePeriod"/> (100 ns, 0 = unknown) tells whether the target lies inside the frame that is shown.
+    /// After the last step one more wait is given to show its effect, then the recovery gives up (None, disarmed).
     /// </summary>
-    public SeekRecoveryStep Take(bool engineSettled, long now, long framePeriod = 0)
+    public SeekRecoveryStep Take(bool engineSettled, long now)
     {
         if (!_armed)
         {
@@ -430,21 +484,30 @@ internal struct SeekRecovery
             return SeekRecoveryStep.None;
         }
 
-        _attempts++;
-        _quietSince = FrameChangeTracker.None;
-        var distance = _target.Ticks - _baselinePts;
-        var insideShownFrame = _baselinePts != FrameChangeTracker.None && distance >= 0 && distance < Math.Max(framePeriod, 1);
-        if (_attempts >= MaxAttempts || insideShownFrame)
+        if (_attempts >= MaxAttempts)
         {
             _armed = false;
+            return SeekRecoveryStep.None;
         }
 
-        if (insideShownFrame && _attempts > 1)
+        _attempts++;
+        _quietSince = FrameChangeTracker.None;
+        _lastStep = (SeekRecoveryStep)_attempts;
+        _ignoreNewFrame = _lastStep is SeekRecoveryStep.SeekAway or SeekRecoveryStep.FrameStep; // their frame is a detour
+        return _lastStep;
+    }
+
+    private readonly bool Covers(long presentedPts, long framePeriod) =>
+        presentedPts != FrameChangeTracker.None && presentedPts <= _target.Ticks
+        && _target.Ticks - presentedPts < (framePeriod > 0 ? framePeriod : DefaultFramePeriod);
+
+    private void Succeeded()
+    {
+        _armed = false;
+        if (_attempts > 0)
         {
-            return SeekRecoveryStep.None; // the shown frame is the right one: nothing to seek for
+            _healedBy = _lastStep;
         }
-
-        return _attempts == 1 ? SeekRecoveryStep.Retransfer : SeekRecoveryStep.Reseek;
     }
 }
 

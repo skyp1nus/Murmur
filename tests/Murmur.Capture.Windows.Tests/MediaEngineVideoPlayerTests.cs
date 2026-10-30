@@ -89,7 +89,7 @@ public sealed class MediaEngineVideoPlayerTests(TestVideoFile video, ITestOutput
             Assert.True(TestVideo.SlotAt(target) == await WaitForSlotAsync(player, frame, TestVideo.SlotAt(target)), player.DescribeState());
         }
 
-        output.WriteLine($"seek recovery: {player.RecoveryRetransfers} re-copies, {player.RecoveryReseeks} re-seeks");
+        output.WriteLine(player.DescribeRecovery());
         Assert.False(player.IsPlaying);
     }
 
@@ -116,7 +116,7 @@ public sealed class MediaEngineVideoPlayerTests(TestVideoFile video, ITestOutput
         }
 
         // Tells "the race never happened" from "the recovery healed it": which step showed the frame is in the CI log.
-        output.WriteLine($"{requested}: {slots.Length * 6} fast paused seeks, seek recovery took {player.RecoveryRetransfers} re-copies and {player.RecoveryReseeks} re-seeks");
+        output.WriteLine($"{requested}: {slots.Length * 6} fast paused seeks; {player.DescribeRecovery()}");
     }
 
     [Fact]
