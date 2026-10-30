@@ -151,6 +151,29 @@ public sealed class TranscriptExportTests
     }
 
     [Fact]
+    public void Srt_DropsAngleBrackets_SoPlayersDoNotReadMarkup()
+    {
+        var srt = TranscriptExport.ToSrt(Session, Transcript);
+
+        Assert.Contains("Others: Does search match exact words & phrases, or can I ask in my own words?", srt);
+        Assert.DoesNotContain('<', srt);
+        Assert.DoesNotContain('>', srt.Replace("-->", string.Empty, StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void WebVtt_TheTitleAndTheCuesCannotLookLikeATiming()
+    {
+        var arrow = Session with { Title = "Plan --> do" };
+        var spoken = Transcript with { Segments = [Segment(Speaker.Me, 1, 2, "Left --> right")] };
+
+        var vtt = TranscriptExport.ToWebVtt(arrow, spoken);
+
+        Assert.StartsWith("WEBVTT - Plan -> do\n\n", vtt);
+        Assert.Contains("Left --&gt; right", vtt);
+        Assert.Single(vtt.Split('\n'), line => line.Contains("-->", StringComparison.Ordinal));
+    }
+
+    [Fact]
     public void AnEmptyTranscript_StillFormats()
     {
         var empty = Transcript with { Segments = [] };

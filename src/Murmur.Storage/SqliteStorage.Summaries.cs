@@ -45,11 +45,13 @@ public sealed partial class SqliteStorage
     private void SaveSummary(SessionSummary summary)
     {
         using var connection = OpenConnection();
-        using var command = connection.CreateCommand();
 
-        // The foreign key rejects a summary of a session that does not exist; the check gives the caller a clear exception.
+        // The check and the write are one transaction (like SaveTranscript): a session deleted in between is a KeyNotFoundException,
+        // not a foreign-key failure of the insert.
+        using var transaction = connection.BeginTransaction(deferred: false);
         using (var exists = connection.CreateCommand())
         {
+            exists.Transaction = transaction;
             exists.CommandText = "SELECT 1 FROM sessions WHERE id = $id";
             exists.Parameters.AddWithValue("$id", summary.Session.ToString());
             if (exists.ExecuteScalar() is null)
@@ -58,6 +60,8 @@ public sealed partial class SqliteStorage
             }
         }
 
+        using var command = connection.CreateCommand();
+        command.Transaction = transaction;
         command.CommandText =
             "INSERT INTO summaries (session_id, overview, key_points, action_items, model_id, created_at) " +
             "VALUES ($id, $overview, $points, $actions, $model, $created) " +
@@ -70,6 +74,7 @@ public sealed partial class SqliteStorage
         command.Parameters.AddWithValue("$model", summary.ModelId);
         command.Parameters.AddWithValue("$created", summary.CreatedAt.ToUnixTimeMilliseconds());
         command.ExecuteNonQuery();
+        transaction.Commit();
     }
 
     private void DeleteSummary(SessionId session)

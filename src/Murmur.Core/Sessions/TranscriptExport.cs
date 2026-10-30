@@ -114,7 +114,7 @@ public static class TranscriptExport
         {
             text.Append(number++.ToString(CultureInfo.InvariantCulture)).Append('\n')
                 .Append(CueTime(segment.Start, ',')).Append(" --> ").Append(CueTime(CueEnd(segment), ',')).Append('\n')
-                .Append(SpeakerOf(segment, labels)).Append(": ").Append(OneLine(segment.Text)).Append("\n\n");
+                .Append(SrtText(SpeakerOf(segment, labels))).Append(": ").Append(SrtText(OneLine(segment.Text))).Append("\n\n");
         }
 
         return text.ToString();
@@ -126,11 +126,11 @@ public static class TranscriptExport
         ArgumentNullException.ThrowIfNull(session);
         ArgumentNullException.ThrowIfNull(transcript);
         labels ??= ExportLabels.English;
-        var text = new StringBuilder("WEBVTT - ").Append(TitleOf(session, labels)).Append("\n\n");
+        var text = new StringBuilder("WEBVTT - ").Append(HeaderText(TitleOf(session, labels))).Append("\n\n");
         foreach (var segment in transcript.Segments)
         {
             text.Append(CueTime(segment.Start, '.')).Append(" --> ").Append(CueTime(CueEnd(segment), '.')).Append('\n')
-                .Append("<v ").Append(EscapeVoice(SpeakerOf(segment, labels))).Append('>').Append(EscapeCue(OneLine(segment.Text))).Append("\n\n");
+                .Append("<v ").Append(EscapeVoice(SpeakerOf(segment, labels))).Append('>').Append(EscapeCue(OneLine(segment.Text)).Replace("-->", "--&gt;", StringComparison.Ordinal)).Append("\n\n");
         }
 
         return text.ToString();
@@ -228,6 +228,12 @@ public static class TranscriptExport
 
     private static string EscapeCue(string text) =>
         text.Replace("&", "&amp;", StringComparison.Ordinal).Replace("<", "&lt;", StringComparison.Ordinal).Replace(">", "&gt;", StringComparison.Ordinal);
+
+    /// <summary>The text of the WEBVTT header line may not contain "-->" (the parser would take the line for a cue timing).</summary>
+    private static string HeaderText(string text) => text.Replace("-->", "->", StringComparison.Ordinal);
+
+    /// <summary>SubRip players read &lt;i&gt;, &lt;b&gt; and &lt;font&gt; as markup: the angle brackets of the speech are dropped.</summary>
+    private static string SrtText(string text) => text.Replace("<", string.Empty, StringComparison.Ordinal).Replace(">", string.Empty, StringComparison.Ordinal);
 
     private static string EscapeVoice(string name) => EscapeCue(name).Replace(".", string.Empty, StringComparison.Ordinal);
 }

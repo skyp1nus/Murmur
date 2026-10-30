@@ -139,6 +139,34 @@ public sealed class SummaryStoreTests : IDisposable
     }
 
     [Fact]
+    public async Task ANewTranscript_DeletesTheSummaryMadeFromTheOldOne_AndOnlyOfThatSession()
+    {
+        var storage = Open();
+        var id = await NewSession(storage);
+        var other = await NewSession(storage);
+        await storage.SaveSummaryAsync(Summary(id), Ct);
+        await storage.SaveSummaryAsync(Summary(other), Ct);
+
+        await storage.SaveTranscriptAsync(new Murmur.Core.Transcription.Transcript(id, [], "engine"), Ct);
+
+        Assert.Null(await storage.GetSummaryAsync(id, Ct));
+        Assert.NotNull(await storage.GetSummaryAsync(other, Ct));
+    }
+
+    [Fact]
+    public async Task ASessionDeletedBeforeTheSave_IsAKeyNotFound_NotAForeignKeyFailure()
+    {
+        var storage = Open();
+        var id = await NewSession(storage);
+        await storage.DeleteSessionAsync(id, Ct);
+
+        var ex = await Assert.ThrowsAsync<KeyNotFoundException>(async () => await storage.SaveSummaryAsync(Summary(id), Ct));
+
+        Assert.Contains(id.ToString(), ex.Message);
+        Assert.Null(await storage.GetSummaryAsync(id, Ct));
+    }
+
+    [Fact]
     public async Task DeletingTheSession_DeletesItsSummary()
     {
         var storage = Open();

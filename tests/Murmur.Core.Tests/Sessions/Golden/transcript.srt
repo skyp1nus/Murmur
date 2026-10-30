@@ -4,7 +4,7 @@ You: Okay, a quick run through the roadmap.
 
 2
 00:12:08,000 --> 00:12:20,250
-Others: Does search match <exact> words & phrases, or can I ask in my own words?
+Others: Does search match exact words & phrases, or can I ask in my own words?
 
 3
 00:12:21,000 --> 00:12:22,000
