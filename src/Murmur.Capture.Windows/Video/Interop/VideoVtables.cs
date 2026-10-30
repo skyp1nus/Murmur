@@ -59,6 +59,14 @@ internal static unsafe class IMFMediaEngine
     public static int IsPaused(nint self) =>
         ((delegate* unmanaged[MemberFunction]<nint, int>)ComCall.Vtbl(self)[20])(self);
 
+    // [22] HRESULT SetDefaultPlaybackRate(double Rate)
+    public static int SetDefaultPlaybackRate(nint self, double rate) =>
+        ((delegate* unmanaged[MemberFunction]<nint, double, int>)ComCall.Vtbl(self)[22])(self, rate);
+
+    // [24] HRESULT SetPlaybackRate(double Rate)
+    public static int SetPlaybackRate(nint self, double rate) =>
+        ((delegate* unmanaged[MemberFunction]<nint, double, int>)ComCall.Vtbl(self)[24])(self, rate);
+
     // [27] BOOL IsEnded(void)
     public static int IsEnded(nint self) =>
         ((delegate* unmanaged[MemberFunction]<nint, int>)ComCall.Vtbl(self)[27])(self);

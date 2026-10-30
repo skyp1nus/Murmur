@@ -50,7 +50,7 @@ internal static class PlaybackMixer
 /// clipping stage). All buffers are preallocated for <see cref="MaxFramesPerRender"/>; larger requests are served in
 /// several passes, so <see cref="Render"/> never allocates. Not thread-safe: owned by the render thread.
 /// </summary>
-internal sealed class TrackMixer : IDisposable
+internal sealed class TrackMixer : IPcmSource, IDisposable
 {
     /// <summary>Frames mixed per pass: 100 ms at 16 kHz, larger than any shared-mode endpoint buffer we request.</summary>
     internal const int MaxFramesPerRender = 1_600;

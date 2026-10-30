@@ -312,6 +312,10 @@ public sealed class MediaEngineVideoPlayer : IVideoPlayer
             _transferFailures = 0;
             LastTransferResult = 0;
             _open = true;
+            if (_playbackRate != 1)
+            {
+                ApplyPlaybackRate(session);
+            }
         }
         catch
         {
@@ -468,6 +472,36 @@ public sealed class MediaEngineVideoPlayer : IVideoPlayer
     private void OnFailed(string message) => Failed?.Invoke(message);
 
     private void OnResourceLost() => Volatile.Write(ref _resourceLost, 1);
+
+    private double _playbackRate = 1;
+
+    /// <summary>
+    /// The rate the open file plays at (1 = real time), kept for the files opened later. The session view sets it to the speed of
+    /// the audio, which is the master clock: a video that plays at 1x while the audio runs at 2x would drift out of tolerance
+    /// and be re-sought over and over. Clamped to [0.25, 4]; a failure is reported through <see cref="Failed"/>, not thrown.
+    /// </summary>
+    public void SetPlaybackRate(double rate)
+    {
+        _playbackRate = double.IsNaN(rate) ? 1 : Math.Clamp(rate, 0.25, 4);
+        if (_open && _session is { } session)
+        {
+            ApplyPlaybackRate(session);
+        }
+    }
+
+    private void ApplyPlaybackRate(EngineSession session)
+    {
+        var hr = IMFMediaEngine.SetDefaultPlaybackRate(session.Engine, _playbackRate);
+        if (hr >= 0)
+        {
+            hr = IMFMediaEngine.SetPlaybackRate(session.Engine, _playbackRate);
+        }
+
+        if (hr < 0)
+        {
+            session.RaiseFailed($"IMFMediaEngine::SetPlaybackRate failed: {ComHelpers.Describe(hr)}");
+        }
+    }
 
     /// <summary>
     /// One Media Engine with its notify callback, for one file. Created and disposed on the player's thread; engine events

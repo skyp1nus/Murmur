@@ -117,6 +117,58 @@ public sealed class WasapiPlaybackTests(ITestOutputHelper output)
         Assert.Equal(TimeSpan.FromSeconds(5), player.Position);
     }
 
+    [Fact]
+    [Trait("Category", "Windows")]
+    public async Task Speed_RunsThePositionInMediaTime_ChangesWhilePlaying_AndEndsEarlier()
+    {
+        Assert.SkipUnless(OperatingSystem.IsWindows(), WindowsOnly);
+        Assert.SkipUnless(AudioEndpoints.HasActive(AudioDeviceKind.SystemOutput), "No active render endpoint on this machine.");
+
+        using var dir = new TempDir();
+        var mic = dir.Write("mic.wav", TestWav.Pcm16(Sine(6 * Rate, 300, 0.05)));
+        using var player = new WasapiAudioPlayer();
+        using var ended = new ManualResetEventSlim(false);
+        player.StateChanged += s =>
+        {
+            if (s == PlaybackState.Ended)
+            {
+                ended.Set();
+            }
+        };
+        player.Faulted += f => output.WriteLine($"fault: {f.Message}");
+        await player.OpenAsync([mic], TestContext.Current.CancellationToken);
+        Assert.True(player.CanChangeSpeed);
+
+        // 1.5x: after ~1 s of wall time ~1.5 s of the recording was heard.
+        player.SetSpeed(1.5);
+        Assert.Equal(1.5, player.Speed);
+        var clock = Stopwatch.StartNew();
+        player.Play();
+        Thread.Sleep(1_000);
+        var position = player.Position;
+        var elapsed = clock.Elapsed;
+        output.WriteLine($"1.5x: after {elapsed.TotalMilliseconds:F0} ms position {position.TotalMilliseconds:F0} ms");
+        Assert.InRange(position, (elapsed * 1.5) - Tolerance, (elapsed * 1.5) + Tolerance);
+
+        // Back to 1x while playing: the position keeps going from where it was, at real time.
+        player.SetSpeed(1);
+        Thread.Sleep(150); // the change takes effect within a hop plus what the endpoint buffer holds
+        var before = player.Position;
+        clock.Restart();
+        Thread.Sleep(500);
+        var advanced = player.Position - before;
+        output.WriteLine($"1x after the change: advanced {advanced.TotalMilliseconds:F0} ms in {clock.Elapsed.TotalMilliseconds:F0} ms");
+        Assert.InRange(advanced, clock.Elapsed - Tolerance, clock.Elapsed + Tolerance);
+
+        // A seek at 2x restarts cleanly; the rest of the recording plays out in half the time.
+        player.SetSpeed(2);
+        player.Seek(TimeSpan.FromSeconds(4));
+        Assert.Equal(PlaybackState.Playing, player.State);
+        Assert.True(ended.Wait(TimeSpan.FromSeconds(3), TestContext.Current.CancellationToken), "Ended did not fire within the ~1 s a 2 s tail takes at 2x.");
+        Assert.Equal(player.Duration, player.Position);
+        Assert.Null(player.LastFault);
+    }
+
     private static short[] Sine(int frames, double hz, double amplitude)
     {
         var samples = new short[frames];

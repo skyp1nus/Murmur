@@ -33,6 +33,18 @@ internal static class PlaybackTiming
     public static long PlayedFrame(long startFrame, long submittedFrames, uint paddingFrames, long totalFrames) =>
         Math.Clamp(startFrame + submittedFrames - paddingFrames, 0, totalFrames);
 
+    /// <summary>
+    /// The media frame being heard when the output runs at <paramref name="speed"/> (media frames per output frame): the media
+    /// position of everything submitted (<paramref name="submittedMedia"/>) minus what still waits in the endpoint buffer
+    /// (<c>GetCurrentPadding</c> output frames, worth <c>padding * speed</c> media frames), clamped to
+    /// [<paramref name="startFrame"/>, total]. At speed 1 this equals <see cref="PlayedFrame"/>.
+    /// </summary>
+    public static long PlayedMediaFrame(long startFrame, double submittedMedia, uint paddingFrames, double speed, long totalFrames)
+    {
+        var heard = Math.Floor(submittedMedia - (paddingFrames * speed) + 0.5);
+        return Math.Clamp((long)Math.Max(heard, startFrame), startFrame, totalFrames);
+    }
+
     /// <summary>WAVEFORMATEX (mmreg.h, 18 bytes, pack 1) for mono 16-bit PCM at <paramref name="sampleRate"/>.</summary>
     public static byte[] Pcm16MonoFormat(int sampleRate)
     {

@@ -44,7 +44,7 @@ public sealed class WasapiAudioPlayerContractTests : IDisposable
     public void MutedTracks_ReachTheMixer_AlsoOfAnEngineCreatedLater()
     {
         Assert.True(_player.CanMuteTracks);
-        Assert.False(_player.CanChangeSpeed);
+        Assert.True(_player.CanChangeSpeed);
         _player.SetTrackMuted(1, true);
         Open();
         Assert.Equal(0b10, Engine.Mixer.MutedMask);
@@ -55,8 +55,6 @@ public sealed class WasapiAudioPlayerContractTests : IDisposable
 
         Open();
         Assert.Equal(0b01, Engine.Mixer.MutedMask);
-        _player.SetSpeed(2);
-        Assert.Equal(1, _player.Speed);
         Assert.True(_player.IsTrackMuted(0));
         Assert.False(_player.IsTrackMuted(1));
         Assert.Throws<ArgumentOutOfRangeException>(() => _player.SetTrackMuted(-1, true));

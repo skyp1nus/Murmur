@@ -11,7 +11,9 @@ namespace Murmur.Capture.Windows.Playback;
 /// Event-driven (AUDCLNT_STREAMFLAGS_EVENTCALLBACK, ~50 ms buffer) on a dedicated MTA thread registered with the MMCSS
 /// "Playback" task. Every COM object is created, used and released on that thread; Play/Pause/Seek are posted to it
 /// as commands (a native auto-reset event) and the caller waits for the HRESULT.
-/// The fill path (GetCurrentPadding, GetBuffer, <see cref="TrackMixer.Render"/>, ReleaseBuffer) allocates nothing;
+/// The fill path (GetCurrentPadding, GetBuffer, <see cref="WsolaStretcher.Render"/> over <see cref="TrackMixer.Render"/>, ReleaseBuffer)
+/// allocates nothing; at a speed other than 1 the mixed frames are time-stretched (pitch preserved) and
+/// <see cref="PlayedFrame"/> stays in media frames (output frames x speed);
 /// the only render-thread allocation is the thread-pool work item that reports an end or a fault, once per event.
 /// UNVERIFIED-ON-WINDOWS until the Windows-trait tests run in CI.
 /// </summary>
@@ -29,6 +31,7 @@ internal sealed unsafe class WasapiRenderEngine : IPlaybackEngine
         | WasapiConstants.AudclntStreamFlagsSrcDefaultQuality;
 
     private readonly TrackMixer _mixer;
+    private readonly WsolaStretcher _stretcher;
     private readonly IPlaybackEngineOwner _owner;
     private readonly byte[] _format;
     private readonly Lock _commandGate = new();
@@ -52,7 +55,6 @@ internal sealed unsafe class WasapiRenderEngine : IPlaybackEngine
     private IAudioRenderClient? _render;
     private uint _bufferFrames;
     private long _startFrame;
-    private long _submitted;
     private bool _running;
     private bool _drained;
     private long _appliedGeneration;
@@ -67,9 +69,10 @@ internal sealed unsafe class WasapiRenderEngine : IPlaybackEngine
         _owner = owner;
         _format = PlaybackTiming.Pcm16MonoFormat(mixer.SampleRate);
         _commandEvent = commandEvent;
-        _mixer.Seek(startFrame);
-        _startFrame = _mixer.Position;
-        _drained = _mixer.AtEnd;
+        _stretcher = new WsolaStretcher(mixer, mixer.SampleRate);
+        _stretcher.Seek(startFrame);
+        _startFrame = (long)_stretcher.MediaPosition;
+        _drained = _stretcher.AtEnd;
         _playedFrame = _startFrame;
         _thread = new Thread(Run)
         {
@@ -142,6 +145,8 @@ internal sealed unsafe class WasapiRenderEngine : IPlaybackEngine
     public int Pause() => Send(Command.Pause, 0, false);
 
     public int Seek(long frame, bool play) => Send(Command.Seek, frame, play);
+
+    public void SetSpeed(double speed) => _stretcher.SetSpeed(speed);
 
     public void Dispose()
     {
@@ -411,10 +416,9 @@ internal sealed unsafe class WasapiRenderEngine : IPlaybackEngine
                     return hr;
                 }
 
-                _mixer.Seek(frame);
-                _startFrame = _mixer.Position;
-                _submitted = 0;
-                _drained = _mixer.AtEnd;
+                _stretcher.Seek(frame);
+                _startFrame = (long)_stretcher.MediaPosition;
+                _drained = _stretcher.AtEnd;
                 Volatile.Write(ref _playedFrame, _startFrame);
                 return play ? Start() : WasapiConstants.SOk;
 
@@ -465,19 +469,18 @@ internal sealed unsafe class WasapiRenderEngine : IPlaybackEngine
                 return hr;
             }
 
-            var written = _mixer.Render(new Span<short>((void*)data, (int)available));
+            var written = _stretcher.Render(new Span<short>((void*)data, (int)available));
             hr = _render.ReleaseBuffer((uint)written, 0);
             if (hr < 0)
             {
                 return hr;
             }
 
-            _submitted += written;
             padding += (uint)written;
-            _drained = _mixer.AtEnd;
+            _drained = _stretcher.AtEnd;
         }
 
-        Volatile.Write(ref _playedFrame, PlaybackTiming.PlayedFrame(_startFrame, _submitted, padding, _mixer.TotalFrames));
+        PublishPlayed(padding);
         return WasapiConstants.SOk;
     }
 
@@ -490,9 +493,15 @@ internal sealed unsafe class WasapiRenderEngine : IPlaybackEngine
             return hr;
         }
 
-        Volatile.Write(ref _playedFrame, PlaybackTiming.PlayedFrame(_startFrame, _submitted, padding, _mixer.TotalFrames));
+        PublishPlayed(padding);
         return WasapiConstants.SOk;
     }
+
+    /// <summary>The media frame being heard: what was submitted minus the output still in the endpoint buffer, at the speed it was made at.</summary>
+    private void PublishPlayed(uint padding) =>
+        Volatile.Write(
+            ref _playedFrame,
+            PlaybackTiming.PlayedMediaFrame(_startFrame, _stretcher.MediaPosition, padding, _stretcher.OutputSpeed, _mixer.TotalFrames));
 
     private bool TakeCommand(out Command command, out long frame, out bool play)
     {
