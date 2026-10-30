@@ -122,7 +122,6 @@
 
       <!-- Line icons of the canvas (24 x 24 grid), drawn by controls:IconControl. -->
       <StreamGeometry x:Key="Icon.Mic">M9 6a3 3 0 0 1 6 0v5a3 3 0 0 1-6 0z M5 11a7 7 0 0 0 14 0M12 18v3</StreamGeometry>
-      <StreamGeometry x:Key="Icon.Speaker">M4 9v6h4l5 4V5L8 9z M16.5 8.5a5 5 0 0 1 0 7</StreamGeometry>
       <StreamGeometry x:Key="Icon.Search">M4 11a7 7 0 1 0 14 0a7 7 0 1 0-14 0 M20 20l-4-4</StreamGeometry>
       <StreamGeometry x:Key="Icon.Calendar">M5 5h14a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2z M3 10h18M8 3v4M16 3v4</StreamGeometry>
       <StreamGeometry x:Key="Icon.Chevron">M9 6l6 6-6 6</StreamGeometry>

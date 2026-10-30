@@ -98,6 +98,55 @@ public sealed partial class TokensTests
         Assert.Empty(offenders);
     }
 
+    [Fact]
+    public void StyleFiles_DoNotDefineTheSameKeyTwice()
+    {
+        // The style files share one resource scope: a key defined in two of them silently takes the value of the file included last.
+        var owners = new Dictionary<string, List<string>>(StringComparer.Ordinal);
+        foreach (var path in Directory.EnumerateFiles(Path.Combine(RepoPaths.AppDirectory, "Styles"), "*.axaml"))
+        {
+            var keys = XDocument.Load(path).Descendants().Select(e => (string?)e.Attribute(Xaml + "Key"))
+                .Where(k => k is not null && k is not "Light" and not "Dark").Distinct(StringComparer.Ordinal);
+            foreach (var key in keys)
+            {
+                if (!owners.TryGetValue(key!, out var files))
+                {
+                    owners[key!] = files = [];
+                }
+
+                files.Add(Path.GetFileName(path));
+            }
+        }
+
+        Assert.Empty(owners.Where(o => o.Value.Count > 1).Select(o => o.Key + ": " + string.Join(", ", o.Value)));
+    }
+
+    [Fact]
+    public void StyleFiles_DoNotStyleTheSameSelectorTwice()
+    {
+        // Like keys, styles of every file apply app-wide: a screen's class styled in another file takes setters it never asked for.
+        var owners = new Dictionary<string, List<string>>(StringComparer.Ordinal);
+        foreach (var path in Directory.EnumerateFiles(Path.Combine(RepoPaths.AppDirectory, "Styles"), "*.axaml"))
+        {
+            var selectors = XDocument.Load(path).Descendants().Where(e => e.Name.LocalName == "Style")
+                .Select(e => (string?)e.Attribute("Selector")).Where(s => s is not null).Distinct(StringComparer.Ordinal);
+            foreach (var selector in selectors)
+            {
+                if (!owners.TryGetValue(selector!, out var files))
+                {
+                    owners[selector!] = files = [];
+                }
+
+                files.Add(Path.GetFileName(path));
+            }
+        }
+
+        Assert.Empty(owners.Where(o => o.Value.Count > 1 && !SharedSelectors.Contains(o.Key)).Select(o => o.Key + ": " + string.Join(", ", o.Value)));
+    }
+
+    /// <summary>Selectors two files style on purpose, with setters that do not overlap (the shell's type on the sub-item of Controls).</summary>
+    private static readonly HashSet<string> SharedSelectors = ["Button.nav.sub"];
+
     /// <summary>File: key of hand-written resources that look like tokens (D-044: they move into tokens.json with the screen that owns them).</summary>
     private static readonly HashSet<string> AllowedHandWritten =
     [

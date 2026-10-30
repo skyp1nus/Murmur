@@ -53,7 +53,7 @@
               IsVisible="{Binding ShowPlaceholder}">
         <Panel>
           <!-- The canvas card has a dashed 1 px outline; a Border cannot dash, so a rounded rectangle draws it. -->
-          <Rectangle Classes="dashedOutline" />
+          <Rectangle Classes="onbDashedOutline" />
           <StackPanel Margin="{StaticResource Inset.Banner}"
                       Spacing="{StaticResource Space.12}"
                       HorizontalAlignment="Center"

@@ -166,7 +166,7 @@
       <x:Double x:Key="Size.Avatar">28</x:Double>
       <x:Double x:Key="Size.OnbOrb">300</x:Double>
       <x:Double x:Key="Onb.OrbBody.Welcome">0.77333</x:Double>
-      <x:Double x:Key="Size.WordmarkOrb">18</x:Double>
+      <x:Double x:Key="Size.OnbWordmarkOrb">18</x:Double>
       <x:Double x:Key="Size.OnbVoiceOrb">168</x:Double>
       <x:Double x:Key="Onb.OrbBody.Voice">0.78571</x:Double>
       <x:Double x:Key="Onb.Orb.GlowBlurWelcome">40</x:Double>
@@ -186,7 +186,6 @@
       <StreamGeometry x:Key="Icon.OnbChevronDown">M4 6l4 4 4-4</StreamGeometry>
       <StreamGeometry x:Key="Icon.OnbChevronUp">M4 10l4-4 4 4</StreamGeometry>
       <StreamGeometry x:Key="Icon.Microphone">M12 3a3 3 0 0 1 3 3v5a3 3 0 0 1-6 0V6a3 3 0 0 1 3-3z M5 11a7 7 0 0 0 14 0 M12 18v3</StreamGeometry>
-      <StreamGeometry x:Key="Icon.Speaker">M4 9v6h4l5 4V5L8 9z M16.5 8.5a5 5 0 0 1 0 7</StreamGeometry>
       <StreamGeometry x:Key="Icon.Lock">M7 11h10a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2v-6a2 2 0 0 1 2-2z M8 11V7a4 4 0 0 1 8 0v4</StreamGeometry>
       <StreamGeometry x:Key="Icon.Info">M3 12a9 9 0 1 0 18 0a9 9 0 1 0 -18 0 M12 11v5 M12 8h.01</StreamGeometry>
       <StreamGeometry x:Key="Icon.Play">M8 5v14l11-7z</StreamGeometry>
@@ -698,7 +697,7 @@
   </Style>
 
   <!-- Dashed outline of the waiting card. -->
-  <Style Selector="Rectangle.dashedOutline">
+  <Style Selector="Rectangle.onbDashedOutline">
     <Setter Property="Margin" Value="{StaticResource Inset.OnbDashed}" />
     <Setter Property="RadiusX" Value="{StaticResource Onb.Radius.DashedCard}" />
     <Setter Property="RadiusY" Value="{StaticResource Onb.Radius.DashedCard}" />

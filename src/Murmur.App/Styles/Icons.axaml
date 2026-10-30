@@ -13,4 +13,5 @@
   <StreamGeometry x:Key="Icon.Download">M12 4v11M7 10l5 5 5-5M5 20h14</StreamGeometry>
   <StreamGeometry x:Key="Icon.Screen">M5 4h14a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z M8 20h8M12 16v4</StreamGeometry>
   <StreamGeometry x:Key="Icon.Folder">M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z</StreamGeometry>
+  <StreamGeometry x:Key="Icon.Speaker">M4 9v6h4l5 4V5L8 9z M16.5 8.5a5 5 0 0 1 0 7</StreamGeometry>
 </ResourceDictionary>

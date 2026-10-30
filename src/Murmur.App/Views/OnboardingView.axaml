@@ -37,8 +37,8 @@
                   Orientation="Horizontal"
                   Spacing="{StaticResource Space.8}"
                   VerticalAlignment="Center">
-        <controls:GlassOrbControl Width="{StaticResource Size.WordmarkOrb}"
-                                  Height="{StaticResource Size.WordmarkOrb}"
+        <controls:GlassOrbControl Width="{StaticResource Size.OnbWordmarkOrb}"
+                                  Height="{StaticResource Size.OnbWordmarkOrb}"
                                   VerticalAlignment="Center" />
         <TextBlock Classes="onbWordmark"
                    VerticalAlignment="Center"
