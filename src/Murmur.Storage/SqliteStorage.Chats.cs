@@ -115,10 +115,13 @@ public sealed partial class SqliteStorage
         using var transaction = connection.BeginTransaction(deferred: false);
 
         long count;
+        long lastRole = -1;
         using (var counting = connection.CreateCommand())
         {
             counting.Transaction = transaction;
-            counting.CommandText = "SELECT (SELECT COUNT(*) FROM chat_messages WHERE thread_id = $thread), (SELECT COUNT(*) FROM chat_threads WHERE id = $thread)";
+            counting.CommandText =
+                "SELECT (SELECT COUNT(*) FROM chat_messages WHERE thread_id = $thread), (SELECT COUNT(*) FROM chat_threads WHERE id = $thread), " +
+                "(SELECT role FROM chat_messages WHERE thread_id = $thread ORDER BY idx DESC LIMIT 1)";
             counting.Parameters.AddWithValue("$thread", message.Thread.Value);
             using var reader = counting.ExecuteReader();
             reader.Read();
@@ -128,6 +131,7 @@ public sealed partial class SqliteStorage
             }
 
             count = reader.GetInt64(0);
+            lastRole = reader.IsDBNull(2) ? -1 : reader.GetInt64(2);
         }
 
         if (message.Index < 0 || message.Index > count)
@@ -137,9 +141,15 @@ public sealed partial class SqliteStorage
 
         if (message.Index < count)
         {
+            // Only the last answer can be replaced; a question or an older message at a taken index means another writer got there first.
+            if (message.Index != count - 1 || message.Role != TurnRole.Assistant || lastRole != (int)TurnRole.Assistant)
+            {
+                throw new InvalidOperationException($"Index {message.Index} of chat thread {message.Thread} is taken: only the last answer can be replaced.");
+            }
+
             using var cut = connection.CreateCommand();
             cut.Transaction = transaction;
-            cut.CommandText = "DELETE FROM chat_messages WHERE thread_id = $thread AND idx >= $idx";
+            cut.CommandText = "DELETE FROM chat_messages WHERE thread_id = $thread AND idx = $idx";
             cut.Parameters.AddWithValue("$thread", message.Thread.Value);
             cut.Parameters.AddWithValue("$idx", message.Index);
             cut.ExecuteNonQuery();

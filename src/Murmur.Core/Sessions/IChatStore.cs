@@ -19,8 +19,10 @@ public interface IChatStore
 
     /// <summary>
     /// Saves <paramref name="message"/> at its <see cref="ChatMessage.Index"/> and sets the thread's <see cref="ChatThread.UpdatedAt"/> to
-    /// its <see cref="ChatMessage.At"/>. The index is the current message count (an append) or lower: then the message replaces the one there
-    /// and every later message is dropped (Regenerate replaces the last answer this way). A higher index, or an unknown thread, throws.
+    /// its <see cref="ChatMessage.At"/>. The index is the current message count (an append), or the index of the last message when both are
+    /// answers: then the new answer replaces it (Regenerate). Anything else (a gap, a question where a message already is, a replacement of
+    /// an older message) throws <see cref="InvalidOperationException"/> or <see cref="ArgumentOutOfRangeException"/>, so two writers on one
+    /// thread cannot silently overwrite each other; an unknown thread throws <see cref="KeyNotFoundException"/>.
     /// </summary>
     ValueTask AppendMessageAsync(ChatMessage message, CancellationToken cancellationToken);
 

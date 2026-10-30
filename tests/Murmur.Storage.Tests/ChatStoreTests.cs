@@ -109,7 +109,7 @@ public sealed class ChatStoreTests : IDisposable
     }
 
     [Fact]
-    public async Task AppendMessage_AtAnExistingIndex_ReplacesItAndDropsTheLaterOnes()
+    public async Task AppendMessage_AtTheIndexOfTheLastAnswer_ReplacesIt()
     {
         var storage = Open();
         var thread = await storage.CreateThreadAsync("t", null, Ct);
@@ -119,10 +119,26 @@ public sealed class ChatStoreTests : IDisposable
         await storage.AppendMessageAsync(Message(thread.Id, 3, TurnRole.Assistant, "a2", T0), Ct);
 
         await storage.AppendMessageAsync(Message(thread.Id, 3, TurnRole.Assistant, "a2 again", T0.AddMinutes(1)), Ct);
-        Assert.Equal(["q1", "a1", "q2", "a2 again"], (await storage.GetMessagesAsync(thread.Id, Ct)).Select(m => m.Text));
 
-        await storage.AppendMessageAsync(Message(thread.Id, 1, TurnRole.Assistant, "a1 again", T0.AddMinutes(2)), Ct);
-        Assert.Equal(["q1", "a1 again"], (await storage.GetMessagesAsync(thread.Id, Ct)).Select(m => m.Text));
+        Assert.Equal(["q1", "a1", "q2", "a2 again"], (await storage.GetMessagesAsync(thread.Id, Ct)).Select(m => m.Text));
+    }
+
+    [Fact]
+    public async Task AppendMessage_AtATakenIndexThatIsNotTheLastAnswer_Throws_SoTwoWritersCannotOverwriteEachOther()
+    {
+        var storage = Open();
+        var thread = await storage.CreateThreadAsync("t", null, Ct);
+        await storage.AppendMessageAsync(Message(thread.Id, 0, TurnRole.User, "q1", T0), Ct);
+        await storage.AppendMessageAsync(Message(thread.Id, 1, TurnRole.Assistant, "a1", T0), Ct);
+        await storage.AppendMessageAsync(Message(thread.Id, 2, TurnRole.User, "q2", T0), Ct);
+        await storage.AppendMessageAsync(Message(thread.Id, 3, TurnRole.Assistant, "a2", T0), Ct);
+
+        // A second writer that also thinks the thread has two messages: its question and an older answer are refused.
+        await Assert.ThrowsAsync<InvalidOperationException>(async () => await storage.AppendMessageAsync(Message(thread.Id, 2, TurnRole.User, "other q", T0), Ct));
+        await Assert.ThrowsAsync<InvalidOperationException>(async () => await storage.AppendMessageAsync(Message(thread.Id, 1, TurnRole.Assistant, "older answer", T0), Ct));
+        await Assert.ThrowsAsync<InvalidOperationException>(async () => await storage.AppendMessageAsync(Message(thread.Id, 3, TurnRole.User, "a question over an answer", T0), Ct));
+
+        Assert.Equal(["q1", "a1", "q2", "a2"], (await storage.GetMessagesAsync(thread.Id, Ct)).Select(m => m.Text));
     }
 
     [Fact]

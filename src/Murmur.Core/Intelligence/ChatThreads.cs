@@ -15,7 +15,7 @@ public readonly record struct ChatThreadId(string Value)
 /// <param name="Id">The thread.</param>
 /// <param name="Title">The name shown in the sidebar: the first question until the user renames the thread.</param>
 /// <param name="Scope">The one recording the questions are about, or <c>null</c> for the whole library. Fixed when the thread is created.</param>
-/// <param name="UpdatedAt">When the last message was added (or the thread was renamed or created): the list is ordered by it, newest first.</param>
+/// <param name="UpdatedAt">When the thread was created or its last message was saved (renaming does not change it): the list is ordered by it, newest first.</param>
 public sealed record ChatThread(ChatThreadId Id, string Title, SessionId? Scope, DateTimeOffset UpdatedAt);
 
 /// <summary>One saved message of a thread.</summary>
