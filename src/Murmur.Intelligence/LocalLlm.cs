@@ -3,6 +3,7 @@ using Microsoft.Extensions.AI;
 using Murmur.Core.Intelligence;
 using Murmur.Core.Settings;
 using Murmur.Intelligence.Llama;
+using ChatMessage = Microsoft.Extensions.AI.ChatMessage;
 
 namespace Murmur.Intelligence;
 

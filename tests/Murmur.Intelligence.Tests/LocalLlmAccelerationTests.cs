@@ -4,6 +4,7 @@ using Murmur.Core.Intelligence;
 using Murmur.Core.Settings;
 using Murmur.Intelligence.Llama;
 using Murmur.Intelligence.Tests.Fakes;
+using ChatMessage = Microsoft.Extensions.AI.ChatMessage;
 
 namespace Murmur.Intelligence.Tests;
 

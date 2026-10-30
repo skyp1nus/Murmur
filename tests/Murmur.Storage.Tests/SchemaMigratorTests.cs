@@ -27,6 +27,31 @@ public sealed class SchemaMigratorTests
     }
 
     [Fact]
+    public void DatabaseFromBeforeTheChats_GainsTheChatTables_AndKeepsItsSessions()
+    {
+        using var connection = InMemory();
+        SchemaMigrator.Apply(connection, [.. SchemaMigrator.Migrations.Take(3)]);
+        using (var insert = connection.CreateCommand())
+        {
+            insert.CommandText =
+                "INSERT INTO sessions (id, title, started_at, duration_ms, state, has_mic, has_system, screen_segments, folder) " +
+                "VALUES ('a', 'kept', 0, 0, 1, 0, 0, '[]', 'f')";
+            insert.ExecuteNonQuery();
+        }
+
+        var version = SchemaMigrator.Apply(connection, SchemaMigrator.Migrations);
+
+        Assert.Equal(SchemaMigrator.LatestVersion, version);
+        Assert.True(version >= 4);
+        using var count = connection.CreateCommand();
+        count.CommandText = "SELECT (SELECT count(*) FROM sessions), (SELECT count(*) FROM sqlite_master WHERE name IN ('chat_threads', 'chat_messages'))";
+        using var reader = count.ExecuteReader();
+        Assert.True(reader.Read());
+        Assert.Equal(1L, reader.GetInt64(0));
+        Assert.Equal(2L, reader.GetInt64(1));
+    }
+
+    [Fact]
     public void Apply_IsIdempotent()
     {
         using var connection = InMemory();
