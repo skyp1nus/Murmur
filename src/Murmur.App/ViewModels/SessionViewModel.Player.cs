@@ -23,7 +23,7 @@ public sealed partial class SessionViewModel
     /// <summary>The speeds the chip cycles through: 1×, 1.25×, 1.5×, 2×, 0.75× and back to 1×.</summary>
     internal static readonly double[] Speeds = [1, 1.25, 1.5, 2, 0.75];
 
-    private readonly IAudioPlayerControls? _controls;
+    private IAudioPlayerControls? _controls;
     private int _microphoneTrack = -1;
     private int _systemTrack = -1;
     private int _speedIndex;

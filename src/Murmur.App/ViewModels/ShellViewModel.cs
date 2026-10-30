@@ -168,7 +168,7 @@ public sealed partial class ShellViewModel : ObservableObject
                 services.Time,
                 chat: CreateChat(record.Id),
                 videoPlayback: services.VideoPlayback,
-                services: new SessionServices(ai?.Summarizer, services.Summaries, services.Sessions, SystemFolderLauncher.Instance));
+                services: new SessionServices(ai?.Summarizer, services.Summaries, services.Sessions, SystemFolderLauncher.Instance, playback.CreatePlayer));
         }
 
         // Without a store from the composition root (designer, tests) the settings live in memory for the run.
@@ -477,7 +477,10 @@ public sealed partial class ShellViewModel : ObservableObject
                 TopBar.Trailing = _hint;
                 break;
             case SessionViewModel session:
-                TopBar.Leading = new BreadcrumbViewModel(Strings.Nav_Library, new RelayCommand(ShowLibrary), session.Title);
+                // Opened from a chip of the library chat, the way back is the chat.
+                TopBar.Leading = _sessionReturnsToChat && LibraryChat is not null
+                    ? new BreadcrumbViewModel(Strings.Common_AskAi, new RelayCommand(OnSessionBack), session.Title)
+                    : new BreadcrumbViewModel(Strings.Nav_Library, new RelayCommand(ShowLibrary), session.Title);
                 TopBar.Trailing = session.Actions;
                 break;
             case LibraryChatViewModel:

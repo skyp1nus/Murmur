@@ -1412,7 +1412,6 @@
     <value>Couldn’t summarize the recording</value>
   </data>
   <data name="Session_SummaryFailed" xml:space="preserve">
-    <value>Couldn’t summarize the recording: {0}</value>
-    <comment>{0} = error message</comment>
+    <value>Couldn’t summarize the recording. Try again in a moment.</value>
   </data>
 </root>

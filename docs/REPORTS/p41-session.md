@@ -22,7 +22,7 @@
 
 **Core (контракт затверджено архітектором, реалізовано точно):** `SummaryItem`, `SessionSummary`, `ISessionSummarizer`, `ISummaryStore` (у складі `IStorage`), `TranscriptExport` (`ToMarkdown`, `ToPlainText`, `ToSrt`, `ToWebVtt`, `ExportLabels` — підписи «You»/«Others» і заголовки передає викликач).
 
-**Додано понад контракт (потрібно за специфікацією UI; прошу архітектора підтвердити):** `IAudioPlayerControls` у Core — окремий необов'язковий інтерфейс (`CanMuteTracks`, `CanChangeSpeed`, `SetTrackMuted`, `Speed`); `IAudioPlayer` не змінено. Реалізації: `ClockAudioPlayer` (мute і швидкість), `WasapiAudioPlayer` (мute у `TrackMixer`; швидкість — ні, `CanChangeSpeed = false`, кнопка «1×» вимкнена).
+**Додано понад контракт (D-046, форма затверджена архітектором):** `IAudioPlayerControls` у Core — окремий необов'язковий інтерфейс (`CanMuteTracks`, `SetTrackMuted`, `IsTrackMuted`, `CanChangeSpeed`, `Speed`, `SetSpeed`, `MaxTracks`); `IAudioPlayer` не змінено. Реалізації: `ClockAudioPlayer` (мute і швидкість), `WasapiAudioPlayer` (мute у `TrackMixer`; швидкість — ні, `CanChangeSpeed = false`, кнопка «1×» вимкнена).
 
 **Storage:** міграція 4 (`summaries`, `ON DELETE CASCADE` — видаляється разом із сесією), `SqliteStorage.Summaries.cs`, JSON через source-gen (`SummaryItemDto`).
 
@@ -34,11 +34,12 @@
 
 | Проєкт | Разом | Зелені | Пропущені |
 | --- | ---: | ---: | ---: |
-| Murmur.App.Tests | 996 | 996 | 0 |
-| Murmur.Core.Tests | 512 | 512 | 0 |
-| Murmur.Storage.Tests | 214 | 213 | 1 |
-| Murmur.Intelligence.Tests | 176 | 174 | 2 |
+| Murmur.App.Tests | 1006 | 1006 | 0 |
+| Murmur.Core.Tests | 515 | 515 | 0 |
+| Murmur.Storage.Tests | 216 | 215 | 1 |
+| Murmur.Intelligence.Tests | 185 | 183 | 2 |
 | Murmur.Desktop.Tests | 48 | 48 | 0 |
+| Murmur.Capture.Windows.Tests | 733 | 652 | 81 (потребують пристроїв Windows) |
 
 Нові: golden-файли експорту (5) і форматери; підсумок із фальшивою `ILlm` (шматки, цитати, скасування, мова, обмеження); сховище підсумків і міграція зі схеми v3; вкладки, експорт, фільтри, швидкість, пошук, стани підсумку, перейменування, видалення, меню. Збірка `dotnet build Murmur.sln -c Release`: 0 попереджень, 0 помилок.
 
@@ -46,7 +47,11 @@
 
 - **Швидкість у Windows-плеєрі:** вимкнена (потрібне розтягування часу, щоб не змінювати висоту тону). Відео при швидкості ≠ 1× синхронізується звуком через існуючу корекцію дрейфу (`ScreenPlaybackSync`).
 - **Windows-код (мute в `TrackMixer`/`WasapiAudioPlayer`, збереження підсумку в AOT-збірці)** на Linux лише компілюється; тести `Murmur.Capture.Windows.Tests` пройдуть на CI.
-- Якщо `peaks.bin` відсутній (старі записи) хвиля порожня, як і раніше; обчислення з аудіо не додано.
+- Якщо `peaks.bin` відсутній (старі записи), піки обчислюються з аудіо один раз поза потоком UI і зберігаються в `peaks.bin`; якщо одна з доріжок не WAV — хвиля порожня.
 - Чек-бокси завдань не зберігаються між візитами.
 - Вкладка Ask AI — існуючий `ChatView` без змін (чат історії будує інший агент).
 - Не перевірено вручну на Windows: діалог збереження файлу (`TopLevelFileSaver`), спливні меню.
+
+## Виправлення після рев'ю
+
+Цитати підсумку прив'язуються спершу за міткою `[mm:ss]` (останній сегмент із такою секундою), потім за положенням; заголовки українською; відкидаються шаблонні пункти й цитати не на початку пункту; шматки підігнано під контекст моделі (`SummarizerOptions.ForContext`); експорт SRT/WebVTT без розмітки; підсумок зберігається однією транзакцією й видаляється з новим транскриптом; плавне вимкнення доріжки (10 мс); «Stop» під час завершення, «Видалити» не під час обробки й з поверненням плеєра при помилці, шлях назад до чату (хлібні крихти «Ask AI», Esc, XButton1), закриття меню після перейменування; локалізоване повідомлення про помилку підсумку; токени `Inset.Session*`.

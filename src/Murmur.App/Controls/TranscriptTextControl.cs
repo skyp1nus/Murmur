@@ -75,8 +75,8 @@ public sealed class TranscriptTextControl : Control
 
     public static readonly StyledProperty<double> LetterSpacingProperty = TextBlock.LetterSpacingProperty.AddOwner<TranscriptTextControl>();
 
-    /// <summary>The room around a marked word is a plain space set in a smaller size, so it is exactly <see cref="Padding"/> wide whatever the font has.</summary>
-    private const char Pad = ' ';
+    /// <summary>The room around a marked word is a no-break space (so a hit inside a word can never wrap there) set in a smaller size, so it is exactly <see cref="Padding"/> wide whatever the font has.</summary>
+    private const char Pad = '\u00A0';
 
     private TextLayout? _layout;
     private Pen? _highlightPen;
@@ -487,7 +487,7 @@ public sealed class TranscriptTextControl : Control
         return (shown.ToString(), spans);
     }
 
-    /// <summary>The advance of a space as a share of the font size (the width of "a a" minus "aa" at 100 px, without letter spacing).</summary>
+    /// <summary>The advance of a space as a share of the font size (the width of "a" + no-break space + "a" minus "aa" at 100 px, without letter spacing).</summary>
     private static double SpaceShare(Typeface typeface)
     {
         double Width(string text)
@@ -496,7 +496,7 @@ public sealed class TranscriptTextControl : Control
             return layout.WidthIncludingTrailingWhitespace;
         }
 
-        return (Width("a a") - Width("aa")) / 100;
+        return (Width("a\u00A0a") - Width("aa")) / 100;
     }
 
     /// <summary>The position in the laid-out text of a character of <see cref="Text"/> (every <see cref="Pad"/> before it counts).</summary>

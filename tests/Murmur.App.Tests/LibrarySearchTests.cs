@@ -329,10 +329,14 @@ public sealed class LibrarySearchTests : IDisposable
         Assert.Equal(1, _fixture.Player.Plays);
         Assert.Equal(PlaybackState.Playing, _fixture.Player.State);
 
-        session.BackCommand.Execute(null);
+        // The breadcrumb leads back to where the chip was clicked: the chat, not the library.
+        var crumb = Assert.IsType<BreadcrumbViewModel>(shell.TopBar.Leading);
+        Assert.Equal((Murmur.App.Resources.Strings.Common_AskAi, true), (crumb.Root, crumb.IsLink));
+        crumb.RootCommand!.Execute(null);
 
         Assert.Same(shell.LibraryChat, shell.CurrentPage);
         Assert.True(_fixture.Player.Disposed);
+        Assert.Equal(Murmur.App.Resources.Strings.Common_AskAi, Assert.IsType<BreadcrumbViewModel>(shell.TopBar.Leading).Root);
     }
 
     [Fact]

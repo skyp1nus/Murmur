@@ -268,6 +268,10 @@
   <Thickness x:Key="Inset.RowPad">20,16</Thickness>
   <Thickness x:Key="Inset.LibraryItem">32,0</Thickness>
   <Thickness x:Key="Inset.InputBare">2,0</Thickness>
+  <Thickness x:Key="Inset.SessionRow">14,12</Thickness>
+  <Thickness x:Key="Inset.SessionChip">8,3</Thickness>
+  <Thickness x:Key="Inset.SessionVideoChip">10,4</Thickness>
+  <Thickness x:Key="Inset.SessionTime">6,0</Thickness>
 
   <!-- Radii (CardTop / CardBottom: the first and the last row of a card of rows round only their outer corners) -->
   <CornerRadius x:Key="Radius.Input">4</CornerRadius>

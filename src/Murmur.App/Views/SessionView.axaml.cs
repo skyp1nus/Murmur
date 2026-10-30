@@ -36,8 +36,20 @@ public partial class SessionView : UserControl
         TranscriptScroller.AddHandler(PointerWheelChangedEvent, OnUserScroll, RoutingStrategies.Tunnel | RoutingStrategies.Bubble, handledEventsToo: true);
         TranscriptScroller.AddHandler(PointerPressedEvent, OnTranscriptPointerPressed, RoutingStrategies.Tunnel);
 
+        // The "back" button of a mouse goes back, like Esc.
+        AddHandler(PointerReleasedEvent, OnPointerReleasedForBack, RoutingStrategies.Tunnel);
+
         // The right column is as tall as the window leaves room for, so the transcript list scrolls inside it (and stays virtualised).
         PageScroller.PropertyChanged += OnPageScrollerPropertyChanged;
+    }
+
+    private void OnPointerReleasedForBack(object? sender, PointerReleasedEventArgs e)
+    {
+        if (e.InitialPressMouseButton == MouseButton.XButton1 && _viewModel is { } viewModel)
+        {
+            viewModel.BackCommand.Execute(null);
+            e.Handled = true;
+        }
     }
 
     private void OnPageScrollerPropertyChanged(object? sender, AvaloniaPropertyChangedEventArgs e)

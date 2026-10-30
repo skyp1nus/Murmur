@@ -24,6 +24,9 @@ internal sealed class FakeSummarizer : ISessionSummarizer
 
     public SessionSummary? Result { get; set; }
 
+    /// <summary>Runs just before the summary is returned (the user presses Stop right then).</summary>
+    public Action? BeforeReturn { get; set; }
+
     public async ValueTask<SessionSummary> SummarizeAsync(SessionId session, IProgress<double>? progress, CancellationToken cancellationToken)
     {
         Calls++;
@@ -51,6 +54,7 @@ internal sealed class FakeSummarizer : ISessionSummarizer
             throw failure;
         }
 
+        BeforeReturn?.Invoke();
         return (Result ?? Sample(session)) with { Session = session };
     }
 

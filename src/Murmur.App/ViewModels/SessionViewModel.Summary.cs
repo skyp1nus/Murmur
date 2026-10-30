@@ -124,6 +124,10 @@ public sealed partial class SessionViewModel
 
         if (summary is null)
         {
+            _stored = null;
+            SummaryOverview = string.Empty;
+            KeyPoints = [];
+            ActionItems = [];
             SummaryState = SummaryStatus.None;
             RefreshSummaryAvailability();
             return;
@@ -216,6 +220,12 @@ public sealed partial class SessionViewModel
             var summary = await Task.Run(async () => await summarizer.SummarizeAsync(Id, progress, run.Token).ConfigureAwait(false), run.Token).ConfigureAwait(true);
             if (_disposed || run.IsCancellationRequested)
             {
+                // "Stop" came while the result was on its way: the user asked to stop, so what was shown before comes back.
+                if (!_disposed)
+                {
+                    RestoreAfterStop();
+                }
+
                 return;
             }
 
@@ -247,13 +257,15 @@ public sealed partial class SessionViewModel
                 return;
             }
 
-            // The usual causes: a recording started (the models were stopped under the request) or the files vanished.
+            // The usual causes: a recording started (the models were stopped under the request) or the files vanished. The reason
+            // (English, from the model server) goes to the log; the user gets a sentence in the UI language.
+            Console.Error.WriteLine($"Summary of session {Id} failed: {ex.Message}");
             Chat.RefreshAvailability();
             SummaryError = Chat.Availability switch
             {
                 ChatAvailability.PausedForRecording => Strings.Session_SummaryPaused,
                 ChatAvailability.NotInstalled => Strings.Session_SummaryNotInstalled,
-                _ => UiText.Format(Strings.Session_SummaryFailed, ex.Message),
+                _ => Strings.Session_SummaryFailed,
             };
             SummaryState = SummaryStatus.Failed;
             RefreshSummaryAvailability();

@@ -66,7 +66,7 @@ public sealed partial class SessionViewModel : ObservableObject, IDisposable, IF
     private readonly SessionRecord _record;
     private readonly SessionFiles _files;
     private readonly ITranscriptStore _transcripts;
-    private readonly IAudioPlayer _player;
+    private IAudioPlayer _player;
     private readonly ISessionProcessing _processing;
     private readonly TimeProvider _time;
     private readonly Action<Action> _post;
@@ -312,7 +312,30 @@ public sealed partial class SessionViewModel : ObservableObject, IDisposable, IF
         CanPlay = false;
         IsPlaying = false;
         DisposeVideo();
+        _player.StateChanged -= OnPlayerStateChanged;
         _player.Dispose();
+    }
+
+    /// <summary>
+    /// Brings the playback back after <see cref="ReleaseMedia"/> when the recording was not deleted after all: a new player opens the
+    /// tracks at the position the old one had, and the picture follows. Without a way to make a player the playback stays closed.
+    /// </summary>
+    private async Task ReopenMediaAsync()
+    {
+        if (_services.CreatePlayer is not { } create || _disposed)
+        {
+            return;
+        }
+
+        var position = Position;
+        _player = create();
+        _controls = _player as IAudioPlayerControls;
+        _player.StateChanged += OnPlayerStateChanged;
+        _microphoneTrack = -1;
+        _systemTrack = -1;
+        await OpenPlayerAsync().ConfigureAwait(true);
+        StartVideo();
+        SeekTo(position);
     }
 
     // Player commands ---------------------------------------------------------------------------------------------
@@ -498,13 +521,17 @@ public sealed partial class SessionViewModel : ObservableObject, IDisposable, IF
         }
     }
 
+    /// <summary>
+    /// The waveform overview: <c>peaks.bin</c> when the pipeline wrote it; for an older recording without one the peaks are computed from the
+    /// audio files once, off the UI thread, and kept in <c>peaks.bin</c> (when the folder is writable) and in memory.
+    /// </summary>
     private async Task LoadPeaksAsync()
     {
         var path = _files.Peaks;
         byte[] peaks;
         try
         {
-            peaks = File.Exists(path) ? await Task.Run(() => PeaksFile.Read(path)).ConfigureAwait(true) : [];
+            peaks = File.Exists(path) ? await Task.Run(() => PeaksFile.Read(path)).ConfigureAwait(true) : await ComputePeaksAsync().ConfigureAwait(true);
         }
         catch (Exception ex) when (ex is IOException or InvalidDataException or UnauthorizedAccessException)
         {
@@ -512,6 +539,46 @@ public sealed partial class SessionViewModel : ObservableObject, IDisposable, IF
         }
 
         Peaks = peaks;
+    }
+
+    private async Task<byte[]> ComputePeaksAsync()
+    {
+        // The file of a recording that is still being written is not final, and without audio there is nothing to show.
+        if (_record.State == SessionState.Recording)
+        {
+            return [];
+        }
+
+        var tracks = new List<string>(2);
+        if (_record.HasMicrophone && File.Exists(_files.MicrophoneAudio))
+        {
+            tracks.Add(_files.MicrophoneAudio);
+        }
+
+        if (_record.HasSystemAudio && File.Exists(_files.SystemAudio))
+        {
+            tracks.Add(_files.SystemAudio);
+        }
+
+        if (tracks.Count == 0)
+        {
+            return [];
+        }
+
+        var output = _files.Peaks;
+        return await Task.Run(() =>
+        {
+            try
+            {
+                PeaksBuilder.Build(tracks, output);
+                return PeaksFile.Read(output);
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                // A folder that cannot be written: the peaks are kept in memory only.
+                return PeaksBuilder.Compute(tracks);
+            }
+        }).ConfigureAwait(true);
     }
 
     private async Task LoadTranscriptAsync()
@@ -624,6 +691,7 @@ public sealed partial class SessionViewModel : ObservableObject, IDisposable, IF
     private void SetStatus(TranscriptStatus status, string title, string? text, string retryLabel)
     {
         OnPropertyChanged(nameof(CanRetranscribe));
+        OnPropertyChanged(nameof(CanDelete));
         StatusTitle = title;
         StatusText = text;
         RetryLabel = retryLabel;
@@ -680,6 +748,9 @@ public sealed partial class SessionViewModel : ObservableObject, IDisposable, IF
     {
         await LoadPeaksAsync().ConfigureAwait(true);
         await LoadTranscriptAsync().ConfigureAwait(true);
+
+        // A new transcript made the summary of the old one stale: the store dropped it, so the tab shows what is stored now.
+        await LoadSummaryAsync().ConfigureAwait(true);
     }
 
     // Player events -----------------------------------------------------------------------------------------------

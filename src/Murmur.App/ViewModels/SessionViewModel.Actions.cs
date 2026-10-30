@@ -34,6 +34,12 @@ public sealed partial class SessionViewModel
     /// <summary>"Re-transcribe" can start: there is a transcript to redo or a reason to try again, and the speech model is installed.</summary>
     public bool CanRetranscribe => _processing.IsAsrInstalled && (CanRetry || Status == TranscriptStatus.Available);
 
+    /// <summary>
+    /// The recording can be deleted: not while the speech pipeline works on it (the worker holds its audio open, so the folder could not
+    /// be removed, and a queued job would write for a session that is gone).
+    /// </summary>
+    public bool CanDelete => CanEditRecording && Status != TranscriptStatus.Processing;
+
     /// <summary>"Show in folder" is offered.</summary>
     public bool CanShowFolder => _services.Folders is not null;
 
@@ -89,8 +95,9 @@ public sealed partial class SessionViewModel
                 content).ConfigureAwait(true);
             ActionMessage = saved is null ? null : UiText.Format(Strings.Session_ExportSaved, saved);
         }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException)
+        catch (Exception ex) when (ex is not OperationCanceledException)
         {
+            // The dialog, the file system and the stream can each fail in their own way (NotSupportedException, a COM error ...).
             ActionMessage = UiText.Format(Strings.Session_ExportFailed, ex.Message);
         }
     }
@@ -153,7 +160,7 @@ public sealed partial class SessionViewModel
     /// <summary>Deletes the recording with its files, transcript and summary. The players let go of the files first (Windows keeps open files).</summary>
     internal async Task DeleteAsync()
     {
-        if (_services.Sessions is not { } store)
+        if (_services.Sessions is not { } store || !CanDelete)
         {
             return;
         }
@@ -166,7 +173,13 @@ public sealed partial class SessionViewModel
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException or InvalidDataException)
         {
+            // The recording is still there: the player and the picture come back, the view is as it was.
             ActionMessage = UiText.Format(Strings.Session_DeleteFailed, ex.Message);
+            if (!_disposed)
+            {
+                await ReopenMediaAsync().ConfigureAwait(true);
+            }
+
             return;
         }
 

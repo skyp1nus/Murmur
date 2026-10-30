@@ -14,6 +14,10 @@
     starts with "session", so none of them collides with the shared styles).
   -->
 
+  <UserControl.KeyBindings>
+    <KeyBinding Gesture="Escape" Command="{Binding BackCommand}" />
+  </UserControl.KeyBindings>
+
   <UserControl.Resources>
     <ResourceDictionary>
       <!-- Layout of the canvas page: 1240 wide at most, columns of 480 and 520 that wrap below 1024. -->
@@ -42,14 +46,8 @@
       <Thickness x:Key="Session.HeaderTrim">0,0,0,-1</Thickness>
       <Thickness x:Key="Session.TimeShift">0,-2,0,0</Thickness>
       <Thickness x:Key="Session.DateTrim">0,0,-2,0</Thickness>
-      <Thickness x:Key="Session.RowPadding">14,12</Thickness>
       <Thickness x:Key="Session.RowGap">0,0,0,2</Thickness>
-      <Thickness x:Key="Session.SmallPadding">12,0</Thickness>
-      <Thickness x:Key="Session.TimePadding">6,0</Thickness>
       <Thickness x:Key="Session.TimeNudge">0,1,0,0</Thickness>
-      <Thickness x:Key="Session.ItemChipPadding">8,3</Thickness>
-      <Thickness x:Key="Session.ChipPadding">10,4</Thickness>
-      <Thickness x:Key="Session.CardPadding">24</Thickness>
 
       <!-- Filled glyphs of the play button (24 x 24 grid, like the canvas SVGs). -->
       <StreamGeometry x:Key="Session.PlayGlyph">M8 5v14l11-7z</StreamGeometry>
@@ -188,7 +186,7 @@
       <Setter Property="MinHeight" Value="0" />
       <Setter Property="MinWidth" Value="0" />
       <Setter Property="Height" Value="{StaticResource Session.Small}" />
-      <Setter Property="Padding" Value="{StaticResource Session.SmallPadding}" />
+      <Setter Property="Padding" Value="{StaticResource Inset.Suggestion}" />
       <Setter Property="CornerRadius" Value="{StaticResource Radius.Pill}" />
       <Setter Property="HorizontalContentAlignment" Value="Center" />
       <Setter Property="VerticalContentAlignment" Value="Center" />
@@ -300,24 +298,24 @@
     <Style Selector="Border.sessionSurface">
       <Setter Property="Background" Value="{DynamicResource Brush.Surface}" />
       <Setter Property="CornerRadius" Value="{StaticResource Radius.Card}" />
-      <Setter Property="Padding" Value="{StaticResource Session.CardPadding}" />
+      <Setter Property="Padding" Value="{StaticResource Inset.24}" />
     </Style>
     <Style Selector="Border.sessionOutline">
       <Setter Property="BorderBrush" Value="{DynamicResource Brush.Hairline}" />
       <Setter Property="BorderThickness" Value="{StaticResource Hairline.Thickness}" />
       <Setter Property="CornerRadius" Value="{StaticResource Radius.Card}" />
-      <Setter Property="Padding" Value="{StaticResource Session.CardPadding}" />
+      <Setter Property="Padding" Value="{StaticResource Inset.24}" />
     </Style>
 
     <!-- The size chip over the video: Canvas at 90 %, 4 x 10 px. -->
     <Style Selector="Panel.videoChip > TextBlock.sessionChipText">
-      <Setter Property="Margin" Value="{StaticResource Session.ChipPadding}" />
+      <Setter Property="Margin" Value="{StaticResource Inset.SessionVideoChip}" />
     </Style>
 
     <!-- A line of the transcript: transparent, Surface under the pointer and for the current one, dimmed when its track is off. -->
     <Style Selector="Button.sessionRow">
       <Setter Property="MinHeight" Value="0" />
-      <Setter Property="Padding" Value="{StaticResource Session.RowPadding}" />
+      <Setter Property="Padding" Value="{StaticResource Inset.SessionRow}" />
       <Setter Property="Margin" Value="{StaticResource Session.RowGap}" />
       <Setter Property="CornerRadius" Value="{StaticResource Radius.Note}" />
       <Setter Property="HorizontalAlignment" Value="Stretch" />
@@ -373,7 +371,7 @@
     <Style Selector="Button.sessionTime">
       <Setter Property="MinHeight" Value="0" />
       <Setter Property="MinWidth" Value="0" />
-      <Setter Property="Padding" Value="{StaticResource Session.TimePadding}" />
+      <Setter Property="Padding" Value="{StaticResource Inset.SessionTime}" />
       <Setter Property="CornerRadius" Value="{StaticResource Radius.Key}" />
       <Setter Property="Background" Value="Transparent" />
       <Setter Property="BorderThickness" Value="0" />
@@ -396,7 +394,7 @@
     <Style Selector="Button.sessionChip">
       <Setter Property="MinHeight" Value="0" />
       <Setter Property="MinWidth" Value="0" />
-      <Setter Property="Padding" Value="{StaticResource Session.ItemChipPadding}" />
+      <Setter Property="Padding" Value="{StaticResource Inset.SessionChip}" />
       <Setter Property="CornerRadius" Value="{StaticResource Radius.Pill}" />
       <Setter Property="BorderThickness" Value="0" />
       <Setter Property="Background" Value="{DynamicResource Brush.FillHover}" />
@@ -411,7 +409,7 @@
       <Setter Property="Background" Value="{DynamicResource Brush.FillPressed}" />
     </Style>
     <Style Selector="Border.sessionChipLabel">
-      <Setter Property="Padding" Value="{StaticResource Session.ItemChipPadding}" />
+      <Setter Property="Padding" Value="{StaticResource Inset.SessionChip}" />
       <Setter Property="CornerRadius" Value="{StaticResource Radius.Pill}" />
       <Setter Property="Background" Value="{DynamicResource Brush.FillHover}" />
       <Setter Property="VerticalAlignment" Value="Top" />

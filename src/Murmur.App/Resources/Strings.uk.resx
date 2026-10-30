@@ -1412,7 +1412,6 @@
     <value>Не вдалося скласти підсумок</value>
   </data>
   <data name="Session_SummaryFailed" xml:space="preserve">
-    <value>Не вдалося скласти підсумок: {0}</value>
-    <comment>{0} = error message</comment>
+    <value>Не вдалося скласти підсумок. Спробуйте ще раз за хвилину.</value>
   </data>
 </root>

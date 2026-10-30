@@ -15,7 +15,6 @@
       <x:Double x:Key="Size.SessionGhost">36</x:Double>
       <x:Double x:Key="Size.SessionMenuWidth">220</x:Double>
       <x:Double x:Key="Size.SessionRenameWidth">280</x:Double>
-      <Thickness x:Key="Margin.SessionMenuItem">12,8</Thickness>
 
       <!-- The three dots of "..." (filled circles on the 24 x 24 grid of the canvas SVG). -->
       <StreamGeometry x:Key="Session.Dots">M3.4 12a1.6 1.6 0 1 0 3.2 0a1.6 1.6 0 1 0 -3.2 0 M10.4 12a1.6 1.6 0 1 0 3.2 0a1.6 1.6 0 1 0 -3.2 0 M17.4 12a1.6 1.6 0 1 0 3.2 0a1.6 1.6 0 1 0 -3.2 0</StreamGeometry>
@@ -75,7 +74,7 @@
   </Style>
   <Style Selector="Button.sessionMenuItem">
     <Setter Property="MinHeight" Value="0" />
-    <Setter Property="Padding" Value="{StaticResource Margin.SessionMenuItem}" />
+    <Setter Property="Padding" Value="{StaticResource Inset.Input}" />
     <Setter Property="CornerRadius" Value="{StaticResource Radius.Small}" />
     <Setter Property="HorizontalAlignment" Value="Stretch" />
     <Setter Property="HorizontalContentAlignment" Value="Left" />

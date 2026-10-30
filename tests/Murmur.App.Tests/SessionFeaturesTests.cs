@@ -58,6 +58,50 @@ public sealed class SessionFeaturesTests : IDisposable
 
     private static TimeSpan S(double seconds) => TimeSpan.FromSeconds(seconds);
 
+    // Waveform --------------------------------------------------------------------------------------------------
+
+    [Fact]
+    public async Task ARecordingWithoutPeaks_ComputesThemFromTheAudioOnce_AndKeepsThemInTheFolder()
+    {
+        _fixture.UseShortTranscript();
+        var samples = new float[16_000 * 2];
+        for (var i = 0; i < samples.Length; i++)
+        {
+            samples[i] = i < 16_000 ? 0.5f : 0.1f;
+        }
+
+        using (var writer = new Murmur.Core.Audio.WavPcm16Writer(_fixture.Files.MicrophoneAudio))
+        {
+            writer.Append(samples);
+            writer.UpdateHeader();
+        }
+
+        using (var writer = new Murmur.Core.Audio.WavPcm16Writer(_fixture.Files.SystemAudio))
+        {
+            writer.Append(new float[16_000]);
+            writer.UpdateHeader();
+        }
+
+        Assert.False(File.Exists(_fixture.Files.Peaks));
+        var vm = _fixture.Create();
+
+        await vm.LoadAsync();
+
+        Assert.Equal(100, vm.Peaks.Length);
+        Assert.True(vm.Peaks[10] > vm.Peaks[60]);
+        Assert.True(File.Exists(_fixture.Files.Peaks));
+        Assert.Equal(vm.Peaks, Murmur.Core.Audio.PeaksFile.Read(_fixture.Files.Peaks));
+    }
+
+    [Fact]
+    public async Task AudioThatIsNotAWav_LeavesTheWaveformEmpty_WithoutAnError()
+    {
+        var vm = await LoadAsync();
+
+        Assert.Empty(vm.Peaks);
+        Assert.False(vm.HasPlayerError);
+    }
+
     // Header ----------------------------------------------------------------------------------------------------
 
     [Fact]
@@ -262,6 +306,26 @@ public sealed class SessionFeaturesTests : IDisposable
     }
 
     [Fact]
+    public async Task AfterANewTranscript_TheStaleSummaryIsGone()
+    {
+        _summaries.Put(FakeSummarizer.Sample(_fixture.Record.Id));
+        var vm = await LoadAsync();
+        Assert.Equal(SummaryStatus.Ready, vm.SummaryState);
+
+        // Re-transcribing stored a new transcript, and the store dropped the summary of the old one.
+        await _summaries.DeleteSummaryAsync(_fixture.Record.Id, Ct);
+        _fixture.Processing.Raise(new SessionProcessingStatus(_fixture.Record.Id, SessionProcessingStage.Completed, 1));
+        for (var i = 0; i < 200 && vm.SummaryState != SummaryStatus.None; i++)
+        {
+            await Task.Delay(5, Ct);
+        }
+
+        Assert.Equal(SummaryStatus.None, vm.SummaryState);
+        Assert.Empty(vm.KeyPoints);
+        Assert.Equal(string.Empty, vm.SummaryOverview);
+    }
+
+    [Fact]
     public async Task Summarize_ShowsProgress_ThenTheSummary_AndSavesIt()
     {
         var vm = await LoadAsync();
@@ -338,6 +402,21 @@ public sealed class SessionFeaturesTests : IDisposable
     }
 
     [Fact]
+    public async Task StopPressedWhileTheResultIsOnItsWay_DoesNotLeaveTheTabWorking()
+    {
+        var vm = await LoadAsync();
+        _summarizer.BeforeReturn = () => vm.CancelSummaryRunCommand.Execute(null);
+
+        vm.SummarizeCommand.Execute(null);
+        await vm.SummaryTask;
+
+        Assert.Equal(SummaryStatus.None, vm.SummaryState);
+        Assert.False(vm.ShowSummaryWorking);
+        Assert.Empty(_summaries.Saved);
+        Assert.True(vm.CanSummarize);
+    }
+
+    [Fact]
     public async Task AFailedSummary_ShowsWhy_AndCanBeTriedAgain()
     {
         var vm = await LoadAsync();
@@ -347,7 +426,8 @@ public sealed class SessionFeaturesTests : IDisposable
         await vm.SummaryTask;
 
         Assert.Equal(SummaryStatus.Failed, vm.SummaryState);
-        Assert.Equal("Couldn’t summarize the recording: The model returned no summary.", vm.SummaryError);
+        Assert.Equal("Couldn’t summarize the recording. Try again in a moment.", vm.SummaryError);
+        Assert.DoesNotContain("model returned", vm.SummaryError);
         Assert.True(vm.CanSummarize);
 
         _summarizer.Failure = null;
@@ -537,6 +617,63 @@ public sealed class SessionFeaturesTests : IDisposable
         Assert.Equal([_fixture.Record.Id], _store.Deleted);
         Assert.Equal(1, deleted);
         Assert.False(vm.CanPlay);
+    }
+
+    [Fact]
+    public async Task Delete_IsNotOffered_WhileTheRecordingIsBeingTranscribed()
+    {
+        _fixture.Processing.Raise(new SessionProcessingStatus(_fixture.Record.Id, SessionProcessingStage.Transcribing, 0.3));
+        var vm = _fixture.Create();
+        await vm.LoadAsync();
+        vm.Actions.BeginDeleteCommand.Execute(null);
+
+        // The processing status of the pipeline shows the progress card instead of the list.
+        Assert.Equal(TranscriptStatus.Processing, vm.Status);
+        Assert.False(vm.CanDelete);
+        await vm.DeleteAsync();
+        Assert.Empty(_store.Deleted);
+    }
+
+    [Fact]
+    public async Task Delete_WhenTheStoreFails_BringsThePlaybackBack_AndSaysWhy()
+    {
+        _store.DeleteFailure = new IOException("mic.wav is in use");
+        var created = 0;
+        var second = new FakeAudioPlayer { Duration = _fixture.Record.Duration };
+        _fixture.UseShortTranscript();
+        var vm = new SessionViewModel(
+            _fixture.Record, _fixture.Files, _fixture.Transcripts, _fixture.Player, _fixture.Processing, _fixture.Time, action => action(),
+            null, null, new SessionServices(_summarizer, _summaries, _store, _folders, () =>
+            {
+                created++;
+                return second;
+            })) { FileSaver = _saver };
+        await vm.LoadAsync();
+        vm.SeekTo(S(21));
+        var deleted = 0;
+        vm.Deleted += () => deleted++;
+
+        await vm.DeleteAsync();
+
+        Assert.True(_fixture.Player.Disposed);
+        Assert.Equal(1, created);
+        Assert.Single(second.Opens);
+        Assert.True(vm.CanPlay);
+        Assert.Equal(S(21), second.Position);
+        Assert.Equal(0, deleted);
+        Assert.Equal("Couldn’t delete the recording: mic.wav is in use", vm.ActionMessage);
+    }
+
+    [Fact]
+    public async Task Export_AnyFailureOfTheDialogIsReported_NotJustIoErrors()
+    {
+        var vm = await LoadAsync();
+        _saver.Failure = new NotSupportedException("Stream does not support SetLength.");
+
+        vm.ExportMarkdownCommand.Execute(null);
+        await vm.ExportTask;
+
+        Assert.Equal("Couldn’t save the file: Stream does not support SetLength.", vm.ActionMessage);
     }
 
     [Fact]

@@ -73,6 +73,7 @@
               <Button Classes="sessionMenuItem"
                       Content="{x:Static res:Strings.Session_Delete}"
                       IsVisible="{Binding Session.CanEditRecording}"
+                      IsEnabled="{Binding Session.CanDelete}"
                       Command="{Binding BeginDeleteCommand}" />
             </StackPanel>
 
@@ -83,11 +84,7 @@
                         IsVisible="{Binding IsRename}">
               <TextBox x:Name="RenameBox"
                        Text="{Binding RenameText, Mode=TwoWay}"
-                       AutomationProperties.Name="{x:Static res:Strings.Session_Rename}">
-                <TextBox.KeyBindings>
-                  <KeyBinding Gesture="Enter" Command="{Binding ApplyRenameCommand}" />
-                </TextBox.KeyBindings>
-              </TextBox>
+                       AutomationProperties.Name="{x:Static res:Strings.Session_Rename}" />
               <StackPanel Orientation="Horizontal"
                           HorizontalAlignment="Right"
                           Spacing="{StaticResource Space.8}">
