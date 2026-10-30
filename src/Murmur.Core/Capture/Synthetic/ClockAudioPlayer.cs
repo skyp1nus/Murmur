@@ -41,7 +41,7 @@ public sealed class ClockAudioPlayback : IAudioPlayback
 /// the state was updated: on the calling thread for Open/Play/Pause/Seek, on a timer (thread-pool) thread for Ended -
 /// UI subscribers must marshal. <see cref="Position"/> is cheap and lock-light enough for a 30 Hz UI timer.</para>
 /// </remarks>
-public sealed class ClockAudioPlayer : IAudioPlayer
+public sealed class ClockAudioPlayer : IAudioPlayer, IAudioPlayerControls
 {
     private readonly TimeProvider _time;
     private readonly object _gate = new();
@@ -53,6 +53,8 @@ public sealed class ClockAudioPlayer : IAudioPlayer
     private ITimer? _endTimer;
     private long _generation;
     private bool _disposed;
+    private double _speed = 1;
+    private ulong _mutedTracks;
 
     public ClockAudioPlayer(TimeProvider? time = null)
     {
@@ -91,6 +93,69 @@ public sealed class ClockAudioPlayer : IAudioPlayer
             {
                 return CurrentPositionLocked();
             }
+        }
+    }
+
+    /// <summary>A silent player can pretend to mute any track (the settings are kept for tests and the UI).</summary>
+    public bool CanMuteTracks => true;
+
+    /// <summary>The clock runs at the chosen speed.</summary>
+    public bool CanChangeSpeed => true;
+
+    /// <summary>Playback speed (see <see cref="IAudioPlayerControls.Speed"/>); changing it while playing keeps the position.</summary>
+    public double Speed
+    {
+        get
+        {
+            lock (_gate)
+            {
+                return _speed;
+            }
+        }
+
+        set
+        {
+            var speed = double.IsNaN(value) ? 1 : Math.Clamp(value, 0.25, 4);
+            lock (_gate)
+            {
+                if (_speed.Equals(speed))
+                {
+                    return;
+                }
+
+                if (_state == PlaybackState.Playing && !_disposed)
+                {
+                    _basePosition = CurrentPositionLocked();
+                    _speed = speed;
+                    StartPlayingLocked();
+                }
+                else
+                {
+                    _speed = speed;
+                }
+            }
+        }
+    }
+
+    public void SetTrackMuted(int trackIndex, bool muted)
+    {
+        if (trackIndex is < 0 or >= 64)
+        {
+            return;
+        }
+
+        lock (_gate)
+        {
+            _mutedTracks = muted ? _mutedTracks | (1UL << trackIndex) : _mutedTracks & ~(1UL << trackIndex);
+        }
+    }
+
+    /// <summary>Whether the track at <paramref name="trackIndex"/> is muted (diagnostics and tests).</summary>
+    public bool IsTrackMuted(int trackIndex)
+    {
+        lock (_gate)
+        {
+            return trackIndex is >= 0 and < 64 && (_mutedTracks & (1UL << trackIndex)) != 0;
         }
     }
 
@@ -231,7 +296,7 @@ public sealed class ClockAudioPlayer : IAudioPlayer
             return _basePosition;
         }
 
-        var position = _basePosition + _time.GetElapsedTime(_playStartTimestamp);
+        var position = _basePosition + (_time.GetElapsedTime(_playStartTimestamp) * _speed);
         return position > _duration ? _duration : position;
     }
 
@@ -240,7 +305,7 @@ public sealed class ClockAudioPlayer : IAudioPlayer
         CancelEndTimerLocked();
         _playStartTimestamp = _time.GetTimestamp();
         var generation = ++_generation;
-        var remaining = _duration - _basePosition;
+        var remaining = (_duration - _basePosition) / _speed;
         _endTimer = _time.CreateTimer(static s => ((EndCallback)s!).Fire(), new EndCallback(this, generation), remaining, Timeout.InfiniteTimeSpan);
         return SetStateLocked(PlaybackState.Playing);
     }
@@ -262,10 +327,10 @@ public sealed class ClockAudioPlayer : IAudioPlayer
                 return; // A pause, seek or re-open superseded this timer.
             }
 
-            if (_time.GetElapsedTime(_playStartTimestamp) < _duration - _basePosition)
+            if (_time.GetElapsedTime(_playStartTimestamp) * _speed < _duration - _basePosition)
             {
                 // Fired early (coarse timer): re-arm for the rest.
-                var rest = _duration - _basePosition - _time.GetElapsedTime(_playStartTimestamp);
+                var rest = (_duration - _basePosition - (_time.GetElapsedTime(_playStartTimestamp) * _speed)) / _speed;
                 _endTimer?.Change(rest, Timeout.InfiniteTimeSpan);
                 return;
             }
