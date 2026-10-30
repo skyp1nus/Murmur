@@ -12,7 +12,8 @@
                   x:DataType="vm:CitationChipViewModel">
       <Button Classes="chatChip"
               Command="{Binding ActivateCommand}"
-              ToolTip.Tip="{Binding Snippet}">
+              ToolTip.Tip="{Binding Tooltip}"
+              ToolTip.ShowOnDisabled="True">
         <StackPanel Orientation="Horizontal"
                     Spacing="{StaticResource Space.4}">
           <controls:IconControl Width="{StaticResource Chat.PlayIcon}"
@@ -126,7 +127,9 @@
                   <ItemsControl.ItemTemplate>
                     <DataTemplate x:DataType="vm:SourceCardViewModel">
                       <Button Classes="chatSource"
-                              Command="{Binding OpenCommand}">
+                              Command="{Binding OpenCommand}"
+                              ToolTip.Tip="{Binding Tooltip}"
+                              ToolTip.ShowOnDisabled="True">
                         <StackPanel Spacing="{StaticResource Space.6}">
                           <Grid ColumnDefinitions="*,Auto"
                                 ColumnSpacing="{StaticResource Space.8}">
@@ -172,7 +175,17 @@
                                         Height="{StaticResource Chat.ActionIcon}"
                                         Data="{StaticResource Chat.Icon.Retry}" />
                 </Button>
+                <TextBlock Classes="t12 muted"
+                           VerticalAlignment="Center"
+                           IsVisible="{Binding HasCopyStatus}"
+                           Text="{Binding CopyStatus}" />
               </StackPanel>
+
+              <!-- Why this exchange is not saved -->
+              <TextBlock Classes="t12 muted"
+                         TextWrapping="Wrap"
+                         IsVisible="{Binding HasSaveNote}"
+                         Text="{Binding SaveNote}" />
             </StackPanel>
           </Panel>
         </DataTemplate>

@@ -62,10 +62,16 @@ public sealed partial class SidebarEntry : ObservableObject
 
     /// <summary>The title is being edited in place of the pill.</summary>
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(IsNotEditing))]
+    [NotifyPropertyChangedFor(nameof(ShowPill))]
     public partial bool IsEditing { get; private set; }
 
-    public bool IsNotEditing => !IsEditing;
+    /// <summary>Delete was chosen: "Delete? Delete / Cancel" is in place of the pill until it is confirmed or cancelled.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ShowPill))]
+    public partial bool IsConfirmingDelete { get; private set; }
+
+    /// <summary>The ordinary pill shows (not the editor, not the question).</summary>
+    public bool ShowPill => !IsEditing && !IsConfirmingDelete;
 
     /// <summary>The text of the inline editor.</summary>
     [ObservableProperty]
@@ -107,8 +113,28 @@ public sealed partial class SidebarEntry : ObservableObject
     [RelayCommand]
     private void CancelRename() => IsEditing = false;
 
+    /// <summary>Delete in the context menu: asks first, in the row (like removing a model).</summary>
     [RelayCommand]
-    private void Delete() => _delete?.Invoke();
+    private void Delete()
+    {
+        if (_delete is not null)
+        {
+            IsConfirmingDelete = true;
+        }
+    }
+
+    [RelayCommand]
+    private void ConfirmDelete()
+    {
+        if (IsConfirmingDelete)
+        {
+            IsConfirmingDelete = false;
+            _delete?.Invoke();
+        }
+    }
+
+    [RelayCommand]
+    private void CancelDelete() => IsConfirmingDelete = false;
 }
 
 /// <summary>

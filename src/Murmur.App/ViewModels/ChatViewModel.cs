@@ -102,8 +102,14 @@ public sealed partial class ChatViewModel : ObservableObject, IDisposable
     /// <summary>New content arrived at the bottom of the list (the view keeps it in sight).</summary>
     public event Action? ScrollToEndRequested;
 
-    /// <summary>Copy was pressed under an answer: the owner puts the text on the clipboard.</summary>
-    public event Action<string>? CopyRequested;
+    /// <summary>
+    /// Writes text to the clipboard and tells whether it did (<c>false</c>: the window has no clipboard); set by the view (the clipboard
+    /// belongs to the window). <c>null</c> = no clipboard at all, so Copy does nothing.
+    /// </summary>
+    public Func<string, Task<bool>>? ClipboardWriter { get; set; }
+
+    /// <summary>How long "Copied" stays under an answer.</summary>
+    internal static readonly TimeSpan CopiedFor = TimeSpan.FromSeconds(2);
 
     /// <summary>The exchange was saved (the thread was created, or got a message): the chat list refreshes.</summary>
     public event Action<ChatThread>? ThreadSaved;
@@ -244,12 +250,40 @@ public sealed partial class ChatViewModel : ObservableObject, IDisposable
         AskTask = RunAskAsync(question, regenerate: true);
     }
 
+    /// <summary>Copies the text of an answer; "Copied" shows under it for two seconds, a clipboard that is held by another program says so quietly.</summary>
     [RelayCommand]
-    private void CopyAnswer(ChatMessageViewModel? message)
+    private async Task CopyAnswerAsync(ChatMessageViewModel? message)
     {
-        if (message is { IsAssistant: true, HasText: true })
+        if (message is not { IsAssistant: true, HasText: true } || ClipboardWriter is not { } write)
         {
-            CopyRequested?.Invoke(message.Text);
+            return;
+        }
+
+        try
+        {
+            message.CopyStatus = await write(message.Text)
+                ? Strings.Chat_Copied
+                : UiText.Format(Strings.Chat_CopyFailed, Strings.Recording_ClipboardUnavailable);
+        }
+        catch (Exception ex)
+        {
+            // The Windows clipboard throws while another program holds it.
+            message.CopyStatus = UiText.Format(Strings.Chat_CopyFailed, ex.Message);
+        }
+
+        _ = ClearCopyStatusAsync(message);
+    }
+
+    private async Task ClearCopyStatusAsync(ChatMessageViewModel message)
+    {
+        try
+        {
+            await Task.Delay(CopiedFor, _time).ConfigureAwait(true);
+            message.CopyStatus = null;
+        }
+        catch (Exception)
+        {
+            // Cleared with the chat.
         }
     }
 
@@ -338,7 +372,7 @@ public sealed partial class ChatViewModel : ObservableObject, IDisposable
     /// <summary>Wires the Copy and Regenerate buttons of a message to this chat.</summary>
     private void Attach(ChatMessageViewModel message)
     {
-        message.CopyCommand = new RelayCommand(() => CopyAnswer(message));
+        message.CopyCommand = new AsyncRelayCommand(() => CopyAnswerAsync(message));
         message.RegenerateCommand = RegenerateCommand;
     }
 
@@ -369,7 +403,19 @@ public sealed partial class ChatViewModel : ObservableObject, IDisposable
             line = line[..newline].TrimEnd();
         }
 
-        return line.Length <= MaxTitleLength ? line.ToString() : string.Concat(line[..(MaxTitleLength - 1)].TrimEnd(), "…");
+        if (line.Length <= MaxTitleLength)
+        {
+            return line.ToString();
+        }
+
+        // Never cut between the two halves of a surrogate pair.
+        var cut = MaxTitleLength - 1;
+        if (char.IsHighSurrogate(line[cut - 1]))
+        {
+            cut--;
+        }
+
+        return string.Concat(line[..cut].TrimEnd(), "…");
     }
 
     /// <summary>
@@ -400,11 +446,25 @@ public sealed partial class ChatViewModel : ObservableObject, IDisposable
             _storedCount = answer.StoredIndex.Value + 1;
             ThreadSaved?.Invoke(thread);
         }
-        catch (Exception)
+        catch (Exception ex)
         {
-            // Saving is best effort: a locked or full database must not turn a good answer into an error.
+            // Saving is best effort: a locked or full database must not turn a good answer into an error, but it says so quietly.
             user.StoredIndex = null;
             answer.StoredIndex = null;
+            if (ex is KeyNotFoundException)
+            {
+                // The thread (or the recording it was scoped to) is gone: later exchanges must not append to it.
+                Thread = null;
+                _storedCount = 0;
+                foreach (var message in Messages)
+                {
+                    message.StoredIndex = null;
+                }
+            }
+
+            answer.SaveNote = ex is KeyNotFoundException && Scope is not null
+                ? Strings.Chat_NoLongerSaved
+                : Strings.Chat_NotSaved;
         }
     }
 

@@ -154,7 +154,7 @@
                   <Panel IsVisible="{Binding CanManage}">
                     <Button Classes="nav sub"
                             Classes.on="{Binding IsActive}"
-                            IsVisible="{Binding IsNotEditing}"
+                            IsVisible="{Binding ShowPill}"
                             Command="{Binding OpenCommand}">
                       <Button.ContextMenu>
                         <ContextMenu>
@@ -171,6 +171,26 @@
                                  Foreground="{Binding $parent[ContentPresenter].Foreground}"
                                  Text="{Binding Title}" />
                     </Button>
+                    <StackPanel Orientation="Horizontal"
+                                Spacing="{StaticResource Space.8}"
+                                Margin="{StaticResource Inset.Toggle}"
+                                IsVisible="{Binding IsConfirmingDelete}">
+                      <TextBlock Classes="t13 muted"
+                                 VerticalAlignment="Center"
+                                 Text="{x:Static res:Strings.Chat_DeleteQuestion}" />
+                      <Button Classes="suggestion"
+                              Command="{Binding ConfirmDeleteCommand}">
+                        <TextBlock Classes="t13 plain"
+                                   Foreground="{Binding $parent[ContentPresenter].Foreground}"
+                                   Text="{x:Static res:Strings.Chat_DeleteChat}" />
+                      </Button>
+                      <Button Classes="suggestion"
+                              Command="{Binding CancelDeleteCommand}">
+                        <TextBlock Classes="t13 plain"
+                                   Foreground="{Binding $parent[ContentPresenter].Foreground}"
+                                   Text="{x:Static res:Strings.Models_Cancel}" />
+                      </Button>
+                    </StackPanel>
                     <controls:RenameBox Classes="chatRename"
                                         IsVisible="{Binding IsEditing}"
                                         AutomationProperties.Name="{x:Static res:Strings.Chat_RenameChat}"

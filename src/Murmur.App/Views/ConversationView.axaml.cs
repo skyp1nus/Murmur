@@ -14,6 +14,7 @@ public partial class ConversationView : UserControl
 {
     private ChatViewModel? _viewModel;
     private bool _scrollQueued;
+    private ScrollViewer? _scroller;
 
     public ConversationView()
     {
@@ -29,14 +30,14 @@ public partial class ConversationView : UserControl
         if (_viewModel is not null)
         {
             _viewModel.ScrollToEndRequested -= OnScrollToEnd;
-            _viewModel.CopyRequested -= OnCopyRequested;
+            _viewModel.ClipboardWriter = null;
         }
 
         _viewModel = DataContext as ChatViewModel;
         if (_viewModel is not null)
         {
             _viewModel.ScrollToEndRequested += OnScrollToEnd;
-            _viewModel.CopyRequested += OnCopyRequested;
+            _viewModel.ClipboardWriter = WriteToClipboardAsync;
         }
     }
 
@@ -56,12 +57,16 @@ public partial class ConversationView : UserControl
         e.Handled = true;
     }
 
-    private async void OnCopyRequested(string text)
+    /// <summary>The window's clipboard; the view model catches what it throws (the Windows clipboard fails while another program holds it).</summary>
+    private async Task<bool> WriteToClipboardAsync(string text)
     {
-        if (TopLevel.GetTopLevel(this)?.Clipboard is { } clipboard)
+        if (TopLevel.GetTopLevel(this)?.Clipboard is not { } clipboard)
         {
-            await clipboard.SetTextAsync(text);
+            return false;
         }
+
+        await clipboard.SetTextAsync(text);
+        return true;
     }
 
     /// <summary>Deltas arrive many times a second: one scroll per rendered frame at most, after layout.</summary>
@@ -77,7 +82,7 @@ public partial class ConversationView : UserControl
             () =>
             {
                 _scrollQueued = false;
-                MessageList.GetVisualDescendants().OfType<ScrollViewer>().FirstOrDefault()?.ScrollToEnd();
+                (_scroller ??= MessageList.GetVisualDescendants().OfType<ScrollViewer>().FirstOrDefault())?.ScrollToEnd();
             },
             DispatcherPriority.Render);
     }

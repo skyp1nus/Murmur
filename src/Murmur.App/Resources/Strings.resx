@@ -1332,4 +1332,23 @@
   <data name="Chat_DeleteChat" xml:space="preserve">
     <value>Delete</value>
   </data>
+  <data name="Chat_Copied" xml:space="preserve">
+    <value>Copied</value>
+  </data>
+  <data name="Chat_CopyFailed" xml:space="preserve">
+    <value>Couldn’t copy: {0}</value>
+    <comment>{0} = reason</comment>
+  </data>
+  <data name="Chat_NotSaved" xml:space="preserve">
+    <value>This exchange could not be saved.</value>
+  </data>
+  <data name="Chat_NoLongerSaved" xml:space="preserve">
+    <value>The recording of this chat was deleted, so it is no longer saved.</value>
+  </data>
+  <data name="Chat_DeleteQuestion" xml:space="preserve">
+    <value>Delete?</value>
+  </data>
+  <data name="Chat_OpenFailed" xml:space="preserve">
+    <value>Couldn’t open this chat.</value>
+  </data>
 </root>

@@ -78,7 +78,7 @@ internal sealed class DesignRig : IDisposable
             Library,
             Recording,
             sessionFactory: CreateSession,
-            chatFactory: scope => new ChatViewModel(Assistant, new FakeLlm(), Recorder, scope, "/models", action => action(), ChatStore, SessionStore, Time),
+            chatFactory: scope => new ChatViewModel(Assistant, Llm, Recorder, scope, "/models", action => action(), ChatStore, SessionStore, Time),
             settings: Settings,
             onboardingFactory: () => Onboarding,
             settingsStore: Store,
@@ -86,7 +86,7 @@ internal sealed class DesignRig : IDisposable
             post: action => action(),
             chatStore: ChatStore,
             sessionStore: SessionStore,
-            chatModelChip: new ChatModelChipViewModel(() => DesignDemoData.ChatModelName, null, action => action()));
+            chatModelChip: new ChatModelChipViewModel(() => ChatModelName, null, action => action()));
     }
 
     public FakeSettingsStore Store { get; }
@@ -112,6 +112,12 @@ internal sealed class DesignRig : IDisposable
     public FakeTranscriptStore Transcripts { get; } = new();
 
     public FakeAssistant Assistant { get; } = new();
+
+    /// <summary>The model host the chats ask about the models (installed or not).</summary>
+    public FakeLlm Llm { get; } = new();
+
+    /// <summary>The name the model chip shows.</summary>
+    public string? ChatModelName { get; set; } = DesignDemoData.ChatModelName;
 
     public FakeFolderLauncher Folders { get; } = new();
 

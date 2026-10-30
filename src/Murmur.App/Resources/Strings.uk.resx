@@ -1330,4 +1330,22 @@
   <data name="Chat_DeleteChat" xml:space="preserve">
     <value>Видалити</value>
   </data>
+  <data name="Chat_Copied" xml:space="preserve">
+    <value>Скопійовано</value>
+  </data>
+  <data name="Chat_CopyFailed" xml:space="preserve">
+    <value>Не вдалося скопіювати: {0}</value>
+  </data>
+  <data name="Chat_NotSaved" xml:space="preserve">
+    <value>Цей обмін не вдалося зберегти.</value>
+  </data>
+  <data name="Chat_NoLongerSaved" xml:space="preserve">
+    <value>Запис цього чату видалено, тож чат більше не зберігається.</value>
+  </data>
+  <data name="Chat_DeleteQuestion" xml:space="preserve">
+    <value>Видалити?</value>
+  </data>
+  <data name="Chat_OpenFailed" xml:space="preserve">
+    <value>Не вдалося відкрити цей чат.</value>
+  </data>
 </root>

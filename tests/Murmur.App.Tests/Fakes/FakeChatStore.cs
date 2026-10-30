@@ -47,11 +47,21 @@ internal sealed class FakeChatStore : IChatStore
         }
     }
 
-    public ValueTask<IReadOnlyList<ChatThread>> ListThreadsAsync(int limit, CancellationToken cancellationToken)
+    /// <summary>When set, the next <see cref="ListThreadsAsync"/> answers after this task (a slow database); it reads the threads at once, so its answer is the older one.</summary>
+    public Task? ListGate { get; set; }
+
+    public async ValueTask<IReadOnlyList<ChatThread>> ListThreadsAsync(int limit, CancellationToken cancellationToken)
     {
         ThrowIfFailing();
         ListCalls++;
-        return ValueTask.FromResult<IReadOnlyList<ChatThread>>([.. Threads.Take(Math.Max(0, limit))]);
+        IReadOnlyList<ChatThread> result = [.. Threads.Take(Math.Max(0, limit))];
+        if (ListGate is { } gate)
+        {
+            ListGate = null;
+            await gate.ConfigureAwait(false);
+        }
+
+        return result;
     }
 
     public ValueTask<ChatThread> CreateThreadAsync(string title, SessionId? scope, CancellationToken cancellationToken)
@@ -89,7 +99,16 @@ internal sealed class FakeChatStore : IChatStore
             throw new ArgumentOutOfRangeException(nameof(message));
         }
 
-        list.RemoveRange(message.Index, list.Count - message.Index);
+        if (message.Index < list.Count)
+        {
+            if (message.Index != list.Count - 1 || message.Role != TurnRole.Assistant || list[^1].Role != TurnRole.Assistant)
+            {
+                throw new InvalidOperationException("Only the last answer can be replaced.");
+            }
+
+            list.RemoveAt(message.Index);
+        }
+
         list.Add(message);
         _threads[index] = _threads[index] with { UpdatedAt = Tick() };
         return ValueTask.CompletedTask;

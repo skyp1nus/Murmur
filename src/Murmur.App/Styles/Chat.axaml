@@ -17,7 +17,10 @@
       </ResourceDictionary.MergedDictionaries>
 
       <ResourceDictionary.ThemeDictionaries>
-        <!-- The time chips are Surface on the light page and Stone on the dark one; their hover is one step further. -->
+        <!--
+          The time chips are Surface on the light page and Stone on the dark one; their hover is one step further. The canvas hover on the dark page
+          is the dark ButtonBorder value, which only that token has: it stays a border token used as a fill (there is no fill token of that step).
+        -->
         <ResourceDictionary x:Key="Light">
           <StaticResource x:Key="Chat.ChipFill" ResourceKey="Brush.Surface" />
           <StaticResource x:Key="Chat.ChipFillHover" ResourceKey="Brush.Stone" />

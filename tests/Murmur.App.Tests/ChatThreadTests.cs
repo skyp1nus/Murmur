@@ -178,6 +178,15 @@ public sealed class ChatThreadTests
 
         var open = page.Chat;
         page.Entries[0].DeleteCommand.Execute(null);
+        Assert.True(page.Entries[0].IsConfirmingDelete, "Delete asks first, in the row");
+        Assert.False(page.Entries[0].ShowPill);
+        Assert.Single(_store.Threads);
+        page.Entries[0].CancelDeleteCommand.Execute(null);
+        Assert.False(page.Entries[0].IsConfirmingDelete);
+        Assert.Single(_store.Threads);
+
+        page.Entries[0].DeleteCommand.Execute(null);
+        page.Entries[0].ConfirmDeleteCommand.Execute(null);
         await page.ActionTask;
 
         Assert.Empty(_store.Threads);
@@ -304,20 +313,48 @@ public sealed class ChatThreadTests
     }
 
     [Fact]
-    public async Task CopyAnswer_RaisesTheTextOfThatAnswer()
+    public async Task CopyAnswer_PutsTheTextOnTheClipboard_AndSaysCopied()
     {
+        using var culture = UiCulture.Override("en");
         var page = CreatePage();
         var chat = page.Chat;
         await AskAsync(_assistant, chat, "Q1", "A1 [00:05]", Cite(_demo, 5));
         var copied = new List<string>();
-        chat.CopyRequested += copied.Add;
+        chat.ClipboardWriter = text =>
+        {
+            copied.Add(text);
+            return Task.FromResult(true);
+        };
 
         Assert.True(chat.Messages[1].ShowCopy);
-        chat.Messages[1].CopyCommand!.Execute(null);
-        chat.CopyAnswerCommand.Execute(chat.Messages[0]);
+        await ((CommunityToolkit.Mvvm.Input.IAsyncRelayCommand)chat.Messages[1].CopyCommand!).ExecuteAsync(null);
+        await chat.CopyAnswerCommand.ExecuteAsync(chat.Messages[0]);
 
         Assert.Equal(["A1 [00:05]"], copied);
+        Assert.Equal("Copied", chat.Messages[1].CopyStatus);
         Assert.False(chat.Messages[0].ShowCopy);
+    }
+
+    [Fact]
+    public async Task CopyAnswer_WhenTheClipboardIsHeldByAnotherProgram_ShowsAQuietNote_AndDoesNotThrow()
+    {
+        using var culture = UiCulture.Override("en");
+        var page = CreatePage();
+        var chat = page.Chat;
+        await AskAsync(_assistant, chat, "Q1", "A1");
+
+        chat.ClipboardWriter = _ => throw new InvalidOperationException("CLIPBRD_E_CANT_OPEN");
+        await chat.CopyAnswerCommand.ExecuteAsync(chat.Messages[1]);
+        Assert.Equal("Couldn’t copy: CLIPBRD_E_CANT_OPEN", chat.Messages[1].CopyStatus);
+
+        chat.ClipboardWriter = _ => Task.FromResult(false);
+        await chat.CopyAnswerCommand.ExecuteAsync(chat.Messages[1]);
+        Assert.StartsWith("Couldn’t copy: ", chat.Messages[1].CopyStatus, StringComparison.Ordinal);
+
+        chat.ClipboardWriter = null;
+        chat.Messages[1].CopyStatus = null;
+        await chat.CopyAnswerCommand.ExecuteAsync(chat.Messages[1]);
+        Assert.Null(chat.Messages[1].CopyStatus);
     }
 
     // ---- scope pills, new chat ------------------------------------------------------------------------------------------------
