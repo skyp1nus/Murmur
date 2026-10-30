@@ -309,9 +309,6 @@
   <data name="Chat_Thinking" xml:space="preserve">
     <value>Thinking…</value>
   </data>
-  <data name="Chat_Ask" xml:space="preserve">
-    <value>Ask</value>
-  </data>
   <data name="Chat_CheckAgain" xml:space="preserve">
     <value>Check again</value>
   </data>
@@ -361,9 +358,6 @@
   </data>
   <data name="Chat_NoticePaused" xml:space="preserve">
     <value>Models are not loaded while a recording is running, so they do not take memory and CPU from it. Ask when the recording ends.</value>
-  </data>
-  <data name="LibraryChat_Subtitle" xml:space="preserve">
-    <value>Answers refer to recordings and minutes — click a timestamp to open the recording there.</value>
   </data>
   <data name="Processing_Queued" xml:space="preserve">
     <value>Queued</value>
@@ -1288,6 +1282,69 @@
   <data name="Recording_ClipboardUnavailable" xml:space="preserve">
     <value>the clipboard is not available</value>
   </data>
+  <data name="Chat_SourceDeleted" xml:space="preserve">
+    <value>Deleted recording</value>
+  </data>
+  <data name="Chat_ScopeLabel" xml:space="preserve">
+    <value>Search scope</value>
+  </data>
+  <data name="Chat_ScopeLibrary" xml:space="preserve">
+    <value>Whole library</value>
+  </data>
+  <data name="Chat_ModelLocal" xml:space="preserve">
+    <value>{0} · local</value>
+    <comment>{0} = the chat model, e.g. Gemma 4 E4B</comment>
+  </data>
+  <data name="Chat_ModelLocalAccelerated" xml:space="preserve">
+    <value>{0} · local · {1}</value>
+    <comment>{0} = the chat model, {1} = the acceleration (Vulkan, CUDA)</comment>
+  </data>
+  <data name="Chat_ModelUnknown" xml:space="preserve">
+    <value>Gemma 4</value>
+  </data>
+  <data name="Chat_Sources" xml:space="preserve">
+    <value>Sources</value>
+  </data>
+  <data name="Chat_CopyAnswer" xml:space="preserve">
+    <value>Copy answer</value>
+  </data>
+  <data name="Chat_Regenerate" xml:space="preserve">
+    <value>Regenerate</value>
+  </data>
+  <data name="Chat_Send" xml:space="preserve">
+    <value>Send</value>
+  </data>
+  <data name="Chat_QuestionLabel" xml:space="preserve">
+    <value>Question</value>
+  </data>
+  <data name="Chat_Disclaimer" xml:space="preserve">
+    <value>Answers are based only on your transcripts. Check them against the timestamps.</value>
+  </data>
+  <data name="Chat_RenameChat" xml:space="preserve">
+    <value>Rename</value>
+  </data>
+  <data name="Chat_DeleteChat" xml:space="preserve">
+    <value>Delete</value>
+  </data>
+  <data name="Chat_Copied" xml:space="preserve">
+    <value>Copied</value>
+  </data>
+  <data name="Chat_CopyFailed" xml:space="preserve">
+    <value>Couldn’t copy: {0}</value>
+    <comment>{0} = reason</comment>
+  </data>
+  <data name="Chat_NotSaved" xml:space="preserve">
+    <value>This exchange could not be saved.</value>
+  </data>
+  <data name="Chat_NoLongerSaved" xml:space="preserve">
+    <value>The recording of this chat was deleted, so it is no longer saved.</value>
+  </data>
+  <data name="Chat_DeleteQuestion" xml:space="preserve">
+    <value>Delete?</value>
+  </data>
+  <data name="Chat_OpenFailed" xml:space="preserve">
+    <value>Couldn’t open this chat.</value>
+  </data>
   <data name="Accel_Title" xml:space="preserve">
     <value>Acceleration</value>
   </data>
@@ -1465,5 +1522,8 @@
   </data>
   <data name="Session_SummaryFailed" xml:space="preserve">
     <value>Couldn’t summarize the recording. Try again in a moment.</value>
+  </data>
+  <data name="Session_AskAi" xml:space="preserve">
+    <value>Ask AI about this recording</value>
   </data>
 </root>

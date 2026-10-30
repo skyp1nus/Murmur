@@ -77,8 +77,8 @@ public sealed class Phase3ScreenshotTests
                 UiHarness.Save(window, Path("phase3-chat.png"));
                 var visible = window.GetVisualDescendants().OfType<TextBlock>().Where(t => t.IsEffectivelyVisible).Select(t => t.Text).ToArray();
                 var chipLabels = window.GetVisualDescendants().OfType<Button>()
-                    .Where(b => b.Classes.Contains("chip") && b.IsEffectivelyVisible && b.FindAncestorOfType<ChatView>() is not null)
-                    .Select(b => b.Content as string)
+                    .Where(b => b.Classes.Contains("chatChip") && b.IsEffectivelyVisible && b.FindAncestorOfType<ConversationView>() is not null)
+                    .Select(b => b.GetVisualDescendants().OfType<TextBlock>().First().Text)
                     .ToArray();
                 window.Close();
                 return (visible, chipLabels);

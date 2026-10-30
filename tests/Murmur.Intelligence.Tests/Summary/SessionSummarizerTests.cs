@@ -4,6 +4,7 @@ using Murmur.Core.Sessions;
 using Murmur.Core.Transcription;
 using Murmur.Intelligence.Summary;
 using Murmur.Intelligence.Tests.Fakes;
+using ChatMessage = Microsoft.Extensions.AI.ChatMessage;
 
 namespace Murmur.Intelligence.Tests.Summary;
 

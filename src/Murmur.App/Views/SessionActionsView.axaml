@@ -57,6 +57,10 @@
             <!-- The list -->
             <StackPanel IsVisible="{Binding IsMenu}">
               <Button Classes="sessionMenuItem"
+                      Content="{x:Static res:Strings.Session_AskAi}"
+                      Command="{Binding Session.OpenInAskAiCommand}"
+                      Click="OnMenuItemClick" />
+              <Button Classes="sessionMenuItem"
                       Content="{x:Static res:Strings.Session_Rename}"
                       IsVisible="{Binding Session.CanEditRecording}"
                       Command="{Binding BeginRenameCommand}" />

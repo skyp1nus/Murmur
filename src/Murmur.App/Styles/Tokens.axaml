@@ -204,6 +204,15 @@
   <x:Double x:Key="FontSize.Tag">11</x:Double>
   <x:Double x:Key="LineHeight.Tag">14</x:Double>
   <x:Double x:Key="LetterSpacing.Tag">0.14</x:Double>
+  <x:Double x:Key="FontSize.Bubble">15</x:Double>
+  <x:Double x:Key="LineHeight.Bubble">23.25</x:Double>
+  <x:Double x:Key="LetterSpacing.Bubble">0.14</x:Double>
+  <x:Double x:Key="FontSize.Answer">16</x:Double>
+  <x:Double x:Key="LineHeight.Answer">26.4</x:Double>
+  <x:Double x:Key="LetterSpacing.Answer">0.14</x:Double>
+  <x:Double x:Key="FontSize.Chip">12</x:Double>
+  <x:Double x:Key="LineHeight.Chip">19.8</x:Double>
+  <x:Double x:Key="LetterSpacing.Chip">0.14</x:Double>
   <x:Double x:Key="FontSize.SubheadingTight">18</x:Double>
   <x:Double x:Key="LineHeight.SubheadingTight">21</x:Double>
   <x:Double x:Key="LetterSpacing.SubheadingTight">0.18</x:Double>

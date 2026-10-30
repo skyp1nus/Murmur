@@ -1,0 +1,36 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Murmur.App.ViewModels"
+             xmlns:res="using:Murmur.App.Resources"
+             x:Class="Murmur.App.Views.ChatScopeView"
+             x:DataType="vm:ChatScopeViewModel">
+
+  <!-- Scope pills: "Whole library" and, for a chat about one recording, its title. The dot marks the active one. -->
+  <StackPanel Orientation="Horizontal"
+              Spacing="{StaticResource Space.6}"
+              AutomationProperties.Name="{x:Static res:Strings.Chat_ScopeLabel}">
+    <Button Classes="chatScope"
+            Command="{Binding PickLibraryCommand}">
+      <StackPanel Orientation="Horizontal"
+                  Spacing="{StaticResource Space.8}">
+        <Ellipse Classes="chipDot"
+                 IsVisible="{Binding IsLibrary}" />
+        <TextBlock Classes="t13 medium plain"
+                   Foreground="{Binding $parent[ContentPresenter].Foreground}"
+                   Text="{Binding LibraryText}" />
+      </StackPanel>
+    </Button>
+    <Button Classes="chatScope"
+            IsVisible="{Binding HasSession}"
+            Command="{Binding PickSessionCommand}">
+      <StackPanel Orientation="Horizontal"
+                  Spacing="{StaticResource Space.8}">
+        <Ellipse Classes="chipDot"
+                 IsVisible="{Binding IsSession}" />
+        <TextBlock Classes="t13 medium plain"
+                   Foreground="{Binding $parent[ContentPresenter].Foreground}"
+                   Text="{Binding SessionTitle}" />
+      </StackPanel>
+    </Button>
+  </StackPanel>
+</UserControl>

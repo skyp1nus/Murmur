@@ -1,0 +1,285 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Murmur.App.ViewModels"
+             xmlns:res="using:Murmur.App.Resources"
+             xmlns:controls="using:Murmur.App.Controls"
+             x:Class="Murmur.App.Views.ConversationView"
+             x:DataType="vm:ChatViewModel">
+
+  <UserControl.Resources>
+    <!-- A time chip inside a line of an answer: the play glyph and the time in Geist Mono on a pill. -->
+    <DataTemplate x:Key="Chat.ChipTemplate"
+                  x:DataType="vm:CitationChipViewModel">
+      <Button Classes="chatChip"
+              Command="{Binding ActivateCommand}"
+              ToolTip.Tip="{Binding Tooltip}"
+              ToolTip.ShowOnDisabled="True">
+        <StackPanel Orientation="Horizontal"
+                    Spacing="{StaticResource Space.4}">
+          <controls:IconControl Width="{StaticResource Chat.PlayIcon}"
+                                Height="{StaticResource Chat.PlayIcon}"
+                                IsFilled="True"
+                                Data="{StaticResource Chat.Icon.Play}" />
+          <TextBlock Classes="chatChipText"
+                     Foreground="{Binding $parent[ContentPresenter].Foreground}"
+                     Text="{Binding Label}" />
+        </StackPanel>
+      </Button>
+    </DataTemplate>
+  </UserControl.Resources>
+
+  <!--
+    The conversation of the canvas (Chat.dc.html): the messages as one virtualised column of 820 px, the composer under it. The message
+    list is an items control with its own scroll viewer, so a long chat only builds the messages on screen.
+  -->
+  <Grid RowDefinitions="*,Auto">
+
+    <ItemsControl x:Name="MessageList"
+                  Grid.Row="0"
+                  Classes="chatMessages"
+                  ItemsSource="{Binding Messages}">
+      <ItemsControl.Template>
+        <ControlTemplate>
+          <ScrollViewer x:Name="Scroller"
+                        HorizontalScrollBarVisibility="Disabled"
+                        VerticalScrollBarVisibility="Auto">
+            <ItemsPresenter ItemsPanel="{TemplateBinding ItemsPanel}"
+                            Margin="{TemplateBinding Padding}" />
+          </ScrollViewer>
+        </ControlTemplate>
+      </ItemsControl.Template>
+      <ItemsControl.ItemsPanel>
+        <ItemsPanelTemplate>
+          <VirtualizingStackPanel />
+        </ItemsPanelTemplate>
+      </ItemsControl.ItemsPanel>
+      <ItemsControl.ItemTemplate>
+        <DataTemplate x:DataType="vm:ChatMessageViewModel">
+          <Panel Margin="{StaticResource Chat.ItemInset}">
+
+            <!-- Question: right, on Surface, at most 80 % of the column -->
+            <Grid ColumnDefinitions="*,4*"
+                  IsVisible="{Binding IsUser}">
+              <Border Grid.Column="1"
+                      Classes="chatBubble">
+                <TextBlock Classes="chatBubbleText"
+                           Text="{Binding Text}" />
+              </Border>
+            </Grid>
+
+            <!-- Answer: the orb and "Murmur", the paragraphs with their time chips, the sources, the icon buttons -->
+            <StackPanel Classes="chatAnswer"
+                        Classes.sourced="{Binding HasSources}"
+                        IsVisible="{Binding IsAssistant}">
+              <StackPanel Orientation="Horizontal"
+                          Spacing="{StaticResource Space.10}">
+                <controls:OrbDisc Width="{StaticResource Chat.AvatarSize}"
+                                  Height="{StaticResource Chat.AvatarSize}"
+                                  VerticalAlignment="Center" />
+                <TextBlock Classes="t13 medium"
+                           VerticalAlignment="Center"
+                           Text="Murmur" />
+              </StackPanel>
+
+              <TextBlock Classes="t14 muted"
+                         IsVisible="{Binding ShowThinking}"
+                         Text="{x:Static res:Strings.Chat_Thinking}" />
+
+              <!-- While it streams: the raw text -->
+              <TextBlock Classes="chatAnswerText"
+                         IsVisible="{Binding ShowStreamingText}"
+                         Text="{Binding Text}" />
+
+              <!-- Finished: paragraphs, chips in the lines -->
+              <ItemsControl ItemsSource="{Binding Paragraphs}"
+                            IsVisible="{Binding ShowParagraphs}">
+                <ItemsControl.ItemsPanel>
+                  <ItemsPanelTemplate>
+                    <StackPanel Classes="chatParagraphs" />
+                  </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate x:DataType="vm:AnswerParagraph">
+                    <controls:AnswerTextBlock Classes="chatAnswerText"
+                                              ChipTemplate="{StaticResource Chat.ChipTemplate}"
+                                              Parts="{Binding Parts}" />
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
+
+              <TextBlock Classes="t14 muted"
+                         TextWrapping="Wrap"
+                         IsVisible="{Binding HasStatus}"
+                         Text="{Binding StatusText}" />
+
+              <!-- Sources -->
+              <StackPanel Spacing="{StaticResource Space.8}"
+                          IsVisible="{Binding HasSources}">
+                <TextBlock Classes="t12 muted"
+                           Text="{x:Static res:Strings.Chat_Sources}" />
+                <ItemsControl ItemsSource="{Binding Sources}">
+                  <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                      <controls:AutoFitPanel MinColumnWidth="{StaticResource Chat.SourceMinWidth}"
+                                             Spacing="{StaticResource Space.8}" />
+                    </ItemsPanelTemplate>
+                  </ItemsControl.ItemsPanel>
+                  <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="vm:SourceCardViewModel">
+                      <Button Classes="chatSource"
+                              Command="{Binding OpenCommand}"
+                              ToolTip.Tip="{Binding Tooltip}"
+                              ToolTip.ShowOnDisabled="True">
+                        <StackPanel Spacing="{StaticResource Space.6}">
+                          <Grid ColumnDefinitions="*,Auto"
+                                ColumnSpacing="{StaticResource Space.8}">
+                            <TextBlock Grid.Column="0"
+                                       Classes="t13 medium"
+                                       TextTrimming="CharacterEllipsis"
+                                       Foreground="{Binding $parent[ContentPresenter].Foreground}"
+                                       Text="{Binding Title}" />
+                            <TextBlock Grid.Column="1"
+                                       Classes="chatSourceTime"
+                                       Text="{Binding Time}" />
+                          </Grid>
+                          <TextBlock Classes="t13 muted"
+                                     LineHeight="{StaticResource LineHeight.Meta}"
+                                     TextWrapping="Wrap"
+                                     Text="{Binding Snippet}" />
+                        </StackPanel>
+                      </Button>
+                    </DataTemplate>
+                  </ItemsControl.ItemTemplate>
+                </ItemsControl>
+              </StackPanel>
+
+              <!-- Copy answer, Regenerate -->
+              <StackPanel Orientation="Horizontal"
+                          Spacing="{StaticResource Space.6}"
+                          IsVisible="{Binding HasActions}">
+                <Button Classes="chatIcon"
+                        AutomationProperties.Name="{x:Static res:Strings.Chat_CopyAnswer}"
+                        ToolTip.Tip="{x:Static res:Strings.Chat_CopyAnswer}"
+                        IsVisible="{Binding ShowCopy}"
+                        Command="{Binding CopyCommand}">
+                  <controls:IconControl Width="{StaticResource Chat.ActionIcon}"
+                                        Height="{StaticResource Chat.ActionIcon}"
+                                        Data="{StaticResource Chat.Icon.Copy}" />
+                </Button>
+                <Button Classes="chatIcon"
+                        AutomationProperties.Name="{x:Static res:Strings.Chat_Regenerate}"
+                        ToolTip.Tip="{x:Static res:Strings.Chat_Regenerate}"
+                        IsVisible="{Binding ShowRegenerate}"
+                        Command="{Binding RegenerateCommand}">
+                  <controls:IconControl Width="{StaticResource Chat.ActionIcon}"
+                                        Height="{StaticResource Chat.ActionIcon}"
+                                        Data="{StaticResource Chat.Icon.Retry}" />
+                </Button>
+                <TextBlock Classes="t12 muted"
+                           VerticalAlignment="Center"
+                           IsVisible="{Binding HasCopyStatus}"
+                           Text="{Binding CopyStatus}" />
+              </StackPanel>
+
+              <!-- Why this exchange is not saved -->
+              <TextBlock Classes="t12 muted"
+                         TextWrapping="Wrap"
+                         IsVisible="{Binding HasSaveNote}"
+                         Text="{Binding SaveNote}" />
+            </StackPanel>
+          </Panel>
+        </DataTemplate>
+      </ItemsControl.ItemTemplate>
+    </ItemsControl>
+
+    <!-- Empty chat: what to ask -->
+    <StackPanel Grid.Row="0"
+                Width="{StaticResource Chat.NoticeWidth}"
+                HorizontalAlignment="Center"
+                VerticalAlignment="Center"
+                Spacing="{StaticResource Space.12}"
+                IsVisible="{Binding ShowEmptyHint}">
+      <TextBlock Classes="cardTitle"
+                 HorizontalAlignment="Center"
+                 TextAlignment="Center"
+                 TextWrapping="Wrap"
+                 Text="{Binding EmptyTitle}" />
+      <TextBlock Classes="paragraph"
+                 HorizontalAlignment="Center"
+                 TextAlignment="Center"
+                 Text="{Binding EmptyText}" />
+    </StackPanel>
+
+    <!-- AI not installed / paused while recording -->
+    <Border Grid.Row="0"
+            Classes="card"
+            Width="{StaticResource Chat.NoticeWidth}"
+            HorizontalAlignment="Center"
+            VerticalAlignment="Center"
+            IsVisible="{Binding ShowNotice}">
+      <StackPanel Spacing="{StaticResource Space.16}">
+        <TextBlock Classes="subheading"
+                   FontWeight="{StaticResource FontWeight.BodyMedium}"
+                   TextWrapping="Wrap"
+                   Text="{Binding NoticeTitle}" />
+        <TextBlock Classes="body"
+                   TextWrapping="Wrap"
+                   Foreground="{DynamicResource Brush.Graphite}"
+                   Text="{Binding NoticeText}" />
+        <Button Classes="outline"
+                HorizontalAlignment="Left"
+                Content="{x:Static res:Strings.Chat_CheckAgain}"
+                IsVisible="{Binding CanCheckAgain}"
+                Command="{Binding RefreshAvailabilityCommand}" />
+      </StackPanel>
+    </Border>
+
+    <!-- Composer and the disclaimer -->
+    <Border Grid.Row="1"
+            Classes="chatComposerArea">
+      <StackPanel Spacing="{StaticResource Space.10}">
+        <Border Classes="chatComposer">
+          <Grid ColumnDefinitions="*,Auto"
+                ColumnSpacing="{StaticResource Space.8}">
+            <TextBox x:Name="QuestionBox"
+                     Grid.Column="0"
+                     Classes="bare chatInput"
+                     AutomationProperties.Name="{x:Static res:Strings.Chat_QuestionLabel}"
+                     PlaceholderText="{Binding PlaceholderText}"
+                     IsEnabled="{Binding CanEditQuestion}"
+                     Text="{Binding Question}" />
+            <Button Grid.Column="1"
+                    Classes="start send"
+                    VerticalAlignment="Bottom"
+                    AutomationProperties.Name="{x:Static res:Strings.Chat_Send}"
+                    ToolTip.Tip="{x:Static res:Strings.Chat_Send}"
+                    IsVisible="{Binding !IsGenerating}"
+                    Command="{Binding AskCommand}">
+              <controls:IconControl Width="{StaticResource Chat.SendIcon}"
+                                    Height="{StaticResource Chat.SendIcon}"
+                                    Stroke="1.8"
+                                    Data="{StaticResource Icon.ArrowUp}" />
+            </Button>
+            <Button Grid.Column="1"
+                    Classes="chatStop"
+                    VerticalAlignment="Bottom"
+                    AutomationProperties.Name="{x:Static res:Strings.Common_Stop}"
+                    ToolTip.Tip="{x:Static res:Strings.Common_Stop}"
+                    IsVisible="{Binding IsGenerating}"
+                    Command="{Binding CancelCommand}">
+              <Rectangle Width="{StaticResource Chat.StopGlyph}"
+                         Height="{StaticResource Chat.StopGlyph}"
+                         RadiusX="{StaticResource Space.2}"
+                         RadiusY="{StaticResource Space.2}"
+                         Fill="{DynamicResource Brush.Ink}" />
+            </Button>
+          </Grid>
+        </Border>
+        <TextBlock Classes="t12 muted"
+                   HorizontalAlignment="Center"
+                   TextAlignment="Center"
+                   Text="{x:Static res:Strings.Chat_Disclaimer}" />
+      </StackPanel>
+    </Border>
+  </Grid>
+</UserControl>

@@ -1,0 +1,21 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Murmur.App.ViewModels"
+             xmlns:controls="using:Murmur.App.Controls"
+             x:Class="Murmur.App.Views.ChatModelChipView"
+             x:DataType="vm:ChatModelChipViewModel">
+
+  <!-- "Gemma 4 E4B · local": the model that answers, with its small orb. -->
+  <Border Classes="chatModel">
+    <StackPanel Orientation="Horizontal"
+                Spacing="{StaticResource Space.8}"
+                VerticalAlignment="Center">
+      <controls:OrbDisc Width="{StaticResource Size.PillOrb}"
+                        Height="{StaticResource Size.PillOrb}"
+                        VerticalAlignment="Center" />
+      <TextBlock Classes="t12 graphite"
+                 VerticalAlignment="Center"
+                 Text="{Binding Text}" />
+    </StackPanel>
+  </Border>
+</UserControl>

@@ -6,6 +6,7 @@ using Murmur.Core.Intelligence;
 using Murmur.Core.Sessions;
 using Murmur.Core.Transcription;
 using Murmur.Intelligence.Rag;
+using ChatMessage = Microsoft.Extensions.AI.ChatMessage;
 
 namespace Murmur.Intelligence.Summary;
 

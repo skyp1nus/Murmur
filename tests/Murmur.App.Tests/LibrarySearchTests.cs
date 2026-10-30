@@ -336,7 +336,8 @@ public sealed class LibrarySearchTests : IDisposable
 
         Assert.Same(shell.LibraryChat, shell.CurrentPage);
         Assert.True(_fixture.Player.Disposed);
-        Assert.Equal(Murmur.App.Resources.Strings.Common_AskAi, Assert.IsType<BreadcrumbViewModel>(shell.TopBar.Leading).Root);
+        // On the chat page itself the top bar holds the scope pills (no breadcrumb).
+        Assert.Same(shell.LibraryChat!.ScopePills, shell.TopBar.Leading);
     }
 
     [Fact]

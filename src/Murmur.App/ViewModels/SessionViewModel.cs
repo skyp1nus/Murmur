@@ -135,6 +135,9 @@ public sealed partial class SessionViewModel : ObservableObject, IDisposable, IF
     /// <summary>A chip of the chat cites another session: the shell opens it at that moment.</summary>
     public event Action<SessionId, TimeSpan>? OpenSessionRequested;
 
+    /// <summary>"Ask AI about this recording" in the "…" menu: the shell opens the Ask AI page on a new chat scoped to this recording.</summary>
+    public event Action? AskAiRequested;
+
     /// <summary>The "Запитати AI" tab; its history lives as long as this view.</summary>
     public ChatViewModel Chat { get; }
 
@@ -820,6 +823,9 @@ public sealed partial class SessionViewModel : ObservableObject, IDisposable, IF
             RefreshSummaryAvailability();
         }
     }
+
+    [RelayCommand]
+    private void OpenInAskAi() => AskAiRequested?.Invoke();
 
     private void OnCitationActivated(Citation citation)
     {

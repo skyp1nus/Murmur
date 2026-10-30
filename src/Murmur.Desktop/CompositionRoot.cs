@@ -184,7 +184,8 @@ internal sealed class CompositionRoot : IDisposable
             _hotkeys ??= CreateHotkeys(capture),
             _instance,
             _motion ??= CreateMotionPreference(),
-            storage);
+            storage,
+            Chats: storage);
     }
 
     public void Dispose()

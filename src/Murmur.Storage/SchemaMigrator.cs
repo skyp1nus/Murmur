@@ -94,6 +94,28 @@ internal static class SchemaMigrator
             created_at   INTEGER NOT NULL
         );
         """,
+
+        // 5: saved chats of Ask AI. A thread scoped to one session goes with it (ON DELETE CASCADE); its messages go with the thread.
+        // Citations are a JSON array inside the message with no foreign key: a citation of a deleted session stays as text.
+        """
+        CREATE TABLE chat_threads (
+            id            TEXT    PRIMARY KEY NOT NULL,
+            title         TEXT    NOT NULL,
+            scope_session TEXT    REFERENCES sessions (id) ON DELETE CASCADE,
+            updated_at    INTEGER NOT NULL
+        );
+        CREATE INDEX ix_chat_threads_updated_at ON chat_threads (updated_at DESC);
+        CREATE INDEX ix_chat_threads_scope ON chat_threads (scope_session);
+        CREATE TABLE chat_messages (
+            thread_id TEXT    NOT NULL REFERENCES chat_threads (id) ON DELETE CASCADE,
+            idx       INTEGER NOT NULL,
+            role      INTEGER NOT NULL,
+            text      TEXT    NOT NULL,
+            citations TEXT    NOT NULL,
+            at        INTEGER NOT NULL,
+            PRIMARY KEY (thread_id, idx)
+        );
+        """,
     ];
 
     public static int LatestVersion => Migrations.Length;

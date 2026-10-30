@@ -935,7 +935,7 @@
           <!-- "Ask AI" tab: chat about this recording; chips seek the player -->
           <Panel Grid.Row="1"
                  IsVisible="{Binding IsAskTab}">
-            <views:ChatView DataContext="{Binding Chat}" />
+            <views:ConversationView DataContext="{Binding Chat}" />
           </Panel>
         </Grid>
       </controls:SessionPagePanel>

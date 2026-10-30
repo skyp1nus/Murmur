@@ -1,6 +1,7 @@
 using System.Runtime.CompilerServices;
 using Microsoft.Extensions.AI;
 using Murmur.Core.Intelligence;
+using ChatMessage = Microsoft.Extensions.AI.ChatMessage;
 
 namespace Murmur.AiEval;
 

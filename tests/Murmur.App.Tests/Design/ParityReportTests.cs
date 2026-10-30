@@ -54,7 +54,7 @@ public sealed class ParityReportTests
             Assert.Contains(rows, r => r.StartsWith("| Chat | 1440x1080 | 33.25 | 20.00 | 10.00 | 75.0 (30/40) | 7 | 10 | 5.00 / 80.0 / 3 | 40.00 |", StringComparison.Ordinal));
             Assert.Contains("OnbComponents", report, StringComparison.Ordinal);
             Assert.Contains("[VERSION] placeholder", report, StringComparison.Ordinal);
-            Assert.Contains("Sidebar 'Chats' list", report, StringComparison.Ordinal);
+            Assert.Contains("Placeholders [X.X] GB", report, StringComparison.Ordinal);
         }
         finally
         {
