@@ -6,6 +6,7 @@ using Murmur.Core.Input;
 using Murmur.Core.Intelligence;
 using Murmur.Core.Jobs;
 using Murmur.Core.Models;
+using Murmur.Core.Platform;
 using Murmur.Core.Processing;
 using Murmur.Core.Recording;
 using Murmur.Core.Settings;
@@ -38,6 +39,7 @@ internal sealed class CompositionRoot : IDisposable
     private IAccelerationProbe? _acceleration;
     private CancellationTokenSource? _recoveryRetry;
     private IGlobalHotkeys? _hotkeys;
+    private IMotionPreference? _motion;
     private readonly SingleInstance? _instance;
 
     /// <param name="instance">The single-instance guard whose "a second start wants the window" signal goes to the app; <c>null</c> = none.</param>
@@ -178,7 +180,8 @@ internal sealed class CompositionRoot : IDisposable
             // WindowsCapture also plays the screen recordings (Media Engine); the synthetic capture does not.
             capture as IVideoPlayback,
             _hotkeys ??= CreateHotkeys(capture),
-            _instance);
+            _instance,
+            _motion ??= CreateMotionPreference());
     }
 
     public void Dispose()
@@ -187,6 +190,7 @@ internal sealed class CompositionRoot : IDisposable
 
         // The app (the hotkey coordinator) stopped using it when its window closed; this releases the hotkey thread.
         _hotkeys?.Dispose();
+        (_motion as IDisposable)?.Dispose();
         _heapTrimmer?.Dispose();
         _reindex?.Dispose();
         _processor?.Dispose();
@@ -275,6 +279,16 @@ internal sealed class CompositionRoot : IDisposable
         return ((Murmur.Capture.Windows.WindowsCapture)capture).CreateGlobalHotkeys();
 #else
         return new UnsupportedGlobalHotkeys();
+#endif
+    }
+
+    /// <summary>The system's reduce-motion preference: the Windows setting on Windows, never reduced elsewhere.</summary>
+    internal static IMotionPreference CreateMotionPreference()
+    {
+#if WINDOWS
+        return Murmur.Capture.Windows.WindowsCapture.CreateMotionPreference();
+#else
+        return new FullMotionPreference();
 #endif
     }
 

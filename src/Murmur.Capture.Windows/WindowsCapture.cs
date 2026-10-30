@@ -5,6 +5,7 @@ using Murmur.Capture.Windows.Screen;
 using Murmur.Capture.Windows.Video;
 using Murmur.Core.Capture;
 using Murmur.Core.Input;
+using Murmur.Core.Platform;
 
 namespace Murmur.Capture.Windows;
 
@@ -69,6 +70,12 @@ public sealed class WindowsCapture : ICapture, IAudioPlayback, IVideoPlayback
     /// until the first <see cref="IGlobalHotkeys.Register"/> with a gesture. The caller owns and disposes it.
     /// </summary>
     public IGlobalHotkeys CreateGlobalHotkeys() => new WindowsGlobalHotkeys();
+
+    /// <summary>
+    /// The Windows reduce-motion preference (<c>SPI_GETCLIENTAREAANIMATION</c>, refreshed on <c>WM_SETTINGCHANGE</c> by a hidden
+    /// window that starts with the first subscriber). The caller owns and disposes it.
+    /// </summary>
+    public static IMotionPreference CreateMotionPreference() => new Platform.WindowsMotionPreference();
 
     /// <summary>Media Foundation and the Media Engine are available (checked once, see <see cref="WindowsVideoPlayback"/>).</summary>
     bool IVideoPlayback.IsSupported => _video.IsSupported;
