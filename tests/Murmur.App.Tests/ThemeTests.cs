@@ -407,12 +407,12 @@ public sealed class ThemeTests
             },
             TestContext.Current.CancellationToken);
 
-        Assert.Equal(Palette("Light")["ash"], light.Wave);
+        Assert.Equal(Palette("Light")["dashedBorder"], light.Wave);
         Assert.Equal(Palette("Light")["ink"], light.Played);
-        Assert.Equal(Palette("Light")["ink"], light.Text);
-        Assert.Equal(Palette("Dark")["ash"], dark.Wave);
+        Assert.Equal(Palette("Light")["graphite"], light.Text);
+        Assert.Equal(Palette("Dark")["dashedBorder"], dark.Wave);
         Assert.Equal(Palette("Dark")["ink"], dark.Played);
-        Assert.Equal(Palette("Dark")["ink"], dark.Text);
+        Assert.Equal(Palette("Dark")["graphite"], dark.Text);
     }
 
     [Fact]

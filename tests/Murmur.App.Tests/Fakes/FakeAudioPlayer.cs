@@ -3,7 +3,7 @@ using Murmur.Core.Capture;
 namespace Murmur.App.Tests.Fakes;
 
 /// <summary>Scriptable <see cref="IAudioPlayer"/>: the test sets the position and state, every call is recorded.</summary>
-internal sealed class FakeAudioPlayer : IAudioPlayer
+internal sealed class FakeAudioPlayer : IAudioPlayer, IAudioPlayerControls
 {
     public PlaybackState State { get; set; } = PlaybackState.Closed;
 
@@ -22,6 +22,18 @@ internal sealed class FakeAudioPlayer : IAudioPlayer
     public int Pauses { get; private set; }
 
     public bool Disposed { get; private set; }
+
+    /// <summary>Whether the player claims to silence tracks / change the speed (the filters and the speed chip of the view follow).</summary>
+    public bool CanMuteTracks { get; set; } = true;
+
+    public bool CanChangeSpeed { get; set; } = true;
+
+    public double Speed { get; set; } = 1;
+
+    /// <summary>Every <see cref="SetTrackMuted"/> call in order: (track index, muted).</summary>
+    public List<(int Track, bool Muted)> MuteCalls { get; } = [];
+
+    public void SetTrackMuted(int trackIndex, bool muted) => MuteCalls.Add((trackIndex, muted));
 
     public event Action<PlaybackState>? StateChanged;
 

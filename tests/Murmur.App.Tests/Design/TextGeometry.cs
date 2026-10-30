@@ -25,32 +25,70 @@ internal readonly record struct LineBox(double X, double Y, double W, double H, 
 /// The layout of an app text, kept to measure parts of it (a fragment of a paragraph) later: the raw text, where each character of
 /// the whitespace-collapsed text came from, and the position of the layout in the window.
 /// </summary>
-internal sealed class AppTextLayout(string raw, int[] normalizedToRaw, TextLayout layout, Point origin, Func<LineBox, bool> isVisible)
+internal sealed class AppTextLayout
 {
-    public string Raw { get; } = raw;
+    private readonly int[] _normalizedToRaw;
+    private readonly Point _origin;
+    private readonly Func<LineBox, bool> _isVisible;
+    private readonly Rect[][] _characters;
+    private readonly (double Top, double Height, double Baseline)[] _lines;
+
+    /// <summary>
+    /// The control re-creates (and disposes) its layout when the scene changes after the texts were collected (the shape pass), so the
+    /// rectangles of every character and the lines are taken now.
+    /// </summary>
+    public AppTextLayout(string raw, int[] normalizedToRaw, TextLayout layout, Point origin, Func<LineBox, bool> isVisible, Func<int, int>? toLayout = null)
+    {
+        Raw = raw;
+        _normalizedToRaw = normalizedToRaw;
+        _origin = origin;
+        _isVisible = isVisible;
+        _characters = new Rect[raw.Length][];
+        for (var i = 0; i < raw.Length; i++)
+        {
+            var at = toLayout?.Invoke(i) ?? i;
+            _characters[i] = [.. layout.HitTestTextRange(at, 1)];
+        }
+
+        var top = 0.0;
+        var lines = new List<(double, double, double)>();
+        foreach (var line in layout.TextLines)
+        {
+            lines.Add((top, line.Height, line.Baseline));
+            top += line.Height;
+        }
+
+        _lines = [.. lines];
+    }
+
+    public string Raw { get; }
 
     /// <summary>The line boxes of the part [start, start + length) of the normalised text, one per line it touches.</summary>
     public IReadOnlyList<LineBox> Range(int start, int length)
     {
-        if (length <= 0 || start < 0 || start + length > normalizedToRaw.Length)
+        if (length <= 0 || start < 0 || start + length > _normalizedToRaw.Length)
         {
             return [];
         }
 
-        var rawStart = normalizedToRaw[start];
-        var rawEnd = normalizedToRaw[start + length - 1] + 1;
-        // The rectangles of one line (one per text run) are joined.
+        var rawStart = _normalizedToRaw[start];
+        var rawEnd = _normalizedToRaw[start + length - 1] + 1;
+
+        // The rectangles of one line (one per character) are joined.
         var lineRects = new List<Rect>();
-        foreach (var rect in layout.HitTestTextRange(rawStart, rawEnd - rawStart))
+        for (var i = rawStart; i < rawEnd; i++)
         {
-            var at = lineRects.FindIndex(r => Math.Abs(r.Y - rect.Y) < 1);
-            if (at >= 0)
+            foreach (var rect in _characters[i])
             {
-                lineRects[at] = lineRects[at].Union(rect);
-            }
-            else
-            {
-                lineRects.Add(rect);
+                var at = lineRects.FindIndex(r => Math.Abs(r.Y - rect.Y) < 1);
+                if (at >= 0)
+                {
+                    lineRects[at] = lineRects[at].Union(rect);
+                }
+                else
+                {
+                    lineRects.Add(rect);
+                }
             }
         }
 
@@ -58,8 +96,8 @@ internal sealed class AppTextLayout(string raw, int[] normalizedToRaw, TextLayou
         foreach (var rect in lineRects.OrderBy(r => r.Y))
         {
             var (lineTop, baseline) = LineOf(rect.Y + (rect.Height / 2));
-            var box = new LineBox(origin.X + rect.X, origin.Y + rect.Y, rect.Width, rect.Height, origin.Y + lineTop + baseline);
-            if (isVisible(box))
+            var box = new LineBox(_origin.X + rect.X, _origin.Y + rect.Y, rect.Width, rect.Height, _origin.Y + lineTop + baseline);
+            if (_isVisible(box))
             {
                 result.Add(box);
             }
@@ -70,18 +108,15 @@ internal sealed class AppTextLayout(string raw, int[] normalizedToRaw, TextLayou
 
     private (double Top, double Baseline) LineOf(double y)
     {
-        var top = 0.0;
-        foreach (var line in layout.TextLines)
+        foreach (var (top, height, baseline) in _lines)
         {
-            if (y < top + line.Height)
+            if (y < top + height)
             {
-                return (top, line.Baseline);
+                return (top, baseline);
             }
-
-            top += line.Height;
         }
 
-        return layout.TextLines.Count == 0 ? (0, 0) : (top - layout.TextLines[^1].Height, layout.TextLines[^1].Baseline);
+        return _lines.Length == 0 ? (0, 0) : (_lines[^1].Top, _lines[^1].Baseline);
     }
 }
 
@@ -249,36 +284,22 @@ internal static class AppTexts
         return Build(window, presenter, presenter.Text!, presenter.TextLayout, default, presenter.FontSize, (int)presenter.FontWeight, presenter.FontFamily, false);
     }
 
-    /// <summary>The control keeps its layout private: build the same one (same text, font, width) to read its lines.</summary>
+    /// <summary>The control keeps its layout private: it hands out the layout it draws and the map of the positions of its text.</summary>
     private static TextItem? FromTranscript(Window window, TranscriptTextControl control)
     {
-        if (!IsShown(control) || string.IsNullOrWhiteSpace(control.Text) || control.Bounds.Width <= 0)
+        if (!IsShown(control) || string.IsNullOrWhiteSpace(control.Text) || control.Bounds.Width <= 0 || control.CurrentLayout is not { } layout)
         {
             return null;
         }
 
-        var layout = new TextLayout(
-            control.Text!,
-            new Typeface(control.FontFamily, FontStyle.Normal, control.FontWeight),
-            control.FontSize,
-            Brushes.Black,
-            TextAlignment.Left,
-            TextWrapping.Wrap,
-            TextTrimming.None,
-            null,
-            FlowDirection.LeftToRight,
-            control.Bounds.Width,
-            double.PositiveInfinity,
-            control.LineHeight,
-            control.LetterSpacing);
-        return Build(window, control, control.Text!, layout, default, control.FontSize, (int)control.FontWeight, control.FontFamily, false);
+        return Build(window, control, control.Text!, layout, default, control.FontSize, (int)control.FontWeight, control.FontFamily, false, control.LaidOutIndex);
     }
 
     /// <summary>Visible, and neither it nor an ancestor is fully transparent.</summary>
     private static bool IsShown(Visual visual) =>
         visual.IsEffectivelyVisible && visual.Opacity > 0 && !visual.GetVisualAncestors().Any(a => a.Opacity <= 0);
 
-    private static TextItem? Build(Window window, Visual owner, string raw, TextLayout layout, Thickness padding, double size, int weight, FontFamily family, bool trimmed)
+    private static TextItem? Build(Window window, Visual owner, string raw, TextLayout layout, Thickness padding, double size, int weight, FontFamily family, bool trimmed, Func<int, int>? toLayout = null)
     {
         var originPoint = owner.TranslatePoint(new Point(padding.Left, padding.Top), window);
         if (originPoint is not { } origin)
@@ -320,7 +341,7 @@ internal static class AppTexts
             family.Name.Contains("Geist Mono", StringComparison.OrdinalIgnoreCase),
             Describe(owner),
             Trimmed: trimmed,
-            Layout: new AppTextLayout(raw, map, layout, origin, Visible));
+            Layout: new AppTextLayout(raw, map, layout, origin, Visible, toLayout));
     }
 
     /// <summary>The window, narrowed by every ancestor that clips its content.</summary>

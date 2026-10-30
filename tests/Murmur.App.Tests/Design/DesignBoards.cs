@@ -152,6 +152,10 @@ internal static class DesignBoards
                     new IgnoreRect(273, 165, 535, 301, "Session: screen-recording frame placeholder (the app shows the video, not a placeholder)"),
                     new IgnoreRect(292, 497, 498, 66, "Session: " + WaveformReason),
                 ],
+                // Reached 1.10 % / 1.14 % shape mismatch, every text found, 1 geometry error (the width of "12:21": the canvas box includes the space after it).
+                MaxShapeMismatchPercent: 1.5,
+                MinTextMatchedPercent: 100,
+                MaxTextGeometryErrors: 1,
                 ExcludedTexts: [VideoPlaceholder, VideoChip]));
             boards.Add(new("Chat" + suffix, BoardScreen.Chat, dark, 1440, 1080, []));
             boards.Add(new(

@@ -48,6 +48,7 @@ namespace Murmur.App;
 /// <param name="Activation">
 /// Another start of the program asked this one to show its window (single instance). Raised on any thread; <c>null</c> = never.
 /// </param>
+/// <param name="Summaries">Keeps the summary of a recording between visits; <c>null</c> = a summary lives only while the recording is open.</param>
 public sealed record AppServices(
     IRecorder Recorder,
     ICapture Capture,
@@ -65,4 +66,5 @@ public sealed record AppServices(
     string? DefaultRecordingsDirectory = null,
     IVideoPlayback? VideoPlayback = null,
     IGlobalHotkeys? Hotkeys = null,
-    IActivationRequests? Activation = null);
+    IActivationRequests? Activation = null,
+    ISummaryStore? Summaries = null);

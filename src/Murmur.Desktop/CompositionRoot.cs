@@ -12,6 +12,7 @@ using Murmur.Core.Settings;
 using Murmur.Core.Transcription;
 using Murmur.Intelligence;
 using Murmur.Intelligence.Rag;
+using Murmur.Intelligence.Summary;
 using Murmur.Models;
 using Murmur.Storage;
 
@@ -170,7 +171,7 @@ internal sealed class CompositionRoot : IDisposable
             CreatePlayback(),
             new SessionProcessingAdapter(processor, models),
             storage,
-            new AiServices(assistant, llm, models.ModelsDirectory, AccelerationProbe, llm),
+            new AiServices(assistant, llm, models.ModelsDirectory, AccelerationProbe, llm, new SessionSummarizer(llm, storage)),
             settings,
             aiModels,
             modelManager.ActiveModelId,
@@ -178,7 +179,8 @@ internal sealed class CompositionRoot : IDisposable
             // WindowsCapture also plays the screen recordings (Media Engine); the synthetic capture does not.
             capture as IVideoPlayback,
             _hotkeys ??= CreateHotkeys(capture),
-            _instance);
+            _instance,
+            storage);
     }
 
     public void Dispose()

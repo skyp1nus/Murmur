@@ -6,6 +6,7 @@ using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
+using Murmur.App.Services;
 using Murmur.App.ViewModels;
 
 namespace Murmur.App.Views;
@@ -34,6 +35,19 @@ public partial class SessionView : UserControl
         // Wheel and scroll-bar drags are the user's scrolls; programmatic ScrollIntoView raises neither.
         TranscriptScroller.AddHandler(PointerWheelChangedEvent, OnUserScroll, RoutingStrategies.Tunnel | RoutingStrategies.Bubble, handledEventsToo: true);
         TranscriptScroller.AddHandler(PointerPressedEvent, OnTranscriptPointerPressed, RoutingStrategies.Tunnel);
+
+        // The right column is as tall as the window leaves room for, so the transcript list scrolls inside it (and stays virtualised).
+        PageScroller.PropertyChanged += OnPageScrollerPropertyChanged;
+    }
+
+    private void OnPageScrollerPropertyChanged(object? sender, AvaloniaPropertyChangedEventArgs e)
+    {
+        if (e.Property == ScrollViewer.ViewportProperty)
+        {
+            var viewport = PageScroller.Viewport.Height;
+            var padding = (Page.Parent as Border)?.Padding ?? default;
+            Page.FillHeight = viewport > 0 ? viewport - padding.Top - padding.Bottom : double.NaN;
+        }
     }
 
     /// <summary>True while the position timer runs (for tests).</summary>
@@ -53,6 +67,10 @@ public partial class SessionView : UserControl
         {
             _viewModel.PropertyChanged += OnViewModelPropertyChanged;
             _viewModel.ScrollToSegmentRequested += OnScrollToSegment;
+
+            // The export dialog needs the window this view is shown in.
+            _viewModel.FileSaver ??= new TopLevelFileSaver(() => TopLevel.GetTopLevel(this));
+            _viewModel.RefreshExport();
         }
 
         UpdateTimer();
