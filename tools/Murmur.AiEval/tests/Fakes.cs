@@ -2,6 +2,7 @@ using System.Runtime.CompilerServices;
 using System.Text.RegularExpressions;
 using Microsoft.Extensions.AI;
 using Murmur.Core.Intelligence;
+using ChatMessage = Microsoft.Extensions.AI.ChatMessage;
 
 namespace Murmur.AiEval.Tests;
 
