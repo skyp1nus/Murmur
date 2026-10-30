@@ -3,77 +3,74 @@
              xmlns:vm="using:Murmur.App.ViewModels"
              xmlns:res="using:Murmur.App.Resources"
              xmlns:controls="using:Murmur.App.Controls"
+             ClipToBounds="False"
              x:Class="Murmur.App.Views.ModelsStepView"
              x:DataType="vm:ModelsStepViewModel">
 
   <!-- Step 3: the required transcription model downloads by itself; the AI model is chosen. -->
-  <StackPanel HorizontalAlignment="Stretch"
-              Spacing="{StaticResource Space.32}">
+  <StackPanel Classes="onbStep"
+              HorizontalAlignment="Stretch">
 
     <StackPanel Spacing="{StaticResource Space.12}"
                 HorizontalAlignment="Center">
-      <TextBlock Classes="heading onbHeadline"
-                 TextAlignment="Center"
-                 TextWrapping="Wrap"
+      <TextBlock Classes="onbH1"
                  Text="{Binding Title}" />
-      <TextBlock Classes="body"
-                 TextAlignment="Center"
-                 TextWrapping="Wrap"
-                 Foreground="{DynamicResource Brush.Smoke}"
+      <TextBlock Classes="onbSub"
                  Text="{Binding Subtitle}" />
     </StackPanel>
 
     <!-- No model manager (designer, tests): nothing to download. -->
-    <TextBlock Classes="note"
+    <TextBlock Classes="onbNote"
                HorizontalAlignment="Center"
                IsVisible="{Binding IsUnavailable}"
                Text="{x:Static res:Strings.Onb3_Unavailable}" />
 
     <StackPanel MaxWidth="{StaticResource Size.OnbModelsWidth}"
                 HorizontalAlignment="Stretch"
-                Spacing="{StaticResource Space.16}"
+                Spacing="{StaticResource Onb.Space.Cards}"
                 IsVisible="{Binding IsAvailable}">
 
       <!-- Required: transcription -->
       <Border x:Name="RequiredCard"
               Classes="panel"
-              Padding="{StaticResource Inset.Banner}">
-        <StackPanel Spacing="{StaticResource Space.12}">
+              Padding="{StaticResource Inset.OnbModel}">
+        <StackPanel Spacing="{StaticResource Onb.Space.Cards}">
           <Grid ColumnDefinitions="*,Auto"
                 ColumnSpacing="{StaticResource Space.16}">
-            <StackPanel Spacing="{StaticResource Space.4}">
+            <StackPanel Spacing="{StaticResource Onb.Space.Tight}"
+                        VerticalAlignment="Center">
               <StackPanel Orientation="Horizontal"
                           Spacing="{StaticResource Space.8}">
-                <TextBlock Classes="body"
-                           FontWeight="{StaticResource FontWeight.BodyMedium}"
+                <TextBlock Classes="onbTitle"
                            VerticalAlignment="Center"
                            Text="{x:Static res:Strings.Onb3_Transcription}" />
-                <Border Classes="badge">
-                  <TextBlock Classes="caption"
+                <Border Classes="onbTagBox">
+                  <TextBlock Classes="onbTag"
+                             Foreground="{DynamicResource Brush.Graphite}"
                              Text="{x:Static res:Strings.Onb3_Required}" />
                 </Border>
               </StackPanel>
-              <TextBlock Classes="bodySm"
-                         Foreground="{DynamicResource Brush.Smoke}"
+              <TextBlock Classes="onbNote"
                          Text="{x:Static res:Strings.Onb3_TranscriptionText}" />
             </StackPanel>
             <StackPanel Grid.Column="1"
                         Orientation="Horizontal"
                         Spacing="{StaticResource Space.12}"
-                        VerticalAlignment="Top">
-              <TextBlock Classes="mono"
+                        VerticalAlignment="Center">
+              <TextBlock Classes="onbMono"
                          VerticalAlignment="Center"
                          Foreground="{DynamicResource Brush.Graphite}"
                          Text="{Binding RequiredSizeText}" />
-              <Border Classes="status"
+              <Border Classes="onbStatus"
                       IsVisible="{Binding IsRequiredReady}">
                 <StackPanel Orientation="Horizontal"
-                            Spacing="{StaticResource Space.8}">
-                  <controls:IconControl Width="{StaticResource Size.SmallIcon}"
-                                        Height="{StaticResource Size.SmallIcon}"
+                            Spacing="{StaticResource Onb.Space.Icon}">
+                  <controls:IconControl Width="{StaticResource Size.OnbCheck}"
+                                        Height="{StaticResource Size.OnbCheck}"
+                                        Stroke="{StaticResource Onb.Stroke.Check}"
                                         Data="{StaticResource Icon.Check}" />
-                  <TextBlock Classes="bodySm"
-                             FontWeight="{StaticResource FontWeight.BodyMedium}"
+                  <TextBlock Classes="onbLabelMedium"
+                             VerticalAlignment="Center"
                              Text="{x:Static res:Strings.Onb3_Ready}" />
                 </StackPanel>
               </Border>
@@ -86,13 +83,12 @@
                        Value="{Binding RequiredPercent}" />
           <Grid ColumnDefinitions="*,Auto"
                 IsVisible="{Binding !IsRequiredReady}">
-            <TextBlock Classes="bodySm"
-                       Foreground="{DynamicResource Brush.Smoke}"
+            <TextBlock Classes="onbNote"
                        Text="{Binding RequiredStatusText}" />
             <StackPanel Grid.Column="1"
                         Orientation="Horizontal"
                         Spacing="{StaticResource Space.12}">
-              <TextBlock Classes="mono"
+              <TextBlock Classes="onbMono"
                          VerticalAlignment="Center"
                          Foreground="{DynamicResource Brush.Smoke}"
                          Text="{Binding RequiredTransferText}" />
@@ -109,11 +105,10 @@
       <!-- Optional: the AI assistant -->
       <Grid ColumnDefinitions="*,Auto"
             Margin="{StaticResource Inset.CardLabel}">
-        <TextBlock Classes="label"
+        <TextBlock Classes="onbNoteMedium"
                    Text="{x:Static res:Strings.Onb3_AiTitle}" />
         <TextBlock Grid.Column="1"
-                   Classes="bodySm"
-                   Foreground="{DynamicResource Brush.Smoke}"
+                   Classes="onbNote"
                    Text="{x:Static res:Strings.Onb3_AiText}" />
       </Grid>
 
@@ -122,7 +117,7 @@
         <ItemsControl.ItemsPanel>
           <ItemsPanelTemplate>
             <UniformGrid Rows="1"
-                         ColumnSpacing="{StaticResource Space.16}" />
+                         ColumnSpacing="{StaticResource Onb.Space.Cards}" />
           </ItemsPanelTemplate>
         </ItemsControl.ItemsPanel>
         <ItemsControl.ItemTemplate>
@@ -132,47 +127,46 @@
                     IsEnabled="{Binding IsEnabled}"
                     Command="{Binding SelectCommand}">
               <Grid ColumnDefinitions="Auto,*,Auto"
-                    ColumnSpacing="{StaticResource Space.16}">
+                    ColumnSpacing="{StaticResource Onb.Space.Cards}">
                 <Border Classes="radio"
                         Classes.on="{Binding IsSelected}">
                   <Ellipse />
                 </Border>
                 <StackPanel Grid.Column="1"
                             Spacing="{StaticResource Space.4}">
-                  <TextBlock Classes="body"
-                             FontWeight="{StaticResource FontWeight.BodyMedium}"
+                  <TextBlock Classes="onbTitle"
                              TextWrapping="Wrap"
                              Text="{Binding Name}" />
-                  <TextBlock Classes="bodySm"
-                             TextWrapping="Wrap"
-                             Foreground="{DynamicResource Brush.Smoke}"
+                  <TextBlock Classes="onbNote"
                              Text="{Binding Description}" />
                   <ProgressBar Height="{StaticResource Size.Progress}"
+                               Margin="{StaticResource Inset.OnbCardExtra}"
                                Minimum="0"
                                Maximum="100"
                                Value="{Binding Percent}"
                                IsVisible="{Binding ShowProgress}" />
-                  <TextBlock Classes="bodySm"
-                             TextWrapping="Wrap"
-                             Foreground="{DynamicResource Brush.Smoke}"
+                  <TextBlock Classes="onbLabel"
+                             Margin="{StaticResource Inset.OnbCardExtra}"
                              IsVisible="{Binding HasStatus}"
                              Text="{Binding StatusText}" />
-                  <Border Classes="status"
+                  <Border Classes="onbStatus inCard"
+                          Margin="{StaticResource Inset.OnbCardExtra}"
                           HorizontalAlignment="Left"
                           IsVisible="{Binding IsInstalled}">
                     <StackPanel Orientation="Horizontal"
-                                Spacing="{StaticResource Space.8}">
-                      <controls:IconControl Width="{StaticResource Size.SmallIcon}"
-                                            Height="{StaticResource Size.SmallIcon}"
+                                Spacing="{StaticResource Onb.Space.Icon}">
+                      <controls:IconControl Width="{StaticResource Size.OnbCheck}"
+                                            Height="{StaticResource Size.OnbCheck}"
+                                            Stroke="{StaticResource Onb.Stroke.Check}"
                                             Data="{StaticResource Icon.Check}" />
-                      <TextBlock Classes="bodySm"
-                                 FontWeight="{StaticResource FontWeight.BodyMedium}"
+                      <TextBlock Classes="onbLabelMedium"
+                                 VerticalAlignment="Center"
                                  Text="{x:Static res:Strings.Onb3_Ready}" />
                     </StackPanel>
                   </Border>
                 </StackPanel>
                 <TextBlock Grid.Column="2"
-                           Classes="mono"
+                           Classes="onbMono"
                            Foreground="{DynamicResource Brush.Graphite}"
                            Text="{Binding SizeText}" />
               </Grid>
@@ -182,19 +176,24 @@
       </ItemsControl>
 
       <Grid ColumnDefinitions="Auto,*"
-            ColumnSpacing="{StaticResource Space.16}">
+            ColumnSpacing="{StaticResource Space.16}"
+            Margin="{StaticResource Inset.OnbOptionRow}">
         <Button x:Name="SkipAiButton"
                 Classes="option"
                 HorizontalAlignment="Left"
+                Margin="{StaticResource Inset.OnbOptionPull}"
                 Command="{Binding SkipAiCommand}">
           <StackPanel Orientation="Horizontal"
-                      Spacing="{StaticResource Space.12}">
+                      Spacing="{StaticResource Onb.Space.Badge}">
             <Border Classes="radio"
                     Classes.on="{Binding SkipAiSelected}"
+                    Margin="{StaticResource Inset.OnbRadioFlat}"
                     VerticalAlignment="Center">
               <Ellipse />
             </Border>
-            <TextBlock Text="{x:Static res:Strings.Onb3_SkipAi}" />
+            <TextBlock Classes="onbBodyMedium"
+                       VerticalAlignment="Center"
+                       Text="{x:Static res:Strings.Onb3_SkipAi}" />
           </StackPanel>
         </Button>
         <StackPanel Grid.Column="1"
@@ -202,35 +201,33 @@
                     VerticalAlignment="Center"
                     Spacing="{StaticResource Space.4}">
           <TextBlock x:Name="BackgroundNote"
-                     Classes="note"
+                     Classes="onbNote"
                      HorizontalAlignment="Right"
                      IsVisible="{Binding ShowBackgroundNote}"
-                     Text="{x:Static res:Strings.Onb3_Background}" />
+                     Text="{x:Static res:Strings.Onb3_Background}"
+                     ToolTip.Tip="{Binding FreeSpaceTip}" />
           <StackPanel x:Name="AllDoneNote"
                       Orientation="Horizontal"
                       HorizontalAlignment="Right"
-                      Spacing="{StaticResource Space.8}"
+                      Spacing="{StaticResource Onb.Space.Icon}"
                       IsVisible="{Binding AllDone}">
-            <controls:IconControl Width="{StaticResource Size.SmallIcon}"
-                                  Height="{StaticResource Size.SmallIcon}"
+            <controls:IconControl Width="{StaticResource Size.OnbNoteCheck}"
+                                  Height="{StaticResource Size.OnbNoteCheck}"
+                                  Stroke="{StaticResource Onb.Stroke.NoteCheck}"
                                   TextElement.Foreground="{DynamicResource Brush.Graphite}"
                                   Data="{StaticResource Icon.Check}" />
-            <TextBlock Classes="note"
+            <TextBlock Classes="onbNote"
+                       VerticalAlignment="Center"
                        Foreground="{DynamicResource Brush.Graphite}"
                        Text="{x:Static res:Strings.Onb3_AllDone}" />
           </StackPanel>
         </StackPanel>
       </Grid>
 
-      <TextBlock Classes="note"
+      <TextBlock Classes="onbNote"
                  Foreground="{DynamicResource Brush.Graphite}"
                  IsVisible="{Binding HasSpaceMessage}"
                  Text="{Binding SpaceMessage}" />
-      <TextBlock Classes="mono"
-                 HorizontalAlignment="Right"
-                 Foreground="{DynamicResource Brush.Smoke}"
-                 IsVisible="{Binding HasFreeSpace}"
-                 Text="{Binding FreeSpaceText}" />
     </StackPanel>
   </StackPanel>
 </UserControl>

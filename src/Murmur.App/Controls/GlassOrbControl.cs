@@ -1,7 +1,9 @@
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Media;
+using Avalonia.Media.Imaging;
 using Avalonia.Media.Immutable;
+using Avalonia.Platform;
 using Avalonia.Rendering.Composition;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
@@ -38,10 +40,7 @@ public sealed class GlassOrbControl : Panel
     public static readonly StyledProperty<double> BodyFractionProperty =
         AvaloniaProperty.Register<GlassOrbControl, double>(nameof(BodyFraction), 1.0);
 
-    /// <summary>
-    /// Radius of the halo's <see cref="BlurEffect"/> in px; 0 = no halo (the wordmark). Avalonia's radius is not the standard
-    /// deviation of CSS <c>blur()</c>: the values in the styles are fitted against the Chromium render of the canvas.
-    /// </summary>
+    /// <summary>Standard deviation of the halo's Gaussian blur in px (CSS <c>blur()</c>); 0 = no halo (the wordmark).</summary>
     public static readonly StyledProperty<double> HaloBlurProperty =
         AvaloniaProperty.Register<GlassOrbControl, double>(nameof(HaloBlur));
 
@@ -58,6 +57,7 @@ public sealed class GlassOrbControl : Panel
         AvaloniaProperty.Register<GlassOrbControl, double>(nameof(InnerGlowOpacity), 0.35);
 
     // The three stops of tokens.json "orbGradient" that are not accent colours.
+    // TODO(D-044): these three stops of the orb gradient are canvas colours with no token yet; they move to tokens.json (orbGradient).
     private static readonly Color Highlight = Color.FromRgb(0xff, 0xf1, 0xe8);
     private static readonly Color Pink = Color.FromRgb(0xf4, 0xa6, 0xc8);
     private static readonly Color Lavender = Color.FromRgb(0xd8, 0xc8, 0xf0);
@@ -72,10 +72,21 @@ public sealed class GlassOrbControl : Panel
     private const double ReleasePerSecond = 3.5;
     private const double MaxStepSeconds = 0.1;
     private const double MinUpdateSeconds = 0.066;
+
+    // A timer tick is never exactly one interval after the last: ticks a little early still count, or every other tick would be dropped.
+    private const double UpdateSlack = 0.8;
     private const double SkipThreshold = 0.003;
+
+    /// <summary>How many halo bitmaps this orb computed (for tests: once per size, blur and theme colours).</summary>
+    internal int HaloBuilds { get; private set; }
 
     private readonly Layer _halo;
     private readonly Layer _body;
+    private static readonly TimeSpan ActiveInterval = TimeSpan.FromSeconds(MinUpdateSeconds);
+
+    // While the orb is hidden or its window minimized nothing is drawn: the timer only wakes up twice a second to notice the change.
+    private static readonly TimeSpan HiddenInterval = TimeSpan.FromMilliseconds(500);
+
     private readonly DispatcherTimer _timer;
     private TimeProvider _clock = TimeProvider.System;
     private long _clockStart;
@@ -106,8 +117,8 @@ public sealed class GlassOrbControl : Panel
         _halo = new Layer(this, isHalo: true) { IsHitTestVisible = false };
         _body = new Layer(this, isHalo: false) { IsHitTestVisible = false };
         _clockStart = _clock.GetTimestamp();
-        _timer = new DispatcherTimer(DispatcherPriority.Render) { Interval = TimeSpan.FromSeconds(MinUpdateSeconds) };
-        _timer.Tick += (_, _) => Tick();
+        _timer = new DispatcherTimer(DispatcherPriority.Render) { Interval = ActiveInterval };
+        _timer.Tick += (_, _) => OnTimer();
         IsHitTestVisible = false;
         Focusable = false;
         ClipToBounds = false;
@@ -191,6 +202,26 @@ public sealed class GlassOrbControl : Panel
         }
     }
 
+    /// <summary>One timer tick: a step when the orb can be seen, otherwise the timer slows down until it can.</summary>
+    internal void OnTimer()
+    {
+        var shown = IsEffectivelyVisible && (TopLevel.GetTopLevel(this) as Window)?.WindowState != WindowState.Minimized;
+        var wanted = shown ? ActiveInterval : HiddenInterval;
+        if (_timer.Interval != wanted)
+        {
+            _timer.Interval = wanted;
+            _primed = false;
+        }
+
+        if (shown)
+        {
+            Tick();
+        }
+    }
+
+    /// <summary>The timer's current interval (for tests).</summary>
+    internal TimeSpan TimerInterval => _timer.Interval;
+
     /// <summary>One animation step at the clock's current time: exactly what the timer does (internal for tests).</summary>
     internal void Tick() => Update(_clock.GetElapsedTime(_clockStart));
 
@@ -200,7 +231,7 @@ public sealed class GlassOrbControl : Panel
             double.IsInfinity(availableSize.Width) ? 240 : availableSize.Width,
             double.IsInfinity(availableSize.Height) ? 240 : availableSize.Height);
         var size = new Size(side, side);
-        _halo.Measure(new Rect(size).Inflate(Math.Ceiling(HaloBlur)).Size);
+        _halo.Measure(new Rect(size).Inflate(Math.Ceiling(HaloBlur * 3)).Size);
         _body.Measure(size);
         return size;
     }
@@ -211,7 +242,7 @@ public sealed class GlassOrbControl : Panel
         var rect = new Rect(finalSize);
 
         // An effect is clipped to the bounds of its control: the halo layer reaches three standard deviations past the orb.
-        var pad = Math.Ceiling(HaloBlur);
+        var pad = Math.Ceiling(HaloBlur * 3);
         _halo.Arrange(rect.Inflate(pad));
         _body.Arrange(rect);
         PushFrame();
@@ -266,6 +297,8 @@ public sealed class GlassOrbControl : Panel
         var run = IsActive && ((Visual)this).IsAttachedToVisualTree();
         if (run && !_timer.IsEnabled)
         {
+            _primed = false;
+            _timer.Interval = ActiveInterval;
             _timer.Start();
         }
         else if (!run && _timer.IsEnabled)
@@ -278,7 +311,7 @@ public sealed class GlassOrbControl : Panel
     internal void Update(TimeSpan timestamp)
     {
         var elapsed = (timestamp - _lastFrame).TotalSeconds;
-        if (_primed && elapsed < MinUpdateSeconds)
+        if (_primed && elapsed < MinUpdateSeconds * UpdateSlack)
         {
             return;
         }
@@ -288,6 +321,7 @@ public sealed class GlassOrbControl : Panel
         if (source is null)
         {
             // The canvas "breathe": ease in and out between rest (0) and the peak (1) every 3.6 s, starting at rest.
+            // TODO(reduced-motion): hold the rest frame when the user prefers reduced motion (Core preference, follow-up task for all orbs).
             _primed = true;
             _lastFrame = timestamp;
             _phaseSeconds = starting ? 0 : _phaseSeconds + Math.Min(elapsed, MaxStepSeconds);
@@ -343,10 +377,10 @@ public sealed class GlassOrbControl : Panel
 
         if (ElementComposition.GetElementVisual(_halo) is { } halo)
         {
-            var pad = Math.Ceiling(HaloBlur);
+            var pad = Math.Ceiling(HaloBlur * 3);
             halo.CenterPoint = new Vector3D(centre.X + pad, centre.Y + pad, 0);
             halo.Scale = new Vector3D(_appliedHalo, _appliedHalo, 1);
-            halo.Opacity = (float)(HaloOpacity * (1 - _appliedFade));
+            halo.Opacity = (float)(1 - _appliedFade);
         }
     }
 
@@ -369,6 +403,152 @@ public sealed class GlassOrbControl : Panel
     /// <summary>One CSS gradient layer: colour, centre in the element (0..1), the stop (share of the farthest corner) where it fades out.</summary>
     private readonly record struct Blob(Color Colour, double X, double Y, double Reach);
 
+    /// <summary>
+    /// The gradients of tokens.json "orbGradient" from the bottom up (CSS lists them top first: highlight, blue, ember, pink, over the
+    /// lavender base): the one description both the sphere's brushes and the halo's bitmap are made from.
+    /// </summary>
+    private static Blob[] Blobs(Color blue, Color ember) =>
+    [
+        new(Pink, 0.72, 0.20, 0.50),
+        new(ember, 0.20, 0.80, 0.55),
+        new(blue, 0.74, 0.70, 0.58),
+        new(Highlight, 0.32, 0.26, 0.30),
+    ];
+
+
+    /// <summary>The blurred sphere as a premultiplied bitmap at 1/<see cref="Scale"/> of the size.</summary>
+    private static class HaloImage
+    {
+        public const int Scale = 4;
+
+        public static WriteableBitmap Create(double diameter, double sigma, Size layer, Color blue, Color ember)
+        {
+            var width = (int)Math.Ceiling(layer.Width / Scale);
+            var height = (int)Math.Ceiling(layer.Height / Scale);
+            var plane = new float[width * height * 4];
+
+            // 1. The sphere: the CSS gradients over the lavender base, premultiplied, with a one-pixel soft rim.
+            var blobs = Blobs(blue, ember);
+            var radius = diameter / 2;
+            var left = (layer.Width - diameter) / 2;
+            var top = (layer.Height - diameter) / 2;
+            var reach = new double[blobs.Length];
+            for (var b = 0; b < blobs.Length; b++)
+            {
+                var dx = Math.Max(blobs[b].X, 1 - blobs[b].X);
+                var dy = Math.Max(blobs[b].Y, 1 - blobs[b].Y);
+                reach[b] = Math.Sqrt((dx * dx) + (dy * dy)) * diameter * blobs[b].Reach;
+            }
+
+            for (var j = 0; j < height; j++)
+            {
+                for (var i = 0; i < width; i++)
+                {
+                    var x = ((i + 0.5) * Scale) - left;
+                    var y = ((j + 0.5) * Scale) - top;
+                    var coverage = Math.Clamp(((radius - Math.Sqrt(((x - radius) * (x - radius)) + ((y - radius) * (y - radius)))) / Scale) + 0.5, 0, 1);
+                    if (coverage <= 0)
+                    {
+                        continue;
+                    }
+
+                    double r = Lavender.R, g = Lavender.G, bl = Lavender.B;
+                    for (var b = 0; b < blobs.Length; b++)
+                    {
+                        var ddx = x - (blobs[b].X * diameter);
+                        var ddy = y - (blobs[b].Y * diameter);
+                        var a = Math.Max(0, 1 - (Math.Sqrt((ddx * ddx) + (ddy * ddy)) / reach[b]));
+                        r += (blobs[b].Colour.R - r) * a;
+                        g += (blobs[b].Colour.G - g) * a;
+                        bl += (blobs[b].Colour.B - bl) * a;
+                    }
+
+                    var o = ((j * width) + i) * 4;
+                    plane[o] = (float)(r / 255 * coverage);
+                    plane[o + 1] = (float)(g / 255 * coverage);
+                    plane[o + 2] = (float)(bl / 255 * coverage);
+                    plane[o + 3] = (float)coverage;
+                }
+            }
+
+            // 2. The Gaussian, separable, the outside is transparent.
+            var sigmaPixels = sigma / Scale;
+            var half = (int)Math.Ceiling(3 * sigmaPixels);
+            var kernel = new float[(2 * half) + 1];
+            var sum = 0f;
+            for (var k = -half; k <= half; k++)
+            {
+                kernel[k + half] = (float)Math.Exp(-(k * k) / (2 * sigmaPixels * sigmaPixels));
+                sum += kernel[k + half];
+            }
+
+            for (var k = 0; k < kernel.Length; k++)
+            {
+                kernel[k] /= sum;
+            }
+
+            var temp = new float[plane.Length];
+            Convolve(plane, temp, width, height, kernel, half, horizontal: true);
+            Convolve(temp, plane, width, height, kernel, half, horizontal: false);
+
+            // 3. Premultiplied BGRA.
+            var bitmap = new WriteableBitmap(new PixelSize(width, height), new Vector(96, 96), PixelFormat.Bgra8888, AlphaFormat.Premul);
+            using (var frame = bitmap.Lock())
+            {
+                var bytes = new byte[width * height * 4];
+                for (var p = 0; p < width * height; p++)
+                {
+                    bytes[(p * 4) + 0] = ToByte(plane[(p * 4) + 2]);
+                    bytes[(p * 4) + 1] = ToByte(plane[(p * 4) + 1]);
+                    bytes[(p * 4) + 2] = ToByte(plane[p * 4]);
+                    bytes[(p * 4) + 3] = ToByte(plane[(p * 4) + 3]);
+                }
+
+                for (var row = 0; row < height; row++)
+                {
+                    System.Runtime.InteropServices.Marshal.Copy(bytes, row * width * 4, frame.Address + (row * frame.RowBytes), width * 4);
+                }
+            }
+
+            return bitmap;
+        }
+
+        private static byte ToByte(float value) => (byte)Math.Clamp((int)MathF.Round(value * 255f), 0, 255);
+
+        private static void Convolve(float[] source, float[] target, int width, int height, float[] kernel, int half, bool horizontal)
+        {
+            for (var j = 0; j < height; j++)
+            {
+                for (var i = 0; i < width; i++)
+                {
+                    float c0 = 0, c1 = 0, c2 = 0, c3 = 0;
+                    for (var k = -half; k <= half; k++)
+                    {
+                        var x = horizontal ? i + k : i;
+                        var y = horizontal ? j : j + k;
+                        if (x < 0 || y < 0 || x >= width || y >= height)
+                        {
+                            continue;
+                        }
+
+                        var w = kernel[k + half];
+                        var o = ((y * width) + x) * 4;
+                        c0 += source[o] * w;
+                        c1 += source[o + 1] * w;
+                        c2 += source[o + 2] * w;
+                        c3 += source[o + 3] * w;
+                    }
+
+                    var t = ((j * width) + i) * 4;
+                    target[t] = c0;
+                    target[t + 1] = c1;
+                    target[t + 2] = c2;
+                    target[t + 3] = c3;
+                }
+            }
+        }
+    }
+
     /// <summary>The painted layer: the sphere (with its inner glow) or the halo (the same sphere, blurred).</summary>
     private sealed class Layer : Control
     {
@@ -378,6 +558,8 @@ public sealed class GlassOrbControl : Panel
         private IBrush? _base;
         private IBrush? _glow;
         private Size _brushesFor;
+        private WriteableBitmap? _haloBitmap;
+        private (double Diameter, double Sigma, Color Blue, Color Ember) _haloKey;
 
         public Layer(GlassOrbControl owner, bool isHalo)
         {
@@ -390,7 +572,8 @@ public sealed class GlassOrbControl : Panel
             _blobs = null;
             _glow = null;
             _brushesFor = default;
-            Effect = _isHalo && _owner.HaloBlur > 0 ? new ImmutableBlurEffect(_owner.HaloBlur) : null;
+            _haloBitmap?.Dispose();
+            _haloBitmap = null;
             IsVisible = !_isHalo || _owner.HaloBlur > 0;
             InvalidateVisual();
         }
@@ -404,7 +587,13 @@ public sealed class GlassOrbControl : Panel
             }
 
             var side = Math.Min(_owner._size.Width, _owner._size.Height);
-            var diameter = _isHalo ? side : side * _owner.BodyFraction;
+            if (_isHalo)
+            {
+                RenderHalo(context, side);
+                return;
+            }
+
+            var diameter = side * _owner.BodyFraction;
             var rect = new Rect((Bounds.Width - diameter) / 2, (Bounds.Height - diameter) / 2, diameter, diameter);
             EnsureBrushes(diameter);
 
@@ -414,9 +603,40 @@ public sealed class GlassOrbControl : Panel
                 context.DrawEllipse(blob, null, rect);
             }
 
-            if (!_isHalo && _glow is not null)
+            if (_glow is not null)
             {
                 context.DrawEllipse(_glow, null, rect);
+            }
+        }
+
+        /// <summary>
+        /// The halo is the sphere blurred with a Gaussian of the CSS <c>blur()</c>'s standard deviation, drawn with the group opacity.
+        /// It is computed once on the CPU at a fraction of the size (a blurred image has no detail to lose) and cached, because the
+        /// blur effect of the renderer does not reproduce the canvas (its radius is not the standard deviation and the layer is
+        /// composited differently), and the halo is the one part of the orb that must match the reference.
+        /// </summary>
+        private void RenderHalo(DrawingContext context, double diameter)
+        {
+            var sigma = _owner.HaloBlur;
+            if (sigma <= 0 || diameter <= 0)
+            {
+                return;
+            }
+
+            var key = (diameter, sigma, _owner._blue, _owner._ember);
+            if (_haloBitmap is null || _haloKey != key)
+            {
+                _haloBitmap?.Dispose();
+                _owner.HaloBuilds++;
+                _haloBitmap = HaloImage.Create(diameter, sigma, Bounds.Size, _owner._blue, _owner._ember);
+                _haloKey = key;
+            }
+
+            using (context.PushOpacity(_owner.HaloOpacity))
+            {
+                var scale = HaloImage.Scale;
+                var target = new Rect(0, 0, _haloBitmap.PixelSize.Width * scale, _haloBitmap.PixelSize.Height * scale);
+                context.DrawImage(_haloBitmap, new Rect(_haloBitmap.Size), target);
             }
         }
 
@@ -431,14 +651,7 @@ public sealed class GlassOrbControl : Panel
             _brushesFor = key;
             _base = new ImmutableSolidColorBrush(Lavender);
 
-            // CSS stacks the layers top first: highlight, blue, ember, pink over the lavender base.
-            Blob[] blobs =
-            [
-                new(Pink, 0.72, 0.20, 0.50),
-                new(_owner._ember, 0.20, 0.80, 0.55),
-                new(_owner._blue, 0.74, 0.70, 0.58),
-                new(Highlight, 0.32, 0.26, 0.30),
-            ];
+            var blobs = Blobs(_owner._blue, _owner._ember);
             var brushes = new IBrush[blobs.Length];
             for (var i = 0; i < blobs.Length; i++)
             {

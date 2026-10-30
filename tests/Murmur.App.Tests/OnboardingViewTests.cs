@@ -101,7 +101,7 @@ public sealed class OnboardingViewTests
                 }
 
                 // 1 Welcome
-                UiHarness.BreatheOrb(window.GetVisualDescendants().OfType<OrbControl>().Last());
+                UiHarness.BreatheOrb(window.GetVisualDescendants().OfType<GlassOrbControl>().Last());
                 Capture("onb1-welcome");
 
                 // 2 Audio: the meters move

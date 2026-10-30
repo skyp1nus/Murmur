@@ -93,6 +93,7 @@ internal static class DesignBoards
     private static readonly ExcludedText SizeSmall = new("[X.X] GB", "canvas placeholder; the app shows the real model size");
     private static readonly ExcludedText SizeLarge = new("[XX] GB", "canvas placeholder; the app shows the real model size");
     private static readonly ExcludedText FreeSpace = new("[N] GB free", "canvas placeholder; the app shows the real free space");
+    private static readonly ExcludedText MicPermissionText = new("Windows will ask once. Audio is processed on this PC only.", "documented deviation (DEVIATIONS.md): Windows has no permission prompt for desktop apps");
     private static readonly ExcludedText VideoPlaceholder = new("[Screen recording frame]", "canvas placeholder of the video frame; the app shows the video");
     private static readonly ExcludedText VideoChip = new("H.264", "label of the canvas video placeholder; the app shows the video", Contains: true);
 
@@ -164,14 +165,18 @@ internal static class DesignBoards
                     new IgnoreRect(853, 1638 + shift, 70, 18, "Settings: [LICENSE] placeholder", TextOnly: true),
                 ],
                 ExcludedTexts: [Version, License, UserPath]));
-            boards.Add(new("Onb1Welcome" + suffix, BoardScreen.Onboarding1Welcome, dark, 1280, 800, []));
+            boards.Add(new("Onb1Welcome" + suffix, BoardScreen.Onboarding1Welcome, dark, 1280, 800, [], MaxShapeMismatchPercent: 0.8, MinTextMatchedPercent: 95, MaxTextGeometryErrors: 0));
             boards.Add(new(
                 "Onb2Audio" + suffix,
                 BoardScreen.Onboarding2Audio,
                 dark,
                 1280,
                 800,
-                [new IgnoreRect(671, 456, 366, 26, "Onboarding 2: system audio " + WaveformReason)]));
+                [new IgnoreRect(671, 456, 366, 26, "Onboarding 2: system audio " + WaveformReason)],
+                MaxShapeMismatchPercent: 3.0,
+                MinTextMatchedPercent: 95,
+                MaxTextGeometryErrors: 0,
+                ExcludedTexts: [MicPermissionText]));
             boards.Add(new(
                 "Onb3Models" + suffix,
                 BoardScreen.Onboarding3Models,
@@ -182,6 +187,9 @@ internal static class DesignBoards
                     new IgnoreRect(547, 497, 65, 16, "Onboarding 3: [X.X] GB placeholder", TextOnly: true),
                     new IgnoreRect(942, 497, 57, 16, "Onboarding 3: [XX] GB placeholder", TextOnly: true),
                 ],
+                MaxShapeMismatchPercent: 5.0,
+                MinTextMatchedPercent: 95,
+                MaxTextGeometryErrors: 0,
                 ExcludedTexts: [SizeSmall, SizeLarge]));
             boards.Add(new(
                 "Onb3ModelsReady" + suffix,
@@ -193,6 +201,9 @@ internal static class DesignBoards
                     new IgnoreRect(547, 462, 65, 16, "Onboarding 3 ready: [X.X] GB placeholder", TextOnly: true),
                     new IgnoreRect(942, 462, 57, 16, "Onboarding 3 ready: [XX] GB placeholder", TextOnly: true),
                 ],
+                MaxShapeMismatchPercent: 4.5,
+                MinTextMatchedPercent: 95,
+                MaxTextGeometryErrors: 0,
                 ExcludedTexts: [SizeSmall, SizeLarge]));
             boards.Add(new(
                 "Onb4Preferences" + suffix,
@@ -201,8 +212,11 @@ internal static class DesignBoards
                 1280,
                 800,
                 [new IgnoreRect(792, 404, 92, 18, "Onboarding 4: [N] GB free placeholder", TextOnly: true)],
+                MaxShapeMismatchPercent: 2.8,
+                MinTextMatchedPercent: 95,
+                MaxTextGeometryErrors: 0,
                 ExcludedTexts: [FreeSpace, UserPath]));
-            boards.Add(new("Onb5FirstRecording" + suffix, BoardScreen.Onboarding5FirstRecording, dark, 1280, 800, []));
+            boards.Add(new("Onb5FirstRecording" + suffix, BoardScreen.Onboarding5FirstRecording, dark, 1280, 800, [], MaxShapeMismatchPercent: 3.5, MinTextMatchedPercent: 95, MaxTextGeometryErrors: 0));
         }
 
         // The sidebar is the shell's: every main board has to match it (reached 0.84 % at most), whatever its content does.

@@ -1309,6 +1309,24 @@ public sealed class OnboardingViewModelTests : IDisposable
     }
 
     [Fact]
+    public void Models_TheTransferText_WritesTheSharedUnitOnce()
+    {
+        Assert.Equal("0,31 / 0,67 ГБ", UiFormat.SizeProgress(310_000_000, 670_000_000));
+        Assert.Equal("50 МБ / 0,67 ГБ", UiFormat.SizeProgress(50_000_000, 670_000_000));
+    }
+
+    [Theory]
+    [InlineData("Gemma 4 26B A4B", "Gemma 4 26B")]
+    [InlineData("Gemma 4 E4B", "Gemma 4 E4B")]
+    [InlineData("Gemma 4 26B A4B (Q4_K_M)", "Gemma 4 26B A4B (Q4_K_M)")]
+    [InlineData("Alpha", "Alpha")]
+    [InlineData("Model AB", "Model AB")]
+    public void Models_TheAiCardName_DropsTheActiveParameterMarkerOnlyAtTheEnd(string catalogName, string expected)
+    {
+        Assert.Equal(expected, AiChoiceViewModel.WithoutActiveParameters(catalogName));
+    }
+
+    [Fact]
     public async Task Models_FreeSpaceIsNotReadOnEveryProgressTick()
     {
         using var rig = new OnboardingRig();

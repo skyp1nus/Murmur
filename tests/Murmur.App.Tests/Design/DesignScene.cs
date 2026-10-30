@@ -404,6 +404,9 @@ internal sealed class DesignScene : IDisposable
                 await rig.GoToStepAsync(3);
                 await rig.Onboarding.Audio.Settled;
                 rig.Manager.Progress(DesignDemoData.Ids.Asr, DesignDemoData.OnboardingParakeetDone, 670_000_000);
+
+                // The board shows Gemma 4 E4B chosen but not started (the app starts its download the moment it is chosen).
+                rig.Onboarding.Models.Choices[0].IsSelected = true;
                 break;
 
             case BoardScreen.Onboarding3ModelsReady:

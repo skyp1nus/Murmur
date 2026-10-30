@@ -21,7 +21,22 @@ public sealed partial class AiChoiceViewModel : ObservableObject
 
     internal ModelRowViewModel Row { get; }
 
-    public string Name => Row.Name;
+    /// <summary>
+    /// The catalog name without the active-parameter marker of a mixture-of-experts model: "Gemma 4 26B A4B" is "Gemma 4 26B" on
+    /// the card (the Settings keep the full name).
+    /// </summary>
+    public string Name => WithoutActiveParameters(Row.Name);
+
+    internal static string WithoutActiveParameters(string name)
+    {
+        var cut = name.LastIndexOf(' ');
+        if (cut > 0 && name.Length - cut >= 4 && name[cut + 1] == 'A' && name[^1] == 'B' && name.AsSpan(cut + 2, name.Length - cut - 3).IndexOfAnyExceptInRange('0', '9') < 0)
+        {
+            return name[..cut];
+        }
+
+        return name;
+    }
 
     /// <summary>"Recommended for your PC", "Best quality, needs GPU" or the short light-weight text.</summary>
     public string Description { get; }

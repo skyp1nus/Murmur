@@ -3,43 +3,40 @@
              xmlns:vm="using:Murmur.App.ViewModels"
              xmlns:res="using:Murmur.App.Resources"
              xmlns:controls="using:Murmur.App.Controls"
+             ClipToBounds="False"
              x:Class="Murmur.App.Views.FirstRecordingStepView"
              x:DataType="vm:FirstRecordingStepViewModel">
 
   <!-- Step 5: a ten-second recording, the orb that follows the voice, the countdown and the recognised text. -->
-  <StackPanel HorizontalAlignment="Stretch"
-              Spacing="{StaticResource Space.32}">
+  <StackPanel Classes="onbStep voice"
+              HorizontalAlignment="Stretch">
 
     <StackPanel Spacing="{StaticResource Space.12}"
                 HorizontalAlignment="Center">
-      <TextBlock Classes="heading onbHeadline"
-                 TextAlignment="Center"
-                 TextWrapping="Wrap"
+      <TextBlock Classes="onbH1"
                  Text="{Binding Title}" />
-      <TextBlock Classes="body"
-                 TextAlignment="Center"
-                 TextWrapping="Wrap"
-                 Foreground="{DynamicResource Brush.Smoke}"
+      <TextBlock Classes="onbSub"
                  Text="{Binding Subtitle}" />
     </StackPanel>
 
     <StackPanel HorizontalAlignment="Center"
-                Spacing="{StaticResource Space.16}">
-      <controls:OrbControl x:Name="VoiceOrb"
-                           HorizontalAlignment="Center"
-                           Width="{StaticResource Size.OnbVoiceOrb}"
-                           Height="{StaticResource Size.OnbVoiceOrb}"
-                           IsActive="{Binding IsRecording}" />
+                Spacing="{StaticResource Onb.Space.Recorder}">
+      <controls:GlassOrbControl x:Name="VoiceOrb"
+                                Classes="voice"
+                                HorizontalAlignment="Center"
+                                IsActive="{Binding IsRecording}" />
       <Border x:Name="Countdown"
               Classes="countdown">
         <StackPanel Orientation="Horizontal"
-                    Spacing="{StaticResource Space.12}">
+                    Spacing="{StaticResource Onb.Space.Badge}">
           <TextBlock x:Name="StatusLabel"
-                     Classes="bodySm"
+                     Classes="onbNote"
+                     VerticalAlignment="Center"
                      Foreground="{DynamicResource Brush.Graphite}"
                      Text="{Binding StatusLabel}" />
           <TextBlock x:Name="ClockLabel"
-                     Classes="mono"
+                     Classes="onbMono"
+                     VerticalAlignment="Center"
                      Text="{Binding ClockText}" />
         </StackPanel>
       </Border>
@@ -51,35 +48,39 @@
 
       <!-- Waiting: the dashed card, with a progress bar while the model downloads or the text is being recognised. -->
       <Border x:Name="PlaceholderCard"
-              BorderBrush="{DynamicResource Brush.DashedBorder}"
-              BorderThickness="{StaticResource Hairline.Thickness}"
               CornerRadius="{StaticResource Radius.Card}"
-              Padding="{StaticResource Inset.Banner}"
+              MinHeight="{StaticResource Size.OnbWaitingCard}"
               IsVisible="{Binding ShowPlaceholder}">
-        <StackPanel Spacing="{StaticResource Space.12}"
-                    HorizontalAlignment="Center">
-          <TextBlock x:Name="PlaceholderLabel"
-                     Classes="bodySm"
-                     TextAlignment="Center"
-                     TextWrapping="Wrap"
-                     Foreground="{DynamicResource Brush.Smoke}"
-                     Text="{Binding PlaceholderText}" />
-          <ProgressBar x:Name="TrialProgress"
-                       Height="{StaticResource Size.Progress}"
-                       Minimum="0"
-                       Maximum="100"
-                       Value="{Binding Progress}"
-                       IsVisible="{Binding ShowProgress}" />
-        </StackPanel>
+        <Panel>
+          <!-- The canvas card has a dashed 1 px outline; a Border cannot dash, so a rounded rectangle draws it. -->
+          <Rectangle Classes="dashedOutline" />
+          <StackPanel Margin="{StaticResource Inset.Banner}"
+                      Spacing="{StaticResource Space.12}"
+                      HorizontalAlignment="Center"
+                      VerticalAlignment="Center">
+            <TextBlock x:Name="PlaceholderLabel"
+                       Classes="onbBody"
+                       TextAlignment="Center"
+                       TextWrapping="Wrap"
+                       Foreground="{DynamicResource Brush.Smoke}"
+                       Text="{Binding PlaceholderText}" />
+            <ProgressBar x:Name="TrialProgress"
+                         Height="{StaticResource Size.Progress}"
+                         Minimum="0"
+                         Maximum="100"
+                         Value="{Binding Progress}"
+                         IsVisible="{Binding ShowProgress}" />
+          </StackPanel>
+        </Panel>
       </Border>
 
       <!-- Done: who said what, with a time chip -->
       <Border x:Name="TranscriptCard"
               Classes="panel"
-              Padding="{StaticResource Inset.Banner}"
+              Padding="{StaticResource Inset.OnbTranscript}"
               IsVisible="{Binding ShowTranscript}">
         <Grid ColumnDefinitions="*,Auto"
-              ColumnSpacing="{StaticResource Space.16}">
+              ColumnSpacing="{StaticResource Onb.Space.Cards}">
           <ItemsControl ItemsSource="{Binding Segments}">
             <ItemsControl.ItemsPanel>
               <ItemsPanelTemplate>
@@ -89,22 +90,22 @@
             <ItemsControl.ItemTemplate>
               <DataTemplate x:DataType="vm:TrialSegment">
                 <Grid ColumnDefinitions="Auto,*"
-                      ColumnSpacing="{StaticResource Space.16}">
+                      ColumnSpacing="{StaticResource Onb.Space.Cards}">
                   <Border Classes="avatar">
-                    <TextBlock Classes="caption"
+                    <TextBlock Classes="onbTag"
                                HorizontalAlignment="Center"
                                VerticalAlignment="Center"
                                Foreground="{DynamicResource Brush.Canvas}"
                                Text="{Binding Initial}" />
                   </Border>
                   <StackPanel Grid.Column="1"
-                              Spacing="{StaticResource Space.8}">
+                              Spacing="{StaticResource Onb.Space.HairTight}">
                     <StackPanel Orientation="Horizontal"
-                                Spacing="{StaticResource Space.12}">
-                      <TextBlock Classes="speaker"
+                                Spacing="{StaticResource Onb.Space.Badge}">
+                      <TextBlock Classes="onbNoteMedium"
                                  VerticalAlignment="Center"
                                  Text="{Binding Speaker}" />
-                      <Border Classes="chip">
+                      <Border Classes="onbChip">
                         <StackPanel Orientation="Horizontal"
                                     Spacing="{StaticResource Space.4}">
                           <Path Data="{StaticResource Icon.Play}"
@@ -112,16 +113,15 @@
                                 Height="{StaticResource Space.8}"
                                 Stretch="Uniform"
                                 VerticalAlignment="Center"
-                                Fill="{DynamicResource Brush.Graphite}" />
-                          <TextBlock Classes="mono"
-                                     FontSize="{StaticResource FontSize.Caption}"
-                                     Foreground="{DynamicResource Brush.Graphite}"
+                                Fill="{DynamicResource Brush.Ink}" />
+                          <TextBlock Classes="onbMono"
+                                     FontSize="{StaticResource Onb.FontSize.Label}"
+                                     VerticalAlignment="Center"
                                      Text="{Binding Time}" />
                         </StackPanel>
                       </Border>
                     </StackPanel>
-                    <TextBlock Classes="body"
-                               TextWrapping="Wrap"
+                    <TextBlock Classes="onbTranscript"
                                Text="{Binding Text}" />
                   </StackPanel>
                 </Grid>
@@ -130,7 +130,7 @@
           </ItemsControl>
           <Button x:Name="TryAgainButton"
                   Grid.Column="1"
-                  Classes="text"
+                  Classes="text onbSmall"
                   VerticalAlignment="Top"
                   Content="{x:Static res:Strings.Onb5_TryAgain}"
                   Command="{Binding TryAgainCommand}" />
@@ -151,13 +151,13 @@
                                 Data="{StaticResource Icon.Info}" />
           <TextBlock x:Name="MessageLabel"
                      Grid.Column="1"
-                     Classes="bodySm"
+                     Classes="onbBody"
                      VerticalAlignment="Center"
                      TextWrapping="Wrap"
                      Text="{Binding MessageText}" />
           <Button x:Name="MessageTryAgainButton"
                   Grid.Column="2"
-                  Classes="text"
+                  Classes="text onbSmall"
                   VerticalAlignment="Center"
                   Content="{x:Static res:Strings.Onb5_TryAgain}"
                   Command="{Binding TryAgainCommand}" />
@@ -170,11 +170,12 @@
                 Orientation="Horizontal"
                 HorizontalAlignment="Center"
                 Spacing="{StaticResource Space.8}">
-      <controls:IconControl Width="{StaticResource Size.SmallIcon}"
-                            Height="{StaticResource Size.SmallIcon}"
+      <controls:IconControl Width="{StaticResource Size.OnbConsent}"
+                            Height="{StaticResource Size.OnbConsent}"
                             TextElement.Foreground="{DynamicResource Brush.Smoke}"
                             Data="{StaticResource Icon.Info}" />
-      <TextBlock Classes="note"
+      <TextBlock Classes="onbNote"
+                 VerticalAlignment="Center"
                  Text="{x:Static res:Strings.Onb5_Consent}" />
     </StackPanel>
   </StackPanel>
