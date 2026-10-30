@@ -169,6 +169,22 @@ internal sealed class Harness : IAsyncDisposable
         }
     }
 
+    /// <summary>
+    /// Waits (bounded) until the fake server's byte counter has caught up: it counts a chunk after its write returns, so the client can
+    /// finish reading the last chunk before the server thread counts it. Never throws; the caller asserts the exact value afterwards.
+    /// </summary>
+    public static async Task ServedSettledAsync(Route route, long expected, int timeoutMs = 2_000)
+    {
+        try
+        {
+            await WaitUntilAsync(() => route.BytesServed >= expected, timeoutMs);
+        }
+        catch (TimeoutException)
+        {
+            // The assertion that follows reports the actual count.
+        }
+    }
+
     public async ValueTask DisposeAsync()
     {
         await Server.DisposeAsync();
