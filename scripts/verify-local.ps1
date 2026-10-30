@@ -128,15 +128,27 @@ $buildOk = $true
 if ($Build) {
     $expected = (Get-Content global.json -Raw | ConvertFrom-Json).sdk.version
     $actual = (dotnet --version).Trim()
-    if ($actual -ne $expected) {
-        Add-Result 'Build' 'FAIL' "SDK mismatch: dotnet --version is $actual, global.json pins $expected"
+
+    # global.json rolls forward (latestFeature, prereleases allowed): a newer SDK of the same major.minor is what dotnet itself
+    # picks, so it builds; only an older one or another major.minor is a mismatch. CI installs exactly the pinned SDK.
+    $sdkNote = ''
+    $pinned = $null; $installed = $null
+    $sdkOk = $actual -eq $expected
+    if (-not $sdkOk -and [System.Management.Automation.SemanticVersion]::TryParse($expected, [ref]$pinned) `
+            -and [System.Management.Automation.SemanticVersion]::TryParse($actual, [ref]$installed)) {
+        $sdkOk = $installed.Major -eq $pinned.Major -and $installed.Minor -eq $pinned.Minor -and $installed -ge $pinned
+        if ($sdkOk) { $sdkNote = " (global.json pins $expected and rolls forward to this SDK; CI builds with the pinned one)" }
+    }
+
+    if (-not $sdkOk) {
+        Add-Result 'Build' 'FAIL' "SDK mismatch: dotnet --version is $actual, global.json pins $expected (a newer SDK of the same major.minor is fine, an older or another one is not)"
         $buildOk = $false
     }
     else {
         $log = Join-Path $runDir 'build.log'
         $code = Invoke-Logged $log { dotnet build Murmur.sln -c Release }
         $warnings = @(Select-String -LiteralPath $log -Pattern ': warning ' -SimpleMatch:$false).Count
-        if ($code -eq 0) { Add-Result 'Build' 'PASS' "SDK $actual, 0 errors, $warnings warning line(s)" }
+        if ($code -eq 0) { Add-Result 'Build' 'PASS' "SDK $actual$sdkNote, 0 errors, $warnings warning line(s)" }
         else { Add-Result 'Build' 'FAIL' "dotnet build exit $code (see build.log)"; $buildOk = $false }
     }
 }
