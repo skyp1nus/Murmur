@@ -40,7 +40,7 @@ namespace Murmur.Capture.Windows.Video;
 /// that calls <see cref="Close"/> or <see cref="Dispose"/>).</para>
 /// UNVERIFIED-ON-WINDOWS until the Windows-trait tests run in CI.
 /// </remarks>
-public sealed class MediaEngineVideoPlayer : IVideoPlayer
+public sealed class MediaEngineVideoPlayer : IVideoPlayer, IVideoPlayerControls
 {
     /// <summary>Consecutive failed transfers of a due frame before <see cref="Failed"/> is raised (once per file).</summary>
     internal const int TransferFailuresBeforeReport = 60;
@@ -479,6 +479,7 @@ public sealed class MediaEngineVideoPlayer : IVideoPlayer
     /// The rate the open file plays at (1 = real time), kept for the files opened later. The session view sets it to the speed of
     /// the audio, which is the master clock: a video that plays at 1x while the audio runs at 2x would drift out of tolerance
     /// and be re-sought over and over. Clamped to [0.25, 4]; a failure is reported through <see cref="Failed"/>, not thrown.
+    /// The engine keeps the rate across Play, Pause and seeks (HTML playbackRate semantics), so a Play-then-Pause recovery step does not reset it.
     /// </summary>
     public void SetPlaybackRate(double rate)
     {

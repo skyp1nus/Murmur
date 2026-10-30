@@ -27,6 +27,7 @@ AI rules stay: never while recording; the model loads lazily in the worker and u
    the session (peaks from the audio, ink before the playhead, light after; click/drag seeks), play/pause, time
    "12:21 / 47:12" in Geist Mono, track filters **You** / **Others** (mute that track in playback and dim its lines),
    speed chip **1×** (cycles 1, 1.25, 1.5, 2, 0.75).
+   (Update: the WASAPI player first shipped with the speed chip disabled; it now time-stretches 0.5-2x with pitch preserved and the screen video follows via `IVideoPlayerControls`, see `docs/REPORTS/p41-playback-speed.md`.)
 4. Right column: tabs **Transcript / Summary / Ask AI** (pill style; the active one has the dot):
    - Transcript: "Search transcript" box (highlights hits like the canvas, Enter jumps to the next); rows with the
      avatar (Y / O), speaker, time (Geist Mono), text; the current segment is the filled row; click seeks.

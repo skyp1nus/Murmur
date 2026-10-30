@@ -83,6 +83,7 @@ public sealed partial class SessionViewModel
         player.Failed += OnVideoFailed;
         VideoPlayer = player;
         HasVideo = true;
+        ApplyVideoRate();
         SyncVideo();
     }
 
@@ -208,6 +209,7 @@ public sealed partial class SessionViewModel
 
         _openingSegment = VideoPlayerState.NoSegment;
         _openSegment = index;
+        ApplyVideoRate();
         var size = video.Size;
         VideoInfoText = UiText.Format(Strings.Session_VideoInfo, size.Width, size.Height);
         VideoRevision++;

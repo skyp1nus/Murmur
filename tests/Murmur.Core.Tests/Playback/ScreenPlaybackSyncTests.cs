@@ -315,6 +315,38 @@ public sealed class ScreenPlaybackSyncTests
         Assert.True(sim.PlaceholderTicks > 0);
     }
 
+    [Theory]
+    [InlineData(0.75)]
+    [InlineData(1.25)]
+    [InlineData(1.5)]
+    [InlineData(2)]
+    public void Simulation_AtAnotherSpeed_AVideoAtTheSameRate_StaysInSync_WithoutConstantSeeks(double rate)
+    {
+        // Both clocks run in media time: the audio position advances `rate` x wall time and so does the video at the same rate.
+        var segments = new[] { new ScreenSegment(0, S(3), S(10)), new ScreenSegment(1, S(20), S(12)) };
+        var sim = new Simulation(segments, openLatency: 120 * Ms, seekLatency: 80 * Ms, audioRate: rate, videoRate: rate);
+        sim.Audio.Play();
+        sim.Run(S(40 / rate));
+
+        Assert.Equal([0, 1], sim.Video.Opened);
+        Assert.True(sim.Video.Seeks.Count <= 4, $"{sim.Video.Seeks.Count} seeks at {rate}x");
+        // The open and seek latencies are wall time, so the media time that passes while they last grows with the rate.
+        Assert.True(sim.OutOfSyncTicks <= 20 * Math.Max(1, rate) + 2, $"{sim.OutOfSyncTicks} ticks out of sync at {rate}x");
+    }
+
+    [Fact]
+    public void Simulation_AtDoubleSpeed_AVideoLeftAt1x_IsReSoughtAllTheTime()
+    {
+        // The reason the video follows the speed: at 1x it falls 1 s behind per second and is seeked back over and over.
+        var segments = new[] { new ScreenSegment(0, S(3), S(30)) };
+        var sim = new Simulation(segments, openLatency: 120 * Ms, seekLatency: 80 * Ms, audioRate: 2, videoRate: 1);
+        sim.Audio.Play();
+        sim.Run(S(12));
+
+        Assert.True(sim.Video.Seeks.Count >= 8, $"{sim.Video.Seeks.Count} seeks");
+        Assert.True(sim.OutOfSyncTicks > 40, $"{sim.OutOfSyncTicks} ticks out of sync");
+    }
+
     [Fact]
     public void Simulation_UserSeeksAcrossSegments_FollowTheAudio()
     {
@@ -435,12 +467,12 @@ public sealed class ScreenPlaybackSyncTests
     {
         private static readonly TimeSpan Tick = TimeSpan.FromMilliseconds(33);
 
-        public Simulation(ScreenSegment[] segments, TimeSpan openLatency, TimeSpan seekLatency, bool frozen = false, TimeSpan[]? seekLatencies = null)
+        public Simulation(ScreenSegment[] segments, TimeSpan openLatency, TimeSpan seekLatency, bool frozen = false, TimeSpan[]? seekLatencies = null, double audioRate = 1, double videoRate = 1)
         {
             Time = new ManualTimeProvider();
             Sync = new ScreenPlaybackSync(segments, time: Time);
-            Audio = new FakeAudio(S(40));
-            Video = new FakeVideo(Time, segments, openLatency, seekLatencies ?? [seekLatency], frozen);
+            Audio = new FakeAudio(S(40), audioRate);
+            Video = new FakeVideo(Time, segments, openLatency, seekLatencies ?? [seekLatency], frozen, videoRate);
         }
 
         public ManualTimeProvider Time { get; }
@@ -517,7 +549,7 @@ public sealed class ScreenPlaybackSyncTests
         }
     }
 
-    private sealed class FakeAudio(TimeSpan duration)
+    private sealed class FakeAudio(TimeSpan duration, double rate = 1)
     {
         public TimeSpan Position { get; private set; }
 
@@ -533,7 +565,7 @@ public sealed class ScreenPlaybackSyncTests
         {
             if (IsPlaying)
             {
-                Position += by;
+                Position += by * rate;
                 if (Position >= duration)
                 {
                     Position = duration;
@@ -548,7 +580,7 @@ public sealed class ScreenPlaybackSyncTests
     /// the picture stands still for the seek latency; at its end playback stops. A frozen one never advances (a decoder
     /// that cannot keep up at all).
     /// </summary>
-    private sealed class FakeVideo(ManualTimeProvider time, ScreenSegment[] segments, TimeSpan openLatency, TimeSpan[] seekLatencies, bool frozen)
+    private sealed class FakeVideo(ManualTimeProvider time, ScreenSegment[] segments, TimeSpan openLatency, TimeSpan[] seekLatencies, bool frozen, double rate = 1)
     {
         private int _segment = VideoPlayerState.NoSegment;
         private TimeSpan _openRemaining;
@@ -625,7 +657,7 @@ public sealed class ScreenPlaybackSyncTests
 
             if (_playing && !frozen)
             {
-                Position += by;
+                Position += by * rate;
                 if (Position >= _duration)
                 {
                     Position = _duration;
