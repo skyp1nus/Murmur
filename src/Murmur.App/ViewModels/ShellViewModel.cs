@@ -3,6 +3,7 @@ using CommunityToolkit.Mvvm.Input;
 using Murmur.App.Resources;
 using Murmur.App.Services;
 using Murmur.Core.Intelligence;
+using Murmur.Core.Models;
 using Murmur.Core.Recording;
 using Murmur.Core.Settings;
 using Murmur.Core.Sessions;
@@ -19,6 +20,9 @@ public sealed partial class ShellViewModel : ObservableObject
     private readonly Func<SessionRecord, SessionViewModel>? _sessionFactory;
     private readonly Func<SessionId?, ChatViewModel>? _chatFactory;
     private readonly SidebarViewModel? _sidebar;
+    private readonly IChatStore? _chatStore;
+    private readonly ISessionStore? _sessionStore;
+    private readonly ChatModelChipViewModel? _chatModelChip;
     private readonly Func<OnboardingViewModel>? _onboardingFactory;
     private readonly TrialSessionCleaner? _trials;
     private readonly Action<Action> _post;
@@ -39,6 +43,9 @@ public sealed partial class ShellViewModel : ObservableObject
     /// <param name="settingsStore">Where <c>AppSettings.OnboardingCompleted</c> is read and watched.</param>
     /// <param name="trials">Recognises and removes the onboarding's leftover trial recordings.</param>
     /// <param name="post">Marshals the settings store's change event to the UI thread; the UI dispatcher by default.</param>
+    /// <param name="chatStore">The saved chats of Ask AI (the sidebar's Chats list); <c>null</c> = chats are not saved.</param>
+    /// <param name="sessionStore">Names the recording a saved chat is scoped to.</param>
+    /// <param name="chatModelChip">The model chip of the Ask AI header.</param>
     public ShellViewModel(
         LibraryViewModel library,
         RecordingViewModel recording,
@@ -49,7 +56,10 @@ public sealed partial class ShellViewModel : ObservableObject
         Func<OnboardingViewModel>? onboardingFactory = null,
         ISettingsStore? settingsStore = null,
         TrialSessionCleaner? trials = null,
-        Action<Action>? post = null)
+        Action<Action>? post = null,
+        IChatStore? chatStore = null,
+        ISessionStore? sessionStore = null,
+        ChatModelChipViewModel? chatModelChip = null)
     {
         ArgumentNullException.ThrowIfNull(library);
         ArgumentNullException.ThrowIfNull(recording);
@@ -58,6 +68,9 @@ public sealed partial class ShellViewModel : ObservableObject
         _startup = startup;
         _sessionFactory = sessionFactory;
         _chatFactory = chatFactory;
+        _chatStore = chatStore;
+        _sessionStore = sessionStore;
+        _chatModelChip = chatModelChip;
         Settings = settings;
         _sidebar = settings is null ? null : new SidebarViewModel(this);
         CurrentPage = library;
@@ -156,6 +169,10 @@ public sealed partial class ShellViewModel : ObservableObject
         ChatViewModel CreateChat(SessionId? scope) =>
             new(ai?.Assistant, ai?.Llm, services.Recorder, scope, ai?.ModelsDirectory);
 
+        // The Ask AI page saves its chats and checks which cited recordings still exist.
+        ChatViewModel CreateSavedChat(SessionId? scope) =>
+            new(ai?.Assistant, ai?.Llm, services.Recorder, scope, ai?.ModelsDirectory, store: services.Chats, sessions: services.Sessions, time: services.Time);
+
         Func<SessionRecord, SessionViewModel>? sessionFactory = null;
         if (services.Transcripts is { } transcripts && services.Playback is { } playback)
         {
@@ -194,11 +211,29 @@ public sealed partial class ShellViewModel : ObservableObject
             new RecordingViewModel(services.Recorder, services.Capture, services.Sessions, settings: store),
             services.Startup,
             sessionFactory,
-            CreateChat,
+            CreateSavedChat,
             settings,
             CreateOnboarding,
             store,
-            new TrialSessionCleaner(services.Sessions, processing));
+            new TrialSessionCleaner(services.Sessions, processing),
+            chatStore: services.Chats,
+            sessionStore: services.Sessions,
+            chatModelChip: new ChatModelChipViewModel(() => ActiveChatModelName(services, store), ai?.AccelerationSource));
+    }
+
+    /// <summary>The name of the chat model that answers: the active one on disk, else the saved choice, else the first installed one.</summary>
+    private static string? ActiveChatModelName(AppServices services, ISettingsStore settings)
+    {
+        if (services.Models is not { } models)
+        {
+            return null;
+        }
+
+        var chats = models.Catalog.Where(m => m.Kind == ModelKind.Chat).ToArray();
+        var id = services.ActiveModelId?.Invoke(ModelKind.Chat) ?? settings.Current.ChatModelId;
+        var model = chats.FirstOrDefault(m => m.Id == id)
+            ?? chats.FirstOrDefault(m => models.GetStatus(m.Id).State == ModelInstallState.Installed);
+        return model?.DisplayName;
     }
 
     /// <summary>
@@ -351,7 +386,10 @@ public sealed partial class ShellViewModel : ObservableObject
         CurrentPage = settings;
     }
 
-    /// <summary>Opens the library-wide chat ("Запитати AI по всіх записах"). Ignored without a chat factory.</summary>
+    /// <summary>
+    /// Opens Ask AI on the conversation that was in view (the one that survives a visit to a cited recording). Ignored without a chat
+    /// factory. <see cref="ShowNewChat"/> is the "new chat" of the sidebar.
+    /// </summary>
     public void ShowLibraryChat()
     {
         if (_chatFactory is null)
@@ -360,16 +398,53 @@ public sealed partial class ShellViewModel : ObservableObject
         }
 
         CloseSession();
-        if (LibraryChat is null)
+        var page = EnsureLibraryChat();
+        page.RefreshThreadsAsync();
+        CurrentPage = page;
+        PushChats();
+    }
+
+    /// <summary>
+    /// Opens Ask AI on an empty chat (the sidebar's Ask AI item and the Library's question box): the conversation in view when it is
+    /// empty, otherwise a new one; the earlier one stays saved in the Chats list. <paramref name="from"/> is the recording the chat is
+    /// opened from; it gets the second scope pill.
+    /// </summary>
+    public void ShowNewChat(SessionRecord? from = null)
+    {
+        if (_chatFactory is null)
         {
-            var chat = new LibraryChatViewModel(_chatFactory(null));
-            chat.BackRequested += ShowLibrary;
-            chat.Chat.CitationActivated += OnLibraryCitation;
-            LibraryChat = chat;
+            return;
         }
 
-        LibraryChat.Chat.RefreshAvailability();
-        CurrentPage = LibraryChat;
+        CloseSession();
+        var page = EnsureLibraryChat();
+        page.StartNew(from);
+        page.RefreshThreadsAsync();
+        CurrentPage = page;
+        PushChats();
+    }
+
+    private LibraryChatViewModel EnsureLibraryChat()
+    {
+        if (LibraryChat is null)
+        {
+            var page = new LibraryChatViewModel(_chatFactory!, _chatStore, _sessionStore, _chatModelChip);
+            page.BackRequested += ShowLibrary;
+            page.CitationActivated += OnLibraryCitation;
+            page.EntriesChanged += PushChats;
+            LibraryChat = page;
+        }
+
+        return LibraryChat;
+    }
+
+    /// <summary>The sidebar's Chats list is the page's saved chats.</summary>
+    private void PushChats()
+    {
+        if (LibraryChat is { } page)
+        {
+            _sidebar?.SetChats(page.Entries);
+        }
     }
 
     /// <summary>
@@ -477,9 +552,10 @@ public sealed partial class ShellViewModel : ObservableObject
                 TopBar.Leading = new BreadcrumbViewModel(Strings.Nav_Library, new RelayCommand(ShowLibrary), session.Title);
                 TopBar.Trailing = null;
                 break;
-            case LibraryChatViewModel:
-                TopBar.Leading = new BreadcrumbViewModel(Strings.Common_AskAi);
-                TopBar.Trailing = null;
+            case LibraryChatViewModel chat:
+                // The canvas has the scope pills where the breadcrumb is, and the model chip where the hotkey hint is.
+                TopBar.Leading = chat.ScopePills;
+                TopBar.Trailing = chat.ModelChip;
                 break;
             case SettingsViewModel:
                 TopBar.Leading = new BreadcrumbViewModel(Strings.Nav_Settings);
@@ -554,7 +630,7 @@ public sealed partial class ShellViewModel : ObservableObject
             return;
         }
 
-        ShowLibraryChat();
+        ShowNewChat();
         var chat = LibraryChat!.Chat;
         chat.Question = question.Trim();
         if (chat.AskCommand.CanExecute(null))
@@ -632,6 +708,7 @@ public sealed partial class ShellViewModel : ObservableObject
         // The app ends with its window: release what the screens subscribed to.
         Settings?.Dispose();
         Library.Dispose();
+        LibraryChat?.Dispose();
     }
 
     /// <summary>The window came to the front: the library re-reads sessions that may have been recovered meanwhile.</summary>

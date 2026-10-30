@@ -178,7 +178,8 @@ internal sealed class CompositionRoot : IDisposable
             // WindowsCapture also plays the screen recordings (Media Engine); the synthetic capture does not.
             capture as IVideoPlayback,
             _hotkeys ??= CreateHotkeys(capture),
-            _instance);
+            _instance,
+            Chats: storage);
     }
 
     public void Dispose()

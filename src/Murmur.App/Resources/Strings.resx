@@ -365,9 +365,6 @@
   <data name="Chat_NoticePaused" xml:space="preserve">
     <value>Models are not loaded while a recording is running, so they do not take memory and CPU from it. Ask when the recording ends.</value>
   </data>
-  <data name="LibraryChat_Subtitle" xml:space="preserve">
-    <value>Answers refer to recordings and minutes — click a timestamp to open the recording there.</value>
-  </data>
   <data name="Processing_Queued" xml:space="preserve">
     <value>Queued</value>
   </data>
@@ -1290,5 +1287,49 @@
   </data>
   <data name="Recording_ClipboardUnavailable" xml:space="preserve">
     <value>the clipboard is not available</value>
+  </data>
+  <data name="Chat_SourceDeleted" xml:space="preserve">
+    <value>Deleted recording</value>
+  </data>
+  <data name="Chat_ScopeLabel" xml:space="preserve">
+    <value>Search scope</value>
+  </data>
+  <data name="Chat_ScopeLibrary" xml:space="preserve">
+    <value>Whole library</value>
+  </data>
+  <data name="Chat_ModelLocal" xml:space="preserve">
+    <value>{0} · local</value>
+    <comment>{0} = the chat model, e.g. Gemma 4 E4B</comment>
+  </data>
+  <data name="Chat_ModelLocalAccelerated" xml:space="preserve">
+    <value>{0} · local · {1}</value>
+    <comment>{0} = the chat model, {1} = the acceleration (Vulkan, CUDA)</comment>
+  </data>
+  <data name="Chat_ModelUnknown" xml:space="preserve">
+    <value>Gemma 4</value>
+  </data>
+  <data name="Chat_Sources" xml:space="preserve">
+    <value>Sources</value>
+  </data>
+  <data name="Chat_CopyAnswer" xml:space="preserve">
+    <value>Copy answer</value>
+  </data>
+  <data name="Chat_Regenerate" xml:space="preserve">
+    <value>Regenerate</value>
+  </data>
+  <data name="Chat_Send" xml:space="preserve">
+    <value>Send</value>
+  </data>
+  <data name="Chat_QuestionLabel" xml:space="preserve">
+    <value>Question</value>
+  </data>
+  <data name="Chat_Disclaimer" xml:space="preserve">
+    <value>Answers are based only on your transcripts. Check them against the timestamps.</value>
+  </data>
+  <data name="Chat_RenameChat" xml:space="preserve">
+    <value>Rename</value>
+  </data>
+  <data name="Chat_DeleteChat" xml:space="preserve">
+    <value>Delete</value>
   </data>
 </root>

@@ -45,6 +45,7 @@ namespace Murmur.App;
 /// System-wide hotkeys (record, screen, show the window). The app registers the gestures of the settings after the first
 /// frame and follows their changes; the composition root owns and disposes it. <c>null</c> = no global hotkeys.
 /// </param>
+/// <param name="Chats">The saved chats of Ask AI (the sidebar's Chats list); <c>null</c> = chats are not saved.</param>
 /// <param name="Activation">
 /// Another start of the program asked this one to show its window (single instance). Raised on any thread; <c>null</c> = never.
 /// </param>
@@ -65,4 +66,5 @@ public sealed record AppServices(
     string? DefaultRecordingsDirectory = null,
     IVideoPlayback? VideoPlayback = null,
     IGlobalHotkeys? Hotkeys = null,
-    IActivationRequests? Activation = null);
+    IActivationRequests? Activation = null,
+    IChatStore? Chats = null);

@@ -364,9 +364,6 @@
   <data name="Chat_NoticePaused" xml:space="preserve">
     <value>Поки триває запис, моделі не завантажуються, щоб не забирати памʼять і процесор у запису. Запитай, коли запис завершиться.</value>
   </data>
-  <data name="LibraryChat_Subtitle" xml:space="preserve">
-    <value>Відповіді посилаються на записи й хвилини — натисни таймкод, щоб відкрити запис там.</value>
-  </data>
   <data name="Processing_Queued" xml:space="preserve">
     <value>У черзі</value>
   </data>
@@ -1290,5 +1287,47 @@
   </data>
   <data name="Recording_ClipboardUnavailable" xml:space="preserve">
     <value>буфер обміну недоступний</value>
+  </data>
+  <data name="Chat_SourceDeleted" xml:space="preserve">
+    <value>Запис видалено</value>
+  </data>
+  <data name="Chat_ScopeLabel" xml:space="preserve">
+    <value>Область пошуку</value>
+  </data>
+  <data name="Chat_ScopeLibrary" xml:space="preserve">
+    <value>Уся бібліотека</value>
+  </data>
+  <data name="Chat_ModelLocal" xml:space="preserve">
+    <value>{0} · локально</value>
+  </data>
+  <data name="Chat_ModelLocalAccelerated" xml:space="preserve">
+    <value>{0} · локально · {1}</value>
+  </data>
+  <data name="Chat_ModelUnknown" xml:space="preserve">
+    <value>Gemma 4</value>
+  </data>
+  <data name="Chat_Sources" xml:space="preserve">
+    <value>Джерела</value>
+  </data>
+  <data name="Chat_CopyAnswer" xml:space="preserve">
+    <value>Копіювати відповідь</value>
+  </data>
+  <data name="Chat_Regenerate" xml:space="preserve">
+    <value>Відповісти ще раз</value>
+  </data>
+  <data name="Chat_Send" xml:space="preserve">
+    <value>Надіслати</value>
+  </data>
+  <data name="Chat_QuestionLabel" xml:space="preserve">
+    <value>Запитання</value>
+  </data>
+  <data name="Chat_Disclaimer" xml:space="preserve">
+    <value>Відповіді спираються лише на ваші транскрипти. Звіряйте їх із таймкодами.</value>
+  </data>
+  <data name="Chat_RenameChat" xml:space="preserve">
+    <value>Перейменувати</value>
+  </data>
+  <data name="Chat_DeleteChat" xml:space="preserve">
+    <value>Видалити</value>
   </data>
 </root>
