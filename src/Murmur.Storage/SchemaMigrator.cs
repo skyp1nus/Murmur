@@ -81,6 +81,19 @@ internal static class SchemaMigrator
         );
         CREATE INDEX ix_chunks_session_idx ON chunks (session_id, idx);
         """,
+
+        // 4: the AI summary of a session, at most one (the primary key); it goes with the session through ON DELETE CASCADE.
+        // key_points and action_items are JSON arrays of {text, atMs} (source-generated, see StorageJsonContext).
+        """
+        CREATE TABLE summaries (
+            session_id   TEXT    PRIMARY KEY NOT NULL REFERENCES sessions (id) ON DELETE CASCADE,
+            overview     TEXT    NOT NULL,
+            key_points   TEXT    NOT NULL,
+            action_items TEXT    NOT NULL,
+            model_id     TEXT    NOT NULL,
+            created_at   INTEGER NOT NULL
+        );
+        """,
     ];
 
     public static int LatestVersion => Migrations.Length;
