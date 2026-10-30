@@ -12,7 +12,9 @@ namespace Murmur.Capture.Windows.Platform;
 /// <item><see cref="Changed"/> needs a window to hear <c>WM_SETTINGCHANGE</c>. That message is broadcast to top-level windows
 /// only, never to message-only ones, so the hotkeys' window cannot carry it: this class owns a hidden, never shown top-level
 /// window on its own background thread (<c>Murmur.MotionPreference</c>). The thread starts on the first subscriber, not at
-/// construction. On every <c>WM_SETTINGCHANGE</c> the value is read again and <see cref="Changed"/> is raised, on that thread,
+/// construction, and the subscriber never waits for it (the window appears a moment later; a change in between is caught by
+/// one re-read when the window is up). If the window cannot be created the class gives up once (no retry per subscription):
+/// <see cref="ReduceMotion"/> still answers, <see cref="Changed"/> never fires. On every <c>WM_SETTINGCHANGE</c> the value is read again and <see cref="Changed"/> is raised, on that thread,
 /// only when it differs from the last one seen.</item>
 /// <item>A handler exception is swallowed (the other handlers still run). <see cref="Dispose"/> ends the thread and is safe to call more than once.</item>
 /// </list>
@@ -33,7 +35,11 @@ internal sealed unsafe class WindowsMotionPreference : IMotionPreference, IDispo
     private Thread? _thread;
     private nint _window;
     private volatile bool _last;
-    private bool _disposed;
+    private volatile bool _disposed;
+    private bool _startFailed;
+
+    // Touched only by the window thread: the window is already destroyed (WM_DESTROY ran), so it must not be destroyed again.
+    private bool _windowDestroyed;
 
     /// <summary>Reads the real system setting.</summary>
     public WindowsMotionPreference()
@@ -92,6 +98,7 @@ internal sealed unsafe class WindowsMotionPreference : IMotionPreference, IDispo
     public void Dispose()
     {
         Thread? thread;
+        nint window;
         lock (_gate)
         {
             if (_disposed)
@@ -99,13 +106,13 @@ internal sealed unsafe class WindowsMotionPreference : IMotionPreference, IDispo
                 return;
             }
 
+            // Under the gate: a window thread that has not published its window yet sees this and leaves (see ThreadMain).
             _disposed = true;
             _changed = null;
             thread = _thread;
-            _thread = null;
+            window = _window;
         }
 
-        var window = Volatile.Read(ref _window);
         if (window != 0)
         {
             InputNativeMethods.PostMessageW(window, InputConstants.WmShutdown, 0, 0);
@@ -119,24 +126,18 @@ internal sealed unsafe class WindowsMotionPreference : IMotionPreference, IDispo
 
     private void StartLocked()
     {
-        if (_thread is { IsAlive: true })
+        if (_thread is not null || _startFailed)
         {
             return;
         }
 
-        // The value the thread starts from: a change after this point raises Changed.
+        // The value the thread starts from: a change after this point raises Changed. Never waits for the thread.
         _last = ReduceMotion;
-        // Not disposed: the thread sets it once more when it ends, long after this method returned (it holds no kernel handle).
-        var ready = new ManualResetEventSlim(false);
-        var thread = new Thread(() => ThreadMain(ready)) { IsBackground = true, Name = ThreadName };
-        thread.Start();
-        if (ready.Wait(StartTimeout))
-        {
-            _thread = thread;
-        }
+        _thread = new Thread(ThreadMain) { IsBackground = true, Name = ThreadName };
+        _thread.Start();
     }
 
-    private void ThreadMain(ManualResetEventSlim ready)
+    private void ThreadMain()
     {
         nint window = 0;
         var self = default(GCHandle);
@@ -145,13 +146,28 @@ internal sealed unsafe class WindowsMotionPreference : IMotionPreference, IDispo
             window = CreateWindow();
             if (window == 0)
             {
+                lock (_gate)
+                {
+                    _startFailed = true;
+                }
+
                 return;
             }
 
             self = GCHandle.Alloc(this);
             InputNativeMethods.SetWindowLongPtrW(window, InputConstants.GwlpUserData, GCHandle.ToIntPtr(self));
-            Volatile.Write(ref _window, window);
-            ready.Set();
+            lock (_gate)
+            {
+                if (_disposed)
+                {
+                    return; // Disposed while the window was being created: tear it down without publishing it.
+                }
+
+                Volatile.Write(ref _window, window);
+            }
+
+            // A change between the subscription and now has no message to report it: look once.
+            OnSettingChange();
 
             Msg message;
             while (InputNativeMethods.GetMessageW(&message, 0, 0, 0) > 0)
@@ -162,21 +178,26 @@ internal sealed unsafe class WindowsMotionPreference : IMotionPreference, IDispo
         catch
         {
             // A broken window means no change notifications; ReduceMotion keeps answering from the system.
+            lock (_gate)
+            {
+                _startFailed |= Volatile.Read(ref _window) == 0;
+            }
         }
         finally
         {
             if (window != 0)
             {
-                InputNativeMethods.DestroyWindow(window);
                 Interlocked.CompareExchange(ref _window, 0, window);
+                if (!_windowDestroyed)
+                {
+                    InputNativeMethods.DestroyWindow(window);
+                }
             }
 
             if (self.IsAllocated)
             {
                 self.Free();
             }
-
-            ready.Set();
         }
     }
 
@@ -235,10 +256,12 @@ internal sealed unsafe class WindowsMotionPreference : IMotionPreference, IDispo
                     case MotionNativeMethods.WmSettingChange:
                         owner.OnSettingChange();
                         break;
-                    case InputConstants.WmShutdown:
+                    case InputConstants.WmShutdown when owner._disposed:
+                        // WM_APP + 2 can be posted to a top-level window by any process: only our own Dispose ends the window.
                         InputNativeMethods.DestroyWindow(window);
                         return 0;
                     case InputConstants.WmDestroy:
+                        owner._windowDestroyed = true;
                         InputNativeMethods.PostQuitMessage(0);
                         return 0;
                 }

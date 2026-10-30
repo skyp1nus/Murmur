@@ -24,6 +24,27 @@ internal sealed class MotionFollower : IDisposable
         _post = post;
     }
 
+    /// <summary>
+    /// What the app does with its window: the current value is set at once (so the first frame is already right), but the
+    /// subscription, which on Windows starts a thread and a window, waits until the first frame has been drawn, like the global
+    /// hotkeys, so it stays out of the start-up budget. The follower is released when the window closes.
+    /// </summary>
+    public static void Attach(Window window, IMotionPreference preference, Action<Action>? post = null)
+    {
+        ArgumentNullException.ThrowIfNull(window);
+        ArgumentNullException.ThrowIfNull(preference);
+        Motion.SetReduceMotion(window, preference.ReduceMotion);
+        MotionFollower? follower = null;
+        window.Opened += (_, _) => window.RequestAnimationFrame(_ =>
+        {
+            if (follower is null && window.IsVisible)
+            {
+                follower = Follow(window, preference, post);
+            }
+        });
+        window.Closed += (_, _) => follower?.Dispose();
+    }
+
     /// <summary>Applies the current preference to <paramref name="root"/> now and follows its changes until disposed.</summary>
     public static MotionFollower Follow(Control root, IMotionPreference preference, Action<Action>? post = null)
     {

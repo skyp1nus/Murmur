@@ -297,4 +297,136 @@ public sealed class ReducedMotionTests
         Assert.False(preference.ReduceMotion);
         Assert.False(raised);
     }
+
+    [Fact]
+    public async Task Follower_APostQueuedBeforeDispose_IsANoOpWhenItRunsAfterwards()
+    {
+        var value = await Session.Dispatch(
+            () =>
+            {
+                var window = new Window();
+                var preference = new FakePreference(reduce: false);
+                var posted = new List<Action>();
+                var follower = MotionFollower.Follow(window, preference, posted.Add);
+
+                preference.ReduceMotion = true;
+                preference.Raise();
+                follower.Dispose();
+                posted[0]();
+                return Motion.GetReduceMotion(window);
+            },
+            TestContext.Current.CancellationToken);
+
+        Assert.False(value);
+    }
+
+    [Fact]
+    public async Task Attach_SetsTheValueAtOnce_AndSubscribesOnlyAfterTheFirstFrame()
+    {
+        var (initial, beforeShow, afterShow, afterClose) = await Session.Dispatch(
+            () =>
+            {
+                var window = new Window { Width = 300, Height = 300, Content = new Border() };
+                var preference = new FakePreference(reduce: true);
+
+                MotionFollower.Attach(window, preference, static action => action());
+                var first = Motion.GetReduceMotion(window);
+                var early = preference.HasSubscribers;
+
+                window.Show();
+                UiHarness.Pump(10);
+                var late = preference.HasSubscribers;
+
+                window.Close();
+                return (first, early, late, preference.HasSubscribers);
+            },
+            TestContext.Current.CancellationToken);
+
+        Assert.True(initial);
+        Assert.False(beforeShow);
+        Assert.True(afterShow);
+        Assert.False(afterClose);
+    }
+
+    [Fact]
+    public async Task Attach_FollowsLaterChanges_OnceSubscribed()
+    {
+        var (reduced, allowed) = await Session.Dispatch(
+            () =>
+            {
+                var orb = new GlassOrbControl { Width = 300, Height = 300, IsActive = true };
+                var window = new Window { Width = 400, Height = 400, Content = orb };
+                var preference = new FakePreference(reduce: false);
+                MotionFollower.Attach(window, preference, static action => action());
+                window.Show();
+                UiHarness.Pump(10);
+
+                preference.ReduceMotion = true;
+                preference.Raise();
+                var stopped = !orb.IsFrameLoopRunning;
+                preference.ReduceMotion = false;
+                preference.Raise();
+                var result = (stopped, orb.IsFrameLoopRunning);
+                window.Close();
+                return result;
+            },
+            TestContext.Current.CancellationToken);
+
+        Assert.True(reduced);
+        Assert.True(allowed);
+    }
+
+    // ---- easing back in ------------------------------------------------------------------------------------------------
+
+    [Fact]
+    public async Task GlassOrb_MotionAllowedAgainMidVoice_EasesInFromRest()
+    {
+        var (first, later) = await Session.Dispatch(
+            () =>
+            {
+                var orb = new GlassOrbControl { Width = 300, Height = 300, HaloBlur = 30, IsActive = true, LevelSource = new FixedLevel(0.64f) };
+                var window = Host(orb, reduce: true);
+                Motion.SetReduceMotion(window, false);
+                orb.Update(TimeSpan.FromSeconds(100));
+                var atStart = orb.BodyScale;
+                for (var i = 1; i <= 40; i++)
+                {
+                    orb.Update(TimeSpan.FromSeconds(100 + (i * 0.1)));
+                }
+
+                var result = (atStart, orb.BodyScale);
+                window.Close();
+                return result;
+            },
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal(1.0, first, 3);
+        Assert.True(later > 1.05, $"The orb should follow the voice after the ease-in, got {later}.");
+    }
+
+    [Fact]
+    public async Task Orb_MotionAllowedAgainMidVoice_EasesInFromRest()
+    {
+        var (first, later) = await Session.Dispatch(
+            () =>
+            {
+                var orb = new OrbControl { LevelSource = new FixedLevel(0.64f), IsActive = true };
+                var window = Host(orb, reduce: true);
+                Motion.SetReduceMotion(window, false);
+                orb.Update(TimeSpan.FromSeconds(1000));
+                var atStart = orb.BodyScale;
+                for (var i = 1; i <= 40; i++)
+                {
+                    orb.Update(TimeSpan.FromSeconds(1000 + (i * 0.05)));
+                }
+
+                var result = (atStart, orb.BodyScale);
+                window.Close();
+                return result;
+            },
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal(0.56, first, 3);
+        Assert.True(later > 0.56 * 1.1);
+    }
 }

@@ -62,6 +62,7 @@ public sealed class OrbControl : Panel
     private TimeProvider _clock = TimeProvider.System;
     private long _clockStart;
     private bool _primed;
+    private bool _easeInFromRest;
     private TimeSpan _lastFrame;
     private double _smoothed;
     private double _phaseSeconds;
@@ -178,6 +179,7 @@ public sealed class OrbControl : Panel
         base.OnPropertyChanged(change);
         if (change.Property == IsActiveProperty)
         {
+            _easeInFromRest = false;
             Restart();
             if (!IsActive)
             {
@@ -192,6 +194,11 @@ public sealed class OrbControl : Panel
             if (ReduceMotion)
             {
                 HoldRest();
+            }
+            else
+            {
+                // Motion is allowed again mid-recording: the pulse eases in from rest instead of snapping to the current level.
+                _easeInFromRest = IsActive;
             }
 
             UpdateLoop();
@@ -255,7 +262,8 @@ public sealed class OrbControl : Panel
         {
             // A (re)start begins at the current level with the breath at rest, whatever happened before it.
             _primed = true;
-            _smoothed = target;
+            _smoothed = _easeInFromRest ? 0 : target;
+            _easeInFromRest = false;
             _phaseSeconds = 0;
         }
         else

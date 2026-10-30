@@ -99,6 +99,7 @@ public sealed class GlassOrbControl : Panel
     private Size _size;
     private Palette _palette;
     private bool _hasColours;
+    private bool _easeInFromRest;
     private bool _centreKnown;
 
     static GlassOrbControl()
@@ -280,6 +281,7 @@ public sealed class GlassOrbControl : Panel
         base.OnPropertyChanged(change);
         if (change.Property == IsActiveProperty)
         {
+            _easeInFromRest = false;
             _primed = false;
             if (!IsActive)
             {
@@ -294,6 +296,11 @@ public sealed class GlassOrbControl : Panel
             if (ReduceMotion)
             {
                 HoldRest();
+            }
+            else
+            {
+                // Motion is allowed again mid-recording: the pulse eases in from rest instead of snapping to the current level.
+                _easeInFromRest = IsActive;
             }
 
             UpdateLoop();
@@ -357,6 +364,12 @@ public sealed class GlassOrbControl : Panel
         }
 
         var starting = !_primed;
+        var easeIn = starting && _easeInFromRest;
+        if (starting)
+        {
+            _easeInFromRest = false;
+        }
+
         var source = LevelSource;
         if (source is null)
         {
@@ -379,7 +392,7 @@ public sealed class GlassOrbControl : Panel
         if (starting)
         {
             _primed = true;
-            _smoothed = target;
+            _smoothed = easeIn ? 0 : target;
         }
         else
         {
