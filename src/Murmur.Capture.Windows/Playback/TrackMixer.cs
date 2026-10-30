@@ -59,6 +59,7 @@ internal sealed class TrackMixer : IDisposable
     private readonly short[] _scratch;
     private readonly int[] _accumulator;
     private long _position;
+    private int _mutedMask;
 
     /// <summary>Takes ownership of <paramref name="tracks"/> (1..n readers of the same sample rate).</summary>
     /// <exception cref="InvalidDataException">The tracks have different sample rates.</exception>
@@ -99,6 +100,31 @@ internal sealed class TrackMixer : IDisposable
 
     public bool AtEnd => _position >= TotalFrames;
 
+    /// <summary>Tracks that are silenced (bit <c>i</c> = track <c>i</c>); they are still read, so every track stays at the same position.</summary>
+    public int MutedMask
+    {
+        get => Volatile.Read(ref _mutedMask);
+        set => Volatile.Write(ref _mutedMask, value);
+    }
+
+    /// <summary>Silences or restores one track (indexes 0..31). Callable from any thread while the render thread mixes.</summary>
+    public void SetMuted(int track, bool muted)
+    {
+        if (track is < 0 or >= 32)
+        {
+            return;
+        }
+
+        if (muted)
+        {
+            Interlocked.Or(ref _mutedMask, 1 << track);
+        }
+        else
+        {
+            Interlocked.And(ref _mutedMask, ~(1 << track));
+        }
+    }
+
     /// <summary>Repositions every track to <paramref name="frame"/>, clamped to [0, <see cref="TotalFrames"/>].</summary>
     public void Seek(long frame)
     {
@@ -123,19 +149,27 @@ internal sealed class TrackMixer : IDisposable
         {
             var pass = Math.Min(frames - done, MaxFramesPerRender);
             var output = destination.Slice(done, pass);
+            var muted = MutedMask;
             if (_tracks.Length == 1)
             {
                 var read = _tracks[0].Read(output);
                 output[read..].Clear();
+                if ((muted & 1) != 0)
+                {
+                    output.Clear();
+                }
             }
             else
             {
                 var accumulator = _accumulator.AsSpan(0, pass);
                 accumulator.Clear();
-                foreach (var track in _tracks)
+                for (var t = 0; t < _tracks.Length; t++)
                 {
-                    var read = track.Read(_scratch.AsSpan(0, pass));
-                    PlaybackMixer.Accumulate(_scratch.AsSpan(0, read), accumulator);
+                    var read = _tracks[t].Read(_scratch.AsSpan(0, pass));
+                    if (t >= 32 || (muted & (1 << t)) == 0)
+                    {
+                        PlaybackMixer.Accumulate(_scratch.AsSpan(0, read), accumulator);
+                    }
                 }
 
                 PlaybackMixer.Clip(accumulator, output);

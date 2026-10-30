@@ -41,7 +41,7 @@ public sealed class WasapiAudioPlayback : IAudioPlayback
 /// </list>
 /// UNVERIFIED-ON-WINDOWS until the Windows-trait tests run in CI.
 /// </summary>
-public sealed class WasapiAudioPlayer : IAudioPlayer, IPlaybackEngineOwner
+public sealed class WasapiAudioPlayer : IAudioPlayer, IAudioPlayerControls, IPlaybackEngineOwner
 {
     private const string FaultSource = "wasapi-playback";
 
@@ -55,6 +55,8 @@ public sealed class WasapiAudioPlayer : IAudioPlayer, IPlaybackEngineOwner
     private TimeSpan _duration;
     private TimeSpan _basePosition;
     private IPlaybackEngine? _engine;
+    private TrackMixer? _mixer;
+    private int _mutedMask;
     private CaptureFault? _lastFault;
     private bool _disposed;
 
@@ -106,6 +108,40 @@ public sealed class WasapiAudioPlayer : IAudioPlayer, IPlaybackEngineOwner
         }
     }
 
+    /// <summary>Any of the opened tracks can be silenced (the mixer skips it; the position is unaffected).</summary>
+    public bool CanMuteTracks => true;
+
+    /// <summary>Not yet: the render engine plays at the speed of the recording (a time-stretching mixer is needed for another one).</summary>
+    public bool CanChangeSpeed => false;
+
+    /// <summary>Always 1 (see <see cref="CanChangeSpeed"/>); setting it does nothing.</summary>
+    public double Speed
+    {
+        get => 1;
+        set
+        {
+            // The speed of the recording is the only one this player has.
+        }
+    }
+
+    /// <summary>
+    /// Silences (or restores) the track at <paramref name="trackIndex"/> of the opened list, at once and also for the engines created
+    /// later (a restart after the device was lost, opening again).
+    /// </summary>
+    public void SetTrackMuted(int trackIndex, bool muted)
+    {
+        if (trackIndex is < 0 or >= 32)
+        {
+            return;
+        }
+
+        lock (_gate)
+        {
+            _mutedMask = muted ? _mutedMask | (1 << trackIndex) : _mutedMask & ~(1 << trackIndex);
+            _mixer?.SetMuted(trackIndex, muted);
+        }
+    }
+
     /// <summary>The last fault since the last successful open, or null.</summary>
     public CaptureFault? LastFault
     {
@@ -143,6 +179,11 @@ public sealed class WasapiAudioPlayer : IAudioPlayer, IPlaybackEngineOwner
         }
 
         var mixer = OpenMixer(paths);
+        lock (_gate)
+        {
+            mixer.MutedMask = _mutedMask;
+        }
+
         IPlaybackEngine engine;
         try
         {
@@ -166,6 +207,8 @@ public sealed class WasapiAudioPlayer : IAudioPlayer, IPlaybackEngineOwner
 
             previous = _engine;
             _engine = engine;
+            _mixer = mixer;
+            mixer.MutedMask = _mutedMask;
             _paths = paths;
             _sampleRate = mixer.SampleRate;
             _totalFrames = mixer.TotalFrames;
@@ -371,7 +414,9 @@ public sealed class WasapiAudioPlayer : IAudioPlayer, IPlaybackEngineOwner
         try
         {
             mixer = OpenMixer(_paths);
+            mixer.MutedMask = _mutedMask;
             _engine = _factory(mixer, frame, this);
+            _mixer = mixer;
             return true;
         }
         catch (Exception ex)

@@ -189,6 +189,40 @@ public sealed class TrackMixerTests
     }
 
     [Fact]
+    public void AMutedTrack_IsSkippedButStillAdvances()
+    {
+        var mic = TestWav.Constant(100, 1_000);
+        var system = TestWav.Constant(100, 20);
+        using var mixer = new TrackMixer([TestWav.Reader(mic), TestWav.Reader(system)]);
+        mixer.SetMuted(0, true);
+
+        var output = new short[50];
+        Assert.Equal(50, mixer.Render(output));
+        Assert.All(output, s => Assert.Equal(20, s));
+
+        mixer.SetMuted(0, false);
+        mixer.SetMuted(1, true);
+        Assert.Equal(50, mixer.Render(output));
+        Assert.All(output, s => Assert.Equal(1_000, s));
+        Assert.Equal(100, mixer.Position);
+    }
+
+    [Fact]
+    public void AMutedSingleTrack_RendersSilence_AndIndexesOutOfRangeAreIgnored()
+    {
+        using var mixer = new TrackMixer([TestWav.Reader(TestWav.Constant(40, 500))]);
+        mixer.SetMuted(32, true);
+        mixer.SetMuted(-1, true);
+        Assert.Equal(0, mixer.MutedMask);
+
+        mixer.SetMuted(0, true);
+        var output = new short[40];
+        Assert.Equal(40, mixer.Render(output));
+
+        Assert.All(output, s => Assert.Equal(0, s));
+    }
+
+    [Fact]
     public void SingleTrack_IsCopiedUnchanged()
     {
         var samples = TestWav.Constant(100, short.MaxValue);
