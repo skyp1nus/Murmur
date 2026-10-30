@@ -22,7 +22,7 @@ public static class TokenGenerator
                                 "colorDark" (same keys in both). Look them up with DynamicResource so a runtime theme change
                                 re-resolves them; StaticResource would freeze the theme that was active at load time.
             Font.Display/Body   Inter (embedded via Avalonia.Fonts.Inter)    Font.Mono   Geist Mono (embedded asset)
-            FontWeight.<Role>   Display = 300, Body = first body weight, BodyMedium = second body weight, Mono
+            FontWeight.<Role>   Display = 300, Body = first body weight, BodyMedium = second body weight, BodySemiBold = third, Mono
             FontSize.<Scale>    double, one per typeScale entry (plus FontSize.Mono)
             LineHeight.<Scale>  double = size * ratio (Avalonia TextBlock.LineHeight is absolute, not a multiplier)
             LetterSpacing.<Scale>
@@ -34,14 +34,17 @@ public static class TokenGenerator
             Radius.<Name>       CornerRadius                   Hairline.*     border hairline width / thickness (brush: Brush.Hairline)
             Shadow.<Name>       BoxShadows (rgba converted to #AARRGGBB, px dropped; Avalonia parses unitless numbers)
             Orb.<Layer>         Color of a layer of the orb gradient (+ X, Y, Stop doubles); Orb.Base the lavender under them. Not themed.
+            Glass.<Orb>.<Name>  x:Double of a canvas orb painted by GlassOrbControl (Recording, Welcome, Voice), from "glassOrbs":
+                                Size, Body, GlowBlur are theme-independent; HaloBlur, HaloOpacity and Glow are in the theme
+                                dictionaries (from <name> and <name>Dark), so look them up with DynamicResource.
 
-          Everything except Color.* / Brush.* is theme-independent and sits outside the theme dictionaries.
-          Accent colours are only for the recording orb and icons; Orb*.axaml and Icons/ may reference them.
+          Everything except Color.* / Brush.* / Glass.*.HaloBlur|HaloOpacity|Glow is theme-independent and sits outside the theme dictionaries.
+          Accent colours are only for the recording orb and icons; files whose name contains "Orb", and Icons/, may reference them.
         -->
         """;
 
     /// <summary>Typography scale entries that use the display font (light weight, negative tracking).</summary>
-    private static readonly string[] DisplayScale = ["display", "heading", "headingSm", "cardTitle", "pageTitle"];
+    private static readonly string[] DisplayScale = ["display", "heading", "headingSm", "cardTitle", "pageTitle", "hero", "timer"];
 
     /// <summary>Component insets: name, horizontal and vertical value. Both must exist in the spacing scale.</summary>
     private static readonly (string Name, int Horizontal, int Vertical)[] Insets =
@@ -75,7 +78,8 @@ public static class TokenGenerator
         sb.Append("<ResourceDictionary xmlns=\"https://github.com/avaloniaui\"\n");
         sb.Append("                    xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\">\n");
 
-        EmitThemes(sb, root.GetProperty("color"), root.GetProperty("colorDark"), root.GetProperty("border").GetProperty("hairline"));
+        var glassOrbs = ReadGlassOrbs(root.GetProperty("glassOrbs"));
+        EmitThemes(sb, root.GetProperty("color"), root.GetProperty("colorDark"), root.GetProperty("border").GetProperty("hairline"), glassOrbs);
         var font = root.GetProperty("font");
         EmitFonts(sb, font);
         EmitTypeScale(sb, font, root.GetProperty("typeScale"));
@@ -84,6 +88,7 @@ public static class TokenGenerator
         EmitHairline(sb, root.GetProperty("border").GetProperty("hairline"));
         EmitShadows(sb, root.GetProperty("shadow"));
         EmitOrb(sb, root.GetProperty("orbGradient"), root.GetProperty("color"), root.GetProperty("colorDark"));
+        EmitGlassOrbs(sb, glassOrbs);
 
         sb.Append("</ResourceDictionary>\n");
         return sb.ToString();
@@ -99,7 +104,7 @@ public static class TokenGenerator
     /// <summary>Theme dictionary keys, in the order they are emitted, with the tokens.json section each is built from.</summary>
     private static readonly (string Variant, string Section)[] Themes = [("Light", "color"), ("Dark", "colorDark")];
 
-    private static void EmitThemes(StringBuilder sb, JsonElement light, JsonElement dark, JsonElement hairline)
+    private static void EmitThemes(StringBuilder sb, JsonElement light, JsonElement dark, JsonElement hairline, GlassOrb[] glassOrbs)
     {
         RequireSameColourKeys(light, dark);
         var hairlineColor = Pascal(hairline.GetProperty("color").GetString()!);
@@ -108,7 +113,7 @@ public static class TokenGenerator
             throw new InvalidOperationException($"border.hairline.color '{hairlineColor}' is not a colour token.");
         }
 
-        Section(sb, "Colours and brushes, one dictionary per theme (keys are identical; the order follows 'color')");
+        Section(sb, "Colours and brushes (plus the themed numbers of the glass orbs), one dictionary per theme (keys are identical; the order follows 'color')");
         sb.Append("  <ResourceDictionary.ThemeDictionaries>\n");
         for (var i = 0; i < Themes.Length; i++)
         {
@@ -128,6 +133,15 @@ public static class TokenGenerator
             }
 
             sb.Append("      <SolidColorBrush x:Key=\"Brush.Hairline\" Color=\"{StaticResource Color.").Append(hairlineColor).Append("}\" />\n");
+            foreach (var orb in glassOrbs)
+            {
+                foreach (var (name, lightValue, darkValue) in orb.Themed)
+                {
+                    sb.Append("      <x:Double x:Key=\"Glass.").Append(orb.Name).Append('.').Append(name).Append("\">")
+                        .Append(Precise(i == 0 ? lightValue : darkValue)).Append("</x:Double>\n");
+                }
+            }
+
             sb.Append("    </ResourceDictionary>\n");
         }
 
@@ -180,6 +194,11 @@ public static class TokenGenerator
         var weights = body.GetProperty("weights");
         sb.Append("  <FontWeight x:Key=\"FontWeight.Body\">").Append(WeightName(weights[0].GetInt32())).Append("</FontWeight>\n");
         sb.Append("  <FontWeight x:Key=\"FontWeight.BodyMedium\">").Append(WeightName(weights[1].GetInt32())).Append("</FontWeight>\n");
+        if (weights.GetArrayLength() > 2)
+        {
+            sb.Append("  <FontWeight x:Key=\"FontWeight.BodySemiBold\">").Append(WeightName(weights[2].GetInt32())).Append("</FontWeight>\n");
+        }
+
         sb.Append("  <FontWeight x:Key=\"FontWeight.Mono\">").Append(WeightName(mono.GetProperty("weight").GetInt32())).Append("</FontWeight>\n");
     }
 
@@ -299,6 +318,82 @@ public static class TokenGenerator
         return string.Equals(light.GetString(), dark.GetString(), StringComparison.OrdinalIgnoreCase)
             ? light.GetString()!
             : throw new InvalidOperationException($"orbGradient: colour token '{value}' differs between 'color' and 'colorDark'; the orb has no themes.");
+    }
+
+    /// <summary>A number with up to six decimals (the orb fractions are written with five; <see cref="Num"/> keeps four).</summary>
+    private static string Precise(double value) =>
+        Math.Round(value, 6, MidpointRounding.AwayFromZero).ToString("0.######", CultureInfo.InvariantCulture);
+
+    /// <summary>One canvas orb of "glassOrbs": the numbers that do not depend on the theme, and the themed ones as (name, light, dark).</summary>
+    private sealed record GlassOrb(string Name, (string Name, double Value)[] Fixed, (string Name, double Light, double Dark)[] Themed);
+
+    private static readonly string[] GlassFixed = ["size", "body", "glowBlur"];
+
+    private static readonly string[] GlassThemed = ["haloBlur", "haloOpacity", "glow"];
+
+    /// <summary>
+    /// Reads "glassOrbs": every orb must give all of <c>size body glowBlur haloBlur haloOpacity glow</c> and a <c>Dark</c> twin of each themed
+    /// value; a missing value, a missing dark twin or a key the generator does not know is an error (a typo would otherwise vanish silently).
+    /// </summary>
+    private static GlassOrb[] ReadGlassOrbs(JsonElement glassOrbs)
+    {
+        var orbs = new List<GlassOrb>();
+        foreach (var orb in glassOrbs.EnumerateObject())
+        {
+            if (orb.Name.StartsWith('$'))
+            {
+                continue;
+            }
+
+            var known = new HashSet<string>(GlassFixed, StringComparer.Ordinal);
+            foreach (var themed in GlassThemed)
+            {
+                known.Add(themed);
+                known.Add(themed + "Dark");
+            }
+
+            foreach (var key in orb.Value.EnumerateObject())
+            {
+                if (!known.Contains(key.Name))
+                {
+                    throw new InvalidOperationException($"glassOrbs.{orb.Name}: unknown key '{key.Name}'.");
+                }
+            }
+
+            var fixedValues = new List<(string, double)>();
+            foreach (var key in GlassFixed)
+            {
+                fixedValues.Add((Pascal(key), GlassValue(orb, key)));
+            }
+
+            var themedValues = new List<(string, double, double)>();
+            foreach (var key in GlassThemed)
+            {
+                themedValues.Add((Pascal(key), GlassValue(orb, key), GlassValue(orb, key + "Dark")));
+            }
+
+            orbs.Add(new GlassOrb(Pascal(orb.Name), [.. fixedValues], [.. themedValues]));
+        }
+
+        return [.. orbs];
+    }
+
+    private static double GlassValue(JsonProperty orb, string key) =>
+        orb.Value.TryGetProperty(key, out var value) && value.ValueKind == JsonValueKind.Number
+            ? value.GetDouble()
+            : throw new InvalidOperationException($"glassOrbs.{orb.Name}: '{key}' is missing" + (key.EndsWith("Dark", StringComparison.Ordinal) ? " (the dark theme value of the orb is required)." : "."));
+
+    /// <summary>The theme-independent numbers of the glass orbs (the themed ones are in the theme dictionaries, see <see cref="EmitThemes"/>).</summary>
+    private static void EmitGlassOrbs(StringBuilder sb, GlassOrb[] orbs)
+    {
+        Section(sb, "Glass orbs (size, body fraction and inner glow blur; halo blur, halo opacity and glow strength are per theme, in the theme dictionaries)");
+        foreach (var orb in orbs)
+        {
+            foreach (var (name, value) in orb.Fixed)
+            {
+                sb.Append("  <x:Double x:Key=\"Glass.").Append(orb.Name).Append('.').Append(name).Append("\">").Append(Precise(value)).Append("</x:Double>\n");
+            }
+        }
     }
 
     private static void EmitHairline(StringBuilder sb, JsonElement hairline)

@@ -13,9 +13,10 @@ namespace Murmur.App.Controls;
 /// <summary>
 /// The orb of the onboarding canvas (the wordmark, the welcome orb and the voice orb): a glass sphere painted with the
 /// <c>orbGradient</c> of <c>docs/design/tokens.json</c> (a lavender base with soft pink, ember, blue and highlight blobs), an
-/// inner white glow along its rim and, behind it, the same sphere blurred into a halo. Like <see cref="OrbControl"/> it is
-/// the only place besides icons where the accent colours appear; blue and ember come from the shared token resources
-/// (<c>Color.AccentViolet</c>, <c>Color.AccentEmber</c>), the three remaining stops of the gradient are the orb's own.
+/// inner white glow along its rim and, behind it, the same sphere blurred into a halo. Like <see cref="OrbDisc"/> it reads
+/// the gradient from the generated <c>Orb.*</c> resources (the base, and per layer the colour, centre and fade-out), so
+/// <c>orbGradient</c> in tokens.json is the single source of both orbs; the control is the only place besides the other orb
+/// and the icons where the accent colours appear.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -56,12 +57,6 @@ public sealed class GlassOrbControl : Panel
     public static readonly StyledProperty<double> InnerGlowOpacityProperty =
         AvaloniaProperty.Register<GlassOrbControl, double>(nameof(InnerGlowOpacity), 0.35);
 
-    // The three stops of tokens.json "orbGradient" that are not accent colours.
-    // TODO(D-044): these three stops of the orb gradient are canvas colours with no token yet; they move to tokens.json (orbGradient).
-    private static readonly Color Highlight = Color.FromRgb(0xff, 0xf1, 0xe8);
-    private static readonly Color Pink = Color.FromRgb(0xf4, 0xa6, 0xc8);
-    private static readonly Color Lavender = Color.FromRgb(0xd8, 0xc8, 0xf0);
-
     private const double BreathPeriodSeconds = 3.6;
     private const double BreathBodyGrowth = 0.05;
     private const double BreathHaloGrowth = 0.16;
@@ -99,8 +94,7 @@ public sealed class GlassOrbControl : Panel
     private double _appliedFade;
     private long _appliedFrames;
     private Size _size;
-    private Color _blue;
-    private Color _ember;
+    private Palette _palette;
     private bool _hasColours;
 
     static GlassOrbControl()
@@ -384,51 +378,76 @@ public sealed class GlassOrbControl : Panel
         }
     }
 
+    /// <summary>Reads the gradient from the <c>Orb.*</c> resources of the current theme; an orb whose resources are missing paints nothing.</summary>
     private void ResolveColours()
     {
-        _hasColours = this.TryFindResource("Color.AccentViolet", ActualThemeVariant, out var blue) && blue is Color b
-            && this.TryFindResource("Color.AccentEmber", ActualThemeVariant, out var ember) && ember is Color e
-            && Assign(b, e);
+        if (Lookup("Orb.Base", out Color baseColour)
+            && ResolveLayer("Cream", out var cream) && ResolveLayer("Violet", out var violet) && ResolveLayer("Ember", out var ember) && ResolveLayer("Pink", out var pink))
+        {
+            _palette = new Palette(baseColour, pink, ember, violet, cream);
+            _hasColours = true;
+        }
+        else
+        {
+            _hasColours = false;
+        }
+
         _halo.InvalidateLook();
         _body.InvalidateLook();
     }
 
-    private bool Assign(Color blue, Color ember)
+    private bool ResolveLayer(string name, out Blob blob)
     {
-        _blue = blue;
-        _ember = ember;
-        return true;
+        if (Lookup("Orb." + name, out Color colour) && Lookup("Orb." + name + "X", out double x)
+            && Lookup("Orb." + name + "Y", out double y) && Lookup("Orb." + name + "Stop", out double stop))
+        {
+            blob = new Blob(colour, x, y, stop);
+            return true;
+        }
+
+        blob = default;
+        return false;
+    }
+
+    private bool Lookup<T>(string key, out T value)
+    {
+        if (this.TryFindResource(key, ActualThemeVariant, out var found) && found is T typed)
+        {
+            value = typed;
+            return true;
+        }
+
+        value = default!;
+        return false;
     }
 
     /// <summary>One CSS gradient layer: colour, centre in the element (0..1), the stop (share of the farthest corner) where it fades out.</summary>
     private readonly record struct Blob(Color Colour, double X, double Y, double Reach);
 
     /// <summary>
-    /// The gradients of tokens.json "orbGradient" from the bottom up (CSS lists them top first: highlight, blue, ember, pink, over the
-    /// lavender base): the one description both the sphere's brushes and the halo's bitmap are made from.
+    /// The orb gradient of tokens.json <c>orbGradient</c> from the bottom up (CSS lists the layers top first: cream highlight, violet,
+    /// ember, pink, over the lavender base): the one description both the sphere's brushes and the halo's bitmap are made from. It has
+    /// value equality, so it is part of the halo's cache key and a change of the colours rebuilds the bitmap.
     /// </summary>
-    private static Blob[] Blobs(Color blue, Color ember) =>
-    [
-        new(Pink, 0.72, 0.20, 0.50),
-        new(ember, 0.20, 0.80, 0.55),
-        new(blue, 0.74, 0.70, 0.58),
-        new(Highlight, 0.32, 0.26, 0.30),
-    ];
-
+    private readonly record struct Palette(Color Base, Blob Pink, Blob Ember, Blob Violet, Blob Cream)
+    {
+        public Blob[] Blobs() => [Pink, Ember, Violet, Cream];
+    }
 
     /// <summary>The blurred sphere as a premultiplied bitmap at 1/<see cref="Scale"/> of the size.</summary>
     private static class HaloImage
     {
         public const int Scale = 4;
 
-        public static WriteableBitmap Create(double diameter, double sigma, Size layer, Color blue, Color ember)
+        public static WriteableBitmap Create(double diameter, double sigma, Size layer, Palette palette)
         {
             var width = (int)Math.Ceiling(layer.Width / Scale);
             var height = (int)Math.Ceiling(layer.Height / Scale);
             var plane = new float[width * height * 4];
 
             // 1. The sphere: the CSS gradients over the lavender base, premultiplied, with a one-pixel soft rim.
-            var blobs = Blobs(blue, ember);
+            var blobs = palette.Blobs();
+            var lavender = palette.Base;
             var radius = diameter / 2;
             var left = (layer.Width - diameter) / 2;
             var top = (layer.Height - diameter) / 2;
@@ -452,7 +471,7 @@ public sealed class GlassOrbControl : Panel
                         continue;
                     }
 
-                    double r = Lavender.R, g = Lavender.G, bl = Lavender.B;
+                    double r = lavender.R, g = lavender.G, bl = lavender.B;
                     for (var b = 0; b < blobs.Length; b++)
                     {
                         var ddx = x - (blobs[b].X * diameter);
@@ -559,7 +578,7 @@ public sealed class GlassOrbControl : Panel
         private IBrush? _glow;
         private Size _brushesFor;
         private WriteableBitmap? _haloBitmap;
-        private (double Diameter, double Sigma, Color Blue, Color Ember) _haloKey;
+        private (double Diameter, double Sigma, Palette Palette) _haloKey;
 
         public Layer(GlassOrbControl owner, bool isHalo)
         {
@@ -623,12 +642,12 @@ public sealed class GlassOrbControl : Panel
                 return;
             }
 
-            var key = (diameter, sigma, _owner._blue, _owner._ember);
+            var key = (diameter, sigma, _owner._palette);
             if (_haloBitmap is null || _haloKey != key)
             {
                 _haloBitmap?.Dispose();
                 _owner.HaloBuilds++;
-                _haloBitmap = HaloImage.Create(diameter, sigma, Bounds.Size, _owner._blue, _owner._ember);
+                _haloBitmap = HaloImage.Create(diameter, sigma, Bounds.Size, _owner._palette);
                 _haloKey = key;
             }
 
@@ -649,9 +668,9 @@ public sealed class GlassOrbControl : Panel
             }
 
             _brushesFor = key;
-            _base = new ImmutableSolidColorBrush(Lavender);
+            _base = new ImmutableSolidColorBrush(_owner._palette.Base);
 
-            var blobs = Blobs(_owner._blue, _owner._ember);
+            var blobs = _owner._palette.Blobs();
             var brushes = new IBrush[blobs.Length];
             for (var i = 0; i < blobs.Length; i++)
             {

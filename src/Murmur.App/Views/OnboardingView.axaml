@@ -27,7 +27,7 @@
   </UserControl.DataTemplates>
 
   <Grid RowDefinitions="Auto,*,Auto"
-        Margin="{StaticResource Inset.Onboarding}">
+        Margin="{StaticResource Margin.OnbPage}">
 
     <!-- Top bar: wordmark, step indicator (1 / 5 and five segments) -->
     <Grid Grid.Row="0"
@@ -47,7 +47,7 @@
 
       <StackPanel Grid.Column="1"
                   Orientation="Horizontal"
-                  Spacing="{StaticResource Onb.Space.Step}"
+                  Spacing="{StaticResource Space.14}"
                   VerticalAlignment="Center"
                   AutomationProperties.Name="{Binding StepAutomationName}">
         <TextBlock Classes="onbMono"
@@ -59,7 +59,7 @@
           <ItemsControl.ItemsPanel>
             <ItemsPanelTemplate>
               <StackPanel Orientation="Horizontal"
-                          Spacing="{StaticResource Onb.Space.Segment}" />
+                          Spacing="{StaticResource Space.6}" />
             </ItemsPanelTemplate>
           </ItemsControl.ItemsPanel>
           <ItemsControl.ItemTemplate>
@@ -96,7 +96,7 @@
                 IsVisible="{Binding CurrentStep.ShowBack}"
                 Command="{Binding BackCommand}">
           <StackPanel Orientation="Horizontal"
-                      Spacing="{StaticResource Onb.Space.Icon}">
+                      Spacing="{StaticResource Space.6}">
             <controls:IconControl Width="{StaticResource Size.OnbChevron}"
                                   Height="{StaticResource Size.OnbChevron}"
                                   Data="{StaticResource Icon.ChevronLeft}" />

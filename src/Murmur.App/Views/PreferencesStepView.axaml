@@ -27,9 +27,9 @@
         <Grid x:Name="LanguageRow"
               ColumnDefinitions="*,Auto"
               ColumnSpacing="{StaticResource Space.24}"
-              Margin="{StaticResource Inset.Row}">
+              Margin="{StaticResource Margin.OnbRow}">
           <StackPanel VerticalAlignment="Center"
-                      Spacing="{StaticResource Onb.Space.Tight}">
+                      Spacing="{StaticResource Space.3}">
             <TextBlock Classes="onbTitle"
                        Text="{x:Static res:Strings.Onb4_Language}" />
             <TextBlock Classes="onbNote"
@@ -50,9 +50,9 @@
         <Grid x:Name="FolderRow"
               ColumnDefinitions="*,Auto"
               ColumnSpacing="{StaticResource Space.24}"
-              Margin="{StaticResource Inset.Row}">
+              Margin="{StaticResource Margin.OnbRow}">
           <StackPanel VerticalAlignment="Center"
-                      Spacing="{StaticResource Onb.Space.Tight}">
+                      Spacing="{StaticResource Space.3}">
             <TextBlock Classes="onbTitle"
                        Text="{x:Static res:Strings.Onb4_Folder}" />
             <TextBlock x:Name="FolderPath"
@@ -90,9 +90,9 @@
           <Grid x:Name="HotkeyRow"
                 ColumnDefinitions="*,Auto"
                 ColumnSpacing="{StaticResource Space.24}"
-                Margin="{StaticResource Inset.Row}">
+                Margin="{StaticResource Margin.OnbRow}">
             <StackPanel VerticalAlignment="Center"
-                        Spacing="{StaticResource Onb.Space.Tight}">
+                        Spacing="{StaticResource Space.3}">
               <TextBlock Classes="onbTitle"
                          Text="{x:Static res:Strings.Onb4_Hotkey}" />
               <TextBlock Classes="onbNote"
@@ -118,13 +118,13 @@
                   <ItemsControl.ItemsPanel>
                     <ItemsPanelTemplate>
                       <StackPanel Orientation="Horizontal"
-                                  Spacing="{StaticResource Onb.Space.Icon}" />
+                                  Spacing="{StaticResource Space.6}" />
                     </ItemsPanelTemplate>
                   </ItemsControl.ItemsPanel>
                   <ItemsControl.ItemTemplate>
                     <DataTemplate x:DataType="vm:HotkeyCap">
                       <StackPanel Orientation="Horizontal"
-                                  Spacing="{StaticResource Onb.Space.Icon}">
+                                  Spacing="{StaticResource Space.6}">
                         <Border Classes="cap">
                           <TextBlock Classes="onbMono"
                                      LetterSpacing="0"
@@ -141,13 +141,13 @@
                   </ItemsControl.ItemTemplate>
                 </ItemsControl>
                 <TextBlock Classes="onbBody"
-                           Margin="{StaticResource Inset.HotkeyText}"
+                           Margin="{StaticResource Margin.OnbHotkeyText}"
                            VerticalAlignment="Center"
                            Foreground="{DynamicResource Brush.Smoke}"
                            IsVisible="{Binding ShowNone}"
                            Text="{x:Static res:Strings.Hotkeys_None}" />
                 <Grid ColumnDefinitions="*,Auto"
-                      Margin="{StaticResource Inset.HotkeyText}"
+                      Margin="{StaticResource Margin.OnbHotkeyText}"
                       IsVisible="{Binding HotkeyRow.IsCapturing}">
                   <TextBlock Classes="onbBody"
                              VerticalAlignment="Center"
@@ -170,9 +170,9 @@
         <Grid x:Name="ScreenRow"
               ColumnDefinitions="*,Auto"
               ColumnSpacing="{StaticResource Space.24}"
-              Margin="{StaticResource Inset.Row}">
+              Margin="{StaticResource Margin.OnbRow}">
           <StackPanel VerticalAlignment="Center"
-                      Spacing="{StaticResource Onb.Space.Tight}">
+                      Spacing="{StaticResource Space.3}">
             <TextBlock Classes="onbTitle"
                        Text="{x:Static res:Strings.Onb4_Screen}" />
             <TextBlock Classes="onbNote"

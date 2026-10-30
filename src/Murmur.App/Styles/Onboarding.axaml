@@ -22,118 +22,75 @@
           <!-- Fill of the pickers and the hotkey field: Canvas in the light mockups, Surface in the dark ones. -->
           <StaticResource x:Key="Brush.OnbField" ResourceKey="Brush.Canvas" />
           <StaticResource x:Key="Brush.OnbCap" ResourceKey="Brush.Surface" />
-          <StaticResource x:Key="Shadow.OnbKnob" ResourceKey="Shadow.Subtle" />
-          <!-- The open device list: its outline and the chosen row. -->
+          <StaticResource x:Key="Onb.Shadow.Knob" ResourceKey="Shadow.Subtle" />
+          <!-- The open device list: its outline, its shadow and the chosen row. -->
           <StaticResource x:Key="Brush.OnbListBorder" ResourceKey="Brush.Stone" />
-          <StaticResource x:Key="Shadow.OnbList" ResourceKey="Shadow.Subtle" />
+          <StaticResource x:Key="Onb.Shadow.List" ResourceKey="Shadow.Subtle" />
           <StaticResource x:Key="Brush.OnbItemSelected" ResourceKey="Brush.Surface" />
-          <!-- The canvas orbs: standard deviation of the halo's blur, opacity of the voice halo, strength of the inner glow. -->
-          <x:Double x:Key="Onb.Orb.WelcomeHaloBlur">30</x:Double>
-          <x:Double x:Key="Onb.Orb.WelcomeGlow">0.35</x:Double>
-          <x:Double x:Key="Onb.Orb.VoiceHaloBlur">20</x:Double>
-          <x:Double x:Key="Onb.Orb.VoiceHaloOpacity">0.3</x:Double>
-          <x:Double x:Key="Onb.Orb.VoiceGlow">0.35</x:Double>
         </ResourceDictionary>
         <ResourceDictionary x:Key="Dark">
           <StaticResource x:Key="Brush.SwitchKnobOff" ResourceKey="Brush.Graphite" />
           <StaticResource x:Key="Brush.OnbField" ResourceKey="Brush.Surface" />
           <StaticResource x:Key="Brush.OnbCap" ResourceKey="Brush.Stone" />
-          <BoxShadows x:Key="Shadow.OnbKnob">none</BoxShadows>
+          <BoxShadows x:Key="Onb.Shadow.Knob">none</BoxShadows>
           <StaticResource x:Key="Brush.OnbListBorder" ResourceKey="Brush.ButtonBorder" />
-          <!-- TODO(D-044): the dark mockup's list shadow is "0 8 24 rgba(0,0,0,0.5)"; it needs a shadow token (a literal colour is not allowed here). -->
-          <StaticResource x:Key="Shadow.OnbList" ResourceKey="Shadow.Subtle" />
+          <StaticResource x:Key="Onb.Shadow.List" ResourceKey="Shadow.PopoverDark" />
           <StaticResource x:Key="Brush.OnbItemSelected" ResourceKey="Brush.Stone" />
-          <x:Double x:Key="Onb.Orb.WelcomeHaloBlur">34</x:Double>
-          <x:Double x:Key="Onb.Orb.WelcomeGlow">0.25</x:Double>
-          <x:Double x:Key="Onb.Orb.VoiceHaloBlur">22</x:Double>
-          <x:Double x:Key="Onb.Orb.VoiceHaloOpacity">0.45</x:Double>
-          <x:Double x:Key="Onb.Orb.VoiceGlow">0.25</x:Double>
         </ResourceDictionary>
       </ResourceDictionary.ThemeDictionaries>
 
-      <!-- Page frame: 48 at the sides, 32 above, 40 below (the mockups' padding), all from the spacing scale. -->
-      <Thickness x:Key="Inset.Onboarding">48,32,48,40</Thickness>
-      <Thickness x:Key="Inset.TextButton">16,0</Thickness>
-      <Thickness x:Key="Inset.OnbPrimary">24,0</Thickness>
-      <Thickness x:Key="Inset.OnbField">12,0</Thickness>
-      <Thickness x:Key="Inset.OnbItem">10,0</Thickness>
-      <Thickness x:Key="Inset.OnbRadio">0,2,0,0</Thickness>
-      <Thickness x:Key="Inset.OnbRadioFlat">0</Thickness>
+      <!-- Component paddings and offsets of the onboarding (Margin.*, like Styles/Shell.axaml; Inset.* is generated from tokens.json).
+           Page frame: 48 at the sides, 32 above, 40 below (the mockups' padding). -->
+      <Thickness x:Key="Margin.OnbPage">48,32,48,40</Thickness>
+      <Thickness x:Key="Margin.OnbTextButton">16,0</Thickness>
+      <Thickness x:Key="Margin.OnbPrimary">24,0</Thickness>
+      <Thickness x:Key="Margin.OnbField">12,0</Thickness>
+      <Thickness x:Key="Margin.OnbItem">10,0</Thickness>
+      <Thickness x:Key="Margin.OnbRadio">0,2,0,0</Thickness>
+      <Thickness x:Key="Margin.OnbRadioFlat">0</Thickness>
       <!-- The chosen card's content sits half a pixel further in than the others' (the mockup's 1.5 px border in layout). -->
-      <Thickness x:Key="Inset.ChoiceOn">22.5,20.5,21.5,19.5</Thickness>
-      <Thickness x:Key="Inset.OnbTranscript">20,18</Thickness>
-      <Thickness x:Key="Inset.OnbChip">8,0</Thickness>
-      <Thickness x:Key="Inset.OnbSmall">12,0</Thickness>
-      <Thickness x:Key="Inset.OnbDashed">0.5</Thickness>
-      <Thickness x:Key="Inset.OnbOption">14,0</Thickness>
-      <Thickness x:Key="Inset.OnbModel">24,20</Thickness>
-      <Thickness x:Key="Inset.OnbCardExtra">0,6,0,0</Thickness>
-      <Thickness x:Key="Inset.OnbOptionRow">4,0</Thickness>
-      <Thickness x:Key="Inset.OnbOptionPull">-14,0,0,0</Thickness>
-      <Thickness x:Key="Inset.OnbStatus">10,0</Thickness>
-      <Thickness x:Key="Inset.OnbTag">8,2</Thickness>
+      <Thickness x:Key="Margin.OnbChoiceOn">22.5,20.5,21.5,19.5</Thickness>
+      <Thickness x:Key="Margin.OnbTranscript">20,18</Thickness>
+      <Thickness x:Key="Margin.OnbChip">8,0</Thickness>
+      <Thickness x:Key="Margin.OnbSmall">12,0</Thickness>
+      <Thickness x:Key="Margin.OnbDashed">0.5</Thickness>
+      <Thickness x:Key="Margin.OnbOption">14,0</Thickness>
+      <Thickness x:Key="Margin.OnbModel">24,20</Thickness>
+      <Thickness x:Key="Margin.OnbCardExtra">0,6,0,0</Thickness>
+      <Thickness x:Key="Margin.OnbOptionRow">4,0</Thickness>
+      <Thickness x:Key="Margin.OnbOptionPull">-14,0,0,0</Thickness>
+      <Thickness x:Key="Margin.OnbStatus">10,0</Thickness>
+      <Thickness x:Key="Margin.OnbTag">8,2</Thickness>
       <!-- Avalonia keeps the baseline at the font's ascent when the line height is smaller than the font's own height; CSS shares the
            difference above and below the text. Lifting the text by that half keeps the baseline where the canvas has it and the box the same. -->
-      <Thickness x:Key="Inset.OnbH1Lift">-32,-2.3,-32,-1.7</Thickness>
-      <Thickness x:Key="Inset.OnbDescender">0,0,0,4</Thickness>
-      <Thickness x:Key="Inset.OnbDisplayLift">-32,-3.4,-32,-0.6</Thickness>
-      <Thickness x:Key="Inset.OnbOutline">20,0</Thickness>
-      <Thickness x:Key="Inset.Choice">22,20</Thickness>
-      <Thickness x:Key="Inset.Banner">24,20</Thickness>
-      <Thickness x:Key="Inset.CardLabel">4,6,4,0</Thickness>
-      <Thickness x:Key="Inset.Hotkey">8,0</Thickness>
-      <Thickness x:Key="Inset.HotkeyText">4,0</Thickness>
-      <Thickness x:Key="Inset.Row">24,20</Thickness>
-      <Thickness x:Key="Inset.Cap">8,3</Thickness>
-      <Thickness x:Key="Inset.OnbKnob">3</Thickness>
-      <CornerRadius x:Key="Onb.Radius.Cap">6</CornerRadius>
-      <CornerRadius x:Key="Onb.Radius.Badge">10</CornerRadius>
+      <Thickness x:Key="Margin.OnbH1Lift">-32,-2.3,-32,-1.7</Thickness>
+      <Thickness x:Key="Margin.OnbDescender">0,0,0,4</Thickness>
+      <Thickness x:Key="Margin.OnbDisplayLift">-32,-3.4,-32,-0.6</Thickness>
+      <Thickness x:Key="Margin.OnbOutline">20,0</Thickness>
+      <Thickness x:Key="Margin.OnbChoice">22,20</Thickness>
+      <Thickness x:Key="Margin.OnbBanner">24,20</Thickness>
+      <Thickness x:Key="Margin.OnbCardLabel">4,6,4,0</Thickness>
+      <Thickness x:Key="Margin.OnbHotkey">8,0</Thickness>
+      <Thickness x:Key="Margin.OnbHotkeyText">4,0</Thickness>
+      <Thickness x:Key="Margin.OnbRow">24,20</Thickness>
+      <Thickness x:Key="Margin.OnbCap">8,3</Thickness>
+      <Thickness x:Key="Margin.OnbKnob">3</Thickness>
       <!-- The mockups write 1.5 px for the chosen card, the radio ring and the focused hotkey field; Chromium floors border widths to
            whole device pixels, so the canvas shows (and these styles use) the 1 px hairline. -->
 
-      <!-- TODO(D-044): every Onb.* key in this file (FontSize, LineHeight, LetterSpacing, FontWeight, Radius, Space, Stroke, Dash, Orb, OrbBody) is
-           a canvas value that tokens.json lacks; switch to the generated tokens once the shell task adds them.
-           Type of the canvas that the scale of tokens.json lacks (the mockups use 11, 12, 13 and 15 px next to the 14 / 16 px steps);
-           the line heights are the "normal" ones of Inter, the tracking is the root's 0.14 px that the mockups inherit. -->
-      <x:Double x:Key="Onb.FontSize.H1">44</x:Double>
-      <x:Double x:Key="Onb.LineHeight.H1">48.4</x:Double>
-      <x:Double x:Key="Onb.LetterSpacing.H1">-0.88</x:Double>
-      <x:Double x:Key="Onb.FontSize.Title">15</x:Double>
-      <x:Double x:Key="Onb.LineHeight.Title">19</x:Double>
-      <x:Double x:Key="Onb.FontSize.Note">13</x:Double>
-      <x:Double x:Key="Onb.LineHeight.Note">16</x:Double>
-      <x:Double x:Key="Onb.FontSize.Label">12</x:Double>
-      <x:Double x:Key="Onb.LineHeight.Label">15</x:Double>
-      <x:Double x:Key="Onb.FontSize.Tag">11</x:Double>
-      <x:Double x:Key="Onb.LineHeight.Tag">14</x:Double>
-      <x:Double x:Key="Onb.LineHeight.Body">17</x:Double>
-      <x:Double x:Key="Onb.LineHeight.CardTitle">20</x:Double>
-      <x:Double x:Key="Onb.LineHeight.Transcript">24.8</x:Double>
-      <x:Double x:Key="Onb.LineHeight.Mono">17</x:Double>
-      <x:Double x:Key="Onb.LetterSpacing.Base">0.14</x:Double>
-      <x:Double x:Key="Onb.LetterSpacing.Wordmark">-0.15</x:Double>
-      <FontWeight x:Key="Onb.FontWeight.Semibold">SemiBold</FontWeight>
-
-      <!-- Component sizes (illustration sizes of the mockups, not layout tokens). -->
+      <!-- Component sizes and drawing geometry of the onboarding (illustration sizes, icon strokes, the dash pattern and the radius of the
+           dashed card = the card radius minus half a hairline): the geometry of single drawings, not tokens. The sizes of the three orbs
+           (welcome, voice) are tokens ("glassOrbs"); the compact ones and the wordmark's 18 px orb are layout and stay here. -->
       <x:Double x:Key="Size.OnbButton">44</x:Double>
       <x:Double x:Key="Size.OnbBar">40</x:Double>
       <x:Double x:Key="Size.OnbFooter">48</x:Double>
       <x:Double x:Key="Size.OnbChevron">16</x:Double>
-      <x:Double x:Key="Onb.Space.Step">14</x:Double>
-      <x:Double x:Key="Onb.Space.Segment">6</x:Double>
-      <x:Double x:Key="Onb.Space.Icon">6</x:Double>
-      <x:Double x:Key="Onb.Space.Recorder">18</x:Double>
-      <x:Double x:Key="Onb.Space.HairTight">6</x:Double>
       <x:Double x:Key="Size.OnbWaitingCard">92</x:Double>
       <x:Double x:Key="Size.OnbConsent">15</x:Double>
       <x:Double x:Key="Size.OnbChip">22</x:Double>
       <x:Double x:Key="Size.OnbSmallButton">36</x:Double>
-      <x:Double x:Key="Onb.Space.Models">36</x:Double>
-      <x:Double x:Key="Onb.Space.Compact">20</x:Double>
       <x:Double x:Key="Size.OnbOrbCompact">220</x:Double>
       <x:Double x:Key="Size.OnbVoiceOrbCompact">132</x:Double>
-      <x:Double x:Key="Onb.Space.Cards">14</x:Double>
-      <x:Double x:Key="Onb.Space.Tight">3</x:Double>
       <x:Double x:Key="Size.OnbCheck">13</x:Double>
       <x:Double x:Key="Size.OnbNoteCheck">14</x:Double>
       <x:Double x:Key="Onb.Stroke.Check">2.2</x:Double>
@@ -148,9 +105,6 @@
       <x:Double x:Key="Onb.Stroke.NoteCheck">2</x:Double>
       <x:Double x:Key="Size.OnbStatus">28</x:Double>
       <x:Double x:Key="Size.OnbStatusCard">26</x:Double>
-      <x:Double x:Key="Onb.Space.Badge">10</x:Double>
-      <x:Double x:Key="Onb.Space.Hair">2</x:Double>
-      <x:Double x:Key="Onb.Space.WelcomeText">14</x:Double>
       <x:Double x:Key="Size.StepSegmentWidth">32</x:Double>
       <x:Double x:Key="Size.StepSegmentHeight">3</x:Double>
       <x:Double x:Key="Size.Meter">32</x:Double>
@@ -164,13 +118,7 @@
       <x:Double x:Key="Size.IconBadge">32</x:Double>
       <x:Double x:Key="Size.BannerIcon">40</x:Double>
       <x:Double x:Key="Size.Avatar">28</x:Double>
-      <x:Double x:Key="Size.OnbOrb">300</x:Double>
-      <x:Double x:Key="Onb.OrbBody.Welcome">0.77333</x:Double>
       <x:Double x:Key="Size.OnbWordmarkOrb">18</x:Double>
-      <x:Double x:Key="Size.OnbVoiceOrb">168</x:Double>
-      <x:Double x:Key="Onb.OrbBody.Voice">0.78571</x:Double>
-      <x:Double x:Key="Onb.Orb.GlowBlurWelcome">40</x:Double>
-      <x:Double x:Key="Onb.Orb.GlowBlurVoice">28</x:Double>
       <x:Double x:Key="Size.OnbAudioWidth">840</x:Double>
       <x:Double x:Key="Size.OnbModelsWidth">760</x:Double>
       <x:Double x:Key="Size.OnbPreferencesWidth">720</x:Double>
@@ -195,7 +143,7 @@
   <!-- Text button (Back, Skip, Try again): a pill with no border; Surface when hovered. -->
   <Style Selector="Button.text">
     <Setter Property="CornerRadius" Value="{StaticResource Radius.Pill}" />
-    <Setter Property="Padding" Value="{StaticResource Inset.TextButton}" />
+    <Setter Property="Padding" Value="{StaticResource Margin.OnbTextButton}" />
     <Setter Property="Background" Value="Transparent" />
     <Setter Property="Foreground" Value="{DynamicResource Brush.Ink}" />
     <Setter Property="BorderThickness" Value="0" />
@@ -240,7 +188,7 @@
   <!-- Selectable card (an AI model): hairline outline, Ink border when chosen. -->
   <Style Selector="Button.choice">
     <Setter Property="CornerRadius" Value="{StaticResource Radius.Card}" />
-    <Setter Property="Padding" Value="{StaticResource Inset.Choice}" />
+    <Setter Property="Padding" Value="{StaticResource Margin.OnbChoice}" />
     <Setter Property="Background" Value="{DynamicResource Brush.Canvas}" />
     <Setter Property="Foreground" Value="{DynamicResource Brush.Ink}" />
     <Setter Property="BorderBrush" Value="{DynamicResource Brush.Stone}" />
@@ -260,7 +208,7 @@
     <Setter Property="Foreground" Value="{DynamicResource Brush.Ink}" />
   </Style>
   <Style Selector="Button.choice.on /template/ ContentPresenter#PART_ContentPresenter">
-    <Setter Property="Padding" Value="{StaticResource Inset.ChoiceOn}" />
+    <Setter Property="Padding" Value="{StaticResource Margin.OnbChoiceOn}" />
     <Setter Property="BorderBrush" Value="{DynamicResource Brush.Ink}" />
     <Setter Property="BorderThickness" Value="{StaticResource Hairline.Thickness}" />
   </Style>
@@ -275,7 +223,7 @@
   <Style Selector="Button.option">
     <Setter Property="CornerRadius" Value="{StaticResource Radius.Pill}" />
     <Setter Property="Height" Value="{StaticResource Size.OnbField}" />
-    <Setter Property="Padding" Value="{StaticResource Inset.OnbOption}" />
+    <Setter Property="Padding" Value="{StaticResource Margin.OnbOption}" />
     <Setter Property="Background" Value="Transparent" />
     <Setter Property="Foreground" Value="{DynamicResource Brush.Ink}" />
     <Setter Property="BorderThickness" Value="0" />
@@ -296,7 +244,7 @@
     <Setter Property="BorderBrush" Value="{DynamicResource Brush.DashedBorder}" />
     <Setter Property="BorderThickness" Value="{StaticResource Hairline.Thickness}" />
     <Setter Property="VerticalAlignment" Value="Top" />
-    <Setter Property="Margin" Value="{StaticResource Inset.OnbRadio}" />
+    <Setter Property="Margin" Value="{StaticResource Margin.OnbRadio}" />
   </Style>
   <Style Selector="Border.radio.on">
     <Setter Property="BorderBrush" Value="{DynamicResource Brush.Ink}" />
@@ -315,7 +263,7 @@
   <Style Selector="Border.iconBadge">
     <Setter Property="Width" Value="{StaticResource Size.IconBadge}" />
     <Setter Property="Height" Value="{StaticResource Size.IconBadge}" />
-    <Setter Property="CornerRadius" Value="{StaticResource Onb.Radius.Badge}" />
+    <Setter Property="CornerRadius" Value="{StaticResource Radius.Tile}" />
     <Setter Property="Background" Value="{DynamicResource Brush.Surface}" />
   </Style>
   <Style Selector="Border.bannerIcon">
@@ -338,8 +286,8 @@
 
   <!-- Key cap of the hotkey field. -->
   <Style Selector="Border.cap">
-    <Setter Property="CornerRadius" Value="{StaticResource Onb.Radius.Cap}" />
-    <Setter Property="Padding" Value="{StaticResource Inset.Cap}" />
+    <Setter Property="CornerRadius" Value="{StaticResource Radius.Key}" />
+    <Setter Property="Padding" Value="{StaticResource Margin.OnbCap}" />
     <Setter Property="Background" Value="{DynamicResource Brush.OnbCap}" />
     <Setter Property="VerticalAlignment" Value="Center" />
   </Style>
@@ -349,7 +297,7 @@
     <Setter Property="Width" Value="{StaticResource Size.HotkeyField}" />
     <Setter Property="Height" Value="{StaticResource Size.OnbField}" />
     <Setter Property="CornerRadius" Value="{StaticResource Radius.Input}" />
-    <Setter Property="Padding" Value="{StaticResource Inset.Hotkey}" />
+    <Setter Property="Padding" Value="{StaticResource Margin.OnbHotkey}" />
     <Setter Property="Background" Value="{DynamicResource Brush.OnbField}" />
     <Setter Property="Foreground" Value="{DynamicResource Brush.Ink}" />
     <Setter Property="BorderBrush" Value="{DynamicResource Brush.Stone}" />
@@ -374,7 +322,7 @@
         <Border x:Name="PART_Track"
                 Width="{StaticResource Size.SwitchWidth}"
                 Height="{StaticResource Size.SwitchHeight}"
-                Padding="{StaticResource Inset.OnbKnob}"
+                Padding="{StaticResource Margin.OnbKnob}"
                 CornerRadius="{StaticResource Radius.Pill}"
                 Background="{DynamicResource Brush.Stone}">
           <Border x:Name="PART_Knob"
@@ -383,7 +331,7 @@
                   HorizontalAlignment="Left"
                   CornerRadius="{StaticResource Radius.Pill}"
                   Background="{DynamicResource Brush.SwitchKnobOff}"
-                  BoxShadow="{DynamicResource Shadow.OnbKnob}" />
+                  BoxShadow="{DynamicResource Onb.Shadow.Knob}" />
         </Border>
       </ControlTemplate>
     </Setter>
@@ -408,7 +356,7 @@
        steps still fit the 900 x 600 minimum window without scrolling. The headlines may use the page margin (negative side
        margin), so a 48 px headline stays on one line in 900 px. -->
   <Style Selector="StackPanel.onbStep">
-    <Setter Property="Spacing" Value="{StaticResource Onb.Space.Models}" />
+    <Setter Property="Spacing" Value="{StaticResource Space.36}" />
   </Style>
   <Style Selector="StackPanel.onbStep.audio">
     <Setter Property="Spacing" Value="{StaticResource Space.40}" />
@@ -422,16 +370,16 @@
   <!-- The canvas halo is absolutely positioned, so it paints over the (static) siblings that follow it: ZIndex 1. -->
   <Style Selector="controls|GlassOrbControl.welcome">
     <Setter Property="ZIndex" Value="1" />
-    <Setter Property="Width" Value="{StaticResource Size.OnbOrb}" />
-    <Setter Property="Height" Value="{StaticResource Size.OnbOrb}" />
+    <Setter Property="Width" Value="{StaticResource Glass.Welcome.Size}" />
+    <Setter Property="Height" Value="{StaticResource Glass.Welcome.Size}" />
   </Style>
   <Style Selector="controls|GlassOrbControl.voice">
     <Setter Property="ZIndex" Value="1" />
-    <Setter Property="Width" Value="{StaticResource Size.OnbVoiceOrb}" />
-    <Setter Property="Height" Value="{StaticResource Size.OnbVoiceOrb}" />
+    <Setter Property="Width" Value="{StaticResource Glass.Voice.Size}" />
+    <Setter Property="Height" Value="{StaticResource Glass.Voice.Size}" />
   </Style>
   <Style Selector=":is(UserControl).compact StackPanel.onbStep, :is(UserControl).compact StackPanel.onbStep.audio, :is(UserControl).compact StackPanel.onbStep.voice, :is(UserControl).compact StackPanel.onbWelcome">
-    <Setter Property="Spacing" Value="{StaticResource Onb.Space.Compact}" />
+    <Setter Property="Spacing" Value="{StaticResource Space.20}" />
   </Style>
   <Style Selector=":is(UserControl).compact controls|GlassOrbControl.welcome">
     <Setter Property="Width" Value="{StaticResource Size.OnbOrbCompact}" />
@@ -442,108 +390,108 @@
     <Setter Property="Height" Value="{StaticResource Size.OnbVoiceOrbCompact}" />
   </Style>
 
-  <!-- Type of the onboarding (sizes of the canvas, see the resources above). -->
+  <!-- Type of the onboarding: steps of the type scale in tokens.json (the "Tight" ones have the line height Inter would use on its own, the canvas's). -->
   <Style Selector="TextBlock.onbH1">
     <Setter Property="FontFamily" Value="{StaticResource Font.Display}" />
     <Setter Property="FontWeight" Value="{StaticResource FontWeight.Display}" />
-    <Setter Property="FontSize" Value="{StaticResource Onb.FontSize.H1}" />
-    <Setter Property="LineHeight" Value="{StaticResource Onb.LineHeight.H1}" />
-    <Setter Property="LetterSpacing" Value="{StaticResource Onb.LetterSpacing.H1}" />
-    <Setter Property="Margin" Value="{StaticResource Inset.OnbH1Lift}" />
-    <Setter Property="Padding" Value="{StaticResource Inset.OnbDescender}" />
+    <Setter Property="FontSize" Value="{StaticResource FontSize.Hero}" />
+    <Setter Property="LineHeight" Value="{StaticResource LineHeight.Hero}" />
+    <Setter Property="LetterSpacing" Value="{StaticResource LetterSpacing.Hero}" />
+    <Setter Property="Margin" Value="{StaticResource Margin.OnbH1Lift}" />
+    <Setter Property="Padding" Value="{StaticResource Margin.OnbDescender}" />
     <Setter Property="TextAlignment" Value="Center" />
     <Setter Property="TextWrapping" Value="Wrap" />
   </Style>
   <Style Selector="TextBlock.onbSub">
     <Setter Property="FontFamily" Value="{StaticResource Font.Body}" />
     <Setter Property="FontWeight" Value="{StaticResource FontWeight.Body}" />
-    <Setter Property="FontSize" Value="{StaticResource FontSize.Body}" />
-    <Setter Property="LineHeight" Value="{StaticResource LineHeight.Body}" />
-    <Setter Property="LetterSpacing" Value="{StaticResource Onb.LetterSpacing.Base}" />
+    <Setter Property="FontSize" Value="{StaticResource FontSize.Lead}" />
+    <Setter Property="LineHeight" Value="{StaticResource LineHeight.Lead}" />
+    <Setter Property="LetterSpacing" Value="{StaticResource LetterSpacing.Lead}" />
     <Setter Property="Foreground" Value="{DynamicResource Brush.Smoke}" />
     <Setter Property="TextAlignment" Value="Center" />
     <Setter Property="TextWrapping" Value="Wrap" />
   </Style>
   <Style Selector="TextBlock.onbWordmark">
     <Setter Property="FontFamily" Value="{StaticResource Font.Body}" />
-    <Setter Property="FontWeight" Value="{StaticResource Onb.FontWeight.Semibold}" />
-    <Setter Property="FontSize" Value="{StaticResource Onb.FontSize.Title}" />
-    <Setter Property="LineHeight" Value="{StaticResource Onb.LineHeight.Title}" />
-    <Setter Property="LetterSpacing" Value="{StaticResource Onb.LetterSpacing.Wordmark}" />
+    <Setter Property="FontWeight" Value="{StaticResource FontWeight.BodySemiBold}" />
+    <Setter Property="FontSize" Value="{StaticResource FontSize.WordmarkSm}" />
+    <Setter Property="LineHeight" Value="{StaticResource LineHeight.WordmarkSm}" />
+    <Setter Property="LetterSpacing" Value="{StaticResource LetterSpacing.WordmarkSm}" />
   </Style>
   <Style Selector="TextBlock.onbTitle">
     <Setter Property="FontFamily" Value="{StaticResource Font.Body}" />
     <Setter Property="FontWeight" Value="{StaticResource FontWeight.BodyMedium}" />
-    <Setter Property="FontSize" Value="{StaticResource Onb.FontSize.Title}" />
-    <Setter Property="LineHeight" Value="{StaticResource Onb.LineHeight.Title}" />
-    <Setter Property="LetterSpacing" Value="{StaticResource Onb.LetterSpacing.Base}" />
+    <Setter Property="FontSize" Value="{StaticResource FontSize.RowTitleTight}" />
+    <Setter Property="LineHeight" Value="{StaticResource LineHeight.RowTitleTight}" />
+    <Setter Property="LetterSpacing" Value="{StaticResource LetterSpacing.RowTitleTight}" />
   </Style>
   <Style Selector="TextBlock.onbBody">
     <Setter Property="FontFamily" Value="{StaticResource Font.Body}" />
     <Setter Property="FontWeight" Value="{StaticResource FontWeight.Body}" />
     <Setter Property="FontSize" Value="{StaticResource FontSize.BodySm}" />
-    <Setter Property="LineHeight" Value="{StaticResource Onb.LineHeight.Body}" />
-    <Setter Property="LetterSpacing" Value="{StaticResource Onb.LetterSpacing.Base}" />
+    <Setter Property="LineHeight" Value="{StaticResource LineHeight.BodySmTight}" />
+    <Setter Property="LetterSpacing" Value="{StaticResource LetterSpacing.BodySmTight}" />
   </Style>
   <Style Selector="TextBlock.onbBodyMedium">
     <Setter Property="FontFamily" Value="{StaticResource Font.Body}" />
     <Setter Property="FontWeight" Value="{StaticResource FontWeight.BodyMedium}" />
     <Setter Property="FontSize" Value="{StaticResource FontSize.BodySm}" />
-    <Setter Property="LineHeight" Value="{StaticResource Onb.LineHeight.Body}" />
-    <Setter Property="LetterSpacing" Value="{StaticResource Onb.LetterSpacing.Base}" />
+    <Setter Property="LineHeight" Value="{StaticResource LineHeight.BodySmTight}" />
+    <Setter Property="LetterSpacing" Value="{StaticResource LetterSpacing.BodySmTight}" />
   </Style>
   <Style Selector="TextBlock.onbNote">
     <Setter Property="FontFamily" Value="{StaticResource Font.Body}" />
     <Setter Property="FontWeight" Value="{StaticResource FontWeight.Body}" />
-    <Setter Property="FontSize" Value="{StaticResource Onb.FontSize.Note}" />
-    <Setter Property="LineHeight" Value="{StaticResource Onb.LineHeight.Note}" />
-    <Setter Property="LetterSpacing" Value="{StaticResource Onb.LetterSpacing.Base}" />
+    <Setter Property="FontSize" Value="{StaticResource FontSize.MetaTight}" />
+    <Setter Property="LineHeight" Value="{StaticResource LineHeight.MetaTight}" />
+    <Setter Property="LetterSpacing" Value="{StaticResource LetterSpacing.MetaTight}" />
     <Setter Property="Foreground" Value="{DynamicResource Brush.Smoke}" />
     <Setter Property="TextWrapping" Value="Wrap" />
   </Style>
   <Style Selector="TextBlock.onbNoteMedium">
     <Setter Property="FontFamily" Value="{StaticResource Font.Body}" />
     <Setter Property="FontWeight" Value="{StaticResource FontWeight.BodyMedium}" />
-    <Setter Property="FontSize" Value="{StaticResource Onb.FontSize.Note}" />
-    <Setter Property="LineHeight" Value="{StaticResource Onb.LineHeight.Note}" />
-    <Setter Property="LetterSpacing" Value="{StaticResource Onb.LetterSpacing.Base}" />
+    <Setter Property="FontSize" Value="{StaticResource FontSize.MetaTight}" />
+    <Setter Property="LineHeight" Value="{StaticResource LineHeight.MetaTight}" />
+    <Setter Property="LetterSpacing" Value="{StaticResource LetterSpacing.MetaTight}" />
   </Style>
   <Style Selector="TextBlock.onbLabel">
     <Setter Property="FontFamily" Value="{StaticResource Font.Body}" />
     <Setter Property="FontWeight" Value="{StaticResource FontWeight.Body}" />
-    <Setter Property="FontSize" Value="{StaticResource Onb.FontSize.Label}" />
-    <Setter Property="LineHeight" Value="{StaticResource Onb.LineHeight.Label}" />
-    <Setter Property="LetterSpacing" Value="{StaticResource Onb.LetterSpacing.Base}" />
+    <Setter Property="FontSize" Value="{StaticResource FontSize.SmallTight}" />
+    <Setter Property="LineHeight" Value="{StaticResource LineHeight.SmallTight}" />
+    <Setter Property="LetterSpacing" Value="{StaticResource LetterSpacing.SmallTight}" />
     <Setter Property="Foreground" Value="{DynamicResource Brush.Smoke}" />
   </Style>
   <Style Selector="TextBlock.onbLabelMedium">
     <Setter Property="FontFamily" Value="{StaticResource Font.Body}" />
     <Setter Property="FontWeight" Value="{StaticResource FontWeight.BodyMedium}" />
-    <Setter Property="FontSize" Value="{StaticResource Onb.FontSize.Label}" />
-    <Setter Property="LineHeight" Value="{StaticResource Onb.LineHeight.Label}" />
-    <Setter Property="LetterSpacing" Value="{StaticResource Onb.LetterSpacing.Base}" />
+    <Setter Property="FontSize" Value="{StaticResource FontSize.SmallTight}" />
+    <Setter Property="LineHeight" Value="{StaticResource LineHeight.SmallTight}" />
+    <Setter Property="LetterSpacing" Value="{StaticResource LetterSpacing.SmallTight}" />
   </Style>
   <Style Selector="TextBlock.onbTag">
     <Setter Property="FontFamily" Value="{StaticResource Font.Body}" />
     <Setter Property="FontWeight" Value="{StaticResource FontWeight.BodyMedium}" />
-    <Setter Property="FontSize" Value="{StaticResource Onb.FontSize.Tag}" />
-    <Setter Property="LineHeight" Value="{StaticResource Onb.LineHeight.Tag}" />
-    <Setter Property="LetterSpacing" Value="{StaticResource Onb.LetterSpacing.Base}" />
+    <Setter Property="FontSize" Value="{StaticResource FontSize.Tag}" />
+    <Setter Property="LineHeight" Value="{StaticResource LineHeight.Tag}" />
+    <Setter Property="LetterSpacing" Value="{StaticResource LetterSpacing.Tag}" />
   </Style>
   <Style Selector="TextBlock.onbMono">
     <Setter Property="FontFamily" Value="{StaticResource Font.Mono}" />
     <Setter Property="FontWeight" Value="{StaticResource FontWeight.Mono}" />
-    <Setter Property="FontSize" Value="{StaticResource FontSize.Mono}" />
-    <Setter Property="LineHeight" Value="{StaticResource Onb.LineHeight.Mono}" />
-    <Setter Property="LetterSpacing" Value="{StaticResource Onb.LetterSpacing.Base}" />
+    <Setter Property="FontSize" Value="{StaticResource FontSize.MonoRow}" />
+    <Setter Property="LineHeight" Value="{StaticResource LineHeight.MonoRow}" />
+    <Setter Property="LetterSpacing" Value="{StaticResource LetterSpacing.MonoRow}" />
   </Style>
 
   <Style Selector="TextBlock.onbCardTitle">
     <Setter Property="FontFamily" Value="{StaticResource Font.Body}" />
     <Setter Property="FontWeight" Value="{StaticResource FontWeight.BodyMedium}" />
-    <Setter Property="FontSize" Value="{StaticResource FontSize.Body}" />
-    <Setter Property="LineHeight" Value="{StaticResource Onb.LineHeight.CardTitle}" />
-    <Setter Property="LetterSpacing" Value="{StaticResource Onb.LetterSpacing.Base}" />
+    <Setter Property="FontSize" Value="{StaticResource FontSize.BodyTight}" />
+    <Setter Property="LineHeight" Value="{StaticResource LineHeight.BodyTight}" />
+    <Setter Property="LetterSpacing" Value="{StaticResource LetterSpacing.BodyTight}" />
   </Style>
 
   <!-- Device picker: 40 px tall, 12 px inside, 14 px text. -->
@@ -559,7 +507,7 @@
   <Style Selector="ComboBox.onb">
     <Setter Property="Height" Value="{StaticResource Size.OnbField}" />
     <Setter Property="MinHeight" Value="0" />
-    <Setter Property="Padding" Value="{StaticResource Inset.OnbField}" />
+    <Setter Property="Padding" Value="{StaticResource Margin.OnbField}" />
     <Setter Property="VerticalContentAlignment" Value="Center" />
   </Style>
 
@@ -586,15 +534,15 @@
   <Style Selector="ComboBox.onb /template/ Border#PopupBorder">
     <Setter Property="Background" Value="{DynamicResource Brush.OnbField}" />
     <Setter Property="BorderBrush" Value="{DynamicResource Brush.OnbListBorder}" />
-    <Setter Property="CornerRadius" Value="{StaticResource Onb.Radius.Badge}" />
+    <Setter Property="CornerRadius" Value="{StaticResource Radius.Tile}" />
     <Setter Property="Padding" Value="{StaticResource Inset.4}" />
-    <Setter Property="BoxShadow" Value="{DynamicResource Shadow.OnbList}" />
+    <Setter Property="BoxShadow" Value="{DynamicResource Onb.Shadow.List}" />
   </Style>
   <Style Selector="ComboBox.onb ComboBoxItem">
     <Setter Property="Height" Value="{StaticResource Size.NavSubItem}" />
     <Setter Property="MinHeight" Value="0" />
-    <Setter Property="Padding" Value="{StaticResource Inset.OnbItem}" />
-    <Setter Property="CornerRadius" Value="{StaticResource Onb.Radius.Cap}" />
+    <Setter Property="Padding" Value="{StaticResource Margin.OnbItem}" />
+    <Setter Property="CornerRadius" Value="{StaticResource Radius.Key}" />
     <Setter Property="Template">
       <ControlTemplate>
         <Border x:Name="PART_Item"
@@ -636,7 +584,7 @@
   <Style Selector="Button.primary.onbBanner, Button.outline.onbBanner">
     <Setter Property="Height" Value="{StaticResource Size.OnbField}" />
     <Setter Property="MinHeight" Value="0" />
-    <Setter Property="Padding" Value="{StaticResource Inset.OnbOutline}" />
+    <Setter Property="Padding" Value="{StaticResource Margin.OnbOutline}" />
     <Setter Property="FontSize" Value="{StaticResource FontSize.BodySm}" />
     <Setter Property="VerticalAlignment" Value="Center" />
   </Style>
@@ -646,13 +594,13 @@
     <Setter Property="CornerRadius" Value="{StaticResource Radius.Pill}" />
     <Setter Property="BorderBrush" Value="{DynamicResource Brush.ButtonBorder}" />
     <Setter Property="BorderThickness" Value="{StaticResource Hairline.Thickness}" />
-    <Setter Property="Padding" Value="{StaticResource Inset.OnbTag}" />
+    <Setter Property="Padding" Value="{StaticResource Margin.OnbTag}" />
     <Setter Property="VerticalAlignment" Value="Center" />
   </Style>
   <Style Selector="Border.onbStatus">
     <Setter Property="Background" Value="{DynamicResource Brush.Surface}" />
     <Setter Property="CornerRadius" Value="{StaticResource Radius.Pill}" />
-    <Setter Property="Padding" Value="{StaticResource Inset.OnbStatus}" />
+    <Setter Property="Padding" Value="{StaticResource Margin.OnbStatus}" />
     <Setter Property="Height" Value="{StaticResource Size.OnbStatus}" />
     <Setter Property="VerticalAlignment" Value="Center" />
   </Style>
@@ -665,17 +613,17 @@
   <Style Selector="Button.outline.onbChange">
     <Setter Property="Height" Value="{StaticResource Size.Compact}" />
     <Setter Property="MinHeight" Value="0" />
-    <Setter Property="Padding" Value="{StaticResource Inset.TextButton}" />
-    <Setter Property="FontSize" Value="{StaticResource Onb.FontSize.Note}" />
+    <Setter Property="Padding" Value="{StaticResource Margin.OnbTextButton}" />
+    <Setter Property="FontSize" Value="{StaticResource FontSize.Meta}" />
     <Setter Property="VerticalAlignment" Value="Center" />
   </Style>
 
   <Style Selector="TextBlock.onbTranscript">
     <Setter Property="FontFamily" Value="{StaticResource Font.Body}" />
     <Setter Property="FontWeight" Value="{StaticResource FontWeight.Body}" />
-    <Setter Property="FontSize" Value="{StaticResource FontSize.Body}" />
-    <Setter Property="LineHeight" Value="{StaticResource Onb.LineHeight.Transcript}" />
-    <Setter Property="LetterSpacing" Value="{StaticResource Onb.LetterSpacing.Base}" />
+    <Setter Property="FontSize" Value="{StaticResource FontSize.Transcript}" />
+    <Setter Property="LineHeight" Value="{StaticResource LineHeight.Transcript}" />
+    <Setter Property="LetterSpacing" Value="{StaticResource LetterSpacing.Transcript}" />
     <Setter Property="TextWrapping" Value="Wrap" />
   </Style>
 
@@ -684,7 +632,7 @@
     <Setter Property="Background" Value="{DynamicResource Brush.Surface}" />
     <Setter Property="CornerRadius" Value="{StaticResource Radius.Pill}" />
     <Setter Property="Height" Value="{StaticResource Size.OnbChip}" />
-    <Setter Property="Padding" Value="{StaticResource Inset.OnbChip}" />
+    <Setter Property="Padding" Value="{StaticResource Margin.OnbChip}" />
     <Setter Property="VerticalAlignment" Value="Center" />
   </Style>
 
@@ -692,13 +640,13 @@
   <Style Selector="Button.text.onbSmall">
     <Setter Property="Height" Value="{StaticResource Size.OnbSmallButton}" />
     <Setter Property="MinHeight" Value="0" />
-    <Setter Property="Padding" Value="{StaticResource Inset.OnbSmall}" />
-    <Setter Property="FontSize" Value="{StaticResource Onb.FontSize.Note}" />
+    <Setter Property="Padding" Value="{StaticResource Margin.OnbSmall}" />
+    <Setter Property="FontSize" Value="{StaticResource FontSize.Meta}" />
   </Style>
 
   <!-- Dashed outline of the waiting card. -->
   <Style Selector="Rectangle.onbDashedOutline">
-    <Setter Property="Margin" Value="{StaticResource Inset.OnbDashed}" />
+    <Setter Property="Margin" Value="{StaticResource Margin.OnbDashed}" />
     <Setter Property="RadiusX" Value="{StaticResource Onb.Radius.DashedCard}" />
     <Setter Property="RadiusY" Value="{StaticResource Onb.Radius.DashedCard}" />
     <Setter Property="Stroke" Value="{DynamicResource Brush.DashedBorder}" />
@@ -709,31 +657,32 @@
 
   <!-- The canvas orb: wordmark (plain sphere), welcome orb and voice orb (sphere, inner glow, blurred halo). -->
   <Style Selector="controls|GlassOrbControl.welcome">
-    <Setter Property="BodyFraction" Value="{StaticResource Onb.OrbBody.Welcome}" />
-    <Setter Property="HaloBlur" Value="{DynamicResource Onb.Orb.WelcomeHaloBlur}" />
-    <Setter Property="InnerGlowBlur" Value="{StaticResource Onb.Orb.GlowBlurWelcome}" />
-    <Setter Property="InnerGlowOpacity" Value="{DynamicResource Onb.Orb.WelcomeGlow}" />
+    <Setter Property="BodyFraction" Value="{StaticResource Glass.Welcome.Body}" />
+    <Setter Property="HaloBlur" Value="{DynamicResource Glass.Welcome.HaloBlur}" />
+    <Setter Property="HaloOpacity" Value="{DynamicResource Glass.Welcome.HaloOpacity}" />
+    <Setter Property="InnerGlowBlur" Value="{StaticResource Glass.Welcome.GlowBlur}" />
+    <Setter Property="InnerGlowOpacity" Value="{DynamicResource Glass.Welcome.Glow}" />
   </Style>
   <Style Selector="controls|GlassOrbControl.voice">
-    <Setter Property="BodyFraction" Value="{StaticResource Onb.OrbBody.Voice}" />
-    <Setter Property="HaloBlur" Value="{DynamicResource Onb.Orb.VoiceHaloBlur}" />
-    <Setter Property="HaloOpacity" Value="{DynamicResource Onb.Orb.VoiceHaloOpacity}" />
-    <Setter Property="InnerGlowBlur" Value="{StaticResource Onb.Orb.GlowBlurVoice}" />
-    <Setter Property="InnerGlowOpacity" Value="{DynamicResource Onb.Orb.VoiceGlow}" />
+    <Setter Property="BodyFraction" Value="{StaticResource Glass.Voice.Body}" />
+    <Setter Property="HaloBlur" Value="{DynamicResource Glass.Voice.HaloBlur}" />
+    <Setter Property="HaloOpacity" Value="{DynamicResource Glass.Voice.HaloOpacity}" />
+    <Setter Property="InnerGlowBlur" Value="{StaticResource Glass.Voice.GlowBlur}" />
+    <Setter Property="InnerGlowOpacity" Value="{DynamicResource Glass.Voice.Glow}" />
   </Style>
 
   <!-- The footer's buttons: 44 px tall pills. Disabled primary = Stone with Ash text (OnbComponents). -->
   <Style Selector="Button.onbFoot">
     <Setter Property="Height" Value="{StaticResource Size.OnbButton}" />
-    <Setter Property="Padding" Value="{StaticResource Inset.TextButton}" />
+    <Setter Property="Padding" Value="{StaticResource Margin.OnbTextButton}" />
   </Style>
   <Style Selector="Button.primary.onb">
     <Setter Property="Height" Value="{StaticResource Size.OnbButton}" />
-    <Setter Property="Padding" Value="{StaticResource Inset.OnbPrimary}" />
+    <Setter Property="Padding" Value="{StaticResource Margin.OnbPrimary}" />
   </Style>
   <Style Selector="Button.outline.onb">
     <Setter Property="Height" Value="{StaticResource Size.OnbButton}" />
-    <Setter Property="Padding" Value="{StaticResource Inset.OnbOutline}" />
+    <Setter Property="Padding" Value="{StaticResource Margin.OnbOutline}" />
   </Style>
   <Style Selector="Button.primary.onb:disabled /template/ ContentPresenter#PART_ContentPresenter">
     <Setter Property="Background" Value="{DynamicResource Brush.Stone}" />

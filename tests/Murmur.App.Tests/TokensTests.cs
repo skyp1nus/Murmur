@@ -79,7 +79,7 @@ public sealed partial class TokensTests
     {
         // D-044: the values of the canvas live in tokens.json and are generated; a style or view file only names the sizes of its own
         // components (Size.*, Margin.*, ...). The few older insets below predate the decision and move to tokens with their screens.
-        var generated = new[] { "FontSize.", "LineHeight.", "LetterSpacing.", "Radius.", "Space.", "Inset.", "Orb.", "Font.", "FontWeight.", "Shadow.", "Hairline." };
+        var generated = new[] { "FontSize.", "LineHeight.", "LetterSpacing.", "Radius.", "Space.", "Inset.", "Orb.", "Glass.", "Font.", "FontWeight.", "Shadow.", "Hairline." };
         var offenders = new List<string>();
         var files = Directory.EnumerateFiles(Path.Combine(RepoPaths.AppDirectory, "Styles"), "*.axaml")
             .Concat(Directory.EnumerateFiles(Path.Combine(RepoPaths.AppDirectory, "Views"), "*.axaml"))
@@ -147,22 +147,12 @@ public sealed partial class TokensTests
     /// <summary>Selectors two files style on purpose, with setters that do not overlap (the shell's type on the sub-item of Controls).</summary>
     private static readonly HashSet<string> SharedSelectors = ["Button.nav.sub"];
 
-    /// <summary>File: key of hand-written resources that look like tokens (D-044: they move into tokens.json with the screen that owns them).</summary>
+    /// <summary>File: key of hand-written resources that look like tokens (D-044: they move into tokens.json or a Margin.* name with the screen that owns them).</summary>
     private static readonly HashSet<string> AllowedHandWritten =
     [
         "Controls.axaml: Inset.Badge",
         "Controls.axaml: Hairline.Top",
         "Controls.axaml: Hairline.End",
-        "Onboarding.axaml: Inset.Onboarding",
-        "Onboarding.axaml: Inset.TextButton",
-        "Onboarding.axaml: Inset.Choice",
-        "Onboarding.axaml: Inset.Banner",
-        "Onboarding.axaml: Inset.CardLabel",
-        "Onboarding.axaml: Inset.Hotkey",
-        "Onboarding.axaml: Inset.HotkeyText",
-        "Onboarding.axaml: Inset.Row",
-        "Onboarding.axaml: Inset.Descender",
-        "Onboarding.axaml: Inset.Cap",
     ];
 
     [Fact]
@@ -175,7 +165,7 @@ public sealed partial class TokensTests
             .Where(f => f.EndsWith(".axaml", StringComparison.Ordinal) || f.EndsWith(".cs", StringComparison.Ordinal))
             .Where(f => !Path.GetRelativePath(RepoPaths.AppDirectory, f).Replace('\\', '/').StartsWith("obj/", StringComparison.Ordinal)
                 && !Path.GetRelativePath(RepoPaths.AppDirectory, f).Replace('\\', '/').StartsWith("bin/", StringComparison.Ordinal))
-            .Where(f => !IsAccentAllowed(f) && !Path.GetFileName(f).StartsWith("Orb", StringComparison.Ordinal));
+            .Where(f => !IsAccentAllowed(f) && !Path.GetFileName(f).Contains("Orb", StringComparison.Ordinal));
         foreach (var path in files)
         {
             if (references.IsMatch(File.ReadAllText(path)))
@@ -213,6 +203,116 @@ public sealed partial class TokensTests
         Assert.NotEqual(json, broken);
         var error = Assert.Throws<InvalidOperationException>(() => TokenGenerator.Generate(broken));
         Assert.Contains("accentViolet", error.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void TheCanvasTypeOfTheOnboardingAndTheRecording_IsOnTheScale()
+    {
+        var axaml = TokenGenerator.Generate(File.ReadAllText(RepoPaths.TokensJson));
+
+        // (step, size, line height, letter spacing) as the screens had them before they moved to the scale.
+        foreach (var (step, size, line, spacing) in new[]
+        {
+            ("Hero", "44", "48.4", "-0.88"), ("Timer", "48", "48", "-0.96"), ("WordmarkSm", "15", "19", "-0.15"),
+            ("Lead", "16", "24", "0.14"), ("Transcript", "16", "24.8", "0.14"), ("Message", "13", "20.15", "0.14"),
+            ("Note", "12", "19.2", "0.14"), ("BodyTight", "16", "20", "0.14"), ("BodySmTight", "14", "17", "0.14"),
+            ("MetaTight", "13", "16", "0.14"), ("SmallTight", "12", "15", "0.14"), ("RowTitleTight", "15", "19", "0.14"),
+            ("Tag", "11", "14", "0.14"),
+        })
+        {
+            Assert.Contains($"<x:Double x:Key=\"FontSize.{step}\">{size}</x:Double>", axaml, StringComparison.Ordinal);
+            Assert.Contains($"<x:Double x:Key=\"LineHeight.{step}\">{line}</x:Double>", axaml, StringComparison.Ordinal);
+            Assert.Contains($"<x:Double x:Key=\"LetterSpacing.{step}\">{spacing}</x:Double>", axaml, StringComparison.Ordinal);
+        }
+
+        Assert.Contains("<FontWeight x:Key=\"FontWeight.BodySemiBold\">SemiBold</FontWeight>", axaml, StringComparison.Ordinal);
+        Assert.Contains("<x:Double x:Key=\"Space.18\">18</x:Double>", axaml, StringComparison.Ordinal);
+        Assert.Contains("<x:Double x:Key=\"Space.36\">36</x:Double>", axaml, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void NoTwoTypeSteps_HaveTheSameSizeLineHeightAndLetterSpacing()
+    {
+        var document = XDocument.Parse(TokenGenerator.Generate(File.ReadAllText(RepoPaths.TokensJson)));
+        var values = document.Root!.Elements().Where(e => e.Name.LocalName == "Double")
+            .ToDictionary(e => (string)e.Attribute(Xaml + "Key")!, e => e.Value, StringComparer.Ordinal);
+        var steps = values.Keys.Where(k => k.StartsWith("FontSize.", StringComparison.Ordinal)).Select(k => k["FontSize.".Length..]).ToArray();
+
+        var duplicates = steps
+            .GroupBy(s => (values["FontSize." + s], values["LineHeight." + s], values.GetValueOrDefault("LetterSpacing." + s)))
+            .Where(g => g.Count() > 1)
+            .Select(g => string.Join(" = ", g));
+
+        Assert.Empty(duplicates);
+    }
+
+    [Fact]
+    public void TheDarkPopoverShadow_IsAToken()
+    {
+        var axaml = TokenGenerator.Generate(File.ReadAllText(RepoPaths.TokensJson));
+
+        Assert.Contains("<BoxShadows x:Key=\"Shadow.PopoverDark\">0 8 24 0 #80000000</BoxShadows>", axaml, StringComparison.Ordinal);
+    }
+
+    private static Dictionary<string, string> Numbers(XElement dictionary) =>
+        dictionary.Elements().Where(e => e.Name.LocalName == "Double")
+            .ToDictionary(e => (string)e.Attribute(Xaml + "Key")!, e => e.Value, StringComparer.Ordinal);
+
+    [Fact]
+    public void TheGlassOrbs_AreGeneratedPerTheme_FromGlassOrbs()
+    {
+        var document = XDocument.Parse(TokenGenerator.Generate(File.ReadAllText(RepoPaths.TokensJson)));
+        var light = Numbers(ThemeDictionary(document, "Light"));
+        var dark = Numbers(ThemeDictionary(document, "Dark"));
+        var fixedNumbers = Numbers(document.Root!);
+
+        Assert.Equal("28", light["Glass.Recording.HaloBlur"]);
+        Assert.Equal("32", dark["Glass.Recording.HaloBlur"]);
+        Assert.Equal("0.35", light["Glass.Recording.Glow"]);
+        Assert.Equal("0.25", dark["Glass.Recording.Glow"]);
+        Assert.Equal("30", light["Glass.Welcome.HaloBlur"]);
+        Assert.Equal("34", dark["Glass.Welcome.HaloBlur"]);
+        Assert.Equal("0.3", light["Glass.Voice.HaloOpacity"]);
+        Assert.Equal("0.45", dark["Glass.Voice.HaloOpacity"]);
+        Assert.Equal("1", light["Glass.Welcome.HaloOpacity"]);
+
+        // The sizes, the body fractions (with their five decimals) and the inner glow blur are the same in both themes.
+        Assert.Equal("320", fixedNumbers["Glass.Recording.Size"]);
+        Assert.Equal("0.775", fixedNumbers["Glass.Recording.Body"]);
+        Assert.Equal("40", fixedNumbers["Glass.Recording.GlowBlur"]);
+        Assert.Equal("300", fixedNumbers["Glass.Welcome.Size"]);
+        Assert.Equal("0.77333", fixedNumbers["Glass.Welcome.Body"]);
+        Assert.Equal("168", fixedNumbers["Glass.Voice.Size"]);
+        Assert.Equal("0.78571", fixedNumbers["Glass.Voice.Body"]);
+        Assert.Equal("28", fixedNumbers["Glass.Voice.GlowBlur"]);
+        Assert.DoesNotContain(light.Keys, k => k.EndsWith(".Size", StringComparison.Ordinal) || k.EndsWith(".Body", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void TheGenerator_RefusesAGlassOrbWithoutItsDarkValue()
+    {
+        var json = File.ReadAllText(RepoPaths.TokensJson);
+        var broken = json.Replace("\"haloBlurDark\": 32,", string.Empty, StringComparison.Ordinal);
+        Assert.NotEqual(json, broken);
+
+        var error = Assert.Throws<InvalidOperationException>(() => TokenGenerator.Generate(broken));
+
+        Assert.Contains("recording", error.Message, StringComparison.Ordinal);
+        Assert.Contains("haloBlurDark", error.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void TheGenerator_RefusesAGlassOrbWithAMissingOrUnknownKey()
+    {
+        var json = File.ReadAllText(RepoPaths.TokensJson);
+
+        var noSize = json.Replace("\"size\": 320,", string.Empty, StringComparison.Ordinal);
+        Assert.NotEqual(json, noSize);
+        Assert.Contains("size", Assert.Throws<InvalidOperationException>(() => TokenGenerator.Generate(noSize)).Message, StringComparison.Ordinal);
+
+        var typo = json.Replace("\"glowBlur\": 40,", "\"glowBlurr\": 40,", StringComparison.Ordinal);
+        Assert.NotEqual(json, typo);
+        Assert.Contains("glowBlurr", Assert.Throws<InvalidOperationException>(() => TokenGenerator.Generate(typo)).Message, StringComparison.Ordinal);
     }
 
     private static readonly XNamespace Xaml = "http://schemas.microsoft.com/winfx/2006/xaml";
@@ -258,8 +358,12 @@ public sealed partial class TokensTests
         var lightKeys = ThemeDictionary(document, "Light").Elements().Select(e => (string)e.Attribute(Xaml + "Key")!).ToArray();
         var darkKeys = ThemeDictionary(document, "Dark").Elements().Select(e => (string)e.Attribute(Xaml + "Key")!).ToArray();
         Assert.Equal(lightKeys, darkKeys);
-        Assert.Equal(light.Length * 2, lightKeys.Count(k => k != "Brush.Hairline"));
-        Assert.All(lightKeys, key => Assert.Matches(@"^(Color|Brush)\.[A-Za-z]+$", key));
+        var colourKeys = lightKeys.Where(k => !k.StartsWith("Glass.", StringComparison.Ordinal)).ToArray();
+        Assert.Equal(light.Length * 2, colourKeys.Count(k => k != "Brush.Hairline"));
+        Assert.All(colourKeys, key => Assert.Matches(@"^(Color|Brush)\.[A-Za-z]+$", key));
+
+        // The only numbers in the theme dictionaries are the themed values of the glass orbs.
+        Assert.All(lightKeys.Except(colourKeys), key => Assert.Matches(@"^Glass\.[A-Za-z]+\.(HaloBlur|HaloOpacity|Glow)$", key));
     }
 
     [Fact]

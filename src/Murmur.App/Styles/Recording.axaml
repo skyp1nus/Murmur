@@ -3,10 +3,9 @@
 
   <!--
     Per-theme resources of the Recording screen (Recording.dc.html / RecordingDark.dc.html). Like the other style files this one holds
-    no literal colours: the chip fill is a palette brush that differs between the themes, the orb numbers are the canvas's.
+    no literal colours: the chip fill is a palette brush that differs between the themes. The orb's numbers (halo blur and glow per
+    theme) are the generated Glass.Recording.* tokens.
   -->
-
-  <!-- TODO(D-044): the orb's halo radius and glow strength are canvas values (fitted, per theme); they move to the generated tokens once D-044 has landed. -->
   <Styles.Resources>
     <ResourceDictionary>
       <ResourceDictionary.MergedDictionaries>
@@ -14,16 +13,12 @@
       </ResourceDictionary.MergedDictionaries>
 
       <ResourceDictionary.ThemeDictionaries>
-        <!-- The source chips are Canvas in the light theme and Surface in the dark one; the dark orb has a wider halo and a fainter glow. The halo values are the standard deviation of the canvas's blur(28px) / blur(32px). -->
+        <!-- The source chips are Canvas in the light theme and Surface in the dark one. -->
         <ResourceDictionary x:Key="Light">
           <StaticResource x:Key="Brush.RecordingChip" ResourceKey="Brush.Canvas" />
-          <x:Double x:Key="Rec.HaloBlur">28</x:Double>
-          <x:Double x:Key="Rec.InnerGlowOpacity">0.35</x:Double>
         </ResourceDictionary>
         <ResourceDictionary x:Key="Dark">
           <StaticResource x:Key="Brush.RecordingChip" ResourceKey="Brush.Surface" />
-          <x:Double x:Key="Rec.HaloBlur">32</x:Double>
-          <x:Double x:Key="Rec.InnerGlowOpacity">0.25</x:Double>
         </ResourceDictionary>
       </ResourceDictionary.ThemeDictionaries>
     </ResourceDictionary>

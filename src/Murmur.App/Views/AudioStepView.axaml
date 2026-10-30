@@ -33,7 +33,7 @@
           <StackPanel Spacing="{StaticResource Space.16}">
             <Grid ColumnDefinitions="*,Auto">
               <StackPanel Orientation="Horizontal"
-                          Spacing="{StaticResource Onb.Space.Badge}">
+                          Spacing="{StaticResource Space.10}">
                 <Border Classes="iconBadge">
                   <controls:IconControl Width="{StaticResource Size.SmallIcon}"
                                         Height="{StaticResource Size.SmallIcon}"
@@ -49,7 +49,7 @@
                          VerticalAlignment="Center"
                          Text="{x:Static res:Strings.Onb2_TrackYou}" />
             </Grid>
-            <StackPanel Spacing="{StaticResource Onb.Space.Icon}">
+            <StackPanel Spacing="{StaticResource Space.6}">
               <TextBlock Classes="onbLabel"
                          Text="{x:Static res:Strings.Onb2_InputDevice}" />
               <ComboBox x:Name="MicrophoneBox"
@@ -78,7 +78,7 @@
           <StackPanel Spacing="{StaticResource Space.16}">
             <Grid ColumnDefinitions="*,Auto">
               <StackPanel Orientation="Horizontal"
-                          Spacing="{StaticResource Onb.Space.Badge}">
+                          Spacing="{StaticResource Space.10}">
                 <Border Classes="iconBadge">
                   <controls:IconControl Width="{StaticResource Size.SmallIcon}"
                                         Height="{StaticResource Size.SmallIcon}"
@@ -94,7 +94,7 @@
                          VerticalAlignment="Center"
                          Text="{x:Static res:Strings.Onb2_TrackOthers}" />
             </Grid>
-            <StackPanel Spacing="{StaticResource Onb.Space.Icon}">
+            <StackPanel Spacing="{StaticResource Space.6}">
               <TextBlock Classes="onbLabel"
                          Text="{x:Static res:Strings.Onb2_OutputDevice}" />
               <ComboBox x:Name="SystemAudioBox"
@@ -123,7 +123,7 @@
       <!-- The microphone is allowed: the meter should move. -->
       <Border x:Name="GrantedBanner"
               Classes="well"
-              Padding="{StaticResource Inset.Banner}"
+              Padding="{StaticResource Margin.OnbBanner}"
               IsVisible="{Binding ShowGranted}">
         <Grid ColumnDefinitions="Auto,*"
               ColumnSpacing="{StaticResource Space.16}">
@@ -136,7 +136,7 @@
           </Border>
           <StackPanel Grid.Column="1"
                       VerticalAlignment="Center"
-                      Spacing="{StaticResource Onb.Space.Hair}">
+                      Spacing="{StaticResource Space.2}">
             <TextBlock Classes="onbTitle"
                        Text="{x:Static res:Strings.Onb2_GrantedTitle}" />
             <TextBlock Classes="onbNote"
@@ -148,7 +148,7 @@
       <!-- Windows refuses the microphone: how to allow it, and try again. -->
       <Border x:Name="DeniedBanner"
               Classes="well"
-              Padding="{StaticResource Inset.Banner}"
+              Padding="{StaticResource Margin.OnbBanner}"
               IsVisible="{Binding ShowDenied}">
         <Grid ColumnDefinitions="Auto,*,Auto"
               ColumnSpacing="{StaticResource Space.16}">
@@ -160,7 +160,7 @@
           </Border>
           <StackPanel Grid.Column="1"
                       VerticalAlignment="Center"
-                      Spacing="{StaticResource Onb.Space.Hair}">
+                      Spacing="{StaticResource Space.2}">
             <TextBlock Classes="onbTitle"
                        Text="{x:Static res:Strings.Onb2_DeniedTitle}" />
             <TextBlock Classes="onbNote"
@@ -190,7 +190,7 @@
       <!-- No microphone at all. -->
       <Border x:Name="NoMicrophoneBanner"
               Classes="well"
-              Padding="{StaticResource Inset.Banner}"
+              Padding="{StaticResource Margin.OnbBanner}"
               IsVisible="{Binding ShowNoMicrophone}">
         <Grid ColumnDefinitions="Auto,*,Auto"
               ColumnSpacing="{StaticResource Space.16}">
@@ -202,7 +202,7 @@
           </Border>
           <StackPanel Grid.Column="1"
                       VerticalAlignment="Center"
-                      Spacing="{StaticResource Onb.Space.Hair}">
+                      Spacing="{StaticResource Space.2}">
             <TextBlock Classes="onbTitle"
                        Text="{x:Static res:Strings.Onb2_NoMicTitle}" />
             <TextBlock Classes="onbNote"
@@ -219,7 +219,7 @@
       <!-- The microphone is there but does not start. -->
       <Border x:Name="MicrophoneFailedBanner"
               Classes="well"
-              Padding="{StaticResource Inset.Banner}"
+              Padding="{StaticResource Margin.OnbBanner}"
               IsVisible="{Binding ShowMicrophoneFailed}">
         <Grid ColumnDefinitions="Auto,*,Auto"
               ColumnSpacing="{StaticResource Space.16}">
@@ -231,7 +231,7 @@
           </Border>
           <StackPanel Grid.Column="1"
                       VerticalAlignment="Center"
-                      Spacing="{StaticResource Onb.Space.Hair}">
+                      Spacing="{StaticResource Space.2}">
             <TextBlock Classes="onbTitle"
                        Text="{x:Static res:Strings.Onb2_MicFailedTitle}" />
             <TextBlock Classes="onbNote"

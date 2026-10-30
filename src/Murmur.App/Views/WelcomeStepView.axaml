@@ -13,11 +13,11 @@
                               Classes="welcome"
                               HorizontalAlignment="Center"
                               IsActive="True" />
-    <StackPanel Spacing="{StaticResource Onb.Space.WelcomeText}"
+    <StackPanel Spacing="{StaticResource Space.14}"
                 HorizontalAlignment="Center">
       <TextBlock Classes="display"
-                 Margin="{StaticResource Inset.OnbDisplayLift}"
-                 Padding="{StaticResource Inset.OnbDescender}"
+                 Margin="{StaticResource Margin.OnbDisplayLift}"
+                 Padding="{StaticResource Margin.OnbDescender}"
                  TextAlignment="Center"
                  TextWrapping="Wrap"
                  Text="{Binding Title}" />

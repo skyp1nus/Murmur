@@ -20,7 +20,7 @@
     </StackPanel>
 
     <StackPanel HorizontalAlignment="Center"
-                Spacing="{StaticResource Onb.Space.Recorder}">
+                Spacing="{StaticResource Space.18}">
       <controls:GlassOrbControl x:Name="VoiceOrb"
                                 Classes="voice"
                                 HorizontalAlignment="Center"
@@ -28,7 +28,7 @@
       <Border x:Name="Countdown"
               Classes="countdown">
         <StackPanel Orientation="Horizontal"
-                    Spacing="{StaticResource Onb.Space.Badge}">
+                    Spacing="{StaticResource Space.10}">
           <TextBlock x:Name="StatusLabel"
                      Classes="onbNote"
                      VerticalAlignment="Center"
@@ -54,7 +54,7 @@
         <Panel>
           <!-- The canvas card has a dashed 1 px outline; a Border cannot dash, so a rounded rectangle draws it. -->
           <Rectangle Classes="onbDashedOutline" />
-          <StackPanel Margin="{StaticResource Inset.Banner}"
+          <StackPanel Margin="{StaticResource Margin.OnbBanner}"
                       Spacing="{StaticResource Space.12}"
                       HorizontalAlignment="Center"
                       VerticalAlignment="Center">
@@ -77,10 +77,10 @@
       <!-- Done: who said what, with a time chip -->
       <Border x:Name="TranscriptCard"
               Classes="panel"
-              Padding="{StaticResource Inset.OnbTranscript}"
+              Padding="{StaticResource Margin.OnbTranscript}"
               IsVisible="{Binding ShowTranscript}">
         <Grid ColumnDefinitions="*,Auto"
-              ColumnSpacing="{StaticResource Onb.Space.Cards}">
+              ColumnSpacing="{StaticResource Space.14}">
           <ItemsControl ItemsSource="{Binding Segments}">
             <ItemsControl.ItemsPanel>
               <ItemsPanelTemplate>
@@ -90,7 +90,7 @@
             <ItemsControl.ItemTemplate>
               <DataTemplate x:DataType="vm:TrialSegment">
                 <Grid ColumnDefinitions="Auto,*"
-                      ColumnSpacing="{StaticResource Onb.Space.Cards}">
+                      ColumnSpacing="{StaticResource Space.14}">
                   <Border Classes="avatar">
                     <TextBlock Classes="onbTag"
                                HorizontalAlignment="Center"
@@ -99,9 +99,9 @@
                                Text="{Binding Initial}" />
                   </Border>
                   <StackPanel Grid.Column="1"
-                              Spacing="{StaticResource Onb.Space.HairTight}">
+                              Spacing="{StaticResource Space.6}">
                     <StackPanel Orientation="Horizontal"
-                                Spacing="{StaticResource Onb.Space.Badge}">
+                                Spacing="{StaticResource Space.10}">
                       <TextBlock Classes="onbNoteMedium"
                                  VerticalAlignment="Center"
                                  Text="{Binding Speaker}" />
@@ -115,7 +115,7 @@
                                 VerticalAlignment="Center"
                                 Fill="{DynamicResource Brush.Ink}" />
                           <TextBlock Classes="onbMono"
-                                     FontSize="{StaticResource Onb.FontSize.Label}"
+                                     FontSize="{StaticResource FontSize.Small}"
                                      VerticalAlignment="Center"
                                      Text="{Binding Time}" />
                         </StackPanel>
@@ -140,7 +140,7 @@
       <!-- Failed, or nothing recognised -->
       <Border x:Name="MessageCard"
               Classes="panel"
-              Padding="{StaticResource Inset.Banner}"
+              Padding="{StaticResource Margin.OnbBanner}"
               IsVisible="{Binding ShowMessage}">
         <Grid ColumnDefinitions="Auto,*,Auto"
               ColumnSpacing="{StaticResource Space.16}">
