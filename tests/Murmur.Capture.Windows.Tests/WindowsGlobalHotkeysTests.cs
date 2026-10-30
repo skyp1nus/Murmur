@@ -269,10 +269,12 @@ public sealed class WindowsGlobalHotkeysTests
     {
         Assert.SkipUnless(OperatingSystem.IsWindows(), WindowsOnly);
         using var hotkeys = new WindowsGlobalHotkeys();
-        var gestures = new[] { Gesture.Next(), Gesture.Next(), Gesture.Next() };
-        var results = new HotkeyRegistration[3, 20];
+        // One gesture per action, sized from the enum: an action added later (TogglePause) is covered too.
+        var actions = Enum.GetValues<HotkeyAction>();
+        var gestures = actions.Select(_ => Gesture.Next()).ToArray();
+        var results = new HotkeyRegistration[actions.Length, 20];
 
-        var tasks = Enum.GetValues<HotkeyAction>().Select(action => Task.Run(() =>
+        var tasks = actions.Select(action => Task.Run(() =>
         {
             for (var i = 0; i < 20; i++)
             {
