@@ -7,7 +7,7 @@
     <MurmurWindowsMinVersion>10.0.19041.0</MurmurWindowsMinVersion>
     <TargetFramework>$(MurmurTargetFramework)</TargetFramework>
     <!-- One version for every assembly and for the installer (scripts/build-installer.ps1, installer/Murmur.iss). D-037. -->
-    <Version>0.4.0</Version>
+    <Version>0.4.1</Version>
 
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>

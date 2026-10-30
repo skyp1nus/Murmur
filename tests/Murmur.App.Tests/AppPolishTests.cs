@@ -572,7 +572,7 @@ public sealed class AppPolishTests
     [Fact]
     public void About_TheVersionIsABuildTimeConstant_WithoutARevisionSuffix()
     {
-        Assert.Equal("0.4.0", BuildInfo.Version);
+        Assert.Equal("0.4.1", BuildInfo.Version);
         Assert.DoesNotContain('+', BuildInfo.Version);
         Assert.Equal(BuildInfo.Version, new AboutViewModel().Version);
         Assert.Equal("9.9", new AboutViewModel("9.9").Version);

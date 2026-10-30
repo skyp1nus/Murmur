@@ -1,7 +1,7 @@
 ﻿; Murmur installer (Inno Setup 6.3 or newer), per user: no administrator rights, nothing outside the user profile.
 ; D-036 in docs/DECISIONS.md. Build it with scripts/build-installer.ps1, which publishes Murmur.Desktop (Native AOT,
 ; win-x64, with the ASR worker Murmur.Transcription.exe and its native libraries next to it) and then calls ISCC with
-; the defines below. To compile by hand: ISCC /DPublishDir=<publish folder> /DAppVersion=0.4.0 installer\Murmur.iss
+; the defines below. To compile by hand: ISCC /DPublishDir=<publish folder> /DAppVersion=0.4.1 installer\Murmur.iss
 ;
 ; This file is UTF-8 with a BOM on purpose: the Ukrainian texts below are not ASCII and Inno reads a file without a
 ; BOM as ANSI.
@@ -13,11 +13,11 @@
 ; Defines passed by scripts/build-installer.ps1 (/D...). The defaults let `ISCC installer\Murmur.iss` work as is; keep
 ; AppVersion equal to <Version> in Directory.Build.props (a test checks it).
 #ifndef AppVersion
-  #define AppVersion "0.4.0"
+  #define AppVersion "0.4.1"
 #endif
 ; Numeric a.b.c.d form of AppVersion (AppVersion may carry a prerelease suffix such as 0.2.0-rc1).
 #ifndef AppVersionNumeric
-  #define AppVersionNumeric "0.4.0.0"
+  #define AppVersionNumeric "0.4.1.0"
 #endif
 #ifndef PublishDir
   #define PublishDir "..\artifacts\publish\win-x64"
