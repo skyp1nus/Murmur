@@ -145,7 +145,7 @@ public sealed class SessionVideoTests : IDisposable
     }
 
     [Fact]
-    public async Task ANewSegment_GetsTheCurrentRate_AfterItWasOpened()
+    public async Task ANewSegment_KeepsTheCurrentRate_WithoutTheViewModelAskingAgain()
     {
         var (vm, video, _) = Create();
         await vm.LoadAsync();
@@ -156,9 +156,9 @@ public sealed class SessionVideoTests : IDisposable
         vm.SeekTo(S(25)); // segment 1 opens
 
         Assert.Equal(1.5, video.Rate);
-        var calls = video.Calls;
-        var lastOpen = calls.LastIndexOf("open");
-        Assert.True(calls.IndexOf("rate:1.5", lastOpen) > lastOpen, string.Join(", ", calls));
+        // The player keeps the rate across the segments it opens (IVideoPlayerControls): no per-open call.
+        Assert.Equal([1, 1.25, 1.5], video.Rates);
+        Assert.Equal(2, video.Opens.Count);
     }
 
     [Fact]

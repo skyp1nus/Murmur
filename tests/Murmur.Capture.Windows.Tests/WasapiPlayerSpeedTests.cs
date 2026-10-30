@@ -105,13 +105,187 @@ public sealed class WasapiPlayerSpeedTests : IDisposable
     }
 
     [Fact]
-    public void PlayedMediaFrame_IsTheSubmittedMediaMinusThePaddingAtTheOutputSpeed()
+    public void PlayedMediaFrame_RoundsAndClampsTheHeardMedia()
     {
-        Assert.Equal(PlaybackTiming.PlayedFrame(1_000, 4_000, 800, 100_000), PlaybackTiming.PlayedMediaFrame(1_000, 5_000, 800, 1, 100_000));
-        Assert.Equal(5_000 - (800 * 2), PlaybackTiming.PlayedMediaFrame(1_000, 5_000, 800, 2, 100_000));
-        Assert.Equal(5_000 - 600, PlaybackTiming.PlayedMediaFrame(1_000, 5_000, 800, 0.75, 100_000));
-        Assert.Equal(1_000, PlaybackTiming.PlayedMediaFrame(1_000, 1_000, 800, 2, 100_000)); // never before where it started
-        Assert.Equal(100_000, PlaybackTiming.PlayedMediaFrame(1_000, 120_000, 0, 1.5, 100_000)); // never past the end
+        Assert.Equal(4_200, PlaybackTiming.PlayedMediaFrame(1_000, 4_199.6, 100_000));
+        Assert.Equal(1_000, PlaybackTiming.PlayedMediaFrame(1_000, 600, 100_000)); // never before where it started
+        Assert.Equal(100_000, PlaybackTiming.PlayedMediaFrame(1_000, 120_000, 100_000)); // never past the end
+    }
+
+    [Theory]
+    [InlineData(2.0, 0.75)]
+    [InlineData(1.5, 2.0)]
+    [InlineData(2.0, 1.0)]
+    [InlineData(1.0, 2.0)]
+    [InlineData(0.5, 1.0)]
+    [InlineData(0.75, 2.0)]
+    public void TheHeardPosition_IsMonotonicAndContinuous_AcrossAChangeOfSpeed(double before, double after)
+    {
+        // A device buffer of 50 ms drained at 16 kHz in 10 ms steps, refilled to 50 ms; the position is read the way the engine does.
+        var source = new ArraySource(WsolaStretcherTests.Voice(30 * Rate));
+        var stretcher = new WsolaStretcher(source, Rate);
+        stretcher.SetSpeed(before);
+        const int Step = 160;
+        const int Buffer = 800;
+        var block = new short[Buffer];
+        long played = 0;
+        var previous = 0d;
+        var largest = 0d;
+        var smallest = double.MaxValue;
+        for (var step = 0; step < 400; step++)
+        {
+            if (step == 150)
+            {
+                stretcher.SetSpeed(after);
+            }
+
+            var padding = stretcher.OutputFrames - played;
+            stretcher.Render(block.AsSpan(0, (int)(Buffer - padding)));
+            played += Step;
+            var heard = stretcher.MediaAtOutput(played);
+            if (step >= 20)
+            {
+                var delta = heard - previous;
+                largest = Math.Max(largest, delta);
+                smallest = Math.Min(smallest, delta);
+            }
+
+            previous = heard;
+        }
+
+        // Each 10 ms step moves the position by 10 ms x the speed there: never back, never more than a few ms off that.
+        var low = Step * Math.Min(before, after);
+        var high = Step * Math.Max(before, after);
+        Assert.True(smallest >= low - 3, $"smallest step {smallest} < {low}");
+        Assert.True(largest <= high + 3, $"largest step {largest} > {high}");
+    }
+
+    [Theory]
+    [InlineData(0.5)]
+    [InlineData(0.75)]
+    public void AMuteAtASlowSpeed_IsNotFollowedByTheOldMixAgain(double speed)
+    {
+        // Track 0 = 1000, track 1 = 5000: 6000 until track 1 is muted, 1000 after. At a slow speed the hops start behind what was
+        // read ahead, which was mixed before the mute. Tried at many phases of the hop.
+        for (var phase = 0; phase < 700; phase += 29)
+        {
+            using var mixer = new TrackMixer([TestWav.Reader(TestWav.Constant(30 * Rate, 1_000)), TestWav.Reader(TestWav.Constant(30 * Rate, 5_000))]);
+            var stretcher = new WsolaStretcher(mixer, Rate);
+            stretcher.SetSpeed(speed);
+            stretcher.Render(new short[Rate + phase]);
+
+            mixer.SetMuted(1, true);
+            var after = new short[Rate];
+            Assert.Equal(after.Length, stretcher.Render(after));
+
+            var settled = Array.FindIndex(after, s => s == 1_000);
+            Assert.InRange(settled, 0, 1_600); // the queued hop plus the 10 ms fade, within 100 ms
+            Assert.True(after.AsSpan(settled).ToArray().All(s => s == 1_000), $"6000 came back after the mute (phase {phase}, speed {speed})");
+            var step = 0;
+            for (var i = 1; i < after.Length; i++)
+            {
+                step = Math.Max(step, Math.Abs(after[i] - after[i - 1]));
+            }
+
+            Assert.True(step <= 40, $"the fade must stay a ramp (5000 over 160 frames = 31 per frame), largest step {step} (phase {phase})");
+        }
+    }
+
+    /// <summary>6000 until <see cref="ChangeVersion"/> is bumped, 1000 for every frame read after: the instant of a mute, without a fade.</summary>
+    private sealed class MuteSwitchSource : IPcmSource
+    {
+        public long TotalFrames => 60 * Rate;
+
+        public long Position { get; private set; }
+
+        public int ChangeVersion { get; private set; }
+
+        public int Rewinds { get; private set; }
+
+        public void Mute() => ChangeVersion++;
+
+        public int Render(Span<short> destination)
+        {
+            var count = (int)Math.Min(destination.Length, TotalFrames - Position);
+            destination[..count].Fill((short)(ChangeVersion == 0 ? 6_000 : 1_000));
+            Position += count;
+            return count;
+        }
+
+        public void Seek(long frame) => Position = Math.Clamp(frame, 0, TotalFrames);
+
+        public void Rewind(long frame)
+        {
+            Rewinds++;
+            Seek(frame);
+        }
+    }
+
+    [Theory]
+    [InlineData(0.5)]
+    [InlineData(0.75)]
+    [InlineData(1.5)]
+    public void AChangeOfTheMix_DropsTheReadAhead_SoOnlyTheQueuedHopStillHasTheOldMix(double speed)
+    {
+        for (var phase = 0; phase < 700; phase += 41)
+        {
+            var source = new MuteSwitchSource();
+            var stretcher = new WsolaStretcher(source, Rate);
+            stretcher.SetSpeed(speed);
+            stretcher.Render(new short[Rate + phase]);
+
+            source.Mute();
+            var after = new short[Rate];
+            Assert.Equal(after.Length, stretcher.Render(after));
+
+            Assert.Equal(1, source.Rewinds);
+            var first = Array.FindIndex(after, s => s == 1_000);
+            Assert.InRange(first, 0, 320); // at most the hop that was being played out
+            Assert.True(after.AsSpan(first).ToArray().All(s => s == 1_000), $"the old mix came back (phase {phase}, speed {speed})");
+        }
+    }
+
+    [Fact]
+    public void AnUnmute_AtASlowSpeed_BringsTheTrackBack_WithoutAStep()
+    {
+        using var mixer = new TrackMixer([TestWav.Reader(TestWav.Constant(30 * Rate, 1_000)), TestWav.Reader(TestWav.Constant(30 * Rate, 5_000))]);
+        mixer.SetMuted(1, true);
+        mixer.MutedMask = 0b10; // as the player sets it for a new mixer: at once, no fade
+        var stretcher = new WsolaStretcher(mixer, Rate);
+        stretcher.SetSpeed(0.75);
+        var block = new short[Rate / 5];
+        stretcher.Render(block);
+        Assert.Equal(1_000, block[^1]);
+
+        mixer.SetMuted(1, false);
+        var after = new short[Rate];
+        stretcher.Render(after);
+
+        Assert.Equal(6_000, after[^1]);
+        var step = 0;
+        for (var i = 1; i < after.Length; i++)
+        {
+            step = Math.Max(step, Math.Abs(after[i] - after[i - 1]));
+        }
+
+        Assert.True(step <= 40, $"largest step {step}");
+    }
+
+    [Fact]
+    public void TheMixerRewind_PutsTheFadesBack()
+    {
+        using var mixer = new TrackMixer([TestWav.Reader(TestWav.Constant(Rate, 1_000)), TestWav.Reader(TestWav.Constant(Rate, 5_000))]);
+        var output = new short[400];
+        mixer.Render(output);
+        mixer.SetMuted(1, true);
+        mixer.Render(output); // 400 frames: the 160-frame fade is over by the end
+        Assert.Equal(1_000, output[^1]);
+
+        mixer.Rewind(400); // back to where the mute started: the fade runs again from there
+        var again = new short[400];
+        mixer.Render(again);
+
+        Assert.Equal(output, again);
     }
 
     [Fact]

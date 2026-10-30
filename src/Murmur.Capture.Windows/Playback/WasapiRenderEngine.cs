@@ -497,11 +497,14 @@ internal sealed unsafe class WasapiRenderEngine : IPlaybackEngine
         return WasapiConstants.SOk;
     }
 
-    /// <summary>The media frame being heard: what was submitted minus the output still in the endpoint buffer, at the speed it was made at.</summary>
+    /// <summary>
+    /// The media frame being heard: the media position of the output frame at the speaker (submitted minus the endpoint buffer's
+    /// padding), looked up in the stretcher's history of the output, so a change of speed does not move it.
+    /// </summary>
     private void PublishPlayed(uint padding) =>
         Volatile.Write(
             ref _playedFrame,
-            PlaybackTiming.PlayedMediaFrame(_startFrame, _stretcher.MediaPosition, padding, _stretcher.OutputSpeed, _mixer.TotalFrames));
+            PlaybackTiming.PlayedMediaFrame(_startFrame, _stretcher.MediaAtOutput(_stretcher.OutputFrames - padding), _mixer.TotalFrames));
 
     private bool TakeCommand(out Command command, out long frame, out bool play)
     {

@@ -17,6 +17,15 @@ internal interface IPcmSource
 
     /// <summary>Repositions to <paramref name="frame"/>, clamped to [0, <see cref="TotalFrames"/>].</summary>
     void Seek(long frame);
+
+    /// <summary>
+    /// Goes back to <paramref name="frame"/> (not after <see cref="Position"/>) to read again what was read ahead, as if it had not been
+    /// read: state that changed with the frames read since (the fades of a mute) is put back as it was at <paramref name="frame"/>.
+    /// </summary>
+    void Rewind(long frame);
+
+    /// <summary>Counts the changes (a track muted or restored) that make frames read ahead obsolete; read it before using the read-ahead.</summary>
+    int ChangeVersion { get; }
 }
 
 /// <summary>
@@ -33,10 +42,17 @@ internal interface IPcmSource
 /// 1 and another speed happens at a hop boundary and is seamless: a hop starts where the previous one naturally goes on, so
 /// no cross-fade is needed; a change takes effect within one hop (20 ms) plus what is already queued.</item>
 /// <item><b>Timeline.</b> <see cref="MediaPosition"/> is the nominal analysis position (in input frames) of the next output
-/// frame: it advances by <c>speed</c> per output frame, so the player's position / clock runs in media time. The audible
-/// content is within +-10 ms of it (the search window).</item>
-/// <item><b>Seek</b> repositions the source, drops all state and fades the next output in over 4 ms (the device buffer is
-/// flushed by the caller, so the stream restarts from silence).</item>
+/// frame: it advances by <c>speed</c> per output frame, so the player's position / clock runs in media time, and it never
+/// jumps (<see cref="MediaAtOutput"/> answers for the frame being heard from a short history of the output). The audible
+/// content is off it by up to <c>hop x |speed - 1|</c> + search (~30 ms at 2x): a hop is a stretch of input played at its own
+/// speed 1, so it lags the nominal position by up to a hop at speeds above 1 and runs ahead of it at speeds below 1; after a
+/// return to speed 1 this offset stays until the next seek. At speeds above 1 the last <c>hop x (speed - 1)</c> of input
+/// (~20 ms at 2x) is not played.</item>
+/// <item><b>Seek</b> repositions the source and drops all state. At a speed other than 1 the next output fades in over 4 ms
+/// (the device buffer is flushed by the caller, so the stream restarts from silence); at speed 1 the passthrough is untouched
+/// and starts with the source's first frame as it is.</item>
+/// <item><b>Mute</b> (<see cref="IPcmSource.ChangeVersion"/>): what was read ahead was mixed before the change, so it is dropped
+/// and read again from where the output goes on (the source puts its fades back), instead of letting later hops play the old mix.</item>
 /// <item><b>Hot path.</b> <see cref="Render"/> and <see cref="SetSpeed"/> allocate nothing and take no lock; all buffers are
 /// allocated by the constructor. <see cref="SetSpeed"/> may be called from any thread; everything else belongs to the render thread.</item>
 /// </list>
@@ -81,6 +97,16 @@ internal sealed class WsolaStretcher
     private double _requested = 1;
     private double _media;
     private double _outputSpeed = 1;
+    private int _version;
+
+    // History of the output: runs of constant speed, so the media position of any recent output frame is known exactly.
+    private const int HistorySize = 64;
+    private readonly long[] _historyOut = new long[HistorySize];
+    private readonly double[] _historyMedia = new double[HistorySize];
+    private readonly double[] _historySpeed = new double[HistorySize];
+    private int _historyHead;
+    private int _historyCount;
+    private long _outputFrames;
     private long _continuation; // input frame where the previous hop goes on naturally (the cursor while passing through)
     private bool _warm;         // a previous hop exists to be matched
     private bool _fadePending;
@@ -122,8 +148,33 @@ internal sealed class WsolaStretcher
     /// <summary>The nominal input frame of the next output frame (see the class remarks); <c>Total</c> at the end.</summary>
     public double MediaPosition => _media;
 
+    /// <summary>Output frames handed out since construction / the last seek.</summary>
+    public long OutputFrames => _outputFrames;
+
+    /// <summary>
+    /// The media position of output frame <paramref name="outputFrame"/> (counted like <see cref="OutputFrames"/>), from the history of
+    /// the last output: exact within the runs it keeps (64 changes of speed or mode), the oldest run extended beyond them.
+    /// Allocation-free.
+    /// </summary>
+    public double MediaAtOutput(long outputFrame)
+    {
+        outputFrame = Math.Min(outputFrame, _outputFrames);
+        var index = _historyHead;
+        for (var i = 0; i < _historyCount; i++)
+        {
+            if (_historyOut[index] <= outputFrame || i == _historyCount - 1)
+            {
+                return _historyMedia[index] + ((outputFrame - _historyOut[index]) * _historySpeed[index]);
+            }
+
+            index = (index + HistorySize - 1) % HistorySize;
+        }
+
+        return _media;
+    }
+
     /// <summary>All output was handed out.</summary>
-    public bool AtEnd => _outPos >= _outLen && (_ended || _media >= _total - Epsilon);
+    public bool AtEnd => _outPos >= _outLen && (_ended || (_warm ? _media >= _total - Epsilon : _continuation >= _total));
 
     /// <summary>Clamps to [<see cref="MinSpeed"/>, <see cref="MaxSpeed"/>]; NaN is 1 and so is anything within 0.5 % of it.</summary>
     public static double ClampSpeed(double speed)
@@ -168,9 +219,16 @@ internal sealed class WsolaStretcher
                 _out.AsSpan(_outPos, count).CopyTo(destination[done..]);
                 _outPos += count;
                 done += count;
-                _media += count * _hopSpeed;
+                Record(count, _hopSpeed);
                 _outputSpeed = _hopSpeed;
                 continue;
+            }
+
+            var version = _source.ChangeVersion;
+            if (version != _version)
+            {
+                _version = version;
+                DropReadAhead();
             }
 
             var speed = Volatile.Read(ref _requested);
@@ -208,6 +266,51 @@ internal sealed class WsolaStretcher
         _warm = false;
         _fadePending = true;
         _ended = false;
+        _version = _source.ChangeVersion;
+        _outputFrames = 0;
+        _historyHead = 0;
+        _historyCount = 1;
+        _historyOut[0] = 0;
+        _historyMedia[0] = frame;
+        _historySpeed[0] = 1;
+    }
+
+    /// <summary>Counts <paramref name="count"/> output frames made at <paramref name="speed"/> into the media position and the history.</summary>
+    private void Record(int count, double speed)
+    {
+        var last = _historyHead;
+        var expected = _historyMedia[last] + ((_outputFrames - _historyOut[last]) * _historySpeed[last]);
+        if (_historySpeed[last] != speed || Math.Abs(expected - _media) > Epsilon)
+        {
+            last = (last + 1) % HistorySize;
+            _historyHead = last;
+            _historyCount = Math.Min(_historyCount + 1, HistorySize);
+            _historyOut[last] = _outputFrames;
+            _historyMedia[last] = _media;
+            _historySpeed[last] = speed;
+        }
+
+        _outputFrames += count;
+        _media += count * speed;
+    }
+
+    /// <summary>
+    /// The mix changed (a mute): what was read ahead is stale. Go back to where the output goes on and read it again, cold; the
+    /// frames after it are then mixed with the new setting.
+    /// </summary>
+    private void DropReadAhead()
+    {
+        if (_continuation >= _inBase + _inLen && !_warm)
+        {
+            return; // nothing was read ahead
+        }
+
+        _source.Rewind(_continuation);
+        _inBase = _source.Position;
+        _continuation = _inBase;
+        _inLen = 0;
+        _eof = false;
+        _warm = false;
     }
 
     /// <summary>Speed 1: first what was read ahead of the cursor, then the source itself, untouched.</summary>
@@ -233,6 +336,7 @@ internal sealed class WsolaStretcher
 
         if (count > 0)
         {
+            Record(count, 1);
             _continuation += count;
         }
 
@@ -242,7 +346,6 @@ internal sealed class WsolaStretcher
             _inLen = 0;
         }
 
-        _media = _continuation;
         return count;
     }
 
@@ -286,6 +389,10 @@ internal sealed class WsolaStretcher
             var low = Math.Max(0, center - _search);
             var high = Math.Min(center + _search, _total);
             Window(Math.Min(low, _continuation), Math.Max(high, _continuation) + _hop + _overlap);
+
+            // After a read-ahead drop the window starts at the continuation: candidates before it are not available.
+            low = Math.Max(low, _inBase);
+            high = Math.Max(high, low);
             start = BestStart(center, low, high);
 
             var reference = _in.AsSpan((int)(_continuation - _inBase), _overlap);

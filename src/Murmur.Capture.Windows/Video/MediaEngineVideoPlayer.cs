@@ -58,6 +58,7 @@ public sealed class MediaEngineVideoPlayer : IVideoPlayer, IVideoPlayerControls
     private FrameChangeTracker _frames = new();
     private SeekQueue _seeks = new((long)(SeekTimeout.TotalSeconds * Stopwatch.Frequency));
     private int _transferFailures;
+    private double _playbackRate = 1;
 
     private GpuDevice? _gpu;
     private nint _wicFactory;
@@ -124,6 +125,9 @@ public sealed class MediaEngineVideoPlayer : IVideoPlayer, IVideoPlayerControls
 
     /// <summary>The HRESULT of the last failed frame transfer or copy, 0 when the last one succeeded (diagnostics).</summary>
     internal int LastTransferResult { get; private set; }
+
+    /// <summary>The HRESULT of the last refused playback rate, 0 when the last rate was accepted (diagnostics).</summary>
+    internal int LastRateResult { get; private set; }
 
     public async ValueTask OpenAsync(string filePath, CancellationToken cancellationToken)
     {
@@ -273,6 +277,7 @@ public sealed class MediaEngineVideoPlayer : IVideoPlayer, IVideoPlayerControls
         text.Append(CultureInfo.InvariantCulture, $"paused {IMFMediaEngine.IsPaused(engine) != 0}, ended {IMFMediaEngine.IsEnded(engine) != 0}, ");
         text.Append(CultureInfo.InvariantCulture, $"seeking {IMFMediaEngine.IsSeeking(engine) != 0}, currentTime {IMFMediaEngine.GetCurrentTime(engine):F3} s, ");
         text.Append(CultureInfo.InvariantCulture, $"duration {IMFMediaEngine.GetDuration(engine):F3} s, seek queue {(_seeks.IsBusy ? _seeks.LatestTarget.TotalSeconds.ToString("F3", CultureInfo.InvariantCulture) + " s" : "idle")}, ");
+        text.Append(CultureInfo.InvariantCulture, $"rate {_playbackRate} (last result 0x{LastRateResult:X8}), ");
         text.Append(CultureInfo.InvariantCulture, $"last copied pts {_frames.CopiedPts?.ToString(CultureInfo.InvariantCulture) ?? "none"}; events: ");
         text.Append(session.DescribeEvents());
         return text.ToString();
@@ -473,8 +478,6 @@ public sealed class MediaEngineVideoPlayer : IVideoPlayer, IVideoPlayerControls
 
     private void OnResourceLost() => Volatile.Write(ref _resourceLost, 1);
 
-    private double _playbackRate = 1;
-
     /// <summary>
     /// The rate the open file plays at (1 = real time), kept for the files opened later. The session view sets it to the speed of
     /// the audio, which is the master clock: a video that plays at 1x while the audio runs at 2x would drift out of tolerance
@@ -490,18 +493,18 @@ public sealed class MediaEngineVideoPlayer : IVideoPlayer, IVideoPlayerControls
         }
     }
 
+    /// <summary>
+    /// A refused rate (e.g. MF_E_UNSUPPORTED_RATE at 2x) is not a failure of the segment: <see cref="Failed"/> would make the view
+    /// give the segment up. The engine goes back to 1x, <see cref="LastRateResult"/> keeps the HRESULT, and the audio clock keeps the
+    /// picture in step by seeking.
+    /// </summary>
     private void ApplyPlaybackRate(EngineSession session)
     {
-        var hr = IMFMediaEngine.SetDefaultPlaybackRate(session.Engine, _playbackRate);
-        if (hr >= 0)
-        {
-            hr = IMFMediaEngine.SetPlaybackRate(session.Engine, _playbackRate);
-        }
-
-        if (hr < 0)
-        {
-            session.RaiseFailed($"IMFMediaEngine::SetPlaybackRate failed: {ComHelpers.Describe(hr)}");
-        }
+        var engine = session.Engine;
+        LastRateResult = PlaybackRateRequest.Apply(
+            _playbackRate,
+            rate => IMFMediaEngine.SetDefaultPlaybackRate(engine, rate),
+            rate => IMFMediaEngine.SetPlaybackRate(engine, rate));
     }
 
     /// <summary>

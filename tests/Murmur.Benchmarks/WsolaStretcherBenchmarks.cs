@@ -70,5 +70,9 @@ public class WsolaStretcherBenchmarks
         }
 
         public void Seek(long frame) => Position = Math.Clamp(frame, 0, samples.Length);
+
+        public void Rewind(long frame) => Seek(frame);
+
+        public int ChangeVersion => 0;
     }
 }

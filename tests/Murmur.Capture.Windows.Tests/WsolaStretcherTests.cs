@@ -18,6 +18,11 @@ internal sealed class ArraySource(short[] samples) : IPcmSource
     }
 
     public void Seek(long frame) => Position = Math.Clamp(frame, 0, samples.Length);
+
+    public void Rewind(long frame) => Seek(frame);
+
+    /// <summary>Bumped by the test like a mute; <c>Rewinds</c> counts the read-ahead drops it caused.</summary>
+    public int ChangeVersion { get; set; }
 }
 
 /// <summary>The WSOLA time stretcher: duration, pitch, continuity, passthrough, seek, speed changes, allocation. Pure C#, runs on any OS.</summary>

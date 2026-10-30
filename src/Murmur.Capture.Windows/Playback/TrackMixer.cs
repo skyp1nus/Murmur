@@ -65,6 +65,12 @@ internal sealed class TrackMixer : IPcmSource, IDisposable
     private readonly float[] _gains;
     private int _snapPending;
 
+    // The gains when the mask last changed and where, so that a reader that went back (Rewind) finds the fades as they were there.
+    private readonly float[] _gainsAtChange;
+    private long _changePosition;
+    private int _seenMask;
+    private int _changeVersion;
+
     /// <summary>Takes ownership of <paramref name="tracks"/> (1..n readers of the same sample rate).</summary>
     /// <exception cref="InvalidDataException">The tracks have different sample rates.</exception>
     public TrackMixer(IReadOnlyList<Pcm16TrackReader> tracks)
@@ -90,6 +96,8 @@ internal sealed class TrackMixer : IPcmSource, IDisposable
 
         _gains = new float[_tracks.Length];
         Array.Fill(_gains, 1f);
+        _gainsAtChange = new float[_tracks.Length];
+        Array.Fill(_gainsAtChange, 1f);
         SampleRate = tracks[0].SampleRate;
         TotalFrames = total;
         _scratch = new short[MaxFramesPerRender];
@@ -115,6 +123,7 @@ internal sealed class TrackMixer : IPcmSource, IDisposable
         {
             Volatile.Write(ref _mutedMask, value);
             Volatile.Write(ref _snapPending, 1);
+            Interlocked.Increment(ref _changeVersion);
         }
     }
 
@@ -137,6 +146,32 @@ internal sealed class TrackMixer : IPcmSource, IDisposable
         {
             Interlocked.And(ref _mutedMask, ~(1 << track));
         }
+
+        Interlocked.Increment(ref _changeVersion);
+    }
+
+    /// <summary>Incremented by every change of the mask; <see cref="WsolaStretcher"/> drops its read-ahead when it moves.</summary>
+    public int ChangeVersion => Volatile.Read(ref _changeVersion);
+
+    /// <summary>
+    /// Goes back to <paramref name="frame"/> to read again what was read ahead: like <see cref="Seek"/>, and the gains are put back
+    /// to what they were at that frame (a fade that started after it starts again there, one that had finished before it stays
+    /// finished), so a mute is not turned into a step.
+    /// </summary>
+    public void Rewind(long frame)
+    {
+        Seek(frame);
+        var elapsed = _position - _changePosition;
+        for (var t = 0; t < _gains.Length; t++)
+        {
+            var target = t < 32 && (_seenMask & (1 << t)) != 0 ? 0f : 1f;
+            var start = _gainsAtChange[t];
+            var moved = elapsed <= 0 ? 0f : Math.Min(elapsed * (1f / RampFrames), Math.Abs(target - start));
+            _gains[t] = target > start ? start + moved : start - moved;
+        }
+
+        _changePosition = _position;
+        Array.Copy(_gains, _gainsAtChange, _gains.Length);
     }
 
     /// <summary>Repositions every track to <paramref name="frame"/>, clamped to [0, <see cref="TotalFrames"/>].</summary>
@@ -165,6 +200,13 @@ internal sealed class TrackMixer : IPcmSource, IDisposable
             var output = destination.Slice(done, pass);
             var muted = MutedMask;
             SnapGains(muted);
+            if (muted != _seenMask)
+            {
+                _seenMask = muted;
+                _changePosition = _position + done;
+                Array.Copy(_gains, _gainsAtChange, _gains.Length);
+            }
+
             if (_tracks.Length == 1)
             {
                 var read = _tracks[0].Read(output);
