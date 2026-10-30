@@ -10,7 +10,8 @@ namespace Murmur.Capture.Windows.Video;
 /// </summary>
 internal struct FrameChangeTracker
 {
-    private const long None = long.MinValue;
+    /// <summary>The "no time stamp" value of <see cref="PresentedPts"/>.</summary>
+    internal const long None = long.MinValue;
 
     private long _presentedPts;
     private long _copiedPts;
@@ -26,6 +27,9 @@ internal struct FrameChangeTracker
 
     /// <summary>Time stamp (100 ns) of the frame copied last; null before the first copy.</summary>
     public readonly long? CopiedPts => _hasCopy && _copiedPts != None ? _copiedPts : null;
+
+    /// <summary>Time stamp (100 ns) of the frame the engine presented last, <see cref="None"/> before the first one.</summary>
+    public readonly long PresentedPts => _presentedPts;
 
     /// <summary>At least one copy succeeded since the last <see cref="Reset"/>.</summary>
     public readonly bool HasCopy => _hasCopy;
@@ -261,6 +265,135 @@ internal struct SeekQueue
         {
             _inFlight = false;
         }
+    }
+}
+
+/// <summary>What <see cref="SeekRecovery"/> asks the player to do.</summary>
+internal enum SeekRecoveryStep
+{
+    /// <summary>Nothing (yet).</summary>
+    None,
+
+    /// <summary>Copy the presented frame once more although the engine reports no new one.</summary>
+    Retransfer,
+
+    /// <summary>Send the seek to the same target again (through the seek queue).</summary>
+    Reseek,
+}
+
+/// <summary>
+/// Self-recovery for a rare Media Engine race (D-035): after a very fast seek while paused, SEEKED arrives (~5 ms) but the
+/// presented frame is still the old one and OnVideoStreamTick never reports a new time stamp, so the old picture stays up.
+/// Armed by every seek request with the time stamp presented at that moment; disarmed as soon as another time stamp is
+/// presented. When the seek queue has been idle (the seek is done) for <see cref="Delay"/> without one, and the engine is
+/// settled (paused, not seeking, has data), it asks for up to <see cref="MaxAttempts"/> steps: first a forced re-copy of the
+/// presented frame (no side effects), then the same seek again. A seek inside the frame that is already shown legitimately
+/// ends the same way, which costs at most these steps once per target. Pure; one per player, UI thread; allocation-free.
+/// </summary>
+internal struct SeekRecovery
+{
+    /// <summary>Steps taken per seek target at most: one <see cref="SeekRecoveryStep.Retransfer"/>, then re-seeks.</summary>
+    public const int MaxAttempts = 3;
+
+    private bool _armed;
+    private long _baselinePts;
+    private long _quietSince;
+    private int _attempts;
+    private TimeSpan _target;
+
+    public SeekRecovery(long delay)
+    {
+        Delay = delay;
+        _quietSince = FrameChangeTracker.None;
+    }
+
+    /// <summary>How long (in the caller's timestamp units) a finished seek may show no new frame before a step is taken.</summary>
+    public long Delay { get; }
+
+    public readonly bool IsArmed => _armed;
+
+    /// <summary>The target the armed seek asked for (re-sent by <see cref="SeekRecoveryStep.Reseek"/>).</summary>
+    public readonly TimeSpan Target => _target;
+
+    /// <summary>Forgets everything (a file was opened or closed).</summary>
+    public void Reset()
+    {
+        _armed = false;
+        _quietSince = FrameChangeTracker.None;
+        _attempts = 0;
+    }
+
+    /// <summary>A seek to <paramref name="target"/> was requested while the engine presented <paramref name="presentedPts"/>.</summary>
+    public void Arm(TimeSpan target, long presentedPts)
+    {
+        _armed = true;
+        _target = target;
+        _baselinePts = presentedPts;
+        _quietSince = FrameChangeTracker.None;
+        _attempts = 0;
+    }
+
+    /// <summary>The picture is moving on its own (Play) or is no longer of interest.</summary>
+    public void Disarm() => _armed = false;
+
+    /// <summary>
+    /// True when the seek is done (<paramref name="seekBusy"/> false), still no other time stamp than the one before it was
+    /// presented, and that has lasted <see cref="Delay"/>: the caller then reads the engine state and calls
+    /// <see cref="Take"/>. Cheap: no engine calls needed to evaluate it.
+    /// </summary>
+    public bool IsDue(long now, bool seekBusy, long presentedPts)
+    {
+        if (!_armed)
+        {
+            return false;
+        }
+
+        if (presentedPts != _baselinePts && presentedPts != FrameChangeTracker.None)
+        {
+            _armed = false; // a new frame was presented: the seek worked
+            return false;
+        }
+
+        if (seekBusy)
+        {
+            _quietSince = FrameChangeTracker.None;
+            return false;
+        }
+
+        if (_quietSince == FrameChangeTracker.None)
+        {
+            _quietSince = now;
+            return false;
+        }
+
+        return now - _quietSince >= Delay;
+    }
+
+    /// <summary>
+    /// Takes the next step after <see cref="IsDue"/> said true. An engine that is not <paramref name="engineSettled"/>
+    /// (playing, seeking, no data yet) costs nothing: the wait starts over.
+    /// </summary>
+    public SeekRecoveryStep Take(bool engineSettled, long now)
+    {
+        if (!_armed)
+        {
+            return SeekRecoveryStep.None;
+        }
+
+        if (!engineSettled)
+        {
+            _quietSince = now;
+            return SeekRecoveryStep.None;
+        }
+
+        _attempts++;
+        _quietSince = FrameChangeTracker.None;
+        if (_attempts >= MaxAttempts)
+        {
+            _armed = false;
+        }
+
+        return _attempts == 1 ? SeekRecoveryStep.Retransfer : SeekRecoveryStep.Reseek;
     }
 }
 

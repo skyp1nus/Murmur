@@ -258,6 +258,153 @@ public sealed class VideoPlayerLogicTests
         Assert.False(queue.IsBusy);
     }
 
+    private const long RecoveryDelay = 300;
+    private const long NoPts = FrameChangeTracker.None;
+
+    [Fact]
+    public void SeekRecovery_NotArmed_NeverDue()
+    {
+        var recovery = new SeekRecovery(RecoveryDelay);
+        Assert.False(recovery.IsArmed);
+        Assert.False(recovery.IsDue(0, seekBusy: false, presentedPts: 0));
+        Assert.False(recovery.IsDue(10_000, false, 0));
+        Assert.Equal(SeekRecoveryStep.None, recovery.Take(true, 10_000));
+    }
+
+    [Fact]
+    public void SeekRecovery_NewTimeStamp_DisarmsWithoutAStep()
+    {
+        var recovery = new SeekRecovery(RecoveryDelay);
+        recovery.Arm(S(2.25), presentedPts: 0);
+        Assert.False(recovery.IsDue(0, seekBusy: true, 0));
+        Assert.False(recovery.IsDue(10, false, 22_500_000)); // the frame at the target was presented
+        Assert.False(recovery.IsArmed);
+        Assert.False(recovery.IsDue(10_000, false, 22_500_000));
+    }
+
+    [Fact]
+    public void SeekRecovery_WaitsForTheSeekToFinish_ThenForTheDelay()
+    {
+        var recovery = new SeekRecovery(RecoveryDelay);
+        recovery.Arm(S(2.25), 0);
+
+        // The seek is in flight (or queued): the clock does not run, however long it takes.
+        Assert.False(recovery.IsDue(0, seekBusy: true, 0));
+        Assert.False(recovery.IsDue(5_000, seekBusy: true, 0));
+
+        // SEEKED seen at 5_000 (first idle call starts the wait), still the old frame afterwards.
+        Assert.False(recovery.IsDue(5_000, seekBusy: false, 0));
+        Assert.False(recovery.IsDue(5_299, false, 0));
+        Assert.True(recovery.IsDue(5_300, false, 0));
+    }
+
+    [Fact]
+    public void SeekRecovery_StepsAreRetransferThenReseeksThenGivesUp()
+    {
+        var recovery = new SeekRecovery(RecoveryDelay);
+        recovery.Arm(S(2.25), 0);
+        var now = 0L;
+        recovery.IsDue(now, false, 0);
+
+        var steps = new List<SeekRecoveryStep>();
+        for (var i = 0; i < 20 && recovery.IsArmed; i++)
+        {
+            now += RecoveryDelay;
+            if (recovery.IsDue(now, false, 0))
+            {
+                steps.Add(recovery.Take(engineSettled: true, now));
+            }
+        }
+
+        Assert.Equal(SeekRecovery.MaxAttempts, steps.Count);
+        Assert.Equal(SeekRecoveryStep.Retransfer, steps[0]);
+        Assert.All(steps.Skip(1), step => Assert.Equal(SeekRecoveryStep.Reseek, step));
+        Assert.False(recovery.IsArmed);
+        Assert.Equal(S(2.25), recovery.Target);
+        Assert.False(recovery.IsDue(now + 10_000, false, 0)); // at most MaxAttempts per target
+    }
+
+    [Fact]
+    public void SeekRecovery_Reseek_RestartsTheWaitWhenTheSeekIsBusyAgain()
+    {
+        var recovery = new SeekRecovery(RecoveryDelay);
+        recovery.Arm(S(1), 0);
+        recovery.IsDue(0, false, 0);
+        Assert.True(recovery.IsDue(300, false, 0));
+        Assert.Equal(SeekRecoveryStep.Retransfer, recovery.Take(true, 300));
+        Assert.False(recovery.IsDue(301, false, 0)); // the wait starts over after a step
+        Assert.True(recovery.IsDue(601, false, 0));
+        Assert.Equal(SeekRecoveryStep.Reseek, recovery.Take(true, 601));
+
+        // The re-seek is in flight: no clock until its SEEKED, then a full delay again.
+        Assert.False(recovery.IsDue(700, seekBusy: true, 0));
+        Assert.False(recovery.IsDue(5_000, seekBusy: true, 0));
+        Assert.False(recovery.IsDue(5_001, seekBusy: false, 0));
+        Assert.False(recovery.IsDue(5_300, false, 0));
+        Assert.True(recovery.IsDue(5_301, false, 0));
+    }
+
+    [Fact]
+    public void SeekRecovery_EngineNotSettled_CostsNoAttempt()
+    {
+        var recovery = new SeekRecovery(RecoveryDelay);
+        recovery.Arm(S(1), 0);
+        recovery.IsDue(0, false, 0);
+        Assert.True(recovery.IsDue(300, false, 0));
+        Assert.Equal(SeekRecoveryStep.None, recovery.Take(engineSettled: false, 300)); // playing, seeking or no data
+        Assert.False(recovery.IsDue(301, false, 0));
+        Assert.True(recovery.IsDue(600, false, 0));
+        Assert.Equal(SeekRecoveryStep.Retransfer, recovery.Take(true, 600)); // still the first attempt
+    }
+
+    [Fact]
+    public void SeekRecovery_NoPictureYet_NewTimeStampStillDisarms_AndNoneIsNotNew()
+    {
+        var recovery = new SeekRecovery(RecoveryDelay);
+        recovery.Arm(S(1), NoPts);
+        Assert.False(recovery.IsDue(0, false, NoPts)); // nothing presented is not "a new frame"
+        Assert.True(recovery.IsArmed);
+        Assert.False(recovery.IsDue(1, false, 0));
+        Assert.False(recovery.IsArmed);
+    }
+
+    [Fact]
+    public void SeekRecovery_ANewSeekRearmsWithAFreshBudget_DisarmAndResetStop()
+    {
+        var recovery = new SeekRecovery(RecoveryDelay);
+        recovery.Arm(S(1), 0);
+        recovery.IsDue(0, false, 0);
+        Assert.True(recovery.IsDue(300, false, 0));
+        recovery.Take(true, 300);
+
+        recovery.Arm(S(3), 0); // another click: new target, new budget, new wait
+        Assert.Equal(S(3), recovery.Target);
+        Assert.False(recovery.IsDue(301, false, 0));
+        Assert.False(recovery.IsDue(600, false, 0));
+        Assert.True(recovery.IsDue(601, false, 0));
+        Assert.Equal(SeekRecoveryStep.Retransfer, recovery.Take(true, 601));
+
+        recovery.Disarm(); // Play
+        Assert.False(recovery.IsDue(10_000, false, 0));
+        recovery.Arm(S(1), 0);
+        recovery.Reset(); // another file
+        Assert.False(recovery.IsArmed);
+        Assert.False(recovery.IsDue(10_000, false, 0));
+    }
+
+    [Fact]
+    public void FrameTracker_PresentedPts_FollowsTicksOnly()
+    {
+        var tracker = new FrameChangeTracker();
+        Assert.Equal(FrameChangeTracker.None, tracker.PresentedPts);
+        tracker.Tick(VideoConstants.SFalse, 777);
+        Assert.Equal(FrameChangeTracker.None, tracker.PresentedPts);
+        tracker.Tick(0, 333_333);
+        Assert.Equal(333_333, tracker.PresentedPts);
+        tracker.Reset();
+        Assert.Equal(FrameChangeTracker.None, tracker.PresentedPts);
+    }
+
     [Fact]
     public void GpuCapability_OnlyARealGpuWithVideoSupport_IsHardwareVideo()
     {

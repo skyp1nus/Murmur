@@ -92,6 +92,29 @@ public sealed class MediaEngineVideoPlayerTests(TestVideoFile video, ITestOutput
         Assert.False(player.IsPlaying);
     }
 
+    [Theory]
+    [InlineData(nameof(VideoOutput.Auto))]
+    [InlineData(nameof(VideoOutput.Wic))]
+    public async Task FastPausedSeeks_EachShowsItsFrame(string requested)
+    {
+        // Regression for the rare race where SEEKED arrives at once with the old picture and no new time stamp is ever
+        // presented (BACKLOG, seen on the WARP runner); the self-recovery must show every target's slot.
+        using var player = await OpenAsync(Enum.Parse<VideoOutput>(requested));
+        var frame = new byte[FrameStride * FrameHeight];
+        Assert.Equal(0, await WaitForSlotAsync(player, frame, 0));
+        var slots = new[] { 2.25, 0.75, 3.75, 1.25, 3.25, 0.25, 2.75, 1.75 };
+        for (var round = 0; round < 6; round++)
+        {
+            foreach (var seconds in slots)
+            {
+                var target = TimeSpan.FromSeconds(seconds);
+                player.Seek(target);
+                var expected = TestVideo.SlotAt(target);
+                Assert.True(expected == await WaitForSlotAsync(player, frame, expected), $"round {round}, target {target}: {player.DescribeState()}");
+            }
+        }
+    }
+
     [Fact]
     public async Task Play_AdvancesInRealTime_PauseHolds()
     {

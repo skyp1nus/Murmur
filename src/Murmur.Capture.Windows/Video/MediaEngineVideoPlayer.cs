@@ -29,7 +29,8 @@ namespace Murmur.Capture.Windows.Video;
 /// <para><b>Seeks.</b> One seek is in flight at a time: a seek requested before the engine reported the previous one done
 /// (MF_MEDIA_ENGINE_EVENT_SEEKED) is queued, only the latest queued target is kept, and it is sent on the next
 /// <see cref="Position"/> / <see cref="TryCopyFrame"/> call after the previous one completed. While a seek is in flight or
-/// queued, <see cref="Position"/> is its target.</para>
+/// queued, <see cref="Position"/> is its target. Rarely a finished paused seek leaves the old picture up (no new time
+/// stamp is ever presented); <see cref="SeekRecovery"/> then copies the frame again and, if needed, repeats the seek.</para>
 /// <para><b>Frames.</b> <see cref="TryCopyFrame"/> asks the engine for the presented frame (OnVideoStreamTick); when it
 /// is new (another time stamp, the first frame, a completed seek) or the requested size changed, TransferVideoFrame scales
 /// it into the target surface and the rows are copied into the caller's buffer. Allocation-free once the surface exists
@@ -48,6 +49,12 @@ public sealed class MediaEngineVideoPlayer : IVideoPlayer
     /// <summary>The longest wait for MF_MEDIA_ENGINE_EVENT_SEEKED before a queued seek is sent anyway.</summary>
     internal static readonly TimeSpan SeekTimeout = TimeSpan.FromSeconds(2);
 
+    /// <summary>How long a finished paused seek may show no new frame before the recovery steps in (<see cref="SeekRecovery"/>).</summary>
+    internal static readonly TimeSpan SeekRecoveryDelay = TimeSpan.FromMilliseconds(300);
+
+    /// <summary>The engine has a frame for the current position (HTML HAVE_CURRENT_DATA).</summary>
+    private const ushort HaveCurrentData = 2;
+
     private readonly VideoOutput _requested;
 
     private EngineSession? _session;
@@ -57,6 +64,7 @@ public sealed class MediaEngineVideoPlayer : IVideoPlayer
     private VideoSize _size;
     private FrameChangeTracker _frames = new();
     private SeekQueue _seeks = new((long)(SeekTimeout.TotalSeconds * Stopwatch.Frequency));
+    private SeekRecovery _recovery = new((long)(SeekRecoveryDelay.TotalSeconds * Stopwatch.Frequency));
     private int _transferFailures;
 
     private GpuDevice? _gpu;
@@ -175,7 +183,11 @@ public sealed class MediaEngineVideoPlayer : IVideoPlayer
         CloseSession();
     }
 
-    public void Play() => Command(static engine => IMFMediaEngine.Play(engine), "IMFMediaEngine::Play");
+    public void Play()
+    {
+        _recovery.Disarm(); // playing presents frames on its own
+        Command(static engine => IMFMediaEngine.Play(engine), "IMFMediaEngine::Play");
+    }
 
     public void Pause() => Command(static engine => IMFMediaEngine.Pause(engine), "IMFMediaEngine::Pause");
 
@@ -183,6 +195,7 @@ public sealed class MediaEngineVideoPlayer : IVideoPlayer
     {
         var session = OpenSession();
         var target = position < TimeSpan.Zero ? TimeSpan.Zero : _duration > TimeSpan.Zero && position > _duration ? _duration : position;
+        _recovery.Arm(target, _frames.PresentedPts);
         if (_seeks.Request(target, Volatile.Read(ref session.SeekedEvents), Stopwatch.GetTimestamp()))
         {
             SendSeek(session, target);
@@ -202,8 +215,9 @@ public sealed class MediaEngineVideoPlayer : IVideoPlayer
         long pts = -1;
         var tick = IMFMediaEngine.OnVideoStreamTick(session.Engine, &pts);
         _frames.Tick(tick, pts);
+        var forced = _recovery.IsArmed && RecoverSeek(session);
         var events = Volatile.Read(ref session.PictureEvents);
-        if (!_frames.IsDue(width, height, events))
+        if (!forced && !_frames.IsDue(width, height, events))
         {
             return false;
         }
@@ -309,6 +323,7 @@ public sealed class MediaEngineVideoPlayer : IVideoPlayer
             _target = EnsureTarget(output);
             _frames.Reset();
             _seeks.Reset();
+            _recovery.Reset();
             _transferFailures = 0;
             LastTransferResult = 0;
             _open = true;
@@ -423,6 +438,7 @@ public sealed class MediaEngineVideoPlayer : IVideoPlayer
         _size = default;
         _frames.Reset();
         _seeks.Reset();
+        _recovery.Reset();
         session?.Dispose();
     }
 
@@ -435,6 +451,38 @@ public sealed class MediaEngineVideoPlayer : IVideoPlayer
         }
 
         return session;
+    }
+
+    /// <summary>
+    /// The seek recovery (see <see cref="SeekRecovery"/>); true when the presented frame must be copied now although the
+    /// engine reports no new one. A re-seek goes through the seek queue like any other. Allocation-free.
+    /// </summary>
+    private bool RecoverSeek(EngineSession session)
+    {
+        var now = Stopwatch.GetTimestamp();
+        if (!_recovery.IsDue(now, _seeks.IsBusy, _frames.PresentedPts))
+        {
+            return false;
+        }
+
+        var engine = session.Engine;
+        var settled = IMFMediaEngine.IsPaused(engine) != 0 && IMFMediaEngine.IsSeeking(engine) == 0
+            && IMFMediaEngine.GetReadyState(engine) >= HaveCurrentData;
+        switch (_recovery.Take(settled, now))
+        {
+            case SeekRecoveryStep.Retransfer:
+                return true;
+            case SeekRecoveryStep.Reseek:
+                var target = _recovery.Target;
+                if (_seeks.Request(target, Volatile.Read(ref session.SeekedEvents), now))
+                {
+                    SendSeek(session, target);
+                }
+
+                return false;
+            default:
+                return false;
+        }
     }
 
     /// <summary>Sends the queued seek once the one in flight is done. Allocation-free.</summary>
