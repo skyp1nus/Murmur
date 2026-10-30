@@ -510,10 +510,10 @@
     <value>Work even when the window is minimised.</value>
   </data>
   <data name="Settings_AppearanceTitle" xml:space="preserve">
-    <value>Appearance</value>
+    <value>Preferences</value>
   </data>
   <data name="Settings_AppearanceText" xml:space="preserve">
-    <value>Theme and interface language.</value>
+    <value>Theme, languages and recording defaults.</value>
   </data>
   <data name="Settings_AboutTitle" xml:space="preserve">
     <value>About</value>
@@ -1290,5 +1290,57 @@
   </data>
   <data name="Recording_ClipboardUnavailable" xml:space="preserve">
     <value>the clipboard is not available</value>
+  </data>
+  <data name="Accel_Title" xml:space="preserve">
+    <value>Acceleration</value>
+  </data>
+  <data name="Accel_Text" xml:space="preserve">
+    <value>A GPU speeds up Gemma; Parakeet runs well on CPU too</value>
+  </data>
+  <data name="Accel_Cpu" xml:space="preserve">
+    <value>CPU</value>
+  </data>
+  <data name="Accel_Vulkan" xml:space="preserve">
+    <value>Vulkan</value>
+  </data>
+  <data name="Accel_Cuda" xml:space="preserve">
+    <value>CUDA</value>
+  </data>
+  <data name="Accel_UnavailableVulkan" xml:space="preserve">
+    <value>No Vulkan driver found on this PC.</value>
+  </data>
+  <data name="Accel_UnavailableCuda" xml:space="preserve">
+    <value>CUDA needs an NVIDIA GPU, and none was found on this PC.</value>
+  </data>
+  <data name="Accel_Unavailable" xml:space="preserve">
+    <value>Not available on this PC.</value>
+  </data>
+  <data name="Accel_NeedsRuntime" xml:space="preserve">
+    <value>The {0} build is not installed yet. The CPU build runs until it is downloaded.</value>
+    <comment>{0} = Vulkan or CUDA</comment>
+  </data>
+  <data name="Accel_Downloading" xml:space="preserve">
+    <value>Downloading the {0} build…</value>
+    <comment>{0} = Vulkan or CUDA</comment>
+  </data>
+  <data name="Accel_DownloadFailed" xml:space="preserve">
+    <value>Couldn’t download the {0} build. Try again.</value>
+    <comment>{0} = Vulkan or CUDA</comment>
+  </data>
+  <data name="Accel_GpuUnavailable" xml:space="preserve">
+    <value>GPU unavailable: {0}. The CPU build runs instead.</value>
+    <comment>{0} = the last line of the server's output, English</comment>
+  </data>
+  <data name="Accel_RunningOn" xml:space="preserve">
+    <value>Running on {0}</value>
+    <comment>{0} = the GPU name</comment>
+  </data>
+  <data name="Accel_SaveFailed" xml:space="preserve">
+    <value>Couldn’t save the choice: {0}</value>
+    <comment>{0} = error message</comment>
+  </data>
+  <data name="About_Google" xml:space="preserve">
+    <value>{0} · {1}</value>
+    <comment>{0} and {1} = the credits of Gemma 4 and EmbeddingGemma</comment>
   </data>
 </root>

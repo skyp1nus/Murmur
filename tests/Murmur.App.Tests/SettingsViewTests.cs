@@ -435,22 +435,22 @@ public sealed partial class SettingsViewTests
                 UiHarness.Pump(3);
                 var captured = (caps[0].Content, rig.Store.Current.RecordHotkey, caps[0].Classes.Contains("capturing"));
 
-                caps[1].Focus();
-                caps[1].Command!.Execute(null);
-                window.KeyPressQwerty(PhysicalKey.Escape, RawInputModifiers.None);
-                UiHarness.Pump(3);
-                var escaped = (caps[1].Content, rig.Store.Current.ToggleScreenHotkey);
-
                 caps[2].Focus();
                 caps[2].Command!.Execute(null);
+                window.KeyPressQwerty(PhysicalKey.Escape, RawInputModifiers.None);
+                UiHarness.Pump(3);
+                var escaped = (caps[2].Content, rig.Store.Current.ToggleScreenHotkey);
+
+                caps[3].Focus();
+                caps[3].Command!.Execute(null);
                 window.KeyPressQwerty(PhysicalKey.Backspace, RawInputModifiers.None);
                 await rig.Settings.Hotkeys.LastSave;
                 UiHarness.Pump(3);
-                var cleared = (caps[2].Content, rig.Store.Current.ShowAppHotkey);
+                var cleared = (caps[3].Content, rig.Store.Current.ShowAppHotkey);
 
                 // A duplicate is refused and says so on screen.
-                caps[1].Focus();
-                caps[1].Command!.Execute(null);
+                caps[2].Focus();
+                caps[2].Command!.Execute(null);
                 window.KeyPressQwerty(PhysicalKey.K, RawInputModifiers.Control | RawInputModifiers.Alt);
                 UiHarness.Pump(3);
                 var duplicate = (VisibleTexts(window), rig.Store.Current.ToggleScreenHotkey);

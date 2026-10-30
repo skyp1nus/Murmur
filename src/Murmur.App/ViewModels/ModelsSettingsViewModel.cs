@@ -133,6 +133,7 @@ public sealed partial class ModelsSettingsViewModel : ObservableObject, IDisposa
         }
 
         UpdateRemoveLocks();
+        RefreshDefaults();
         LastOperation = RunAsync(bundle);
     }
 
@@ -454,6 +455,9 @@ public sealed partial class ModelsSettingsViewModel : ObservableObject, IDisposa
         {
             chat.IsDefault = chat.Id == active;
             chat.IsRecommended = !anyInstalled && chat.Id == recommended;
+
+            // The chat model being installed is the default to be, but only while no installed chat model is (never two "Default" badges).
+            chat.IsComingDefault = active is null && chat.IsBusy;
         }
     }
 

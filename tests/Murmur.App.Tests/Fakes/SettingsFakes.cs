@@ -1,5 +1,7 @@
 using Murmur.App.Services;
 using Murmur.Core.Capture;
+using Murmur.Core.Intelligence;
+using Murmur.Core.Settings;
 
 namespace Murmur.App.Tests.Fakes;
 
@@ -67,5 +69,29 @@ internal sealed class FakePrivacyLauncher : IPrivacySettingsLauncher
     {
         Opened++;
         return Failure;
+    }
+}
+
+/// <summary>An <see cref="IAccelerationProbe"/> with a scripted answer.</summary>
+internal sealed class FakeAccelerationProbe : IAccelerationProbe
+{
+    public FakeAccelerationProbe(params AiAcceleration[] supported) => Supported = supported.Length == 0 ? [AiAcceleration.Cpu] : supported;
+
+    public IReadOnlyList<AiAcceleration> Supported { get; }
+
+    public string? GpuName { get; set; }
+}
+
+/// <summary>An <see cref="IAccelerationStatusSource"/> the test changes and raises by hand.</summary>
+internal sealed class FakeAccelerationStatus : IAccelerationStatusSource
+{
+    public AccelerationStatus Current { get; private set; } = new(AiAcceleration.Cpu, AiAcceleration.Cpu, AccelerationFallback.None);
+
+    public event Action<AccelerationStatus>? Changed;
+
+    public void Set(AccelerationStatus status)
+    {
+        Current = status;
+        Changed?.Invoke(status);
     }
 }

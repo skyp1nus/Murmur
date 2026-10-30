@@ -204,6 +204,15 @@
   <x:Double x:Key="FontSize.Tag">11</x:Double>
   <x:Double x:Key="LineHeight.Tag">14</x:Double>
   <x:Double x:Key="LetterSpacing.Tag">0.14</x:Double>
+  <x:Double x:Key="FontSize.SubheadingTight">18</x:Double>
+  <x:Double x:Key="LineHeight.SubheadingTight">21</x:Double>
+  <x:Double x:Key="LetterSpacing.SubheadingTight">0.18</x:Double>
+  <x:Double x:Key="FontSize.AboutTitle">20</x:Double>
+  <x:Double x:Key="LineHeight.AboutTitle">24</x:Double>
+  <x:Double x:Key="LetterSpacing.AboutTitle">-0.4</x:Double>
+  <x:Double x:Key="FontSize.MetaRelaxed">13</x:Double>
+  <x:Double x:Key="LineHeight.MetaRelaxed">20.8</x:Double>
+  <x:Double x:Key="LetterSpacing.MetaRelaxed">0.14</x:Double>
   <x:Double x:Key="FontSize.Mono">13</x:Double>
   <x:Double x:Key="LineHeight.Mono">21.97</x:Double>
 

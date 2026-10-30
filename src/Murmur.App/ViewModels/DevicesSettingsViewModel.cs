@@ -8,6 +8,9 @@ namespace Murmur.App.ViewModels;
 /// <summary>One entry of a device or display picker; <c>Id == null</c> is "the system default".</summary>
 public sealed record ChoiceItem(string? Id, string Name)
 {
+    /// <summary>The name as the system-audio picker of the Settings shows it: the output, then "loopback" (what is recorded is the output's own sound).</summary>
+    public string LoopbackName => UiText.Format(Strings.Recording_Loopback, Name);
+
     public override string ToString() => Name;
 }
 

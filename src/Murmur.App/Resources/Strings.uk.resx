@@ -509,10 +509,10 @@
     <value>Працюватимуть, навіть коли вікно згорнуте.</value>
   </data>
   <data name="Settings_AppearanceTitle" xml:space="preserve">
-    <value>Вигляд</value>
+    <value>Параметри</value>
   </data>
   <data name="Settings_AppearanceText" xml:space="preserve">
-    <value>Тема й мова інтерфейсу.</value>
+    <value>Тема, мови та параметри запису.</value>
   </data>
   <data name="Settings_AboutTitle" xml:space="preserve">
     <value>Про програму</value>
@@ -1290,5 +1290,51 @@
   </data>
   <data name="Recording_ClipboardUnavailable" xml:space="preserve">
     <value>буфер обміну недоступний</value>
+  </data>
+  <data name="Accel_Title" xml:space="preserve">
+    <value>Прискорення</value>
+  </data>
+  <data name="Accel_Text" xml:space="preserve">
+    <value>GPU пришвидшує Gemma; Parakeet добре працює і на CPU</value>
+  </data>
+  <data name="Accel_Cpu" xml:space="preserve">
+    <value>CPU</value>
+  </data>
+  <data name="Accel_Vulkan" xml:space="preserve">
+    <value>Vulkan</value>
+  </data>
+  <data name="Accel_Cuda" xml:space="preserve">
+    <value>CUDA</value>
+  </data>
+  <data name="Accel_UnavailableVulkan" xml:space="preserve">
+    <value>На цьому ПК не знайдено драйвера Vulkan.</value>
+  </data>
+  <data name="Accel_UnavailableCuda" xml:space="preserve">
+    <value>CUDA потребує GPU NVIDIA, а на цьому ПК його не знайдено.</value>
+  </data>
+  <data name="Accel_Unavailable" xml:space="preserve">
+    <value>Недоступно на цьому ПК.</value>
+  </data>
+  <data name="Accel_NeedsRuntime" xml:space="preserve">
+    <value>Збірка {0} ще не встановлена. Доки її не завантажено, працює збірка CPU.</value>
+  </data>
+  <data name="Accel_Downloading" xml:space="preserve">
+    <value>Завантажується збірка {0}…</value>
+  </data>
+  <data name="Accel_DownloadFailed" xml:space="preserve">
+    <value>Не вдалося завантажити збірку {0}. Спробуйте ще раз.</value>
+  </data>
+  <data name="Accel_GpuUnavailable" xml:space="preserve">
+    <value>GPU недоступний: {0}. Замість нього працює збірка CPU.</value>
+  </data>
+  <data name="Accel_RunningOn" xml:space="preserve">
+    <value>Працює на {0}</value>
+  </data>
+  <data name="Accel_SaveFailed" xml:space="preserve">
+    <value>Не вдалося зберегти вибір: {0}</value>
+  </data>
+  <data name="About_Google" xml:space="preserve">
+    <value>{0} · {1}</value>
+    <comment>{0} and {1} = the credits of Gemma 4 and EmbeddingGemma</comment>
   </data>
 </root>

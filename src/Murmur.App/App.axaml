@@ -7,5 +7,6 @@
     <StyleInclude Source="/Styles/Onboarding.axaml" />
     <StyleInclude Source="/Styles/Shell.axaml" />
     <StyleInclude Source="/Styles/Recording.axaml" />
+    <StyleInclude Source="/Styles/Settings.axaml" />
   </Application.Styles>
 </Application>

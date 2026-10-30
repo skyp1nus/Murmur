@@ -23,9 +23,9 @@ public sealed partial class HotkeysSettingsViewModel : ObservableObject
         Rows =
         [
             new HotkeyRowViewModel(HotkeyAction.ToggleRecording, Strings.Hotkeys_Record, null, this),
+            new HotkeyRowViewModel(HotkeyAction.TogglePause, Strings.Hotkeys_Pause, null, this),
             new HotkeyRowViewModel(HotkeyAction.ToggleScreen, Strings.Hotkeys_ToggleScreen, null, this),
             new HotkeyRowViewModel(HotkeyAction.ShowApp, Strings.Hotkeys_ShowApp, null, this),
-            new HotkeyRowViewModel(HotkeyAction.TogglePause, Strings.Hotkeys_Pause, null, this),
         ];
         Refresh();
     }
