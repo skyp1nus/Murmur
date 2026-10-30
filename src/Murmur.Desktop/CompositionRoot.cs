@@ -6,12 +6,14 @@ using Murmur.Core.Input;
 using Murmur.Core.Intelligence;
 using Murmur.Core.Jobs;
 using Murmur.Core.Models;
+using Murmur.Core.Platform;
 using Murmur.Core.Processing;
 using Murmur.Core.Recording;
 using Murmur.Core.Settings;
 using Murmur.Core.Transcription;
 using Murmur.Intelligence;
 using Murmur.Intelligence.Rag;
+using Murmur.Intelligence.Summary;
 using Murmur.Models;
 using Murmur.Storage;
 
@@ -38,6 +40,7 @@ internal sealed class CompositionRoot : IDisposable
     private IAccelerationProbe? _acceleration;
     private CancellationTokenSource? _recoveryRetry;
     private IGlobalHotkeys? _hotkeys;
+    private IMotionPreference? _motion;
     private readonly SingleInstance? _instance;
 
     /// <param name="instance">The single-instance guard whose "a second start wants the window" signal goes to the app; <c>null</c> = none.</param>
@@ -170,7 +173,8 @@ internal sealed class CompositionRoot : IDisposable
             CreatePlayback(),
             new SessionProcessingAdapter(processor, models),
             storage,
-            new AiServices(assistant, llm, models.ModelsDirectory, AccelerationProbe, llm),
+            new AiServices(assistant, llm, models.ModelsDirectory, AccelerationProbe, llm, AccelerationRuntimeIds(modelManager),
+                new SessionSummarizer(llm, storage, SummarizerOptions.ForContext(new LocalLlmOptions().ContextSize))),
             settings,
             aiModels,
             modelManager.ActiveModelId,
@@ -179,6 +183,8 @@ internal sealed class CompositionRoot : IDisposable
             capture as IVideoPlayback,
             _hotkeys ??= CreateHotkeys(capture),
             _instance,
+            _motion ??= CreateMotionPreference(),
+            storage,
             Chats: storage);
     }
 
@@ -188,6 +194,7 @@ internal sealed class CompositionRoot : IDisposable
 
         // The app (the hotkey coordinator) stopped using it when its window closed; this releases the hotkey thread.
         _hotkeys?.Dispose();
+        (_motion as IDisposable)?.Dispose();
         _heapTrimmer?.Dispose();
         _reindex?.Dispose();
         _processor?.Dispose();
@@ -222,6 +229,24 @@ internal sealed class CompositionRoot : IDisposable
             }
         };
         return llm;
+    }
+
+    /// <summary>
+    /// The model-manager item of the runtime of each GPU build, only those this platform's catalog has (CUDA is Windows-only): the
+    /// Settings downloads the one of the chosen build. The CPU build is a listed item the AI bundle installs.
+    /// </summary>
+    internal static IReadOnlyDictionary<AiAcceleration, string> AccelerationRuntimeIds(ModelManager manager)
+    {
+        var ids = new Dictionary<AiAcceleration, string>();
+        foreach (var (acceleration, id) in new[] { (AiAcceleration.Vulkan, ModelCatalog.LlamaCppVulkanId), (AiAcceleration.Cuda, ModelCatalog.LlamaCppCudaId) })
+        {
+            if (manager.Items.Any(item => string.Equals(item.Id, id, StringComparison.Ordinal)))
+            {
+                ids[acceleration] = id;
+            }
+        }
+
+        return ids;
     }
 
     private static string? ItemPath(ModelManager manager, string id)
@@ -276,6 +301,16 @@ internal sealed class CompositionRoot : IDisposable
         return ((Murmur.Capture.Windows.WindowsCapture)capture).CreateGlobalHotkeys();
 #else
         return new UnsupportedGlobalHotkeys();
+#endif
+    }
+
+    /// <summary>The system's reduce-motion preference: the Windows setting on Windows, never reduced elsewhere.</summary>
+    internal static IMotionPreference CreateMotionPreference()
+    {
+#if WINDOWS
+        return Murmur.Capture.Windows.WindowsCapture.CreateMotionPreference();
+#else
+        return new FullMotionPreference();
 #endif
     }
 

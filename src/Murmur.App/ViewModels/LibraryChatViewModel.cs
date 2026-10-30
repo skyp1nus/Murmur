@@ -112,9 +112,9 @@ public sealed partial class LibraryChatViewModel : ObservableObject, IFillsFrame
     /// <summary>
     /// Lands on an empty chat: the one in view when it has no messages (so repeated clicks do not stack empty chats), otherwise a new one.
     /// <paramref name="from"/> is the recording the chat was opened from: it gets the second scope pill (the questions still go to the
-    /// whole library until that pill is picked).
+    /// whole library until that pill is picked, or at once with <paramref name="scoped"/>).
     /// </summary>
-    public void StartNew(SessionRecord? from = null)
+    public void StartNew(SessionRecord? from = null, bool scoped = false)
     {
         _offered = from?.Id;
         _offeredTitle = from is null ? null : TitleOf(from);
@@ -125,6 +125,11 @@ public sealed partial class LibraryChatViewModel : ObservableObject, IFillsFrame
         }
 
         UpdatePills();
+        if (scoped && _offered is not null)
+        {
+            PickScope(true);
+        }
+
         RebuildEntries();
     }
 

@@ -457,31 +457,6 @@
     <Setter Property="Foreground" Value="{DynamicResource Brush.Smoke}" />
   </Style>
 
-  <!-- Time chip: Geist Mono on a Stone hairline pill; clicking it seeks. Same achromatic hover as the outline button. -->
-  <Style Selector="Button.chip">
-    <Setter Property="CornerRadius" Value="{StaticResource Radius.Pill}" />
-    <Setter Property="Padding" Value="{StaticResource Inset.Badge}" />
-    <Setter Property="Background" Value="Transparent" />
-    <Setter Property="Foreground" Value="{DynamicResource Brush.Graphite}" />
-    <Setter Property="BorderBrush" Value="{DynamicResource Brush.Stone}" />
-    <Setter Property="BorderThickness" Value="{StaticResource Hairline.Thickness}" />
-    <Setter Property="FontFamily" Value="{StaticResource Font.Mono}" />
-    <Setter Property="FontWeight" Value="{StaticResource FontWeight.Mono}" />
-    <Setter Property="FontSize" Value="{StaticResource FontSize.Caption}" />
-    <Setter Property="MinHeight" Value="0" />
-    <Setter Property="VerticalAlignment" Value="Center" />
-  </Style>
-  <Style Selector="Button.chip:pointerover /template/ ContentPresenter#PART_ContentPresenter">
-    <Setter Property="Background" Value="{DynamicResource Brush.FillPressed}" />
-    <Setter Property="BorderBrush" Value="{DynamicResource Brush.FillPressed}" />
-    <Setter Property="Foreground" Value="{DynamicResource Brush.Ink}" />
-  </Style>
-  <Style Selector="Button.chip:pressed /template/ ContentPresenter#PART_ContentPresenter">
-    <Setter Property="Background" Value="{DynamicResource Brush.FillPressed}" />
-    <Setter Property="BorderBrush" Value="{DynamicResource Brush.Ash}" />
-    <Setter Property="Foreground" Value="{DynamicResource Brush.Ink}" />
-  </Style>
-
   <!-- The same chip as a label inside a clickable row (library search results): no own hover. -->
   <Style Selector="Border.chip">
     <Setter Property="CornerRadius" Value="{StaticResource Radius.Pill}" />
@@ -497,15 +472,6 @@
     <Setter Property="LineHeight" Value="{StaticResource LineHeight.Caption}" />
     <Setter Property="LetterSpacing" Value="0" />
     <Setter Property="Foreground" Value="{DynamicResource Brush.Graphite}" />
-  </Style>
-
-  <!-- AI chat: the user's question sits right, on Surface, with the card radius; answers are plain text. -->
-  <Style Selector="Border.bubble">
-    <Setter Property="Background" Value="{DynamicResource Brush.Surface}" />
-    <Setter Property="CornerRadius" Value="{StaticResource Radius.Card}" />
-    <Setter Property="BorderBrush" Value="{DynamicResource Brush.Hairline}" />
-    <Setter Property="BorderThickness" Value="{StaticResource Hairline.Thickness}" />
-    <Setter Property="Padding" Value="{StaticResource Inset.Search}" />
   </Style>
 
   <!-- Sidebar navigation (Library / Ask AI / Settings): pill rows with a line icon, Surface when hovered or current. -->

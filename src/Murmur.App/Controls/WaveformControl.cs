@@ -6,7 +6,8 @@ using Avalonia.Media;
 namespace Murmur.App.Controls;
 
 /// <summary>
-/// Waveform overview of a session with a playhead. Click or drag seeks.
+/// Waveform overview of a session with a playhead. Click or drag seeks. Drawn as the canvas draws it: round-ended bars, the part
+/// before the playhead in ink and the rest light, a 2 px playhead that reaches <see cref="Overhang"/> px above and below the bars.
 /// </summary>
 /// <remarks>
 /// <para><b>One cached geometry.</b> The bars are one <see cref="StreamGeometry"/> built from the peaks
@@ -35,15 +36,17 @@ public sealed class WaveformControl : Control
     public static readonly StyledProperty<IBrush?> PlayheadBrushProperty =
         AvaloniaProperty.Register<WaveformControl, IBrush?>(nameof(PlayheadBrush));
 
-    private const double BarWidth = 2;
-    private const double BarGap = 1;
-    private const double MinBarHeight = 2;
+    /// <summary>The playhead sticks out of the bars by this much above and below; the control is that much taller than its bars.</summary>
+    public const double Overhang = 4;
+
+    private const double BarWidth = 3;
+    private const double BarGap = 2;
+    private const double MinBarHeight = 4;
+    private const double PlayheadWidth = 2;
 
     private StreamGeometry? _geometry;
     private Size _geometrySize;
     private byte[]? _geometryPeaks;
-    private Pen? _playheadPen;
-    private IBrush? _playheadPenBrush;
     private bool _dragging;
 
     static WaveformControl()
@@ -131,14 +134,8 @@ public sealed class WaveformControl : Control
 
         if (PlayheadBrush is { } playhead)
         {
-            if (!ReferenceEquals(playhead, _playheadPenBrush))
-            {
-                _playheadPenBrush = playhead;
-                _playheadPen = new Pen(playhead, 1);
-            }
-
-            var lineX = Math.Clamp(x, 0.5, Math.Max(0.5, size.Width - 0.5));
-            context.DrawLine(_playheadPen!, new Point(lineX, 0), new Point(lineX, size.Height));
+            var left = Math.Clamp(x - (PlayheadWidth / 2), 0, Math.Max(0, size.Width - PlayheadWidth));
+            context.DrawRectangle(playhead, null, new Rect(left, 0, PlayheadWidth, size.Height), PlayheadWidth, PlayheadWidth);
         }
     }
 
@@ -211,9 +208,9 @@ public sealed class WaveformControl : Control
     }
 
     /// <summary>
-    /// Mirrored bars, <see cref="BarWidth"/> wide with <see cref="BarGap"/> between them. A bar shows the mean of the
-    /// maximum and the average of its slice of peaks (the plain maximum turns a one-hour recording into a solid block),
-    /// scaled so the loudest bar fills the control.
+    /// Mirrored round-ended bars, <see cref="BarWidth"/> wide with <see cref="BarGap"/> between them, in the band between the
+    /// overhangs. A bar shows the mean of the maximum and the average of its slice of peaks (the plain maximum turns a one-hour
+    /// recording into a solid block), scaled so the loudest bar fills the band.
     /// </summary>
     private static StreamGeometry Build(byte[]? peaks, Size size)
     {
@@ -240,17 +237,21 @@ public sealed class WaveformControl : Control
         }
 
         var scale = loudest > 0 ? 1.0 / loudest : 0;
+        var band = Math.Max(MinBarHeight, size.Height - (2 * Overhang));
         var geometry = new StreamGeometry();
         using var context = geometry.Open();
         var centre = size.Height / 2;
+        const double radius = BarWidth / 2;
         for (var column = 0; column < columns; column++)
         {
-            var half = Math.Max(MinBarHeight, levels[column] * scale * size.Height) / 2;
+            var half = Math.Max(MinBarHeight, levels[column] * scale * band) / 2;
             var left = column * (BarWidth + BarGap);
-            context.BeginFigure(new Point(left, centre - half), true);
-            context.LineTo(new Point(left + BarWidth, centre - half));
-            context.LineTo(new Point(left + BarWidth, centre + half));
-            context.LineTo(new Point(left, centre + half));
+            var right = left + BarWidth;
+            var round = new Size(radius, radius);
+            context.BeginFigure(new Point(left, centre - half + radius), true);
+            context.ArcTo(new Point(right, centre - half + radius), round, 0, false, SweepDirection.Clockwise);
+            context.LineTo(new Point(right, centre + half - radius));
+            context.ArcTo(new Point(left, centre + half - radius), round, 0, false, SweepDirection.Clockwise);
             context.EndFigure(true);
         }
 

@@ -44,8 +44,16 @@ public sealed partial class SegmentViewModel : ObservableObject
 
     public Speaker Speaker => _segment.Speaker;
 
-    /// <summary>"Я" for the microphone track, "Інші" for the loopback track.</summary>
+    /// <summary>"You" for the microphone track, "Others" for the loopback track (the UI language).</summary>
     public string SpeakerLabel => _segment.Speaker == Speaker.Me ? Strings.Segment_Me : Strings.Segment_Others;
+
+    /// <summary>The letter in the avatar: "Y" / "O" (the first letter of the label).</summary>
+    public string Initial => SpeakerLabel.Length > 0 ? SpeakerLabel[..1].ToUpperInvariant() : string.Empty;
+
+    /// <summary>The avatar of the microphone track is filled with the ink, the other one with Stone.</summary>
+    public bool IsMe => _segment.Speaker == Speaker.Me;
+
+    public TimeSpan End => _segment.End;
 
     /// <summary>Geist Mono time chip, e.g. "12:34".</summary>
     public string TimeText => UiFormat.Clock(_segment.Start);
@@ -81,7 +89,31 @@ public sealed partial class SegmentViewModel : ObservableObject
 
     /// <summary>Index of the word being spoken inside this segment, or -1.</summary>
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(VisibleWord))]
     public partial int ActiveWord { get; set; } = -1;
+
+    /// <summary>The word is marked in the list: only while the recording plays (a paused one shows the line, not a word, like the canvas).</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(VisibleWord))]
+    public partial bool ShowWord { get; set; }
+
+    /// <summary>The word the list marks: <see cref="ActiveWord"/> while <see cref="ShowWord"/>, else -1.</summary>
+    public int VisibleWord => ShowWord ? ActiveWord : -1;
+
+    /// <summary>The player is in this segment: the row is filled.</summary>
+    [ObservableProperty]
+    public partial bool IsCurrent { get; set; }
+
+    /// <summary>The track of this speaker is switched off in the filters: the row is dimmed.</summary>
+    [ObservableProperty]
+    public partial bool IsDimmed { get; set; }
+
+    /// <summary>The text the transcript search looks for (every occurrence in this row is marked), or <c>null</c>.</summary>
+    [ObservableProperty]
+    public partial string? HighlightTerm { get; set; }
+
+    /// <summary>The segment's text contains <paramref name="term"/> (any case).</summary>
+    internal bool Contains(string term) => Text.Contains(term, StringComparison.OrdinalIgnoreCase);
 
     /// <summary>Parameter: index of the clicked word inside this segment. Seeks the player there and plays.</summary>
     public ICommand SeekWordCommand => _seekWordCommand ??= new RelayCommand<int>(word => _seek(this, word));

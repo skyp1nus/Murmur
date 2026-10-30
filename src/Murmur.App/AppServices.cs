@@ -2,6 +2,7 @@ using Murmur.App.Services;
 using Murmur.Core.Capture;
 using Murmur.Core.Input;
 using Murmur.Core.Models;
+using Murmur.Core.Platform;
 using Murmur.Core.Recording;
 using Murmur.Core.Sessions;
 using Murmur.Core.Settings;
@@ -49,6 +50,11 @@ namespace Murmur.App;
 /// <param name="Activation">
 /// Another start of the program asked this one to show its window (single instance). Raised on any thread; <c>null</c> = never.
 /// </param>
+/// <param name="Motion">
+/// The system's reduce-motion preference; decorative animation (the orbs) holds still while it is on and follows its changes.
+/// <c>null</c> = motion is never reduced.
+/// </param>
+/// <param name="Summaries">Keeps the summary of a recording between visits; <c>null</c> = a summary lives only while the recording is open.</param>
 public sealed record AppServices(
     IRecorder Recorder,
     ICapture Capture,
@@ -67,4 +73,6 @@ public sealed record AppServices(
     IVideoPlayback? VideoPlayback = null,
     IGlobalHotkeys? Hotkeys = null,
     IActivationRequests? Activation = null,
+    IMotionPreference? Motion = null,
+    ISummaryStore? Summaries = null,
     IChatStore? Chats = null);

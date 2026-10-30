@@ -62,7 +62,7 @@ public sealed class SessionViewModelTests : IDisposable
         Assert.Equal([_fixture.Files.MicrophoneAudio, _fixture.Files.SystemAudio], tracks);
         Assert.True(vm.CanPlay);
         Assert.Equal(S(125), vm.Duration);
-        Assert.Equal("00:02:05", vm.DurationText);
+        Assert.Equal("02:05", vm.DurationText);
         Assert.Null(vm.PlayerError);
     }
 
@@ -166,7 +166,7 @@ public sealed class SessionViewModelTests : IDisposable
         _fixture.Player.Position = S(75);
         vm.Tick();
 
-        Assert.Equal("00:01:15", vm.PositionText);
+        Assert.Equal("01:15", vm.PositionText);
         Assert.Equal(75.0 / 3600, vm.PositionFraction, 6);
     }
 

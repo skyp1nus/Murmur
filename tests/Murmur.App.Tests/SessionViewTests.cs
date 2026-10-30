@@ -68,6 +68,7 @@ public sealed class SessionViewTests : IDisposable
             () =>
             {
                 var window = UiHarness.Show(shell);
+                shell.Session!.PlayPauseCommand.Execute(null);
                 _fixture.Player.Position = TimeSpan.FromSeconds(11.0);
                 shell.Session!.Tick();
                 UiHarness.Pump();
@@ -258,7 +259,7 @@ public sealed class SessionViewTests : IDisposable
     }
 
     [Fact]
-    public async Task TheTabs_ShowTheTranscript_TheSummaryPlaceholder_AndTheChat()
+    public async Task TheTabs_ShowTheTranscript_TheSummaryEmptyState_AndTheChat()
     {
         using var uk = UiCulture.Override("uk");
         _fixture.UseShortTranscript();
@@ -269,7 +270,7 @@ public sealed class SessionViewTests : IDisposable
             {
                 using var scope = UiCulture.Override("uk");
                 var window = UiHarness.Show(shell);
-                var pillTexts = window.GetVisualDescendants().OfType<ToggleButton>().Select(b => b.Content as string).ToArray();
+                var pillTexts = window.GetVisualDescendants().OfType<TextBlock>().Where(t => t.Classes.Contains("sessionTabText")).Select(t => t.Text).ToArray();
                 shell.Session!.IsSummaryTab = true;
                 UiHarness.Pump();
                 var summaryTexts = VisibleTexts(window);
@@ -282,11 +283,89 @@ public sealed class SessionViewTests : IDisposable
             TestContext.Current.CancellationToken);
 
         Assert.Equal(["Транскрипт", "Резюме", "Запитати AI"], pills);
-        Assert.Contains(summary, t => t.StartsWith("Зʼявиться у фазі 3", StringComparison.Ordinal));
+        Assert.Contains("Підсумку ще немає", summary);
+        Assert.Contains(summary, t => t.Contains("scripts/fetch-models.ps1 -Ai", StringComparison.Ordinal));
         Assert.DoesNotContain("Привіт усім починаємо мітинг", summary);
         Assert.Contains(ChatViewModel.NotInstalledTitle, ask);
         Assert.Contains(ask, t => t.Contains("scripts/fetch-models.ps1 -Ai", StringComparison.Ordinal));
         Assert.DoesNotContain("Привіт усім починаємо мітинг", ask);
+    }
+
+    [Fact]
+    public async Task TheTopBar_HasExportAndTheMenu_AndExportListsTheFourFormats()
+    {
+        _fixture.UseShortTranscript();
+        var (_, shell) = await OpenAsync();
+
+        var (texts, exportEnabled, menuFlyout) = await Session.Dispatch(
+            () =>
+            {
+                using var scope = UiCulture.Override("en");
+                var window = UiHarness.Show(shell);
+                var view = window.GetVisualDescendants().OfType<SessionActionsView>().Single();
+                var export = view.GetVisualDescendants().OfType<Button>().First(b => b.Classes.Contains("sessionGhost") && !b.Classes.Contains("round"));
+                var more = view.GetVisualDescendants().OfType<Button>().First(b => b.Classes.Contains("round"));
+                var labels = VisibleTexts(window);
+                var result = (labels, export.IsEnabled, more.Flyout is not null && export.Flyout is not null);
+                window.Close();
+                return result;
+            },
+            TestContext.Current.CancellationToken);
+
+        Assert.Contains("Export", texts);
+        Assert.True(exportEnabled);
+        Assert.True(menuFlyout);
+    }
+
+    [Fact]
+    public async Task TheWideLayout_PutsTheColumnsSideBySide_TheNarrowOneUnderEachOther()
+    {
+        _fixture.UseShortTranscript();
+        var (_, shell) = await OpenAsync();
+
+        var (wide, narrow) = await Session.Dispatch(
+            () =>
+            {
+                var window = UiHarness.Show(shell);
+                window.Width = 1440;
+                window.Height = 900;
+                UiHarness.Pump();
+                var page = window.GetVisualDescendants().OfType<SessionPagePanel>().Single();
+                var wideColumns = (page.Children[1].Bounds, page.Children[2].Bounds);
+                window.Width = 900;
+                UiHarness.Pump();
+                var narrowColumns = (page.Children[1].Bounds, page.Children[2].Bounds);
+                window.Close();
+                return (wideColumns, narrowColumns);
+            },
+            TestContext.Current.CancellationToken);
+
+        Assert.True(wide.Item2.X > wide.Item1.Right, "side by side");
+        Assert.Equal(wide.Item1.Y, wide.Item2.Y);
+        Assert.True(narrow.Item2.Y >= narrow.Item1.Bottom, "the right column goes under the left one");
+        Assert.True(wide.Item2.Height >= 520);
+    }
+
+    [Fact]
+    public async Task TheSearchBox_MarksHitsInTheRows_AndTheRowsKeepTheirTexts()
+    {
+        _fixture.UseShortTranscript();
+        var (_, shell) = await OpenAsync();
+
+        var marks = await Session.Dispatch(
+            () =>
+            {
+                var window = UiHarness.Show(shell);
+                shell.Session!.SearchText = "день";
+                UiHarness.Pump();
+                var controls = window.GetVisualDescendants().OfType<TranscriptTextControl>().ToArray();
+                var result = controls.Select(c => c.MarkCount).ToArray();
+                window.Close();
+                return result;
+            },
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal([0, 1], marks);
     }
 
     [Fact]

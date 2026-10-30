@@ -215,6 +215,7 @@ internal sealed class DesignScene : IDisposable
                     break;
                 case TranscriptTextControl transcript:
                     transcript.SetValue(TranscriptTextControl.ForegroundProperty, Brushes.Transparent, BindingPriority.Animation);
+                    transcript.SetValue(TranscriptTextControl.MarkForegroundProperty, Brushes.Transparent, BindingPriority.Animation);
                     break;
             }
         }
@@ -332,12 +333,18 @@ internal sealed class DesignScene : IDisposable
         }
     }
 
-    /// <summary>The 12:21 segment is current (the player is paused there). The search hit "timestamps" has no place in the app yet.</summary>
+    /// <summary>The 12:21 segment is current (the player is paused there) and the search box has the hit "timestamps".</summary>
     private static void PositionSession(DesignRig rig, List<string> notes)
     {
         var session = rig.Shell.Session!;
         session.SeekTo(DesignDemoData.SessionPosition);
         session.Tick();
+
+        // The canvas shows the hit and the empty search box together; the app marks a hit only for a typed query, so the board marks the rows directly.
+        foreach (var row in session.Segments)
+        {
+            row.HighlightTerm = DesignDemoData.SessionSearchHit;
+        }
         if (session.CurrentSegmentIndex != 2)
         {
             notes.Add("The current segment is " + session.CurrentSegmentIndex + ", the board has the 12:21 one (index 2).");

@@ -462,14 +462,14 @@ public sealed partial class LocalizationTests
         shell.Library.SelectedSession = shell.Library.Sessions[0];
         await shell.SessionLoadTask;
 
-        var (sessionButtons, sessionSpeakers, recordingTexts) = await Session.Dispatch(
+        var (_, sessionSpeakers, recordingTexts) = await Session.Dispatch(
             () => WithUiCulture(
                 English,
                 () =>
                 {
                     var window = UiHarness.Show(shell);
                     var buttons = window.GetVisualDescendants().OfType<Button>().Where(b => b.IsEffectivelyVisible).Select(b => b.Content as string).ToArray();
-                    var speakers = window.GetVisualDescendants().OfType<TextBlock>().Where(t => t.IsEffectivelyVisible && t.Classes.Contains("speaker")).Select(t => t.Text).ToArray();
+                    var speakers = window.GetVisualDescendants().OfType<TextBlock>().Where(t => t.IsEffectivelyVisible && t.Classes.Contains("sessionName")).Select(t => t.Text).ToArray();
                     shell.ShowRecording();
                     UiHarness.Pump();
                     var texts = window.GetVisualDescendants().OfType<TextBlock>().Where(t => t.IsEffectivelyVisible).Select(t => t.Text).ToArray();
@@ -478,11 +478,6 @@ public sealed partial class LocalizationTests
                 }),
             TestContext.Current.CancellationToken);
 
-        Assert.Contains("Back", sessionButtons);
-        Assert.Contains("Play", sessionButtons);
-        Assert.Contains("Transcript", sessionButtons);
-        Assert.Contains("Summary", sessionButtons);
-        Assert.Contains("Ask AI", sessionButtons);
         Assert.Contains("You", sessionSpeakers);
         Assert.Contains("Others", sessionSpeakers);
         Assert.Contains("Tell everyone on the call that the meeting is being recorded, or send a short note in the chat.", recordingTexts);

@@ -26,11 +26,14 @@ public sealed class SchemaMigratorTests
         Assert.Equal(1L, command.ExecuteScalar());
     }
 
-    [Fact]
-    public void DatabaseFromBeforeTheChats_GainsTheChatTables_AndKeepsItsSessions()
+    [Theory]
+    [InlineData(3)]
+    [InlineData(4)]
+    public void ADatabaseFromBeforeTheChats_GainsTheChatTables_KeepsItsSessions_AndTheSummariesOfVersionFour(int from)
     {
         using var connection = InMemory();
-        SchemaMigrator.Apply(connection, [.. SchemaMigrator.Migrations.Take(3)]);
+        SchemaMigrator.Apply(connection, [.. SchemaMigrator.Migrations.Take(from)]);
+        Assert.Equal(from, SchemaMigrator.GetVersion(connection));
         using (var insert = connection.CreateCommand())
         {
             insert.CommandText =
@@ -39,16 +42,26 @@ public sealed class SchemaMigratorTests
             insert.ExecuteNonQuery();
         }
 
+        if (from >= 4)
+        {
+            using var summary = connection.CreateCommand();
+            summary.CommandText = "INSERT INTO summaries (session_id, overview, key_points, action_items, model_id, created_at) VALUES ('a', 'o', '[]', '[]', 'm', 0)";
+            summary.ExecuteNonQuery();
+        }
+
         var version = SchemaMigrator.Apply(connection, SchemaMigrator.Migrations);
 
+        Assert.Equal(5, version);
         Assert.Equal(SchemaMigrator.LatestVersion, version);
-        Assert.True(version >= 4);
         using var count = connection.CreateCommand();
-        count.CommandText = "SELECT (SELECT count(*) FROM sessions), (SELECT count(*) FROM sqlite_master WHERE name IN ('chat_threads', 'chat_messages'))";
+        count.CommandText =
+            "SELECT (SELECT count(*) FROM sessions), (SELECT count(*) FROM sqlite_master WHERE name IN ('chat_threads', 'chat_messages', 'summaries')), " +
+            "(SELECT count(*) FROM summaries)";
         using var reader = count.ExecuteReader();
         Assert.True(reader.Read());
         Assert.Equal(1L, reader.GetInt64(0));
-        Assert.Equal(2L, reader.GetInt64(1));
+        Assert.Equal(3L, reader.GetInt64(1));
+        Assert.Equal(from >= 4 ? 1L : 0L, reader.GetInt64(2));
     }
 
     [Fact]

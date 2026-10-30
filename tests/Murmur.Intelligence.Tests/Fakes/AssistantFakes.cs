@@ -89,6 +89,12 @@ internal sealed class FakeStorage : IStorage
     public ValueTask RenameThreadAsync(ChatThreadId thread, string title, CancellationToken cancellationToken) => throw new NotSupportedException();
 
     public ValueTask DeleteThreadAsync(ChatThreadId thread, CancellationToken cancellationToken) => throw new NotSupportedException();
+
+    public ValueTask<SessionSummary?> GetSummaryAsync(SessionId session, CancellationToken cancellationToken) => throw new NotSupportedException();
+
+    public ValueTask SaveSummaryAsync(SessionSummary summary, CancellationToken cancellationToken) => throw new NotSupportedException();
+
+    public ValueTask DeleteSummaryAsync(SessionId session, CancellationToken cancellationToken) => throw new NotSupportedException();
 }
 
 /// <summary>Embeds "…{n}" style inputs deterministically and records every batch.</summary>

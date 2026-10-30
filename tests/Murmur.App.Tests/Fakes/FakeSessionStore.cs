@@ -84,8 +84,16 @@ internal sealed class FakeSessionStore : ISessionStore
     /// <summary>Ids passed to <see cref="DeleteSessionAsync"/>, in order.</summary>
     public List<SessionId> Deleted { get; } = [];
 
+    /// <summary>When set, <see cref="DeleteSessionAsync"/> throws it (a file the OS still holds).</summary>
+    public Exception? DeleteFailure { get; set; }
+
     public ValueTask DeleteSessionAsync(SessionId id, CancellationToken cancellationToken)
     {
+        if (DeleteFailure is { } failure)
+        {
+            throw failure;
+        }
+
         Deleted.Add(id);
         _sessions.RemoveAll(s => s.Id == id);
         return ValueTask.CompletedTask;

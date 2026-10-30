@@ -8,5 +8,7 @@
     <StyleInclude Source="/Styles/Shell.axaml" />
     <StyleInclude Source="/Styles/Recording.axaml" />
     <StyleInclude Source="/Styles/Chat.axaml" />
+    <StyleInclude Source="/Styles/Settings.axaml" />
+    <StyleInclude Source="/Styles/Session.axaml" />
   </Application.Styles>
 </Application>

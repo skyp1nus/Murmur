@@ -153,12 +153,29 @@ public sealed partial class SidebarViewModel : ObservableObject
 
     private readonly ShellViewModel _shell;
     private IReadOnlyList<SidebarEntry> _chats = [];
+    private SettingsViewModel? _watched;
 
     internal SidebarViewModel(ShellViewModel shell)
     {
         _shell = shell;
         Entries = [];
         Rebuild();
+    }
+
+    /// <summary>The section in view changed on the Settings page: the highlight of the Sections list follows (the rows stay, only <see cref="SidebarEntry.IsActive"/> changes).</summary>
+    private void OnSettingsPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName != nameof(SettingsViewModel.CurrentSectionId) || Context != SidebarContext.Sections)
+        {
+            return;
+        }
+
+        var current = _shell.Settings?.CurrentSectionId;
+        var sections = Sections;
+        for (var i = 0; i < Entries.Count && i < sections.Count; i++)
+        {
+            Entries[i].IsActive = sections[i].Id == current;
+        }
     }
 
     /// <summary>The library is the current place: its own screen, or a recording opened from it.</summary>
@@ -264,6 +281,22 @@ public sealed partial class SidebarViewModel : ObservableObject
 
     private void Rebuild()
     {
+        // Follow the highlighted section of the settings only while their page is the open one (no subscription is left behind).
+        var settings = Context == SidebarContext.Sections ? _shell.Settings : null;
+        if (!ReferenceEquals(settings, _watched))
+        {
+            if (_watched is not null)
+            {
+                _watched.PropertyChanged -= OnSettingsPropertyChanged;
+            }
+
+            _watched = settings;
+            if (_watched is not null)
+            {
+                _watched.PropertyChanged += OnSettingsPropertyChanged;
+            }
+        }
+
         var entries = new List<SidebarEntry>();
         switch (Context)
         {
@@ -285,10 +318,11 @@ public sealed partial class SidebarViewModel : ObservableObject
                 break;
 
             case SidebarContext.Sections:
+                var current = _shell.Settings?.CurrentSectionId;
                 foreach (var section in Sections)
                 {
                     var captured = section;
-                    entries.Add(new SidebarEntry(section.Title, () => ShowSection(captured)));
+                    entries.Add(new SidebarEntry(section.Title, () => ShowSection(captured), isActive: section.Id == current));
                 }
 
                 break;

@@ -59,6 +59,11 @@ internal sealed class TrackMixer : IDisposable
     private readonly short[] _scratch;
     private readonly int[] _accumulator;
     private long _position;
+    private int _mutedMask;
+
+    // The gain each track has now (1 = heard, 0 = silenced). It moves towards its target over RampFrames, so a switch is not a click.
+    private readonly float[] _gains;
+    private int _snapPending;
 
     /// <summary>Takes ownership of <paramref name="tracks"/> (1..n readers of the same sample rate).</summary>
     /// <exception cref="InvalidDataException">The tracks have different sample rates.</exception>
@@ -83,6 +88,8 @@ internal sealed class TrackMixer : IDisposable
             total = Math.Max(total, tracks[i].FrameCount);
         }
 
+        _gains = new float[_tracks.Length];
+        Array.Fill(_gains, 1f);
         SampleRate = tracks[0].SampleRate;
         TotalFrames = total;
         _scratch = new short[MaxFramesPerRender];
@@ -98,6 +105,39 @@ internal sealed class TrackMixer : IDisposable
     public long Position => _position;
 
     public bool AtEnd => _position >= TotalFrames;
+
+    /// <summary>Tracks that are silenced (bit <c>i</c> = track <c>i</c>); they are still read, so every track stays at the same position.</summary>
+    /// <summary>Setting the whole mask (a new mixer) takes effect at once; <see cref="SetMuted"/> fades over <see cref="RampFrames"/>.</summary>
+    public int MutedMask
+    {
+        get => Volatile.Read(ref _mutedMask);
+        set
+        {
+            Volatile.Write(ref _mutedMask, value);
+            Volatile.Write(ref _snapPending, 1);
+        }
+    }
+
+    /// <summary>The fade of a mute or an unmute: 10 ms at 16 kHz.</summary>
+    internal const int RampFrames = 160;
+
+    /// <summary>Silences or restores one track (indexes 0..31). Callable from any thread while the render thread mixes.</summary>
+    public void SetMuted(int track, bool muted)
+    {
+        if (track is < 0 or >= 32)
+        {
+            return;
+        }
+
+        if (muted)
+        {
+            Interlocked.Or(ref _mutedMask, 1 << track);
+        }
+        else
+        {
+            Interlocked.And(ref _mutedMask, ~(1 << track));
+        }
+    }
 
     /// <summary>Repositions every track to <paramref name="frame"/>, clamped to [0, <see cref="TotalFrames"/>].</summary>
     public void Seek(long frame)
@@ -123,18 +163,23 @@ internal sealed class TrackMixer : IDisposable
         {
             var pass = Math.Min(frames - done, MaxFramesPerRender);
             var output = destination.Slice(done, pass);
+            var muted = MutedMask;
+            SnapGains(muted);
             if (_tracks.Length == 1)
             {
                 var read = _tracks[0].Read(output);
                 output[read..].Clear();
+                ApplyGain(output, ref _gains[0], (muted & 1) != 0 ? 0f : 1f);
             }
             else
             {
                 var accumulator = _accumulator.AsSpan(0, pass);
                 accumulator.Clear();
-                foreach (var track in _tracks)
+                for (var t = 0; t < _tracks.Length; t++)
                 {
-                    var read = track.Read(_scratch.AsSpan(0, pass));
+                    var read = _tracks[t].Read(_scratch.AsSpan(0, pass));
+                    var target = t < 32 && (muted & (1 << t)) != 0 ? 0f : 1f;
+                    ApplyGain(_scratch.AsSpan(0, read), ref _gains[t], target);
                     PlaybackMixer.Accumulate(_scratch.AsSpan(0, read), accumulator);
                 }
 
@@ -146,6 +191,47 @@ internal sealed class TrackMixer : IDisposable
 
         _position += frames;
         return frames;
+    }
+
+    /// <summary>A mask that was set as a whole (not by <see cref="SetMuted"/>) puts every gain at its target without a fade.</summary>
+    private void SnapGains(int muted)
+    {
+        if (Interlocked.Exchange(ref _snapPending, 0) == 0)
+        {
+            return;
+        }
+
+        for (var t = 0; t < _gains.Length; t++)
+        {
+            _gains[t] = t < 32 && (muted & (1 << t)) != 0 ? 0f : 1f;
+        }
+    }
+
+    /// <summary>
+    /// Scales <paramref name="samples"/> in place by a gain that moves from <paramref name="gain"/> towards <paramref name="target"/> by
+    /// 1 / <see cref="RampFrames"/> per frame. No allocation; a track at gain 1 or 0 for good costs a compare per call.
+    /// </summary>
+    private static void ApplyGain(Span<short> samples, ref float gain, float target)
+    {
+        if (gain == target)
+        {
+            if (target == 0f)
+            {
+                samples.Clear();
+            }
+
+            return;
+        }
+
+        const float step = 1f / RampFrames;
+        var g = gain;
+        for (var i = 0; i < samples.Length; i++)
+        {
+            g = target > g ? Math.Min(target, g + step) : Math.Max(target, g - step);
+            samples[i] = (short)(samples[i] * g);
+        }
+
+        gain = g;
     }
 
     public void Dispose()

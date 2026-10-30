@@ -1,3 +1,4 @@
+using Murmur.App.Services;
 using Murmur.App.Tests.Fakes;
 using Murmur.App.ViewModels;
 using Murmur.Core.Capture;
@@ -58,7 +59,7 @@ internal sealed class DesignRig : IDisposable
             }
         }
 
-        Settings = new SettingsViewModel(Store, Capture, Manager, null, DesignDemoData.StoragePath, Folders, action => action(), version: DesignDemoData.Version);
+        Settings = new SettingsViewModel(Store, Capture, Manager, null, DesignDemoData.StoragePath, Folders, action => action(), version: DesignDemoData.Version, accelerationProbe: new FakeAccelerationProbe(AiAcceleration.Cpu, AiAcceleration.Vulkan, AiAcceleration.Cuda), accelerationStatus: new FakeAccelerationStatus());
         Onboarding = new OnboardingViewModel(
             Settings,
             Store,
@@ -143,16 +144,31 @@ internal sealed class DesignRig : IDisposable
     /// <summary>The files, audio and transcript of the Client demo; created on first use.</summary>
     public SessionFixture Fixture => _fixture ??= CreateFixture();
 
-    private SessionViewModel CreateSession(SessionRecord record) =>
-        new(
+    /// <summary>The screen recording of the Client demo: one segment, a 1920 x 1080 picture (a solid colour).</summary>
+    public FakeVideoPlayer VideoPlayer { get; private set; } = null!;
+
+    private SessionViewModel CreateSession(SessionRecord record)
+    {
+        // The demo recording has a screen segment: the video frame is part of the board (the harness ignores its pixels).
+        var fixture = Fixture;
+        File.WriteAllBytes(fixture.Files.ScreenSegment(0), [0]);
+        VideoPlayer = new FakeVideoPlayer(record.Duration);
+        return new SessionViewModel(
             record,
-            Fixture.Files,
-            Fixture.Transcripts,
-            Fixture.Player,
-            Fixture.Processing,
-            Fixture.Time,
+            fixture.Files,
+            fixture.Transcripts,
+            fixture.Player,
+            fixture.Processing,
+            fixture.Time,
             action => action(),
-            new ChatViewModel(Assistant, new FakeLlm(), Recorder, record.Id, "/models", action => action()));
+            new ChatViewModel(Assistant, Llm, Recorder, record.Id, "/models", action => action(), ChatStore, SessionStore, Time),
+            new FakeVideoPlayback(VideoPlayer),
+            new SessionServices(Summarizer, SummaryStore, SessionStore, Folders));
+    }
+
+    public FakeSummarizer Summarizer { get; } = new();
+
+    public FakeSummaryStore SummaryStore { get; } = new();
 
     private SessionFixture CreateFixture()
     {
@@ -182,7 +198,7 @@ internal sealed class DesignRig : IDisposable
             segments.Add(new TranscriptSegment(lines[i].Speaker, start, end, lines[i].Text, words));
         }
 
-        return new Transcript(id, segments, "design");
+        return new Transcript(id, segments, SessionProcessor.Engine, "en");
     }
 
     public void Dispose()

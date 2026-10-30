@@ -1,0 +1,16 @@
+1
+00:11:52,400 --> 00:12:07,000
+You: Okay, a quick run through the roadmap.
+
+2
+00:12:08,000 --> 00:12:20,250
+Others: Does search match exact words & phrases, or can I ask in my own words?
+
+3
+00:12:21,000 --> 00:12:22,000
+You: Both.
+
+4
+01:02:05,500 --> 01:02:10,000
+Others: One hour later.
+

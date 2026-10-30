@@ -214,8 +214,8 @@ internal static class DesignDemoData
     [
         ("Library", "The two visually hidden form labels of the canvas ('Question for your library', 'Search recordings') are accessibility names in the app, not text; the language of a recording that is still transcribing comes from a transcript Core only stores when it is done"),
         ("Recording", "The strip of the Tracks bars is drawn from live levels, the canvas draws it from a formula (ignored rectangles); the 'future' bars are light stubs, not a formula"),
-        ("Session", "Summary tab content (Overview, Decisions, Action items), transcript search with the 'timestamps' hit, the video frame, Export menu, speaker avatars, the 1x speed and You/Others mute buttons"),
-        ("Settings", "Acceleration segmented control (CPU / DirectML / CUDA), screen-recording format line, [VERSION] and [LICENSE] placeholders, the Appearance section exists in the app but not on the canvas"),
+        ("Session", "The empty search box together with the hit 'timestamps' (the app marks a hit only for a typed query: the harness marks the rows directly); the Summary tab shows 'Decisions' where the app says 'Key points' (DEVIATIONS.md); the video frame (ignored)"),
+        ("Settings", "The segmented control says CPU / Vulkan / CUDA (D-042: llama.cpp has no DirectML backend); the screen option names the display and its size, not the encoder line; [VERSION] and [LICENSE] placeholders; the Preferences section (theme, languages, recording defaults, the introduction) follows About and is not on the canvas"),
         ("Onboarding", "Placeholders [X.X] GB, [XX] GB and [N] GB free are replaced by the real sizes"),
     ];
 

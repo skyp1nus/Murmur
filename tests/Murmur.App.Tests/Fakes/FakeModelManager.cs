@@ -1,4 +1,5 @@
 using Murmur.Core.Models;
+using Murmur.Core.Settings;
 
 namespace Murmur.App.Tests.Fakes;
 
@@ -12,6 +13,16 @@ internal sealed class FakeModelManager : IModelManager
     public const string VadId = "vad";
     public const string RuntimeId = "runtime";
     public const string EmbeddingId = "embedding";
+
+    /// <summary>The ids of the GPU runtimes the real catalog keeps unlisted; <see cref="AccelerationRuntimeIds"/> is the map the composition root hands over.</summary>
+    public const string VulkanRuntimeId = "runtime-vulkan";
+    public const string CudaRuntimeId = "runtime-cuda";
+
+    public static IReadOnlyDictionary<AiAcceleration, string> AccelerationRuntimeIds { get; } = new Dictionary<AiAcceleration, string>
+    {
+        [AiAcceleration.Vulkan] = VulkanRuntimeId,
+        [AiAcceleration.Cuda] = CudaRuntimeId,
+    };
     public const string ChatSmallId = "chat-small";
     public const string ChatLargeId = "chat-large";
 
@@ -37,6 +48,18 @@ internal sealed class FakeModelManager : IModelManager
             ],
         ];
         foreach (var info in Catalog)
+        {
+            _status[info.Id] = new ModelStatus(info, ModelInstallState.NotInstalled, 0, null, null);
+        }
+    }
+
+    /// <summary>
+    /// Adds an item that <see cref="GetStatus"/>, <see cref="InstallAsync"/> and <see cref="RemoveAsync"/> know but <see cref="Catalog"/> does not list
+    /// (the GPU builds of the runtime in the real manager).
+    /// </summary>
+    public void AddUnlisted(ModelInfo info)
+    {
+        lock (_gate)
         {
             _status[info.Id] = new ModelStatus(info, ModelInstallState.NotInstalled, 0, null, null);
         }

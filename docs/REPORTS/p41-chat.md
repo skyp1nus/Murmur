@@ -4,7 +4,7 @@
 
 ## Що зроблено
 - **Core** (затверджений контракт, без відхилень): `ChatThreadId`, `ChatThread`, `ChatMessage` у `Murmur.Core.Intelligence`; `IChatStore` у `Murmur.Core.Sessions`, входить в `IStorage`. Рівно шість методів. Семантика `AppendMessageAsync(ChatMessage)`: індекс = кількості повідомлень — додавання; нижчий — повідомлення замінюється, пізніші відкидаються (так Regenerate замінює останню відповідь, не додаючи сьомого методу); вищий — виняток.
-- **Storage**: міграція **№ 4** (`chat_threads`, `chat_messages`). `chat_threads.scope_session` → `sessions(id) ON DELETE CASCADE`, повідомлення каскадом з гілкою; цитати — JSON усередині повідомлення без зовнішнього ключа, тож після видалення запису вони лишаються текстом. `SqliteStorage.Chats.cs`, source-gen JSON (`CitationDto[]`).
+- **Storage**: міграція **№ 5** (`chat_threads`, `chat_messages`; № 4 — `summaries` із design/session). `chat_threads.scope_session` → `sessions(id) ON DELETE CASCADE`, повідомлення каскадом з гілкою; цитати — JSON усередині повідомлення без зовнішнього ключа, тож після видалення запису вони лишаються текстом. `SqliteStorage.Chats.cs`, source-gen JSON (`CitationDto[]`).
 - **Назва `ChatMessage` збігається з `Microsoft.Extensions.AI.ChatMessage`**: у файлах, що імпортують обидва простори імен (LocalLlm, Assistant, тести Intelligence, AiEval), додано `using ChatMessage = Microsoft.Extensions.AI.ChatMessage;`.
 - **ViewModels**: `ChatViewModel` (необов'язкові `store`, `sessions`, `time`: збереження обміну, `LoadThreadAsync`, `Regenerate`, `CopyAnswer`, назва гілки з першого запитання ≤ 60 символів); `ChatMessageViewModel` (абзаци з чипами в рядку, картки Sources, дії); `AnswerText` (розбір `[12:34]`, `[1:02:03]`, `[12:00–12:45]` тим самим синтаксисом, що `CitationResolver`); `LibraryChatViewModel` став сторінкою Ask AI (`IFillsFrame`): розмова, гілки, список для сайдбара, scope-пілюлі; `ChatScopeViewModel`, `ChatModelChipViewModel` (модель + прискорення з `IAccelerationStatusSource`, D-042: «Gemma 4 E4B · local · Vulkan»); `SidebarEntry` отримав Rename/Delete і вбудований редактор.
 - **Views/Styles**: `ConversationView` (віртуалізований стовпець 820 px, бульбашки, відповідь з орбом `OrbDisc`, чипи через `AnswerTextBlock` з `InlineUIContainer`, Sources в `AutoFitPanel`, іконки, composer), `ChatScopeView` і `ChatModelChipView` у верхній панелі (`TopBar.Leading/Trailing`), `Styles/Chat.axaml` (усі класи `chat*`, ресурси `Chat.*`), контекстне меню рядка чату й `RenameBox` у сайдбарі. Нові типографічні кроки в `tokens.json` (кінець `typeScale`): `bubble` 15/1.55, `answer` 16/1.65, `chip` 12/1.65; `Tokens.axaml` згенеровано.
@@ -41,11 +41,14 @@
 - Тести: App 1007, Storage 217 (+1 пропущено), Core 494, Intelligence 152 (+2), Desktop 48; паритет без змін (Chat 3.72 / 1 помилка, ChatDark 1.35 / 1).
 
 ## Для злиття
-- Міграція № 4 — якщо Session-гілка (ISummaryStore) теж бере 4, одну з них треба перенумерувати.
+- Міграція чатів — № 5 (після `summaries` № 4); бази v3 і v4 мігрують до 5 (тест).
 - Спільні файли, змінені адитивно: `IStorage` (+`IChatStore`), `AppServices` (+`Chats` у кінці), `CompositionRoot` (+`Chats: storage`), `ShellViewModel` (нові необов'язкові параметри в кінці), `IconControl` (+`IsFilled`), `tokens.json` (кінець `typeScale`), `Strings*.resx`, `SidebarEntry`. `ChatView` (вкладка сесії) не чіпано; `ChatViewModel` лишився сумісним (нові параметри конструктора необов'язкові).
 - Рядок `LibraryChat_Subtitle` видалено (новий екран його не показує).
 
+## Інтеграція з Session (після злиття phase4.1)
+- Вкладка «Ask AI» екрана запису тепер `ConversationView` (той самий вигляд, що й сторінка Ask AI), scope прикріплений до запису; чат вкладки зберігається як гілка зі scope запису й продовжує останню збережену гілку цього запису при відкритті.
+- У меню «…» екрана запису — «Ask AI about this recording»: `ShellViewModel.ShowNewChat(record, scoped: true)` відкриває сторінку Ask AI на новому чаті зі scope на запис. Старий `ChatView` і стилі `Button.chip` / `Border.bubble` видалено.
+
 ## Не зроблено
 - Підтвердження перед видаленням чату (меню Delete видаляє одразу).
-- Кнопки «відкрити чат про цей запис» на екрані сесії (екран належить іншій гілці): API готове — `ShellViewModel.ShowNewChat(SessionRecord)`.
 - Скриншот екрана Chat у `docs/screenshots` не оновлювався.
