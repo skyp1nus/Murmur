@@ -78,12 +78,15 @@ internal sealed class DesignRig : IDisposable
             Library,
             Recording,
             sessionFactory: CreateSession,
-            chatFactory: scope => new ChatViewModel(Assistant, new FakeLlm(), Recorder, scope, "/models", action => action()),
+            chatFactory: scope => new ChatViewModel(Assistant, new FakeLlm(), Recorder, scope, "/models", action => action(), ChatStore, SessionStore, Time),
             settings: Settings,
             onboardingFactory: () => Onboarding,
             settingsStore: Store,
             trials: new TrialSessionCleaner(SessionStore, Processing),
-            post: action => action());
+            post: action => action(),
+            chatStore: ChatStore,
+            sessionStore: SessionStore,
+            chatModelChip: new ChatModelChipViewModel(() => DesignDemoData.ChatModelName, null, action => action()));
     }
 
     public FakeSettingsStore Store { get; }
@@ -95,6 +98,9 @@ internal sealed class DesignRig : IDisposable
     public FakeRecorder Recorder { get; } = new();
 
     public FakeSessionStore SessionStore { get; } = new();
+
+    /// <summary>The saved chats of Ask AI.</summary>
+    public FakeChatStore ChatStore { get; } = new();
 
     /// <summary>The records of <see cref="DesignDemoData.Recordings"/>, in the same order.</summary>
     public List<SessionRecord> Records { get; } = [];

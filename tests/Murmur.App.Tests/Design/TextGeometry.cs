@@ -25,7 +25,7 @@ internal readonly record struct LineBox(double X, double Y, double W, double H, 
 /// The layout of an app text, kept to measure parts of it (a fragment of a paragraph) later: the raw text, where each character of
 /// the whitespace-collapsed text came from, and the position of the layout in the window.
 /// </summary>
-internal sealed class AppTextLayout(string raw, int[] normalizedToRaw, TextLayout layout, Point origin, Func<LineBox, bool> isVisible)
+internal sealed class AppTextLayout(string raw, int[] normalizedToRaw, TextLayout layout, Point origin, Func<LineBox, bool> isVisible, IReadOnlyList<LineSnapshot>? snapshot = null)
 {
     public string Raw { get; } = raw;
 
@@ -39,6 +39,11 @@ internal sealed class AppTextLayout(string raw, int[] normalizedToRaw, TextLayou
 
         var rawStart = normalizedToRaw[start];
         var rawEnd = normalizedToRaw[start + length - 1] + 1;
+        if (snapshot is not null)
+        {
+            return FromSnapshot(rawStart, rawEnd);
+        }
+
         // The rectangles of one line (one per text run) are joined.
         var lineRects = new List<Rect>();
         foreach (var rect in layout.HitTestTextRange(rawStart, rawEnd - rawStart))
@@ -68,6 +73,34 @@ internal sealed class AppTextLayout(string raw, int[] normalizedToRaw, TextLayou
         return result;
     }
 
+    /// <summary>
+    /// The lines of a text with embedded controls (the time chips of the Chat screen) were measured while the window was alive: the layout
+    /// cannot be asked after it is gone, and its range query reports nothing for text beside an embedded control.
+    /// </summary>
+    private IReadOnlyList<LineBox> FromSnapshot(int rawStart, int rawEnd)
+    {
+        var result = new List<LineBox>();
+        foreach (var line in snapshot!)
+        {
+            var from = Math.Max(rawStart, line.First);
+            var to = Math.Min(rawEnd, line.First + line.Length);
+            if (to <= from)
+            {
+                continue;
+            }
+
+            var left = line.Distances[from - line.First];
+            var right = line.Distances[to - line.First];
+            var box = new LineBox(origin.X + line.Start + Math.Min(left, right), origin.Y + line.Top, Math.Abs(right - left), line.Height, origin.Y + line.Top + line.Baseline);
+            if (isVisible(box))
+            {
+                result.Add(box);
+            }
+        }
+
+        return result;
+    }
+
     private (double Top, double Baseline) LineOf(double y)
     {
         var top = 0.0;
@@ -82,6 +115,29 @@ internal sealed class AppTextLayout(string raw, int[] normalizedToRaw, TextLayou
         }
 
         return layout.TextLines.Count == 0 ? (0, 0) : (top - layout.TextLines[^1].Height, layout.TextLines[^1].Baseline);
+    }
+}
+
+/// <summary>A line of a text layout, measured while it was alive: where each character of it starts.</summary>
+internal sealed record LineSnapshot(int First, int Length, double Start, double Top, double Height, double Baseline, double[] Distances)
+{
+    public static IReadOnlyList<LineSnapshot> Take(TextLayout layout)
+    {
+        var lines = new List<LineSnapshot>();
+        var top = 0.0;
+        foreach (var line in layout.TextLines)
+        {
+            var distances = new double[line.Length + 1];
+            for (var i = 0; i <= line.Length; i++)
+            {
+                distances[i] = line.GetDistanceFromCharacterHit(new CharacterHit(line.FirstTextSourceIndex + i));
+            }
+
+            lines.Add(new LineSnapshot(line.FirstTextSourceIndex, line.Length, line.Start, top, line.Height, line.Baseline, distances));
+            top += line.Height;
+        }
+
+        return lines;
     }
 }
 
@@ -236,7 +292,7 @@ internal static class AppTexts
 
         var layout = block.TextLayout;
         var trimmed = block.TextTrimming != TextTrimming.None && layout.TextLines.Any(l => l.HasCollapsed);
-        return Build(window, block, text, layout, block.Padding, block.FontSize, (int)block.FontWeight, block.FontFamily, trimmed);
+        return Build(window, block, text, layout, block.Padding, block.FontSize, (int)block.FontWeight, block.FontFamily, trimmed, block.Inlines?.Any(i => i is InlineUIContainer) == true);
     }
 
     private static TextItem? FromPresenter(Window window, TextPresenter presenter)
@@ -278,7 +334,7 @@ internal static class AppTexts
     private static bool IsShown(Visual visual) =>
         visual.IsEffectivelyVisible && visual.Opacity > 0 && !visual.GetVisualAncestors().Any(a => a.Opacity <= 0);
 
-    private static TextItem? Build(Window window, Visual owner, string raw, TextLayout layout, Thickness padding, double size, int weight, FontFamily family, bool trimmed)
+    private static TextItem? Build(Window window, Visual owner, string raw, TextLayout layout, Thickness padding, double size, int weight, FontFamily family, bool trimmed, bool snapshot = false)
     {
         var originPoint = owner.TranslatePoint(new Point(padding.Left, padding.Top), window);
         if (originPoint is not { } origin)
@@ -320,7 +376,7 @@ internal static class AppTexts
             family.Name.Contains("Geist Mono", StringComparison.OrdinalIgnoreCase),
             Describe(owner),
             Trimmed: trimmed,
-            Layout: new AppTextLayout(raw, map, layout, origin, Visible));
+            Layout: new AppTextLayout(raw, map, layout, origin, Visible, snapshot ? LineSnapshot.Take(layout) : null));
     }
 
     /// <summary>The window, narrowed by every ancestor that clips its content.</summary>

@@ -1,35 +1,10 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="using:Murmur.App.ViewModels"
-             xmlns:res="using:Murmur.App.Resources"
              xmlns:views="using:Murmur.App.Views"
              x:Class="Murmur.App.Views.LibraryChatView"
              x:DataType="vm:LibraryChatViewModel">
 
-  <Grid RowDefinitions="Auto,*"
-        RowSpacing="{StaticResource Space.24}">
-
-    <!-- Header -->
-    <Grid Grid.Row="0"
-          ColumnDefinitions="Auto,*"
-          ColumnSpacing="{StaticResource Space.24}">
-      <Button Grid.Column="0"
-              Classes="outline"
-              VerticalAlignment="Center"
-              Content="{x:Static res:Strings.Common_Back}"
-              Command="{Binding BackCommand}" />
-      <StackPanel Grid.Column="1"
-                  VerticalAlignment="Center">
-        <TextBlock Classes="headingSm"
-                   TextTrimming="CharacterEllipsis"
-                   Text="{Binding Title}" />
-        <TextBlock Classes="bodySm"
-                   Foreground="{DynamicResource Brush.Smoke}"
-                   Text="{x:Static res:Strings.LibraryChat_Subtitle}" />
-      </StackPanel>
-    </Grid>
-
-    <views:ChatView Grid.Row="1"
-                    DataContext="{Binding Chat}" />
-  </Grid>
+  <!-- The Ask AI page of the canvas: the scope pills and the model chip are in the top bar, the page is the conversation of the chat in view. -->
+  <views:ConversationView DataContext="{Binding Chat}" />
 </UserControl>

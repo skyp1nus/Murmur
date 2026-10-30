@@ -19,6 +19,10 @@ public sealed class IconControl : Control
     public static readonly StyledProperty<double> StrokeProperty =
         AvaloniaProperty.Register<IconControl, double>(nameof(Stroke), DefaultStroke);
 
+    /// <summary>The outline is filled with the foreground instead of stroked (the play triangle of a time chip).</summary>
+    public static readonly StyledProperty<bool> IsFilledProperty =
+        AvaloniaProperty.Register<IconControl, bool>(nameof(IsFilled));
+
     private const double Grid = 24;
     private const double DefaultStroke = 1.6;
 
@@ -27,8 +31,14 @@ public sealed class IconControl : Control
 
     static IconControl()
     {
-        AffectsRender<IconControl>(DataProperty, TextElement.ForegroundProperty, StrokeProperty);
+        AffectsRender<IconControl>(DataProperty, TextElement.ForegroundProperty, StrokeProperty, IsFilledProperty);
         AffectsMeasure<IconControl>(DataProperty);
+    }
+
+    public bool IsFilled
+    {
+        get => GetValue(IsFilledProperty);
+        set => SetValue(IsFilledProperty, value);
     }
 
     /// <summary>The line width in the 24 x 24 grid (default 1.6).</summary>
@@ -66,7 +76,7 @@ public sealed class IconControl : Control
         var scale = Math.Min(Bounds.Width, Bounds.Height) / Grid;
         using (context.PushTransform(Matrix.CreateScale(scale, scale)))
         {
-            context.DrawGeometry(null, _pen, geometry);
+            context.DrawGeometry(IsFilled ? brush : null, IsFilled ? null : _pen, geometry);
         }
     }
 }

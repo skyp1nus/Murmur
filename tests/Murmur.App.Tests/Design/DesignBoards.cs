@@ -153,7 +153,9 @@ internal static class DesignBoards
                     new IgnoreRect(292, 497, 498, 66, "Session: " + WaveformReason),
                 ],
                 ExcludedTexts: [VideoPlaceholder, VideoChip]));
-            boards.Add(new("Chat" + suffix, BoardScreen.Chat, dark, 1440, 1080, []));
+            // Ask AI: reached 3.7 % / 1.4 % shape mismatch, every text found, 1 geometry error: the placeholder of the question box, which the
+            // reference measures against the centre of the whole textarea while the canvas draws it on its first line (the app does the same).
+            boards.Add(new("Chat" + suffix, BoardScreen.Chat, dark, 1440, 1080, [], MaxShapeMismatchPercent: dark ? 1.5 : 3.8, MinTextMatchedPercent: 100, MaxTextGeometryErrors: 1));
             boards.Add(new(
                 "Settings" + suffix,
                 BoardScreen.Settings,

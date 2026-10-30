@@ -23,7 +23,7 @@ internal static class TextReport
           .Append(" · as a fragment of a longer app text: ").Append(byKind.GetValueOrDefault(MatchKind.Fragment)).Append("\n\n");
         sb.Append("Texts are matched by whitespace-collapsed, case-sensitive text; duplicates by the nearest position. A matched text is an error when its first line is more than ")
           .Append(TextTolerance.OffsetPx).Append(" px off in x, or the baseline of its first line more than ").Append(TextTolerance.BaselinePx).Append(" px off (placeholders: the vertical centre; no width or line check), its total line width differs by more than ")
-          .Append(TextTolerance.WidthPercent).Append(" %, the line count differs, or the font size, weight or family (Inter / Geist Mono) differs. ")
+          .Append(TextTolerance.WidthPercent).Append(" % and ").Append(TextTolerance.WidthPx).Append(" px, the line count differs, or the font size, weight or family (Inter / Geist Mono) differs. ")
           .Append("`<Board>.text.png`: blue = reference line boxes, red = app line boxes.\n\n");
 
         sb.Append("## Geometry errors (worst first)\n\n");

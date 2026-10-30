@@ -24,7 +24,7 @@ internal sealed record DemoRecording(
 /// <summary>One line of the transcript of the Session artboard.</summary>
 internal sealed record DemoLine(Speaker Speaker, int StartSeconds, string Text);
 
-/// <summary>One question of the Chat artboard, its answer (the app has no inline chips: the text is without them) and the sources.</summary>
+/// <summary>One question of the Chat artboard, its answer (the model marks the moments it cites as <c>[12:52]</c>; the app draws them as chips) and the sources.</summary>
 internal sealed record DemoExchange(string Question, string Answer, IReadOnlyList<DemoSource> Sources);
 
 /// <summary>A source of an answer: the recording, the moment, the label of the chip and the quote.</summary>
@@ -141,8 +141,8 @@ internal static class DesignDemoData
     [
         new(
             "What did we decide about PDF export?",
-            "PDF export was moved to next sprint — meeting summaries and action items come first. The client said they need PDFs for their reports.\n\n"
-            + "In the sprint retro, the team also agreed to review the report template with the designer before starting.",
+            "PDF export was moved to next sprint — meeting summaries and action items come first [12:52]. The client said they need PDFs for their reports [12:40].\n\n"
+            + "In the sprint retro, the team also agreed to review the report template with the designer before starting [31:05].",
             [
                 new("Client demo", 772, "12:52", "“PDF export moves to next sprint…”"),
                 new("Client demo", 760, "12:40", "“What about PDF export? We need it for our reports.”"),
@@ -150,11 +150,18 @@ internal static class DesignDemoData
             ]),
         new(
             "And who's sending the demo invite?",
-            "You are — you promised to send it the same day.",
+            "You are — you promised to send it the same day [13:24].",
             [new("Client demo", 804, "13:24", "“Deal. I'll send the invite today.”")]),
     ];
 
     public static string ChatModel => "Gemma 4 E4B · local";
+
+    /// <summary>The chat model of the chip (the catalog name of the model that is installed).</summary>
+    public static string ChatModelName => "Gemma 4 E4B";
+
+    /// <summary>The older chat of the sidebar (the canvas lists it under "PDF export"): one question and its answer.</summary>
+    public static (string Title, string Question, string Answer) OtherChat { get; } =
+        ("Action items this week", "What are my action items this week?", "You promised to send the demo invite today and to review the report template with the designer.");
 
     // ---- Settings -------------------------------------------------------------------------------------------------------
 
@@ -205,11 +212,9 @@ internal static class DesignDemoData
     /// </summary>
     public static IReadOnlyList<(string Screen, string Feature)> NotRepresented { get; } =
     [
-        ("Ask AI", "Sidebar 'Chats' list: provided by the chat screen through SidebarViewModel.SetChats (the harness fills it with the canvas chats until p41-chat does)"),
         ("Library", "The two visually hidden form labels of the canvas ('Question for your library', 'Search recordings') are accessibility names in the app, not text; the language of a recording that is still transcribing comes from a transcript Core only stores when it is done"),
         ("Recording", "The strip of the Tracks bars is drawn from live levels, the canvas draws it from a formula (ignored rectangles); the 'future' bars are light stubs, not a formula"),
         ("Session", "Summary tab content (Overview, Decisions, Action items), transcript search with the 'timestamps' hit, the video frame, Export menu, speaker avatars, the 1x speed and You/Others mute buttons"),
-        ("Chat", "Scope chips (Whole library / Client demo), model badge ('Gemma 4 E4B · local'), inline timestamp chips inside the answer text, Sources cards with quotes, copy/retry actions, the chats list"),
         ("Settings", "Acceleration segmented control (CPU / DirectML / CUDA), screen-recording format line, [VERSION] and [LICENSE] placeholders, the Appearance section exists in the app but not on the canvas"),
         ("Onboarding", "Placeholders [X.X] GB, [XX] GB and [N] GB free are replaced by the real sizes"),
     ];
