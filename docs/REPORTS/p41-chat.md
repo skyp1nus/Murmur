@@ -32,7 +32,7 @@
 
 ## Тести
 - Storage: `ChatStoreTests` (11: гілки, порядок, заміна за індексом, перейменування, видалення, каскад зі scope-записом, цитати лишаються), міграція з v3.
-- App: `ChatThreadTests` (30: життєвий цикл гілки, повторне відкриття з історією, видалені цитати не посилання, Regenerate, Copy, scope-пілюлі, список і виділення в сайдбарі, Rename/Delete, нова гілка з «Ask AI» і з Library, верхня панель, чип моделі з прискоренням), `AnswerTextTests` (8), Core `ChatThreadIdTests` (2).
+- App: `ChatThreadTests` (22: життєвий цикл гілки, повторне відкриття з історією, видалені цитати не посилання, Regenerate, Copy, scope-пілюлі, список і виділення в сайдбарі, Rename/Delete, нова гілка з «Ask AI» і з Library, верхня панель, чип моделі з прискоренням), `AnswerTextTests` (6 тестів, 18 випадків), Core `ChatThreadIdTests` (2).
 - Усього: App 991, Core 494, Storage 216 (+1 пропущено), Intelligence 152 (+2), Desktop 48 — зелені; збірка рішення 0 warnings, 0 errors.
 
 ## Для злиття
