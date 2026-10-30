@@ -43,6 +43,7 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable, I
     private readonly Action<Action> _post;
     private readonly IAccelerationProbe? _accelerationProbe;
     private readonly IAccelerationStatusSource? _accelerationStatus;
+    private readonly IReadOnlyDictionary<AiAcceleration, string>? _accelerationRuntimeIds;
     private ModelsSettingsViewModel? _models;
     private AccelerationSettingsViewModel? _acceleration;
     private DevicesSettingsViewModel? _devices;
@@ -61,6 +62,7 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable, I
     /// <param name="version">The version shown under "About"; the build-time version by default.</param>
     /// <param name="accelerationProbe">Which accelerations this PC supports; <c>null</c> = only the CPU build is offered.</param>
     /// <param name="accelerationStatus">Which AI build runs and why a GPU build does not; <c>null</c> = nothing to report.</param>
+    /// <param name="accelerationRuntimeIds">The model-manager item of each GPU build's runtime (<see cref="AiServices.AccelerationRuntimeIds"/>); <c>null</c> = nothing to download.</param>
     public SettingsViewModel(
         ISettingsStore settings,
         ICapture capture,
@@ -71,7 +73,8 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable, I
         Action<Action>? post = null,
         string? version = null,
         IAccelerationProbe? accelerationProbe = null,
-        IAccelerationStatusSource? accelerationStatus = null)
+        IAccelerationStatusSource? accelerationStatus = null,
+        IReadOnlyDictionary<AiAcceleration, string>? accelerationRuntimeIds = null)
     {
         ArgumentNullException.ThrowIfNull(settings);
         ArgumentNullException.ThrowIfNull(capture);
@@ -85,6 +88,7 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable, I
         _post = post ?? (action => Avalonia.Threading.Dispatcher.UIThread.Post(action));
         _accelerationProbe = accelerationProbe;
         _accelerationStatus = accelerationStatus;
+        _accelerationRuntimeIds = accelerationRuntimeIds;
         About = new AboutViewModel(version);
 
         var sections = new List<SettingsSection>(6);
@@ -114,7 +118,7 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable, I
     public AccelerationSettingsViewModel? Acceleration =>
         _acceleration ??= _modelManager is null || _disposed
             ? null
-            : new AccelerationSettingsViewModel(_writer, _modelManager, _accelerationProbe, _accelerationStatus, _post);
+            : new AccelerationSettingsViewModel(_writer, _modelManager, _accelerationProbe, _accelerationStatus, _accelerationRuntimeIds, _post);
 
     /// <summary>Created on first use.</summary>
     public DevicesSettingsViewModel Devices => _devices ?? (CanCreate() ? _devices = new DevicesSettingsViewModel(_capture, _writer) : null!);

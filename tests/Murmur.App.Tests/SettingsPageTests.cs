@@ -34,7 +34,7 @@ public sealed partial class SettingsViewTests
                 action => action(),
                 version: "0.4.0",
                 accelerationProbe: new FakeAccelerationProbe(supported.Length == 0 ? [AiAcceleration.Cpu, AiAcceleration.Vulkan] : supported),
-                accelerationStatus: Status);
+                accelerationStatus: Status, accelerationRuntimeIds: FakeModelManager.AccelerationRuntimeIds);
             Harness = new UiHarness();
             Shell = new ShellViewModel(
                 new LibraryViewModel(Harness.Store, Harness.Time, null, action => action()),
@@ -177,24 +177,34 @@ public sealed partial class SettingsViewTests
                 var actions = remove.GetVisualAncestors().OfType<StackPanel>().First(p => p.Classes.Contains("settingsActions"));
                 var rest = actions.GetVisualParent()!.GetVisualChildren().OfType<StackPanel>().Single(p => p.Classes.Contains("settingsRest"));
                 var atRest = (Actions: actions.Opacity, Idle: rest.Opacity);
+                var hitAtRest = actions.IsHitTestVisible;
 
                 var row = remove.GetVisualAncestors().OfType<Border>().First(b => b.Classes.Contains("settingsModel"));
                 var point = row.TranslatePoint(new Point(40, 20), window)!.Value;
                 window.MouseMove(point);
                 UiHarness.Pump(4);
                 var hovered = (Actions: actions.Opacity, Idle: rest.Opacity);
+                var hitHovered = actions.IsHitTestVisible;
 
                 window.MouseMove(new Point(point.X, 4));
                 UiHarness.Pump(4);
                 var left = (Actions: actions.Opacity, Idle: rest.Opacity);
+
+                // The keyboard reaches the hidden button too, and the row then shows its actions.
+                remove.Focus();
+                UiHarness.Pump(4);
+                var focused = (Actions: actions.Opacity, Idle: rest.Opacity);
                 window.Close();
-                return (atRest, hovered, left);
+                return (atRest, hovered, left, focused, hitAtRest, hitHovered);
             },
             TestContext.Current.CancellationToken);
 
         Assert.Equal((0.0, 1.0), snapshot.atRest);
         Assert.Equal((1.0, 0.0), snapshot.hovered);
         Assert.Equal((0.0, 1.0), snapshot.left);
+        Assert.Equal((1.0, 0.0), snapshot.focused);
+        Assert.False(snapshot.hitAtRest); // a touch cannot tap the invisible button
+        Assert.True(snapshot.hitHovered);
     }
 
     [Fact]

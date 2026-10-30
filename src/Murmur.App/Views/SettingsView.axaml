@@ -30,6 +30,7 @@
       <Thickness x:Key="Settings.TitleGap">0,0,0,3</Thickness>
       <Thickness x:Key="Settings.SideNotes">0,10,0,0</Thickness>
       <Thickness x:Key="Settings.NoteGap">0,4,0,0</Thickness>
+      <Thickness x:Key="Settings.SizeGap">0,0,8,0</Thickness>
       <!-- Another 48 px before the sections the canvas does not have: the board ends 96 px below the About card, so none of them shows on it. -->
       <Thickness x:Key="Settings.ExtraGap">0,48,0,0</Thickness>
       <Thickness x:Key="Settings.CardDetails">0,14,0,0</Thickness>
@@ -290,9 +291,11 @@
     <!-- Model rows: the actions of an installed row (Make default, Remove) show in place of its size and status while the pointer or the focus is in the row -->
     <Style Selector="StackPanel.settingsActions.reveal">
       <Setter Property="Opacity" Value="0" />
+      <Setter Property="IsHitTestVisible" Value="False" />
     </Style>
     <Style Selector="Border.settingsModel:pointerover StackPanel.settingsActions.reveal, Border.settingsModel:focus-within StackPanel.settingsActions.reveal, Border.settingsModel.confirming StackPanel.settingsActions.reveal">
       <Setter Property="Opacity" Value="1" />
+      <Setter Property="IsHitTestVisible" Value="True" />
     </Style>
     <Style Selector="Border.settingsModel:pointerover StackPanel.settingsRest.reveal, Border.settingsModel:focus-within StackPanel.settingsRest.reveal, Border.settingsModel.confirming StackPanel.settingsRest.reveal">
       <Setter Property="Opacity" Value="0" />
@@ -426,7 +429,7 @@
                             <TextBlock Classes="settingsMono"
                                        VerticalAlignment="Center"
                                        Foreground="{DynamicResource Brush.Smoke}"
-                                       Margin="0,0,8,0"
+                                       Margin="{StaticResource Settings.SizeGap}"
                                        IsVisible="{Binding ShowSizeBesideActions}"
                                        Text="{Binding SizeText}" />
                             <Button Classes="outline settingsButton"
@@ -510,6 +513,7 @@
                                   ToolTip.Tip="{Binding Tooltip}"
                                   ToolTip.ShowOnDisabled="True"
                                   AutomationProperties.Name="{Binding Label}"
+                                  AutomationProperties.HelpText="{Binding Tooltip}"
                                   Command="{Binding ChooseCommand}">
                             <TextBlock Text="{Binding Label}" />
                           </Button>
@@ -892,7 +896,8 @@
               <ComboBox x:Name="TranscriptionLanguageBox"
                         Classes="onb"
                         ItemsSource="{Binding Appearance.TranscriptionLanguages}"
-                        SelectedIndex="0">
+                        SelectedIndex="0"
+                        IsEnabled="False">
                 <ComboBox.ItemTemplate>
                   <DataTemplate x:DataType="x:String">
                     <TextBlock Classes="settingsBody"

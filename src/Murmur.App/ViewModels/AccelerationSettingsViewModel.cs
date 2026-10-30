@@ -56,40 +56,54 @@ public sealed partial class AccelerationOptionViewModel : ObservableObject
 /// thread and is marshalled with <c>post</c>), the download of a missing runtime from the <see cref="IModelManager"/>.</para>
 /// <para><b>Choosing.</b> The choice is saved first (the backend then reports "runtime not installed" and serves the CPU build
 /// meanwhile); when the chosen build's runtime is not installed its download starts at once and its progress shows in the card.
-/// Cancelling or a failure leaves the choice and offers the download again. Nothing downloads without a click.</para>
+/// Cancelling or a failure leaves the choice and offers the download again. Nothing downloads without a click. Only one download
+/// runs: choosing another build cancels the running one first and waits for it, and a choice that a newer one has replaced
+/// before its save finished downloads nothing, so the card never shows (or hides) a download that is not the chosen build's.</para>
 /// <para><b>The runtime items.</b> The GPU builds are unlisted items of the model manager (<see cref="IModelManager.Catalog"/> does
-/// not list them, <see cref="IModelManager.GetStatus"/> and <see cref="IModelManager.InstallAsync"/> accept their ids). The ids
-/// are derived from the listed CPU runtime by the catalog's naming (<c>llama-cpp-&lt;tag&gt;</c> gives <c>llama-cpp-vulkan-&lt;tag&gt;</c> and
-/// <c>llama-cpp-cuda-&lt;tag&gt;</c>), see <see cref="RuntimeIdOf"/>; a build the manager does not know has nothing to download.</para>
+/// not list them, <see cref="IModelManager.GetStatus"/> and <see cref="IModelManager.InstallAsync"/> accept their ids). Their ids
+/// come from the composition root as a map (<c>AiServices.AccelerationRuntimeIds</c>); a build without an entry has nothing to download.</para>
 /// </remarks>
 public sealed partial class AccelerationSettingsViewModel : ObservableObject, IDisposable
 {
-    private const string CpuRuntimePrefix = "llama-cpp-";
-
     private readonly SettingsWriter _writer;
     private readonly IModelManager? _manager;
     private readonly IAccelerationProbe? _probe;
     private readonly IAccelerationStatusSource? _source;
+    private readonly IReadOnlyDictionary<AiAcceleration, string>? _runtimeIds;
     private readonly Action<Action> _post;
     private readonly CancellationTokenSource _lifetime = new();
-    private readonly string? _cpuRuntimeId;
-    private CancellationTokenSource? _download;
+    private Run? _download;
+    private int _choice;
+    private AiAcceleration? _requested;
     private bool _downloadFailed;
     private bool _disposed;
+
+    /// <summary>One download this view model started: its token and the moment it has fully finished (the cleanup after a cancel included).</summary>
+    private sealed class Run(AiAcceleration acceleration, string id, CancellationTokenSource cts)
+    {
+        public AiAcceleration Acceleration { get; } = acceleration;
+
+        public string Id { get; } = id;
+
+        public CancellationTokenSource Cts { get; } = cts;
+
+        public TaskCompletionSource Done { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+    }
 
     internal AccelerationSettingsViewModel(
         SettingsWriter writer,
         IModelManager? manager,
         IAccelerationProbe? probe,
         IAccelerationStatusSource? source,
+        IReadOnlyDictionary<AiAcceleration, string>? runtimeIds,
         Action<Action> post)
     {
         _writer = writer;
         _manager = manager;
         _probe = probe;
         _source = source;
+        _runtimeIds = runtimeIds;
         _post = post;
-        _cpuRuntimeId = manager?.Catalog.FirstOrDefault(m => m.Kind == ModelKind.LlmRuntime)?.Id;
         Options =
         [
             new AccelerationOptionViewModel(AiAcceleration.Cpu, Strings.Accel_Cpu, this),
@@ -126,6 +140,10 @@ public sealed partial class AccelerationSettingsViewModel : ObservableObject, ID
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(CanDownload), nameof(HasDetails))]
     public partial bool IsDownloading { get; set; }
+
+    /// <summary>The running download was started by this card, so its Cancel works.</summary>
+    [ObservableProperty]
+    public partial bool CanCancel { get; set; }
 
     /// <summary>Download progress, 0 to 100.</summary>
     [ObservableProperty]
@@ -174,7 +192,11 @@ public sealed partial class AccelerationSettingsViewModel : ObservableObject, ID
     }
 
     /// <summary>The saved settings changed elsewhere: shows the choice (no download is started by this).</summary>
-    internal void ReloadSaved() => Refresh();
+    internal void ReloadSaved()
+    {
+        _requested = null;
+        Refresh();
+    }
 
     public void Dispose()
     {
@@ -194,13 +216,15 @@ public sealed partial class AccelerationSettingsViewModel : ObservableObject, ID
             _source.Changed -= OnStatusChanged;
         }
 
+        _download?.Cts.Cancel();
         _lifetime.Cancel();
         _lifetime.Dispose();
     }
 
     internal void Choose(AccelerationOptionViewModel option)
     {
-        if (_disposed || !option.IsAvailable || option.Value == _writer.Current.Acceleration)
+        // A click on the build that is chosen (or already asked for, its save still running) changes nothing.
+        if (_disposed || !option.IsAvailable || option.Value == (_requested ?? _writer.Current.Acceleration))
         {
             return;
         }
@@ -224,21 +248,11 @@ public sealed partial class AccelerationSettingsViewModel : ObservableObject, ID
     }
 
     [RelayCommand]
-    private void CancelDownload() => _download?.Cancel();
+    private void CancelDownload() => _download?.Cts.Cancel();
 
-    /// <summary>The id of the runtime item of a GPU build in the model manager, or <c>null</c> (CPU, or no such item).</summary>
-    internal string? RuntimeIdOf(AiAcceleration acceleration)
-    {
-        if (acceleration == AiAcceleration.Cpu || _manager is null || _cpuRuntimeId is null
-            || !_cpuRuntimeId.StartsWith(CpuRuntimePrefix, StringComparison.Ordinal))
-        {
-            return null;
-        }
-
-        var tag = _cpuRuntimeId[CpuRuntimePrefix.Length..];
-        var id = CpuRuntimePrefix + (acceleration == AiAcceleration.Vulkan ? "vulkan-" : "cuda-") + tag;
-        return StatusOf(id) is null ? null : id;
-    }
+    /// <summary>The id of the runtime item of a GPU build in the model manager, or <c>null</c> (CPU, no such item on this platform, no manager).</summary>
+    internal string? RuntimeIdOf(AiAcceleration acceleration) =>
+        acceleration != AiAcceleration.Cpu && _runtimeIds is not null && _runtimeIds.TryGetValue(acceleration, out var id) && StatusOf(id) is not null ? id : null;
 
     private ModelStatus? StatusOf(string id)
     {
@@ -248,23 +262,48 @@ public sealed partial class AccelerationSettingsViewModel : ObservableObject, ID
         }
         catch (Exception ex) when (ex is ArgumentException or KeyNotFoundException)
         {
-            // An item this OS does not have (CUDA outside Windows): nothing to download.
+            // An item this OS does not have: nothing to download.
             return null;
         }
     }
 
     private async Task ChooseAsync(AiAcceleration value)
     {
+        var ticket = ++_choice;
+        _requested = value;
+
+        // One download at a time: the one of the build that is being left stops, and its cleanup finishes, before anything else changes.
+        if (_download is { } running)
+        {
+            running.Cts.Cancel();
+            await running.Done.Task.ConfigureAwait(true);
+        }
+
+        if (_disposed || ticket != _choice)
+        {
+            return;
+        }
+
         Error = null;
         _downloadFailed = false;
         var saveError = await _writer.UpdateAsync(s => s with { Acceleration = value }).ConfigureAwait(true);
+
+        // A newer choice (or the end of the window) took over while the save ran: it is the one that decides what happens next.
+        if (_disposed || ticket != _choice)
+        {
+            return;
+        }
+
         if (saveError is not null)
         {
             Error = UiText.Format(Strings.Accel_SaveFailed, saveError);
         }
 
         Refresh();
-        if (saveError is null && RuntimeIdOf(value) is { } id && StatusOf(id) is { State: not ModelInstallState.Installed and not ModelInstallState.Downloading })
+        if (saveError is null
+            && _writer.Current.Acceleration == value
+            && RuntimeIdOf(value) is { } id
+            && StatusOf(id) is { State: not ModelInstallState.Installed and not ModelInstallState.Downloading })
         {
             await DownloadAsync(value, id).ConfigureAwait(true);
         }
@@ -272,18 +311,34 @@ public sealed partial class AccelerationSettingsViewModel : ObservableObject, ID
 
     private async Task DownloadAsync(AiAcceleration acceleration, string id)
     {
-        using var cts = CancellationTokenSource.CreateLinkedTokenSource(_lifetime.Token);
-        _download = cts;
+        if (_disposed)
+        {
+            return;
+        }
+
+        if (IsLowOnSpace(id))
+        {
+            _downloadFailed = true;
+            Error = Strings.Models_NoSpace;
+            UpdateDownloadState(_writer.Current.Acceleration);
+            return;
+        }
+
+        var run = new Run(acceleration, id, CancellationTokenSource.CreateLinkedTokenSource(_lifetime.Token));
+        _download = run;
         _downloadFailed = false;
         Error = null;
         IsDownloading = true;
+        CanCancel = true;
         PercentText = UiText.Format(Strings.Common_Percent, 0);
         Percent = 0;
         TransferText = string.Empty;
         NoteText = UiText.Format(Strings.Accel_Downloading, LabelOf(acceleration));
+        var failed = false;
+        var current = false;
         try
         {
-            await _manager!.InstallAsync(id, cts.Token).ConfigureAwait(true);
+            await _manager!.InstallAsync(id, run.Cts.Token).ConfigureAwait(true);
         }
         catch (OperationCanceledException)
         {
@@ -292,25 +347,55 @@ public sealed partial class AccelerationSettingsViewModel : ObservableObject, ID
         catch (Exception ex)
         {
             Trace.TraceError("Downloading the runtime '{0}' failed: {1}", id, ex);
-            _downloadFailed = true;
+            failed = true;
         }
         finally
         {
-            _download = null;
-            IsDownloading = false;
+            // Only the download the card shows may clear it: a download that was replaced leaves the card to the new one.
+            current = ReferenceEquals(_download, run);
+            if (current)
+            {
+                _download = null;
+                IsDownloading = false;
+                CanCancel = false;
+            }
+
+            run.Cts.Dispose();
+            run.Done.TrySetResult();
         }
 
-        if (_disposed)
+        if (_disposed || !current)
         {
             return;
         }
 
-        if (_downloadFailed)
+        if (failed && _writer.Current.Acceleration == acceleration)
         {
+            _downloadFailed = true;
             Error = UiText.Format(Strings.Accel_DownloadFailed, LabelOf(acceleration));
         }
 
         UpdateDownloadState(_writer.Current.Acceleration);
+    }
+
+    /// <summary>The drive of the models has less room than the runtime still has to download (the models list's check); unknown free space counts as enough.</summary>
+    private bool IsLowOnSpace(string id)
+    {
+        try
+        {
+            var free = _manager!.AvailableFreeSpaceBytes;
+            if (free is < 0 or long.MaxValue || StatusOf(id) is not { } status)
+            {
+                return false;
+            }
+
+            var remaining = status.Model.SizeBytes - status.BytesDone;
+            return remaining > 0 && free < remaining;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException)
+        {
+            return false;
+        }
     }
 
     private void OnRuntimeStatusChanged(ModelStatus status)
@@ -327,12 +412,18 @@ public sealed partial class AccelerationSettingsViewModel : ObservableObject, ID
                 return;
             }
 
+            // Only the runtime of the chosen build is the card's business; another one (a build that was left, the CPU server) is not.
             var selected = _writer.Current.Acceleration;
-            if (status.State == ModelInstallState.Downloading && RuntimeIdOf(selected) == status.Model.Id)
+            if (RuntimeIdOf(selected) != status.Model.Id)
+            {
+                return;
+            }
+
+            if (status.State == ModelInstallState.Downloading)
             {
                 ShowProgress(selected, status);
             }
-            else if (!IsDownloading)
+            else if (_download is null)
             {
                 UpdateDownloadState(selected);
             }
@@ -341,7 +432,7 @@ public sealed partial class AccelerationSettingsViewModel : ObservableObject, ID
 
     private void OnStatusChanged(AccelerationStatus status) => _post(() =>
     {
-        if (!_disposed && !IsDownloading)
+        if (!_disposed && _download is null)
         {
             UpdateDownloadState(_writer.Current.Acceleration);
         }
@@ -358,27 +449,43 @@ public sealed partial class AccelerationSettingsViewModel : ObservableObject, ID
         NoteText = UiText.Format(Strings.Accel_Downloading, LabelOf(acceleration));
     }
 
-    /// <summary>What the card says for the chosen build now: a missing runtime, a GPU that failed to start, or the GPU that runs it.</summary>
+    /// <summary>What the card says for the chosen build now: why it cannot be used, a missing runtime, a GPU that failed to start, or the GPU that runs it.</summary>
     private void UpdateDownloadState(AiAcceleration selected)
     {
         var label = LabelOf(selected);
+        var option = Options.First(o => o.Value == selected);
+        if (_download is { } running && running.Acceleration == selected)
+        {
+            return;
+        }
+
+        // A saved build this PC can no longer use (the GPU is gone): say why, offer nothing to download.
+        if (!option.IsAvailable)
+        {
+            NeedsDownload = false;
+            IsDownloading = false;
+            CanCancel = false;
+            NoteText = option.Tooltip ?? string.Empty;
+            return;
+        }
+
         var runtime = RuntimeIdOf(selected) is { } id ? StatusOf(id) : null;
         var missing = runtime is { State: not ModelInstallState.Installed };
-        if (runtime is { State: ModelInstallState.Downloading } && !IsDownloading)
+        if (runtime is { State: ModelInstallState.Downloading })
         {
-            // Started elsewhere (another window of the same run, the model list): show its progress.
+            // Started elsewhere: show its progress (Cancel is not ours to press).
             ShowProgress(selected, runtime);
+            CanCancel = false;
             NeedsDownload = false;
             return;
         }
 
-        NeedsDownload = missing && !IsDownloading;
-        if (IsDownloading)
-        {
-            return;
-        }
+        IsDownloading = false;
+        CanCancel = false;
+        NeedsDownload = missing;
 
-        var status = _source?.Current;
+        // A report about another build than the chosen one (the answer of the backend lags the choice) says nothing about this one.
+        var status = _source?.Current is { } current && current.Requested == selected ? current : null;
         if (selected == AiAcceleration.Cpu)
         {
             NoteText = string.Empty;

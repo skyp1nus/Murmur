@@ -170,7 +170,7 @@ internal sealed class CompositionRoot : IDisposable
             CreatePlayback(),
             new SessionProcessingAdapter(processor, models),
             storage,
-            new AiServices(assistant, llm, models.ModelsDirectory, AccelerationProbe, llm),
+            new AiServices(assistant, llm, models.ModelsDirectory, AccelerationProbe, llm, AccelerationRuntimeIds(modelManager)),
             settings,
             aiModels,
             modelManager.ActiveModelId,
@@ -221,6 +221,24 @@ internal sealed class CompositionRoot : IDisposable
             }
         };
         return llm;
+    }
+
+    /// <summary>
+    /// The model-manager item of the runtime of each GPU build, only those this platform's catalog has (CUDA is Windows-only): the
+    /// Settings downloads the one of the chosen build. The CPU build is a listed item the AI bundle installs.
+    /// </summary>
+    internal static IReadOnlyDictionary<AiAcceleration, string> AccelerationRuntimeIds(ModelManager manager)
+    {
+        var ids = new Dictionary<AiAcceleration, string>();
+        foreach (var (acceleration, id) in new[] { (AiAcceleration.Vulkan, ModelCatalog.LlamaCppVulkanId), (AiAcceleration.Cuda, ModelCatalog.LlamaCppCudaId) })
+        {
+            if (manager.Items.Any(item => string.Equals(item.Id, id, StringComparison.Ordinal)))
+            {
+                ids[acceleration] = id;
+            }
+        }
+
+        return ids;
     }
 
     private static string? ItemPath(ModelManager manager, string id)

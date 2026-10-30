@@ -17,7 +17,7 @@ public sealed class AccelerationSettingsTests : IDisposable
 
     private sealed class Rig
     {
-        public Rig(IAccelerationProbe? probe = null, AppSettings? initial = null, bool gpuRuntimes = true, bool vulkanInstalled = false)
+        public Rig(IAccelerationProbe? probe = null, AppSettings? initial = null, bool gpuRuntimes = true, bool vulkanInstalled = false, Action<Action>? post = null)
         {
             Store = new FakeSettingsStore(initial);
             Manager = new FakeModelManager();
@@ -34,7 +34,7 @@ public sealed class AccelerationSettingsTests : IDisposable
 
             Probe = probe;
             Status = new FakeAccelerationStatus();
-            Vm = new SettingsViewModel(Store, new FakeDisplayCapture(), Manager, null, "/data/Recordings", new FakeFolderLauncher(), action => action(), accelerationProbe: probe, accelerationStatus: Status);
+            Vm = new SettingsViewModel(Store, new FakeDisplayCapture(), Manager, null, "/data/Recordings", new FakeFolderLauncher(), post ?? (action => action()), accelerationProbe: probe, accelerationStatus: Status, accelerationRuntimeIds: FakeModelManager.AccelerationRuntimeIds);
         }
 
         public FakeSettingsStore Store { get; }
@@ -245,5 +245,208 @@ public sealed class AccelerationSettingsTests : IDisposable
         Assert.Equal(AiAcceleration.Vulkan, rig.Store.Current.Acceleration);
         Assert.Empty(rig.Manager.InstallCalls);
         Assert.False(rig.Card.CanDownload);
+    }
+
+    private static async Task WaitFor(Func<bool> condition)
+    {
+        var deadline = DateTime.UtcNow.AddSeconds(5);
+        while (!condition())
+        {
+            Assert.True(DateTime.UtcNow < deadline, "Timed out waiting for the condition.");
+            await Task.Delay(5, TestContext.Current.CancellationToken);
+        }
+    }
+
+    [Fact]
+    public async Task ChoosingAnotherBuildWhileARuntimeDownloads_CancelsThatDownload_AndShowsTheNewOne()
+    {
+        var rig = new Rig(All());
+        rig.Option(AiAcceleration.Cuda).ChooseCommand.Execute(null);
+        Assert.True(rig.Card.IsDownloading);
+        var cudaToken = rig.Manager.TokenOf(FakeModelManager.CudaRuntimeId);
+
+        rig.Option(AiAcceleration.Vulkan).ChooseCommand.Execute(null);
+        await WaitFor(() => rig.Manager.WasInstallCalled(FakeModelManager.VulkanRuntimeId));
+
+        Assert.True(cudaToken.IsCancellationRequested);
+        Assert.Equal(AiAcceleration.Vulkan, rig.Store.Current.Acceleration);
+        Assert.True(rig.Card.IsDownloading);
+        Assert.Equal(string.Format(UiCulture.Culture, Strings.Accel_Downloading, "Vulkan"), rig.Card.NoteText);
+
+        // What the abandoned download still reports is not the card's business.
+        rig.Manager.Progress(FakeModelManager.CudaRuntimeId, 600_000_000, 660_000_000);
+        Assert.True(rig.Card.Percent < 1);
+        rig.Manager.Progress(FakeModelManager.VulkanRuntimeId, 16_000_000, 32_000_000);
+        Assert.Equal(50, rig.Card.Percent);
+
+        rig.Manager.Complete(FakeModelManager.VulkanRuntimeId);
+        await rig.Card.LastOperation;
+        Assert.False(rig.Card.IsDownloading);
+        Assert.False(rig.Card.HasError);
+    }
+
+    [Fact]
+    public async Task Cancel_AlwaysStopsTheDownloadTheCardShows_AfterSwitchingBuildsBackAndForth()
+    {
+        var rig = new Rig(All());
+        rig.Option(AiAcceleration.Cuda).ChooseCommand.Execute(null);
+        rig.Option(AiAcceleration.Vulkan).ChooseCommand.Execute(null);
+        await WaitFor(() => rig.Manager.WasInstallCalled(FakeModelManager.VulkanRuntimeId));
+        var vulkanOperation = rig.Card.LastOperation;
+        rig.Option(AiAcceleration.Cuda).ChooseCommand.Execute(null);
+        await WaitFor(() => rig.Manager.InstallCalls.Count(id => id == FakeModelManager.CudaRuntimeId) == 2);
+        await vulkanOperation;
+
+        Assert.True(rig.Card.CanCancel);
+        var token = rig.Manager.TokenOf(FakeModelManager.CudaRuntimeId);
+        rig.Card.CancelDownloadCommand.Execute(null);
+        await rig.Card.LastOperation;
+
+        Assert.True(token.IsCancellationRequested);
+        Assert.False(rig.Card.IsDownloading);
+        Assert.False(rig.Card.CanCancel);
+        Assert.True(rig.Card.CanDownload);
+        Assert.False(rig.Card.HasError);
+    }
+
+    [Fact]
+    public async Task TheDownloadThatWasLeft_LeavesNoErrorOrStateBehindForTheNewBuild()
+    {
+        var rig = new Rig(All());
+        rig.Option(AiAcceleration.Cuda).ChooseCommand.Execute(null);
+        rig.Option(AiAcceleration.Vulkan).ChooseCommand.Execute(null);
+        await WaitFor(() => rig.Manager.WasInstallCalled(FakeModelManager.VulkanRuntimeId));
+
+        Assert.False(rig.Card.HasError);
+        Assert.Equal(string.Format(UiCulture.Culture, Strings.Accel_Downloading, "Vulkan"), rig.Card.NoteText);
+        rig.Manager.Complete(FakeModelManager.VulkanRuntimeId);
+        await rig.Card.LastOperation;
+    }
+
+    [Fact]
+    public async Task TwoQuickChoices_BeforeTheFirstSaveFinished_DownloadOnlyTheLastOne()
+    {
+        var rig = new Rig(All());
+        var release = new TaskCompletionSource();
+        rig.Store.SaveBlocker = release.Task;
+
+        rig.Option(AiAcceleration.Cuda).ChooseCommand.Execute(null);
+        var first = rig.Card.LastOperation;
+        rig.Option(AiAcceleration.Vulkan).ChooseCommand.Execute(null);
+        var second = rig.Card.LastOperation;
+        release.SetResult();
+        await first;
+        await WaitFor(() => rig.Manager.WasInstallCalled(FakeModelManager.VulkanRuntimeId));
+
+        Assert.Equal([FakeModelManager.VulkanRuntimeId], rig.Manager.InstallCalls);
+        Assert.Equal(AiAcceleration.Vulkan, rig.Store.Current.Acceleration);
+        Assert.True(rig.Option(AiAcceleration.Vulkan).IsSelected);
+        rig.Manager.Complete(FakeModelManager.VulkanRuntimeId);
+        await second;
+    }
+
+    [Fact]
+    public async Task AClickOnTheBuildAlreadyAskedFor_IsIgnored()
+    {
+        var rig = new Rig(All());
+        var release = new TaskCompletionSource();
+        rig.Store.SaveBlocker = release.Task;
+
+        rig.Option(AiAcceleration.Cuda).ChooseCommand.Execute(null);
+        var operation = rig.Card.LastOperation;
+        rig.Option(AiAcceleration.Cuda).ChooseCommand.Execute(null);
+        release.SetResult();
+        await WaitFor(() => rig.Manager.WasInstallCalled(FakeModelManager.CudaRuntimeId));
+
+        Assert.Equal([FakeModelManager.CudaRuntimeId], rig.Manager.InstallCalls);
+        rig.Manager.Complete(FakeModelManager.CudaRuntimeId);
+        await operation;
+    }
+
+    [Fact]
+    public async Task AStatusAboutAnotherBuildThanTheChosenOne_IsIgnored()
+    {
+        var rig = new Rig(All(), new AppSettings { Acceleration = AiAcceleration.Vulkan }, vulkanInstalled: true);
+        rig.Status.Set(new AccelerationStatus(AiAcceleration.Cuda, AiAcceleration.Cpu, AccelerationFallback.StartFailed, "driver too old"));
+        Assert.False(rig.Card.HasNote);
+
+        rig.Status.Set(new AccelerationStatus(AiAcceleration.Vulkan, AiAcceleration.Cpu, AccelerationFallback.StartFailed, "out of memory"));
+        Assert.Contains("out of memory", rig.Card.NoteText, StringComparison.Ordinal);
+
+        // Choosing the build the old report was about does not bring the report of the left one along.
+        rig.Manager.SetInstalled(FakeModelManager.CudaRuntimeId);
+        rig.Option(AiAcceleration.Cuda).ChooseCommand.Execute(null);
+        await rig.Card.LastOperation;
+
+        Assert.DoesNotContain("out of memory", rig.Card.NoteText, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ASavedBuildThisPcCanNoLongerUse_SaysWhy_AndOffersNoDownload()
+    {
+        var rig = new Rig(new FakeAccelerationProbe(AiAcceleration.Cpu), new AppSettings { Acceleration = AiAcceleration.Cuda });
+
+        Assert.False(rig.Option(AiAcceleration.Cuda).IsAvailable);
+        Assert.False(rig.Card.CanDownload);
+        Assert.Equal(Strings.Accel_UnavailableCuda, rig.Card.NoteText);
+        Assert.Empty(rig.Manager.InstallCalls);
+    }
+
+    [Fact]
+    public async Task ADownloadThatDoesNotFitOnTheDrive_IsNotStarted_AndSaysSo()
+    {
+        var rig = new Rig(All());
+        rig.Manager.AvailableFreeSpaceBytes = 100_000_000;
+
+        rig.Option(AiAcceleration.Cuda).ChooseCommand.Execute(null);
+        await rig.Card.LastOperation;
+
+        Assert.Empty(rig.Manager.InstallCalls);
+        Assert.Equal(AiAcceleration.Cuda, rig.Store.Current.Acceleration);
+        Assert.Equal(Strings.Models_NoSpace, rig.Card.Error);
+        Assert.True(rig.Card.CanDownload);
+    }
+
+    [Fact]
+    public async Task ModelAndStatusEvents_AreMarshalledWithThePostDelegate_NotAppliedOnTheCallingThread()
+    {
+        var queue = new Queue<Action>();
+        var rig = new Rig(All("GPU one"), post: queue.Enqueue);
+        rig.Option(AiAcceleration.Vulkan).ChooseCommand.Execute(null);
+        var operation = rig.Card.LastOperation;
+        Assert.True(rig.Card.IsDownloading);
+
+        rig.Manager.Progress(FakeModelManager.VulkanRuntimeId, 8_000_000, 32_000_000);
+        rig.Status.Set(new AccelerationStatus(AiAcceleration.Vulkan, AiAcceleration.Cpu, AccelerationFallback.RuntimeNotInstalled));
+
+        Assert.Equal(0, rig.Card.Percent);
+        Assert.NotEmpty(queue);
+        while (queue.Count > 0)
+        {
+            queue.Dequeue()();
+        }
+
+        Assert.Equal(25, rig.Card.Percent);
+        rig.Manager.Complete(FakeModelManager.VulkanRuntimeId);
+        await operation;
+        while (queue.Count > 0)
+        {
+            queue.Dequeue()();
+        }
+
+        Assert.False(rig.Card.IsDownloading);
+    }
+
+    [Fact]
+    public async Task AfterDispose_AChoiceStartsNothing()
+    {
+        var rig = new Rig(All());
+        rig.Card.Dispose();
+
+        rig.Option(AiAcceleration.Vulkan).ChooseCommand.Execute(null);
+        await rig.Card.LastOperation;
+
+        Assert.Empty(rig.Manager.InstallCalls);
+        Assert.Equal(AiAcceleration.Cpu, rig.Store.Current.Acceleration);
     }
 }

@@ -103,6 +103,31 @@ public sealed class SettingsViewModelTests : IDisposable
     }
 
     [Fact]
+    public async Task Models_AChatModelBeingInstalled_WearsDefault_OnlyWhileNoInstalledChatModelIs()
+    {
+        // Nothing installed: the one being downloaded is the default to be (and loses "Recommended" for it).
+        var rig = new Rig();
+        rig.Row(FakeModelManager.ChatSmallId).InstallCommand.Execute(null);
+
+        Assert.Equal(Strings.Models_Default, rig.Row(FakeModelManager.ChatSmallId).BadgeText);
+        Assert.Equal(1, rig.Vm.Models!.Rows.Count(r => r.BadgeText == Strings.Models_Default));
+
+        // An installed chat model is the default: the download of another one never shows a second "Default".
+        var other = new Rig();
+        other.Manager.SetInstalled(FakeModelManager.ChatSmallId);
+        other.Vm.Refresh();
+        other.Row(FakeModelManager.ChatLargeId).InstallCommand.Execute(null);
+
+        Assert.Equal(Strings.Models_Default, other.Row(FakeModelManager.ChatSmallId).BadgeText);
+        Assert.False(other.Row(FakeModelManager.ChatLargeId).HasBadge);
+        Assert.Equal(1, other.Vm.Models!.Rows.Count(r => r.BadgeText == Strings.Models_Default));
+
+        // Cancelled: the badge goes back to what it was.
+        rig.Row(FakeModelManager.ChatSmallId).CancelCommand.Execute(null);
+        await WaitFor(() => rig.Row(FakeModelManager.ChatSmallId).BadgeText == Strings.Models_Recommended);
+    }
+
+    [Fact]
     public void Models_DefaultFallsBackToTheSavedChatModel_ThenToTheFirstInstalledOne()
     {
         var rig = new Rig(new AppSettings { ChatModelId = FakeModelManager.ChatLargeId });

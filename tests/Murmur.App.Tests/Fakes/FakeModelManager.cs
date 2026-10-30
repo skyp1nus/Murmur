@@ -1,4 +1,5 @@
 using Murmur.Core.Models;
+using Murmur.Core.Settings;
 
 namespace Murmur.App.Tests.Fakes;
 
@@ -10,12 +11,18 @@ internal sealed class FakeModelManager : IModelManager
 {
     public const string AsrId = "asr";
     public const string VadId = "vad";
-    public const string RuntimeId = "llama-cpp-b1";
+    public const string RuntimeId = "runtime";
     public const string EmbeddingId = "embedding";
 
-    /// <summary>The ids of the GPU runtimes the real catalog keeps unlisted (derived from the CPU runtime of the catalog, see <see cref="Murmur.App.ViewModels.AccelerationSettingsViewModel"/>).</summary>
-    public const string VulkanRuntimeId = "llama-cpp-vulkan-b1";
-    public const string CudaRuntimeId = "llama-cpp-cuda-b1";
+    /// <summary>The ids of the GPU runtimes the real catalog keeps unlisted; <see cref="AccelerationRuntimeIds"/> is the map the composition root hands over.</summary>
+    public const string VulkanRuntimeId = "runtime-vulkan";
+    public const string CudaRuntimeId = "runtime-cuda";
+
+    public static IReadOnlyDictionary<AiAcceleration, string> AccelerationRuntimeIds { get; } = new Dictionary<AiAcceleration, string>
+    {
+        [AiAcceleration.Vulkan] = VulkanRuntimeId,
+        [AiAcceleration.Cuda] = CudaRuntimeId,
+    };
     public const string ChatSmallId = "chat-small";
     public const string ChatLargeId = "chat-large";
 

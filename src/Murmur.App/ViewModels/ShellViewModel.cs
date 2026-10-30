@@ -179,7 +179,8 @@ public sealed partial class ShellViewModel : ObservableObject
             services.ActiveModelId,
             services.DefaultRecordingsDirectory,
             accelerationProbe: ai?.AccelerationProbe,
-            accelerationStatus: ai?.AccelerationSource);
+            accelerationStatus: ai?.AccelerationSource,
+            accelerationRuntimeIds: ai?.AccelerationRuntimeIds);
         OnboardingViewModel CreateOnboarding() => new(
             settings,
             store,

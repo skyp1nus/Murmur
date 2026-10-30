@@ -40,7 +40,7 @@ public sealed partial class ModelRowViewModel : ObservableObject
     public string Description { get; }
 
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(IsInstalled), nameof(IsBusy), nameof(ShowSize), nameof(ShowSizeBesideActions), nameof(ShowProgress), nameof(ShowInstall), nameof(ShowCancel), nameof(ShowRemove), nameof(ShowMakeDefault), nameof(IsQueued), nameof(InstallLabel), nameof(CanRemoveOrInstall), nameof(BadgeText), nameof(HasBadge))]
+    [NotifyPropertyChangedFor(nameof(IsInstalled), nameof(IsBusy), nameof(ShowSize), nameof(ShowSizeBesideActions), nameof(ShowProgress), nameof(ShowInstall), nameof(ShowCancel), nameof(ShowRemove), nameof(ShowMakeDefault), nameof(IsQueued), nameof(InstallLabel), nameof(CanRemoveOrInstall))]
     public partial ModelRowState State { get; set; }
 
     /// <summary>Download progress, 0 to 100.</summary>
@@ -112,12 +112,17 @@ public sealed partial class ModelRowViewModel : ObservableObject
 
     public string InstallLabel => State == ModelRowState.Failed ? Strings.Models_Retry : Strings.Models_Install;
 
-    /// <summary>A chat model that is being installed becomes the active one when it is done (the manager activates it), so it already wears the "Default" badge.</summary>
-    private bool WillBeDefault => Kind == ModelKind.Chat && State is ModelRowState.Downloading or ModelRowState.Queued;
+    /// <summary>
+    /// A chat model that is being installed becomes the active one when it is done, and no other chat model is the default now: it
+    /// already wears the "Default" badge (set by <see cref="ModelsSettingsViewModel"/> together with <see cref="IsDefault"/>).
+    /// </summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(BadgeText), nameof(HasBadge))]
+    public partial bool IsComingDefault { get; set; }
 
-    public bool HasBadge => IsDefault || IsRecommended || WillBeDefault;
+    public bool HasBadge => IsDefault || IsRecommended || IsComingDefault;
 
-    public string BadgeText => IsDefault || WillBeDefault ? Strings.Models_Default : IsRecommended ? Strings.Models_Recommended : string.Empty;
+    public string BadgeText => IsDefault || IsComingDefault ? Strings.Models_Default : IsRecommended ? Strings.Models_Recommended : string.Empty;
 
     /// <summary>The label of the "queued" state; also what the screen reader reads.</summary>
     public string QueuedText => Strings.Models_Queued;
