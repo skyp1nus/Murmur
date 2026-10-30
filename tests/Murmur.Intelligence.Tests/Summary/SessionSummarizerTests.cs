@@ -295,7 +295,7 @@ public sealed class SessionSummarizerTests
     {
         const string answer =
             "Here is the summary:\n\n**Overview:** The team **agreed** on the plan.\nSecond sentence.\n\n"
-            + "## Key points\n1. (12:52) PDF export waits.\n2. [12:00–12:45] Range cited.\n* Plain bullet without a time\n"
+            + "## Key points\n1. [12:52] PDF export waits.\n2. [12:00–12:45] Range cited.\n* Plain bullet without a time\n"
             + "### ACTION ITEMS\n- none\n";
 
         var parsed = SessionSummarizer.SummaryParser.Parse(answer);
@@ -319,6 +319,109 @@ public sealed class SessionSummarizerTests
                 Assert.Null(item.At);
             });
         Assert.Empty(parsed.ActionItems);
+    }
+
+    [Fact]
+    public void Parser_AcceptsACitationOnlyAtTheStartOfAnItem()
+    {
+        var parsed = SessionSummarizer.SummaryParser.Parse("KEY POINTS:\n- Meet at (10:30) sharp\n- The demo is at [12:52] next week\n- (10:30) Lead in parentheses\n");
+
+        Assert.All(parsed.KeyPoints, item => Assert.Null(item.At));
+        Assert.Equal("Meet at (10:30) sharp", parsed.KeyPoints[0].Text);
+        Assert.Equal("The demo is at next week", parsed.KeyPoints[1].Text);
+        Assert.Equal("(10:30) Lead in parentheses", parsed.KeyPoints[2].Text);
+    }
+
+    [Fact]
+    public void Parser_DropsItemsThatEchoTheFormOfThePrompt()
+    {
+        const string answer =
+            "OVERVIEW:\n<two to four sentences>\nKEY POINTS:\n- [mm:ss] <one point>\n- <one point>\n- [12:52] A real point\n"
+            + "ACTION ITEMS:\n- [mm:ss] <who does what>\n";
+
+        var parsed = SessionSummarizer.SummaryParser.Parse(answer);
+
+        Assert.Equal(string.Empty, parsed.Overview);
+        Assert.Equal("A real point", Assert.Single(parsed.KeyPoints).Text);
+        Assert.Empty(parsed.ActionItems);
+    }
+
+    [Theory]
+    [InlineData("ОГЛЯД", "КЛЮЧОВІ ПУНКТИ", "ЗАВДАННЯ")]
+    [InlineData("Підсумок", "Ключові моменти", "Дії")]
+    [InlineData("**Огляд:**", "## Рішення", "Наступні кроки:")]
+    public void Parser_KnowsTheUkrainianHeadings(string overview, string points, string actions)
+    {
+        var answer = $"{overview}\nКоманда погодила план.\n{points}\n- [12:52] Експорт PDF — наступний спринт\n{actions}\n- [13:24] Надіслати запрошення\n";
+
+        var parsed = SessionSummarizer.SummaryParser.Parse(answer);
+
+        Assert.Equal("Команда погодила план.", parsed.Overview);
+        Assert.Equal("Експорт PDF — наступний спринт", Assert.Single(parsed.KeyPoints).Text);
+        Assert.Equal("Надіслати запрошення", Assert.Single(parsed.ActionItems).Text);
+    }
+
+    [Fact]
+    public async Task ACitedLabel_FindsTheSegmentWithThatLabel_NotALongerSegmentOfAnotherSpeakerThatContainsTheSecond()
+    {
+        var transcript = new Transcript(
+            Id,
+            [
+                Segment(Speaker.Others, 730.0, 750.0, "A long answer of the other side."),
+                Segment(Speaker.Me, 741.75, 745.0, "Me interrupting."),
+                Segment(Speaker.Me, 741.2, 742.0, "Earlier but the same second."),
+            ],
+            "test",
+            "en");
+        var llm = new ScriptedLlm(_ => "OVERVIEW:\nShort.\nKEY POINTS:\n- [12:21] Cited the interruption\n");
+
+        var summary = await Create(llm, StorageWith(transcript)).SummarizeAsync(Id, null, Ct);
+
+        // The prompt labels the Me lines [12:21]; the latest of them is the cited one, not the Others line that contains 12:21.000.
+        Assert.Equal(TimeSpan.FromSeconds(741.75), summary.KeyPoints[0].At);
+    }
+
+    [Fact]
+    public void Snap_PrefersTheLabelOverContainment_AndFallsBackToPositionWithoutOne()
+    {
+        (TimeSpan, TimeSpan)[] spans =
+        [
+            (TimeSpan.FromSeconds(730), TimeSpan.FromSeconds(750)),
+            (TimeSpan.FromSeconds(741.75), TimeSpan.FromSeconds(745)),
+        ];
+
+        Assert.Equal(TimeSpan.FromSeconds(741.75), SessionSummarizer.Snap(TimeSpan.FromSeconds(741), spans, TimeSpan.FromSeconds(15)));
+        Assert.Equal(TimeSpan.FromSeconds(741.75), SessionSummarizer.Snap(TimeSpan.FromSeconds(741.9), spans, TimeSpan.FromSeconds(15)));
+        Assert.Equal(TimeSpan.FromSeconds(730), SessionSummarizer.Snap(TimeSpan.FromSeconds(735), spans, TimeSpan.FromSeconds(15)));
+    }
+
+    [Fact]
+    public void ForContext_KeepsAChunkAndTheAnswerInsideTheContextWindow()
+    {
+        var options = SummarizerOptions.ForContext(8192);
+
+        // Ukrainian text is 2-3 characters per token: the chunk, the answer and the instructions together stay below the window.
+        var worstCaseTokens = (options.ChunkCharacters / 2.0) + options.SummaryMaxOutputTokens + 768;
+        Assert.True(worstCaseTokens < 8192, $"{worstCaseTokens} tokens");
+        Assert.Equal(options.ChunkCharacters, options.ReduceCharacters);
+        Assert.True(SummarizerOptions.ForContext(2048).ChunkCharacters >= 1_500);
+    }
+
+    [Fact]
+    public async Task TheMergeRequest_NeverExceedsTheReduceLimit()
+    {
+        var segments = Enumerable.Range(0, 60)
+            .Select(i => Segment(Speaker.Me, i * 30, (i * 30) + 25, $"Sentence number {i} about the roadmap and the plan."))
+            .ToList();
+        var options = new SummarizerOptions { ChunkCharacters = 300, ReduceCharacters = 700 };
+        var bulky = "OVERVIEW:\n" + new string('x', 400) + "\nKEY POINTS:\n- [00:30] A point\n";
+        var llm = new ScriptedLlm(request => request.User.StartsWith("This is part", StringComparison.Ordinal) ? bulky : Answer);
+
+        await Create(llm, StorageWith(new Transcript(Id, segments, "test", "en")), options).SummarizeAsync(Id, null, Ct);
+
+        var merge = llm.Requests[^1].User;
+        var notes = merge[(merge.IndexOf("Notes:\n", StringComparison.Ordinal) + "Notes:\n".Length)..];
+        Assert.True(notes.Length <= 700, $"{notes.Length} characters of notes");
     }
 
     [Fact]

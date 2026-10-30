@@ -90,7 +90,7 @@ public sealed partial class SessionSummarizer : ISessionSummarizer
                 notes = condensed;
             }
 
-            var merged = Clip(string.Join("\n\n", notes), _options.ReduceCharacters * Math.Max(1, notes.Count));
+            var merged = Clip(string.Join("\n\n", notes), _options.ReduceCharacters);
             answer = await AskAsync(chat, Prompts.System(language), Prompts.Merge(merged, _options), _options.SummaryMaxOutputTokens, cancellationToken).ConfigureAwait(false);
             reporter.Step();
         }
@@ -254,11 +254,28 @@ public sealed partial class SessionSummarizer : ISessionSummarizer
     }
 
     /// <summary>
-    /// The start of the segment a cited time belongs to: the one containing it, else the nearest one within
-    /// <paramref name="tolerance"/> (same rule as the assistant's citations); <c>null</c> when the time is in no segment.
+    /// The start of the segment a cited time belongs to. The label the model copied (<c>[12:21]</c>) has no fractions, so a segment whose
+    /// label is that one is the line cited, even when another speaker's longer segment also contains the moment: the latest such segment wins.
+    /// Only without one the time is placed by position: the segment containing it, else the nearest one within <paramref name="tolerance"/>
+    /// (like the assistant's citations); <c>null</c> when the time is in no segment.
     /// </summary>
     internal static TimeSpan? Snap(TimeSpan at, IReadOnlyList<(TimeSpan Start, TimeSpan End)> spans, TimeSpan tolerance)
     {
+        var second = Math.Floor(at.TotalSeconds);
+        TimeSpan? labelled = null;
+        foreach (var (start, _) in spans)
+        {
+            if (Math.Floor(start.TotalSeconds) == second && (labelled is null || start > labelled))
+            {
+                labelled = start;
+            }
+        }
+
+        if (labelled is not null)
+        {
+            return labelled;
+        }
+
         TimeSpan? best = null;
         var bestDistance = TimeSpan.MaxValue;
         foreach (var (start, end) in spans)
@@ -324,9 +341,17 @@ public sealed partial class SessionSummarizer : ISessionSummarizer
             ActionItems,
         }
 
-        // [12:34], (12:34), [1:02:03] and a copied range [12:00–12:45] (the start counts).
-        [GeneratedRegex(@"[\[(]\s*(?:(\d+):)?(\d{1,2}):(\d{2})(?:\s*[–-]\s*(?:\d+:)?\d{1,2}:\d{2})?\s*[\])]", RegexOptions.CultureInvariant)]
+        // [12:34], [1:02:03] and a copied range [12:00–12:45] (the start counts), anywhere in a text.
+        [GeneratedRegex(@"\[\s*(?:(\d+):)?(\d{1,2}):(\d{2})(?:\s*[–-]\s*(?:\d+:)?\d{1,2}:\d{2})?\s*\]", RegexOptions.CultureInvariant)]
         private static partial Regex TimestampPattern();
+
+        // The same at the very start of an item: the only place a citation is accepted.
+        [GeneratedRegex(@"^\s*\[\s*(?:(\d+):)?(\d{1,2}):(\d{2})(?:\s*[–-]\s*(?:\d+:)?\d{1,2}:\d{2})?\s*\]", RegexOptions.CultureInvariant)]
+        private static partial Regex LeadingTimestampPattern();
+
+        // What the model copies from the form of the prompt: "<one point>", "[mm:ss] <who does what>".
+        [GeneratedRegex(@"^\s*(?:\[\s*mm\s*:\s*ss\s*\]\s*)?<[^<>]*>\s*$", RegexOptions.CultureInvariant | RegexOptions.IgnoreCase)]
+        private static partial Regex PlaceholderPattern();
 
         [GeneratedRegex(@"^\s*(?:[-*•–]|\d{1,2}[.)])\s+", RegexOptions.CultureInvariant)]
         private static partial Regex BulletPattern();
@@ -380,7 +405,7 @@ public sealed partial class SessionSummarizer : ISessionSummarizer
 
             // Text before the first heading is a preamble ("Here is the summary:") when there are headings, the overview when there are none.
             var text = headed ? overview.ToString() : preface.ToString();
-            return new ParsedSummary(StripTimes(text), keyPoints, actionItems);
+            return new ParsedSummary(PlaceholderPattern().IsMatch(text) ? string.Empty : StripTimes(text), keyPoints, actionItems);
         }
 
         private static void AppendText(StringBuilder builder, string line)
@@ -396,7 +421,7 @@ public sealed partial class SessionSummarizer : ISessionSummarizer
         {
             var body = BulletPattern().Replace(line, string.Empty);
             TimeSpan? at = null;
-            var match = TimestampPattern().Match(body);
+            var match = LeadingTimestampPattern().Match(body);
             if (match.Success)
             {
                 var hours = match.Groups[1].Success ? int.Parse(match.Groups[1].ValueSpan, CultureInfo.InvariantCulture) : 0;
@@ -409,7 +434,7 @@ public sealed partial class SessionSummarizer : ISessionSummarizer
             }
 
             var text = StripTimes(body);
-            if (text.Length > 0 && !IsNone(text))
+            if (text.Length > 0 && !IsNone(text) && !PlaceholderPattern().IsMatch(text))
             {
                 items.Add(new ParsedItem(text, at));
             }
@@ -437,9 +462,9 @@ public sealed partial class SessionSummarizer : ISessionSummarizer
             var name = candidate.Trim('#', '*', '_', ' ', '\t').ToUpperInvariant();
             section = name switch
             {
-                "OVERVIEW" or "SUMMARY" => Section.Overview,
-                "KEY POINTS" or "KEY POINT" or "DECISIONS" => Section.KeyPoints,
-                "ACTION ITEMS" or "ACTION ITEM" or "ACTIONS" or "NEXT STEPS" => Section.ActionItems,
+                "OVERVIEW" or "SUMMARY" or "ОГЛЯД" or "ПІДСУМОК" or "РЕЗЮМЕ" => Section.Overview,
+                "KEY POINTS" or "KEY POINT" or "DECISIONS" or "КЛЮЧОВІ ПУНКТИ" or "КЛЮЧОВІ МОМЕНТИ" or "КЛЮЧОВІ ПОЛОЖЕННЯ" or "РІШЕННЯ" => Section.KeyPoints,
+                "ACTION ITEMS" or "ACTION ITEM" or "ACTIONS" or "NEXT STEPS" or "ЗАВДАННЯ" or "ДІЇ" or "НАСТУПНІ КРОКИ" or "ЗАДАЧІ" => Section.ActionItems,
                 _ => Section.None,
             };
             if (section == Section.None)
