@@ -97,6 +97,10 @@ internal static class DesignBoards
     private static readonly ExcludedText VideoPlaceholder = new("[Screen recording frame]", "canvas placeholder of the video frame; the app shows the video");
     private static readonly ExcludedText VideoChip = new("H.264", "label of the canvas video placeholder; the app shows the video", Contains: true);
 
+    private static readonly ExcludedText StorageText = new("Audio, video and the search index live in one folder.", "documented deviation (DEVIATIONS.md): the search index is not in the recordings folder");
+    private static readonly ExcludedText DirectMl = new("DirectML", "documented deviation (DEVIATIONS.md, D-042): llama.cpp has no DirectML backend, the app offers Vulkan");
+    private static readonly ExcludedText Credits = new("Gemma 4 and EmbeddingGemma — Google, Apache 2.0", "documented deviation (DEVIATIONS.md): Gemma 4 and EmbeddingGemma are credited separately, EmbeddingGemma under the Gemma Terms of Use");
+
     private const string WaveformReason = "waveform bars the canvas draws from a formula";
 
     public static IReadOnlyList<string> Excluded { get; } = ["OnbComponents", "OnbComponentsDark"];
@@ -164,7 +168,12 @@ internal static class DesignBoards
                     new IgnoreRect(822, 1611 + shift, 70, 17, "Settings: [VERSION] placeholder", TextOnly: true),
                     new IgnoreRect(853, 1638 + shift, 70, 18, "Settings: [LICENSE] placeholder", TextOnly: true),
                 ],
-                ExcludedTexts: [Version, License, UserPath]));
+                ExcludedTexts: [Version, License, UserPath, StorageText, DirectMl, Credits],
+                // Reached 0.82 % / 0.65 % shape, every text found (four documented deviations excluded), 1 geometry error: "CPU" sits
+                // 12.7 px right because the control says "Vulkan" where the canvas says "DirectML" (D-042) and is right-aligned.
+                MaxShapeMismatchPercent: 1.0,
+                MinTextMatchedPercent: 100,
+                MaxTextGeometryErrors: 1));
             boards.Add(new("Onb1Welcome" + suffix, BoardScreen.Onboarding1Welcome, dark, 1280, 800, [], MaxShapeMismatchPercent: 0.8, MinTextMatchedPercent: 95, MaxTextGeometryErrors: 0));
             boards.Add(new(
                 "Onb2Audio" + suffix,

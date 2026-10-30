@@ -58,7 +58,7 @@ internal sealed class DesignRig : IDisposable
             }
         }
 
-        Settings = new SettingsViewModel(Store, Capture, Manager, null, DesignDemoData.StoragePath, Folders, action => action(), version: DesignDemoData.Version);
+        Settings = new SettingsViewModel(Store, Capture, Manager, null, DesignDemoData.StoragePath, Folders, action => action(), version: DesignDemoData.Version, accelerationProbe: new FakeAccelerationProbe(AiAcceleration.Cpu, AiAcceleration.Vulkan, AiAcceleration.Cuda), accelerationStatus: new FakeAccelerationStatus());
         Onboarding = new OnboardingViewModel(
             Settings,
             Store,
