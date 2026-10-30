@@ -170,6 +170,14 @@ if ($Test) {
 }
 
 # --- Publish ---------------------------------------------------------------------------------------------------------
+# Native AOT links with MSVC, which it finds through vswhere (Visual Studio or the Build Tools with the C++ workload).
+$vswhere = Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio\Installer\vswhere.exe'
+if ($Publish -and $onWindows -and -not (Test-Path -LiteralPath $vswhere)) {
+    Add-Result 'Publish' 'FAIL' ("Native AOT needs the MSVC linker: install the Visual Studio Build Tools with the C++ workload " +
+        "(winget install Microsoft.VisualStudio.2022.BuildTools --override ""--quiet --wait --add Microsoft.VisualStudio.Workload.VCTools --includeRecommended""), " +
+        "or put the CI artifact murmur-win-x64 into artifacts/publish/win-x64 and run without -Publish")
+    $Publish = $false
+}
 if ($Publish -and (Require-Windows 'Publish')) {
     $log1 = Join-Path $runDir 'publish-desktop.log'
     $log2 = Join-Path $runDir 'publish-transcription.log'

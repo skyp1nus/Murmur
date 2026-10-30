@@ -55,6 +55,9 @@ internal sealed class Route(byte[] content)
 /// <summary>HttpListener on 127.0.0.1 serving <see cref="Route"/>s with Range support, as the real hosts do.</summary>
 internal sealed class FakeFileServer : IAsyncDisposable
 {
+    /// <summary>How long a dropped response waits after its last bytes, so they reach the client before the reset.</summary>
+    private static readonly TimeSpan DropGrace = TimeSpan.FromMilliseconds(200);
+
     private readonly HttpListener _listener;
     private readonly Task _loop;
     private readonly CancellationTokenSource _stop = new();
@@ -256,7 +259,10 @@ internal sealed class FakeFileServer : IAsyncDisposable
                 size = (int)Math.Min(size, Math.Max(0, limit - sent));
                 if (size == 0)
                 {
+                    // Abort resets the connection, and http.sys (Windows) drops what it has not sent yet: without a pause the
+                    // client would get a varying part of the prefix, which the downloader rightly counts as new progress.
                     await response.OutputStream.FlushAsync();
+                    await Task.Delay(DropGrace);
                     response.Abort();
                     return;
                 }
