@@ -133,6 +133,12 @@ public sealed class MediaEngineVideoPlayer : IVideoPlayer
     /// <summary>The HRESULT of the last failed frame transfer or copy, 0 when the last one succeeded (diagnostics).</summary>
     internal int LastTransferResult { get; private set; }
 
+    /// <summary>How often <see cref="SeekRecovery"/> re-copied a frame since the file was opened (diagnostics and tests).</summary>
+    internal int RecoveryRetransfers { get; private set; }
+
+    /// <summary>How often <see cref="SeekRecovery"/> repeated a seek since the file was opened (diagnostics and tests).</summary>
+    internal int RecoveryReseeks { get; private set; }
+
     public async ValueTask OpenAsync(string filePath, CancellationToken cancellationToken)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
@@ -214,7 +220,7 @@ public sealed class MediaEngineVideoPlayer : IVideoPlayer
         PumpSeeks(session);
         long pts = -1;
         var tick = IMFMediaEngine.OnVideoStreamTick(session.Engine, &pts);
-        _frames.Tick(tick, pts);
+        _frames.Tick(tick, pts, observePeriod: !_seeks.IsBusy && !_recovery.IsArmed);
         var forced = _recovery.IsArmed && RecoverSeek(session);
         var events = Volatile.Read(ref session.PictureEvents);
         if (!forced && !_frames.IsDue(width, height, events))
@@ -287,7 +293,8 @@ public sealed class MediaEngineVideoPlayer : IVideoPlayer
         text.Append(CultureInfo.InvariantCulture, $"paused {IMFMediaEngine.IsPaused(engine) != 0}, ended {IMFMediaEngine.IsEnded(engine) != 0}, ");
         text.Append(CultureInfo.InvariantCulture, $"seeking {IMFMediaEngine.IsSeeking(engine) != 0}, currentTime {IMFMediaEngine.GetCurrentTime(engine):F3} s, ");
         text.Append(CultureInfo.InvariantCulture, $"duration {IMFMediaEngine.GetDuration(engine):F3} s, seek queue {(_seeks.IsBusy ? _seeks.LatestTarget.TotalSeconds.ToString("F3", CultureInfo.InvariantCulture) + " s" : "idle")}, ");
-        text.Append(CultureInfo.InvariantCulture, $"last copied pts {_frames.CopiedPts?.ToString(CultureInfo.InvariantCulture) ?? "none"}; events: ");
+        text.Append(CultureInfo.InvariantCulture, $"last copied pts {_frames.CopiedPts?.ToString(CultureInfo.InvariantCulture) ?? "none"}, ");
+        text.Append(CultureInfo.InvariantCulture, $"seek recovery: {RecoveryRetransfers} re-copies, {RecoveryReseeks} re-seeks; events: ");
         text.Append(session.DescribeEvents());
         return text.ToString();
     }
@@ -326,6 +333,8 @@ public sealed class MediaEngineVideoPlayer : IVideoPlayer
             _recovery.Reset();
             _transferFailures = 0;
             LastTransferResult = 0;
+            RecoveryRetransfers = 0;
+            RecoveryReseeks = 0;
             _open = true;
         }
         catch
@@ -468,12 +477,14 @@ public sealed class MediaEngineVideoPlayer : IVideoPlayer
         var engine = session.Engine;
         var settled = IMFMediaEngine.IsPaused(engine) != 0 && IMFMediaEngine.IsSeeking(engine) == 0
             && IMFMediaEngine.GetReadyState(engine) >= HaveCurrentData;
-        switch (_recovery.Take(settled, now))
+        switch (_recovery.Take(settled, now, _frames.FramePeriod))
         {
             case SeekRecoveryStep.Retransfer:
+                RecoveryRetransfers++;
                 return true;
             case SeekRecoveryStep.Reseek:
-                var target = _recovery.Target;
+                RecoveryReseeks++;
+                var target = _recovery.ReseekTarget;
                 if (_seeks.Request(target, Volatile.Read(ref session.SeekedEvents), now))
                 {
                     SendSeek(session, target);

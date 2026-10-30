@@ -321,6 +321,7 @@ public sealed class VideoPlayerLogicTests
         Assert.All(steps.Skip(1), step => Assert.Equal(SeekRecoveryStep.Reseek, step));
         Assert.False(recovery.IsArmed);
         Assert.Equal(S(2.25), recovery.Target);
+        Assert.Equal(S(2.25) - TimeSpan.FromMilliseconds(1), recovery.ReseekTarget); // the last attempt is nudged
         Assert.False(recovery.IsDue(now + 10_000, false, 0)); // at most MaxAttempts per target
     }
 
@@ -390,6 +391,108 @@ public sealed class VideoPlayerLogicTests
         recovery.Reset(); // another file
         Assert.False(recovery.IsArmed);
         Assert.False(recovery.IsDue(10_000, false, 0));
+    }
+
+    [Fact]
+    public void SeekRecovery_TheFrameOfAnOlderTarget_DoesNotDisarm()
+    {
+        // Two quick clicks while paused: the first one's frame (pts 1) is presented while the second seek is in flight.
+        var recovery = new SeekRecovery(RecoveryDelay);
+        recovery.Arm(S(1), presentedPts: 0);
+        recovery.Arm(S(2), presentedPts: 0);
+        Assert.False(recovery.IsDue(5, seekBusy: true, presentedPts: 1));
+        Assert.True(recovery.IsArmed);
+
+        // The second seek is done and still shows the first one's frame: the race, recovered after the delay.
+        Assert.False(recovery.IsDue(10, seekBusy: false, 1));
+        Assert.False(recovery.IsDue(309, false, 1));
+        Assert.True(recovery.IsDue(310, false, 1));
+        Assert.Equal(SeekRecoveryStep.Retransfer, recovery.Take(true, 310));
+    }
+
+    [Fact]
+    public void SeekRecovery_ANewFrameAfterTheQueueWentIdle_Disarms()
+    {
+        var recovery = new SeekRecovery(RecoveryDelay);
+        recovery.Arm(S(1), 0);
+        recovery.Arm(S(2), 0);
+        Assert.False(recovery.IsDue(5, seekBusy: true, 1));
+        Assert.False(recovery.IsDue(10, seekBusy: false, 2)); // the second target's frame
+        Assert.False(recovery.IsArmed);
+    }
+
+    [Fact]
+    public void SeekRecovery_TargetInsideTheShownFrame_OnlyRetransfers()
+    {
+        var recovery = new SeekRecovery(RecoveryDelay);
+        const long period = 333_333; // 30 fps
+        recovery.Arm(S(2.25), presentedPts: 22_500_000 - 100_000); // the shown frame started 10 ms before the target
+        recovery.IsDue(0, false, 22_500_000 - 100_000);
+        Assert.True(recovery.IsDue(300, false, 22_500_000 - 100_000));
+        Assert.Equal(SeekRecoveryStep.Retransfer, recovery.Take(true, 300, period));
+        Assert.False(recovery.IsArmed); // no re-seeks: the shown frame is the right one
+
+        // Seek(0) on frame 0, the period still unknown: the pts equals the target.
+        recovery.Arm(S(0), presentedPts: 0);
+        recovery.IsDue(0, false, 0);
+        Assert.True(recovery.IsDue(300, false, 0));
+        Assert.Equal(SeekRecoveryStep.Retransfer, recovery.Take(true, 300, framePeriod: 0));
+        Assert.False(recovery.IsArmed);
+
+        // The shown frame is older than one period: it is the wrong one, the full set of steps applies.
+        recovery.Arm(S(2.25), presentedPts: 22_500_000 - period);
+        recovery.IsDue(0, false, 22_500_000 - period);
+        Assert.True(recovery.IsDue(300, false, 22_500_000 - period));
+        Assert.Equal(SeekRecoveryStep.Retransfer, recovery.Take(true, 300, period));
+        Assert.True(recovery.IsArmed);
+    }
+
+    [Fact]
+    public void SeekRecovery_NeverSettledEngine_GivesUpAfterMaxUnsettled()
+    {
+        var recovery = new SeekRecovery(RecoveryDelay);
+        recovery.Arm(S(1), 0);
+        recovery.IsDue(0, false, 0);
+        var now = 0L;
+        for (var i = 0; i < SeekRecovery.MaxUnsettled; i++)
+        {
+            Assert.True(recovery.IsArmed);
+            now += RecoveryDelay;
+            Assert.True(recovery.IsDue(now, false, 0));
+            Assert.Equal(SeekRecoveryStep.None, recovery.Take(engineSettled: false, now));
+        }
+
+        Assert.False(recovery.IsArmed);
+        Assert.False(recovery.IsDue(now + 10_000, false, 0));
+    }
+
+    [Fact]
+    public void SeekRecovery_NudgeNeverGoesBelowZero()
+    {
+        var recovery = new SeekRecovery(RecoveryDelay);
+        recovery.Arm(TimeSpan.FromTicks(5_000), 7); // 0.5 ms
+        Assert.Equal(TimeSpan.FromTicks(5_000), recovery.ReseekTarget);
+        recovery.Arm(TimeSpan.Zero, 7);
+        Assert.Equal(TimeSpan.Zero, recovery.ReseekTarget);
+    }
+
+    [Fact]
+    public void FrameTracker_FramePeriod_IsTheShortestStepBetweenFramesSeenWhilePlaying()
+    {
+        var tracker = new FrameChangeTracker();
+        Assert.Equal(0, tracker.FramePeriod);
+        tracker.Tick(0, 0, observePeriod: true); // the first frame: nothing to compare with
+        Assert.Equal(0, tracker.FramePeriod);
+        tracker.Tick(0, 666_666, observePeriod: true); // a dropped frame: two periods
+        Assert.Equal(666_666, tracker.FramePeriod);
+        tracker.Tick(0, 1_000_000, observePeriod: true);
+        Assert.Equal(333_334, tracker.FramePeriod);
+        tracker.Tick(0, 50_000_000, observePeriod: false); // a seek: not observed
+        tracker.Tick(0, 50_100_000, observePeriod: false);
+        tracker.Tick(0, 90_000_000, observePeriod: true); // a jump of more than a second: not a period
+        Assert.Equal(333_334, tracker.FramePeriod);
+        tracker.Reset();
+        Assert.Equal(0, tracker.FramePeriod);
     }
 
     [Fact]
