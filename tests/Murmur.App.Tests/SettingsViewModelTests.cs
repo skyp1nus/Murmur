@@ -370,7 +370,7 @@ public sealed class SettingsViewModelTests : IDisposable
         Assert.False(rig.Vm.HasModels);
         Assert.DoesNotContain(rig.Vm.Sections, s => s.Id == SettingsViewModel.ModelsSectionId);
         Assert.Equal(
-            [SettingsViewModel.DevicesSectionId, SettingsViewModel.StorageSectionId, SettingsViewModel.HotkeysSectionId, SettingsViewModel.AppearanceSectionId, SettingsViewModel.AboutSectionId],
+            [SettingsViewModel.DevicesSectionId, SettingsViewModel.StorageSectionId, SettingsViewModel.HotkeysSectionId, SettingsViewModel.AboutSectionId, SettingsViewModel.AppearanceSectionId],
             rig.Vm.Sections.Select(s => s.Id));
     }
 
@@ -586,8 +586,8 @@ public sealed class SettingsViewModelTests : IDisposable
         var rig = new Rig();
         var rows = rig.Vm.Hotkeys.Rows;
 
-        Assert.Equal(["Ctrl Shift R", "Ctrl Shift S", "Ctrl Shift M", "Ctrl Shift P"], rows.Select(r => r.DisplayText));
-        Assert.Equal([HotkeyAction.ToggleRecording, HotkeyAction.ToggleScreen, HotkeyAction.ShowApp, HotkeyAction.TogglePause], rows.Select(r => r.Action));
+        Assert.Equal(["Ctrl Shift R", "Ctrl Shift P", "Ctrl Shift S", "Ctrl Shift M"], rows.Select(r => r.DisplayText));
+        Assert.Equal([HotkeyAction.ToggleRecording, HotkeyAction.TogglePause, HotkeyAction.ToggleScreen, HotkeyAction.ShowApp], rows.Select(r => r.Action));
     }
 
     [Fact]
@@ -642,10 +642,10 @@ public sealed class SettingsViewModelTests : IDisposable
         var rig = new Rig();
         var hotkeys = rig.Vm.Hotkeys;
 
-        hotkeys.Rows[1].CaptureCommand.Execute(null);
+        hotkeys.Rows[2].CaptureCommand.Execute(null);
         hotkeys.HandleKey(Key.F13, KeyModifiers.None);
         await hotkeys.LastSave;
-        hotkeys.Rows[2].CaptureCommand.Execute(null);
+        hotkeys.Rows[3].CaptureCommand.Execute(null);
         hotkeys.HandleKey(Key.J, KeyModifiers.Control | KeyModifiers.Shift);
         await hotkeys.LastSave;
 

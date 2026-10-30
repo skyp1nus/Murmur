@@ -3,6 +3,7 @@ using CommunityToolkit.Mvvm.Input;
 using Murmur.App.Resources;
 using Murmur.App.Services;
 using Murmur.Core.Capture;
+using Murmur.Core.Intelligence;
 using Murmur.Core.Models;
 using Murmur.Core.Settings;
 
@@ -23,7 +24,7 @@ public sealed record SettingsSection(string Id, string Title);
 /// <para><b>Follows the store.</b> A change saved by anyone else (the onboarding, the hotkey registration) is re-read into
 /// the sections that exist; the event is marshalled to the UI thread. <see cref="Dispose"/> unsubscribes.</para>
 /// </remarks>
-public sealed partial class SettingsViewModel : ObservableObject, IDisposable
+public sealed partial class SettingsViewModel : ObservableObject, IDisposable, IFillsFrame
 {
     public const string ModelsSectionId = "models";
     public const string DevicesSectionId = "devices";
@@ -40,7 +41,10 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable
     private readonly string? _defaultRecordingsDirectory;
     private readonly IFolderLauncher _launcher;
     private readonly Action<Action> _post;
+    private readonly IAccelerationProbe? _accelerationProbe;
+    private readonly IAccelerationStatusSource? _accelerationStatus;
     private ModelsSettingsViewModel? _models;
+    private AccelerationSettingsViewModel? _acceleration;
     private DevicesSettingsViewModel? _devices;
     private StorageSettingsViewModel? _storage;
     private HotkeysSettingsViewModel? _hotkeys;
@@ -54,7 +58,9 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable
     /// <param name="defaultRecordingsDirectory">Shown while no folder is chosen.</param>
     /// <param name="launcher">Opens the recordings folder; the OS shell by default.</param>
     /// <param name="post">Marshals model-manager and settings-store events to the UI thread; the UI dispatcher by default.</param>
-    /// <param name="version">The version shown under "Про програму"; the build-time version by default.</param>
+    /// <param name="version">The version shown under "About"; the build-time version by default.</param>
+    /// <param name="accelerationProbe">Which accelerations this PC supports; <c>null</c> = only the CPU build is offered.</param>
+    /// <param name="accelerationStatus">Which AI build runs and why a GPU build does not; <c>null</c> = nothing to report.</param>
     public SettingsViewModel(
         ISettingsStore settings,
         ICapture capture,
@@ -63,7 +69,9 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable
         string? defaultRecordingsDirectory = null,
         IFolderLauncher? launcher = null,
         Action<Action>? post = null,
-        string? version = null)
+        string? version = null,
+        IAccelerationProbe? accelerationProbe = null,
+        IAccelerationStatusSource? accelerationStatus = null)
     {
         ArgumentNullException.ThrowIfNull(settings);
         ArgumentNullException.ThrowIfNull(capture);
@@ -75,6 +83,8 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable
         _defaultRecordingsDirectory = defaultRecordingsDirectory;
         _launcher = launcher ?? SystemFolderLauncher.Instance;
         _post = post ?? (action => Avalonia.Threading.Dispatcher.UIThread.Post(action));
+        _accelerationProbe = accelerationProbe;
+        _accelerationStatus = accelerationStatus;
         About = new AboutViewModel(version);
 
         var sections = new List<SettingsSection>(6);
@@ -86,8 +96,10 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable
         sections.Add(new SettingsSection(DevicesSectionId, Strings.Settings_DevicesTitle));
         sections.Add(new SettingsSection(StorageSectionId, Strings.Settings_StorageTitle));
         sections.Add(new SettingsSection(HotkeysSectionId, Strings.Settings_HotkeysTitle));
-        sections.Add(new SettingsSection(AppearanceSectionId, Strings.Settings_AppearanceTitle));
         sections.Add(new SettingsSection(AboutSectionId, Strings.Settings_AboutTitle));
+
+        // Not on the canvas: the preferences the canvas has no room for follow the five drawn sections.
+        sections.Add(new SettingsSection(AppearanceSectionId, Strings.Settings_AppearanceTitle));
         Sections = sections;
         _store.Changed += OnStoreChanged;
     }
@@ -97,6 +109,12 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable
         _models ??= _modelManager is null || _disposed ? null : new ModelsSettingsViewModel(_modelManager, _writer, _activeModel, _post);
 
     public bool HasModels => _modelManager is not null;
+
+    /// <summary>The Acceleration card of the Models section; created on first use, <c>null</c> when no model manager is wired.</summary>
+    public AccelerationSettingsViewModel? Acceleration =>
+        _acceleration ??= _modelManager is null || _disposed
+            ? null
+            : new AccelerationSettingsViewModel(_writer, _modelManager, _accelerationProbe, _accelerationStatus, _post);
 
     /// <summary>Created on first use.</summary>
     public DevicesSettingsViewModel Devices => _devices ?? (CanCreate() ? _devices = new DevicesSettingsViewModel(_capture, _writer) : null!);
@@ -122,7 +140,7 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable
     }
 
     /// <summary>Which section view models exist yet (for tests of the lazy creation).</summary>
-    internal bool AreSectionsCreated => _devices is not null || _models is not null || _storage is not null || _hotkeys is not null || _appearance is not null;
+    internal bool AreSectionsCreated => _acceleration is not null || _devices is not null || _models is not null || _storage is not null || _hotkeys is not null || _appearance is not null;
 
     /// <summary>The last settings change started by any section (for tests).</summary>
     internal Task LastSave => _writer.LastSave;
@@ -130,14 +148,23 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable
     /// <summary>The one writer of every settings change; the onboarding saves through it so its edits never overlap the sections' own.</summary>
     internal SettingsWriter Writer => _writer;
 
-    /// <summary>A link of the sidebar was clicked: the view scrolls the section into view.</summary>
+    /// <summary>A link of the sidebar was clicked: the view scrolls the section to the top of the page.</summary>
     public event Action<string>? SectionRequested;
+
+    /// <summary>
+    /// The section in view (an id of <see cref="Sections"/>), reported by the view while the page scrolls; <c>null</c> while the page
+    /// rests at its top and nothing was asked for (the canvas highlights no section then). The sidebar highlights it.
+    /// </summary>
+    [ObservableProperty]
+    public partial string? CurrentSectionId { get; set; }
 
     /// <summary>Re-reads devices, model states, free space and the saved values; called every time the screen is shown.</summary>
     public void Refresh()
     {
+        CurrentSectionId = null;
         // A section that was never needed has nothing to refresh: its first use reads everything.
         _models?.Refresh();
+        _acceleration?.Refresh();
         _devices?.Refresh();
         _storage?.Refresh();
         _hotkeys?.Refresh();
@@ -154,6 +181,7 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable
         // Only the saved values are re-read (ReloadSaved): no device enumeration, and no inline error, hotkey registration
         // status or capture in progress is lost. The full Refresh() is for showing the screen.
         _models?.RefreshActive();
+        _acceleration?.ReloadSaved();
         _devices?.ReloadSaved();
         _storage?.Refresh();
         _hotkeys?.ReloadSaved();
@@ -179,5 +207,6 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable
         _disposed = true;
         _store.Changed -= OnStoreChanged;
         _models?.Dispose();
+        _acceleration?.Dispose();
     }
 }

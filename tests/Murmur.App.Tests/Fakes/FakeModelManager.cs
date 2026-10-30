@@ -10,8 +10,12 @@ internal sealed class FakeModelManager : IModelManager
 {
     public const string AsrId = "asr";
     public const string VadId = "vad";
-    public const string RuntimeId = "runtime";
+    public const string RuntimeId = "llama-cpp-b1";
     public const string EmbeddingId = "embedding";
+
+    /// <summary>The ids of the GPU runtimes the real catalog keeps unlisted (derived from the CPU runtime of the catalog, see <see cref="Murmur.App.ViewModels.AccelerationSettingsViewModel"/>).</summary>
+    public const string VulkanRuntimeId = "llama-cpp-vulkan-b1";
+    public const string CudaRuntimeId = "llama-cpp-cuda-b1";
     public const string ChatSmallId = "chat-small";
     public const string ChatLargeId = "chat-large";
 
@@ -37,6 +41,18 @@ internal sealed class FakeModelManager : IModelManager
             ],
         ];
         foreach (var info in Catalog)
+        {
+            _status[info.Id] = new ModelStatus(info, ModelInstallState.NotInstalled, 0, null, null);
+        }
+    }
+
+    /// <summary>
+    /// Adds an item that <see cref="GetStatus"/>, <see cref="InstallAsync"/> and <see cref="RemoveAsync"/> know but <see cref="Catalog"/> does not list
+    /// (the GPU builds of the runtime in the real manager).
+    /// </summary>
+    public void AddUnlisted(ModelInfo info)
+    {
+        lock (_gate)
         {
             _status[info.Id] = new ModelStatus(info, ModelInstallState.NotInstalled, 0, null, null);
         }

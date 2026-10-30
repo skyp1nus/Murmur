@@ -1,6 +1,7 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Murmur.App.Localization;
+using Murmur.App.Resources;
 using Murmur.Core.Settings;
 
 namespace Murmur.App.ViewModels;
@@ -19,6 +20,9 @@ public sealed partial class AppearanceSettingsViewModel : ObservableObject
         _writer = writer;
         Refresh();
     }
+
+    /// <summary>The only transcription language of the MVP: Parakeet detects it by itself (the same choice as the onboarding's).</summary>
+    public IReadOnlyList<string> TranscriptionLanguages { get; } = [Strings.Onb4_Auto];
 
     [ObservableProperty]
     public partial ThemePreference Theme { get; set; }

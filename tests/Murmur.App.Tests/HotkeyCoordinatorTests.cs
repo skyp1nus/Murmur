@@ -227,9 +227,9 @@ public sealed class HotkeyCoordinatorTests : IDisposable
         var rows = rig.Rows.Rows;
         Assert.Equal("Зайнято іншою програмою", rows[0].RegistrationNote);
         Assert.True(rows[0].ShowRegistrationNote);
-        Assert.Equal(Strings.Hotkeys_Unsupported, rows[1].RegistrationNote);
-        Assert.Null(rows[2].RegistrationNote);
-        Assert.False(rows[2].ShowRegistrationNote);
+        Assert.Equal(Strings.Hotkeys_Unsupported, rows[2].RegistrationNote);
+        Assert.Null(rows[3].RegistrationNote);
+        Assert.False(rows[3].ShowRegistrationNote);
 
         // The next registration that works hides the note again.
         rig.Hotkeys.Results.Remove("Ctrl+Shift+R");

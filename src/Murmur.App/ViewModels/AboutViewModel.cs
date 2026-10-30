@@ -31,5 +31,14 @@ public sealed class AboutViewModel
 
     public IReadOnlyList<string> Credits { get; }
 
+    /// <summary>The credit the CC-BY licence requires on the card.</summary>
+    public string ParakeetCredit => Credits[0];
+
+    /// <summary>Both Google models in one line, each with its own licence (they differ).</summary>
+    public string GoogleCredit => UiText.Format(Strings.About_Google, Credits[1], Credits[2]);
+
+    /// <summary>The remaining components, one line under the card.</summary>
+    public string OtherCredits => string.Join(" · ", Credits.Skip(3));
+
     private static string Credit(string component, string licence) => UiText.Format(Strings.About_Credit, component, licence);
 }
