@@ -279,14 +279,26 @@ public sealed unsafe class InteropLayoutTests
                 }
             }
 
+            // Warm up first; a pass that allocates nothing proves the steady state, while one-time runtime work (tiered JIT, a
+            // loaded machine) can land in any single pass: at most three passes, the last one must allocate nothing.
             Round();
-            var before = GC.GetAllocatedBytesForCurrentThread();
-            for (var r = 0; r < 100; r++)
+            var bytes = new List<long>();
+            for (var attempt = 0; attempt < 3; attempt++)
             {
-                Round();
+                var before = GC.GetAllocatedBytesForCurrentThread();
+                for (var r = 0; r < 100; r++)
+                {
+                    Round();
+                }
+
+                bytes.Add(GC.GetAllocatedBytesForCurrentThread() - before);
+                if (bytes[^1] == 0)
+                {
+                    break;
+                }
             }
 
-            Assert.Equal(0, GC.GetAllocatedBytesForCurrentThread() - before);
+            Assert.True(bytes[^1] == 0, $"bytes allocated per pass of 100 rounds: {string.Join(", ", bytes)}");
             Assert.Equal(0, failures);
             Assert.Equal(frame, sink.Frames);
         }

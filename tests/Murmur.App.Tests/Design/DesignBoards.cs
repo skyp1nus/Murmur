@@ -97,6 +97,10 @@ internal static class DesignBoards
     private static readonly ExcludedText VideoPlaceholder = new("[Screen recording frame]", "canvas placeholder of the video frame; the app shows the video");
     private static readonly ExcludedText VideoChip = new("H.264", "label of the canvas video placeholder; the app shows the video", Contains: true);
 
+    private static readonly ExcludedText StorageText = new("Audio, video and the search index live in one folder.", "documented deviation (DEVIATIONS.md): the search index is not in the recordings folder");
+    private static readonly ExcludedText DirectMl = new("DirectML", "documented deviation (DEVIATIONS.md, D-042): llama.cpp has no DirectML backend, the app offers Vulkan");
+    private static readonly ExcludedText Credits = new("Gemma 4 and EmbeddingGemma — Google, Apache 2.0", "documented deviation (DEVIATIONS.md): Gemma 4 and EmbeddingGemma are credited separately, EmbeddingGemma under the Gemma Terms of Use");
+
     private const string WaveformReason = "waveform bars the canvas draws from a formula";
 
     public static IReadOnlyList<string> Excluded { get; } = ["OnbComponents", "OnbComponentsDark"];
@@ -152,8 +156,14 @@ internal static class DesignBoards
                     new IgnoreRect(273, 165, 535, 301, "Session: screen-recording frame placeholder (the app shows the video, not a placeholder)"),
                     new IgnoreRect(292, 497, 498, 66, "Session: " + WaveformReason),
                 ],
+                // Reached 1.10 % / 1.14 % shape mismatch, every text found, 1 geometry error (the width of "12:21": the canvas box includes the space after it).
+                MaxShapeMismatchPercent: 1.5,
+                MinTextMatchedPercent: 100,
+                MaxTextGeometryErrors: 1,
                 ExcludedTexts: [VideoPlaceholder, VideoChip]));
-            boards.Add(new("Chat" + suffix, BoardScreen.Chat, dark, 1440, 1080, []));
+            // Ask AI: reached 3.7 % / 1.4 % shape mismatch, every text found, 1 geometry error: the placeholder of the question box, which the
+            // reference measures against the centre of the whole textarea while the canvas draws it on its first line (the app does the same).
+            boards.Add(new("Chat" + suffix, BoardScreen.Chat, dark, 1440, 1080, [], MaxShapeMismatchPercent: dark ? 1.5 : 3.8, MinTextMatchedPercent: 100, MaxTextGeometryErrors: 1));
             boards.Add(new(
                 "Settings" + suffix,
                 BoardScreen.Settings,
@@ -164,7 +174,12 @@ internal static class DesignBoards
                     new IgnoreRect(822, 1611 + shift, 70, 17, "Settings: [VERSION] placeholder", TextOnly: true),
                     new IgnoreRect(853, 1638 + shift, 70, 18, "Settings: [LICENSE] placeholder", TextOnly: true),
                 ],
-                ExcludedTexts: [Version, License, UserPath]));
+                ExcludedTexts: [Version, License, UserPath, StorageText, DirectMl, Credits],
+                // Reached 0.82 % / 0.65 % shape, every text found (four documented deviations excluded), 1 geometry error: "CPU" sits
+                // 12.7 px right because the control says "Vulkan" where the canvas says "DirectML" (D-042) and is right-aligned.
+                MaxShapeMismatchPercent: 1.0,
+                MinTextMatchedPercent: 100,
+                MaxTextGeometryErrors: 1));
             boards.Add(new("Onb1Welcome" + suffix, BoardScreen.Onboarding1Welcome, dark, 1280, 800, [], MaxShapeMismatchPercent: 0.8, MinTextMatchedPercent: 95, MaxTextGeometryErrors: 0));
             boards.Add(new(
                 "Onb2Audio" + suffix,

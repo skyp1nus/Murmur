@@ -1,0 +1,102 @@
+<Styles xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+  <!--
+    Styles of the buttons the recording puts in the top bar (Session.dc.html): the Export and "..." pills and the menus they open.
+    The rest of the screen's styles live in its own view (SessionView.axaml). Like the other style files this one holds no literal
+    colours, fonts, radii or spacing: they are all token resources.
+  -->
+  <Styles.Resources>
+    <ResourceDictionary>
+      <ResourceDictionary.MergedDictionaries>
+        <ResourceInclude Source="/Styles/Tokens.axaml" />
+      </ResourceDictionary.MergedDictionaries>
+
+      <x:Double x:Key="Size.SessionGhost">36</x:Double>
+      <x:Double x:Key="Size.SessionMenuWidth">220</x:Double>
+      <x:Double x:Key="Size.SessionRenameWidth">280</x:Double>
+
+      <!-- The three dots of "..." (filled circles on the 24 x 24 grid of the canvas SVG). -->
+      <StreamGeometry x:Key="Session.Dots">M3.4 12a1.6 1.6 0 1 0 3.2 0a1.6 1.6 0 1 0 -3.2 0 M10.4 12a1.6 1.6 0 1 0 3.2 0a1.6 1.6 0 1 0 -3.2 0 M17.4 12a1.6 1.6 0 1 0 3.2 0a1.6 1.6 0 1 0 -3.2 0</StreamGeometry>
+    </ResourceDictionary>
+  </Styles.Resources>
+
+  <!-- Export and "...": 36 px pills, a ButtonBorder hairline on the Canvas, 13 px / 500 without tracking. -->
+  <Style Selector="Button.sessionGhost">
+    <Setter Property="Height" Value="{StaticResource Size.SessionGhost}" />
+    <Setter Property="MinHeight" Value="0" />
+    <Setter Property="MinWidth" Value="0" />
+    <Setter Property="Padding" Value="{StaticResource Inset.Toggle}" />
+    <Setter Property="CornerRadius" Value="{StaticResource Radius.Pill}" />
+    <Setter Property="HorizontalContentAlignment" Value="Center" />
+    <Setter Property="VerticalContentAlignment" Value="Center" />
+    <Setter Property="Background" Value="{DynamicResource Brush.Canvas}" />
+    <Setter Property="Foreground" Value="{DynamicResource Brush.Ink}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource Brush.ButtonBorder}" />
+    <Setter Property="BorderThickness" Value="{StaticResource Hairline.Thickness}" />
+  </Style>
+  <Style Selector="Button.sessionGhost.round">
+    <Setter Property="Width" Value="{StaticResource Size.SessionGhost}" />
+    <Setter Property="Padding" Value="0" />
+  </Style>
+  <Style Selector="Button.sessionGhost:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="{DynamicResource Brush.FillHover}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource Brush.ButtonBorder}" />
+    <Setter Property="Foreground" Value="{DynamicResource Brush.Ink}" />
+  </Style>
+  <Style Selector="Button.sessionGhost:pressed /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="{DynamicResource Brush.FillPressed}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource Brush.ButtonBorder}" />
+    <Setter Property="Foreground" Value="{DynamicResource Brush.Ink}" />
+  </Style>
+  <Style Selector="Button.sessionGhost:disabled /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="{DynamicResource Brush.Canvas}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource Brush.Stone}" />
+    <Setter Property="Foreground" Value="{DynamicResource Brush.Ash}" />
+  </Style>
+  <Style Selector="TextBlock.sessionGhostText">
+    <Setter Property="FontFamily" Value="{StaticResource Font.Body}" />
+    <Setter Property="FontWeight" Value="{StaticResource FontWeight.BodyMedium}" />
+    <Setter Property="FontSize" Value="{StaticResource FontSize.MetaTight}" />
+    <Setter Property="LineHeight" Value="{StaticResource LineHeight.MetaTight}" />
+    <Setter Property="LetterSpacing" Value="0" />
+    <Setter Property="VerticalAlignment" Value="Center" />
+  </Style>
+
+  <!-- The two menus: a Canvas card with a hairline, items that fill with the hover colour. -->
+  <Style Selector="FlyoutPresenter.sessionMenu">
+    <Setter Property="Background" Value="{DynamicResource Brush.Canvas}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource Brush.Hairline}" />
+    <Setter Property="BorderThickness" Value="{StaticResource Hairline.Thickness}" />
+    <Setter Property="CornerRadius" Value="{StaticResource Radius.Note}" />
+    <Setter Property="Padding" Value="{StaticResource Inset.8}" />
+    <Setter Property="MinWidth" Value="{StaticResource Size.SessionMenuWidth}" />
+  </Style>
+  <Style Selector="Button.sessionMenuItem">
+    <Setter Property="MinHeight" Value="0" />
+    <Setter Property="Padding" Value="{StaticResource Inset.Input}" />
+    <Setter Property="CornerRadius" Value="{StaticResource Radius.Small}" />
+    <Setter Property="HorizontalAlignment" Value="Stretch" />
+    <Setter Property="HorizontalContentAlignment" Value="Left" />
+    <Setter Property="VerticalContentAlignment" Value="Center" />
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="BorderThickness" Value="0" />
+    <Setter Property="Foreground" Value="{DynamicResource Brush.Ink}" />
+    <Setter Property="FontFamily" Value="{StaticResource Font.Body}" />
+    <Setter Property="FontWeight" Value="{StaticResource FontWeight.Body}" />
+    <Setter Property="FontSize" Value="{StaticResource FontSize.BodySm}" />
+  </Style>
+  <Style Selector="Button.sessionMenuItem /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="Foreground" Value="{DynamicResource Brush.Ink}" />
+  </Style>
+  <Style Selector="Button.sessionMenuItem:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="{DynamicResource Brush.FillHover}" />
+  </Style>
+  <Style Selector="Button.sessionMenuItem:pressed /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="{DynamicResource Brush.FillPressed}" />
+  </Style>
+  <Style Selector="Button.sessionMenuItem:disabled /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Foreground" Value="{DynamicResource Brush.Ash}" />
+  </Style>
+</Styles>

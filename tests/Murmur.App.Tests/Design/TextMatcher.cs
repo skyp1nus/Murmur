@@ -8,6 +8,9 @@ internal static class TextTolerance
     public const double OffsetPx = 2;
     public const double BaselinePx = 2;
     public const double WidthPercent = 3;
+
+    /// <summary>A width within half a pixel is never an error: 3 % of a full stop is 0.14 px, less than the two rasterisers agree on.</summary>
+    public const double WidthPx = 0.5;
     public const double FontSizePx = 0.5;
 
     /// <summary>The farthest an app text may be from the reference one and still be taken for it (duplicates, fragments).</summary>
@@ -313,7 +316,7 @@ internal static class TextMatcher
 
             // A trimmed text ends where the space ends: its width is not the text's.
             var widthPercent = reference.TotalWidth <= 0 ? 0 : 100 * (app.TotalWidth - reference.TotalWidth) / reference.TotalWidth;
-            if (!app.Trimmed && Math.Abs(widthPercent) > TextTolerance.WidthPercent)
+            if (!app.Trimmed && Math.Abs(widthPercent) > TextTolerance.WidthPercent && Math.Abs(app.TotalWidth - reference.TotalWidth) > TextTolerance.WidthPx)
             {
                 problems.Add(Format($"width {widthPercent:+0.#;-0.#} %"));
                 severity += Math.Abs(widthPercent) / TextTolerance.WidthPercent;

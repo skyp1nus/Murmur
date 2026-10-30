@@ -3,6 +3,8 @@ using Microsoft.Extensions.AI;
 using Murmur.Core.Intelligence;
 using Murmur.Core.Sessions;
 using Murmur.Core.Transcription;
+using ChatMessage = Microsoft.Extensions.AI.ChatMessage;
+using ChatMessage_ = Murmur.Core.Intelligence.ChatMessage;
 
 namespace Murmur.Intelligence.Tests.Fakes;
 
@@ -75,6 +77,24 @@ internal sealed class FakeStorage : IStorage
     public ValueTask DeleteSessionAsync(SessionId id, CancellationToken cancellationToken) => throw new NotSupportedException();
 
     public SessionFiles GetFiles(SessionId id) => throw new NotSupportedException();
+
+    public ValueTask<IReadOnlyList<ChatThread>> ListThreadsAsync(int limit, CancellationToken cancellationToken) => throw new NotSupportedException();
+
+    public ValueTask<ChatThread> CreateThreadAsync(string title, SessionId? scope, CancellationToken cancellationToken) => throw new NotSupportedException();
+
+    public ValueTask<IReadOnlyList<ChatMessage_>> GetMessagesAsync(ChatThreadId thread, CancellationToken cancellationToken) => throw new NotSupportedException();
+
+    public ValueTask AppendMessageAsync(ChatMessage_ message, CancellationToken cancellationToken) => throw new NotSupportedException();
+
+    public ValueTask RenameThreadAsync(ChatThreadId thread, string title, CancellationToken cancellationToken) => throw new NotSupportedException();
+
+    public ValueTask DeleteThreadAsync(ChatThreadId thread, CancellationToken cancellationToken) => throw new NotSupportedException();
+
+    public ValueTask<SessionSummary?> GetSummaryAsync(SessionId session, CancellationToken cancellationToken) => throw new NotSupportedException();
+
+    public ValueTask SaveSummaryAsync(SessionSummary summary, CancellationToken cancellationToken) => throw new NotSupportedException();
+
+    public ValueTask DeleteSummaryAsync(SessionId session, CancellationToken cancellationToken) => throw new NotSupportedException();
 }
 
 /// <summary>Embeds "…{n}" style inputs deterministically and records every batch.</summary>

@@ -24,6 +24,11 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- Expected output of the export formatters (TranscriptExportTests). -->
+    <None Include="Sessions\Golden\*" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\..\src\Murmur.Core\Murmur.Core.csproj" />
     <!-- Child process of the crash test; referenced so it is built and copied next to the tests. -->
     <ProjectReference Include="..\Murmur.Core.CrashHelper\Murmur.Core.CrashHelper.csproj" />

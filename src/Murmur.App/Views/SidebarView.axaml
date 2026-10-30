@@ -138,14 +138,73 @@
             </ItemsControl.ItemsPanel>
             <ItemsControl.ItemTemplate>
               <DataTemplate x:DataType="vm:SidebarEntry">
-                <Button Classes="nav sub"
-                        Classes.on="{Binding IsActive}"
-                        Command="{Binding OpenCommand}">
-                  <TextBlock Classes="t13"
-                             TextTrimming="CharacterEllipsis"
-                             Foreground="{Binding $parent[ContentPresenter].Foreground}"
-                             Text="{Binding Title}" />
-                </Button>
+                <Panel>
+                  <!-- A row that only opens something (recent recordings, settings sections) -->
+                  <Button Classes="nav sub"
+                          Classes.on="{Binding IsActive}"
+                          IsVisible="{Binding !CanManage}"
+                          Command="{Binding OpenCommand}">
+                    <TextBlock Classes="t13"
+                               TextTrimming="CharacterEllipsis"
+                               Foreground="{Binding $parent[ContentPresenter].Foreground}"
+                               Text="{Binding Title}" />
+                  </Button>
+
+                  <!-- A chat: the same pill with Rename and Delete in its context menu, and an inline editor while it is renamed -->
+                  <Panel IsVisible="{Binding CanManage}">
+                    <Button Classes="nav sub"
+                            Classes.on="{Binding IsActive}"
+                            IsVisible="{Binding ShowPill}"
+                            Command="{Binding OpenCommand}">
+                      <Button.ContextMenu>
+                        <ContextMenu>
+                          <MenuItem Header="{x:Static res:Strings.Chat_RenameChat}"
+                                    IsVisible="{Binding CanRename}"
+                                    Command="{Binding BeginRenameCommand}" />
+                          <MenuItem Header="{x:Static res:Strings.Chat_DeleteChat}"
+                                    IsVisible="{Binding CanDelete}"
+                                    Command="{Binding DeleteCommand}" />
+                        </ContextMenu>
+                      </Button.ContextMenu>
+                      <TextBlock Classes="t13"
+                                 TextTrimming="CharacterEllipsis"
+                                 Foreground="{Binding $parent[ContentPresenter].Foreground}"
+                                 Text="{Binding Title}" />
+                    </Button>
+                    <StackPanel Orientation="Horizontal"
+                                Spacing="{StaticResource Space.8}"
+                                Margin="{StaticResource Inset.Toggle}"
+                                IsVisible="{Binding IsConfirmingDelete}">
+                      <TextBlock Classes="t13 muted"
+                                 VerticalAlignment="Center"
+                                 Text="{x:Static res:Strings.Chat_DeleteQuestion}" />
+                      <Button Classes="suggestion"
+                              Command="{Binding ConfirmDeleteCommand}">
+                        <TextBlock Classes="t13 plain"
+                                   Foreground="{Binding $parent[ContentPresenter].Foreground}"
+                                   Text="{x:Static res:Strings.Chat_DeleteChat}" />
+                      </Button>
+                      <Button Classes="suggestion"
+                              Command="{Binding CancelDeleteCommand}">
+                        <TextBlock Classes="t13 plain"
+                                   Foreground="{Binding $parent[ContentPresenter].Foreground}"
+                                   Text="{x:Static res:Strings.Models_Cancel}" />
+                      </Button>
+                    </StackPanel>
+                    <controls:RenameBox Classes="chatRename"
+                                        IsVisible="{Binding IsEditing}"
+                                        AutomationProperties.Name="{x:Static res:Strings.Chat_RenameChat}"
+                                        Text="{Binding EditText, Mode=TwoWay}"
+                                        Finished="OnRenameFinished">
+                      <controls:RenameBox.KeyBindings>
+                        <KeyBinding Gesture="Enter"
+                                    Command="{Binding CommitRenameCommand}" />
+                        <KeyBinding Gesture="Escape"
+                                    Command="{Binding CancelRenameCommand}" />
+                      </controls:RenameBox.KeyBindings>
+                    </controls:RenameBox>
+                  </Panel>
+                </Panel>
               </DataTemplate>
             </ItemsControl.ItemTemplate>
           </ItemsControl>

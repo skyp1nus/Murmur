@@ -215,6 +215,7 @@ internal sealed class DesignScene : IDisposable
                     break;
                 case TranscriptTextControl transcript:
                     transcript.SetValue(TranscriptTextControl.ForegroundProperty, Brushes.Transparent, BindingPriority.Animation);
+                    transcript.SetValue(TranscriptTextControl.MarkForegroundProperty, Brushes.Transparent, BindingPriority.Animation);
                     break;
             }
         }
@@ -332,26 +333,39 @@ internal sealed class DesignScene : IDisposable
         }
     }
 
-    /// <summary>The 12:21 segment is current (the player is paused there). The search hit "timestamps" has no place in the app yet.</summary>
+    /// <summary>The 12:21 segment is current (the player is paused there) and the search box has the hit "timestamps".</summary>
     private static void PositionSession(DesignRig rig, List<string> notes)
     {
         var session = rig.Shell.Session!;
         session.SeekTo(DesignDemoData.SessionPosition);
         session.Tick();
+
+        // The canvas shows the hit and the empty search box together; the app marks a hit only for a typed query, so the board marks the rows directly.
+        foreach (var row in session.Segments)
+        {
+            row.HighlightTerm = DesignDemoData.SessionSearchHit;
+        }
         if (session.CurrentSegmentIndex != 2)
         {
             notes.Add("The current segment is " + session.CurrentSegmentIndex + ", the board has the 12:21 one (index 2).");
         }
     }
 
-    /// <summary>Both exchanges of the canvas, answered (the answer streams in one go, the chips come with it).</summary>
+    /// <summary>
+    /// Both exchanges of the canvas, answered (the answer streams in one go, the chips come with it), in a chat opened from the Client demo
+    /// (its pill is the second one) with an older chat under it in the sidebar. The first question names its thread; the canvas calls it
+    /// "PDF export", as the user would after renaming it.
+    /// </summary>
     private static async Task AskAsync(DesignRig rig, List<string> notes)
     {
-        rig.Shell.ShowLibraryChat();
+        var other = DesignDemoData.OtherChat;
+        var older = await rig.ChatStore.CreateThreadAsync(other.Title, null, CancellationToken.None);
+        await rig.ChatStore.AppendMessageAsync(new ChatMessage(older.Id, 0, TurnRole.User, other.Question, [], UiHarness.Now), CancellationToken.None);
+        await rig.ChatStore.AppendMessageAsync(new ChatMessage(older.Id, 1, TurnRole.Assistant, other.Answer, [], UiHarness.Now), CancellationToken.None);
 
-        // The chat screen provides the Chats list through the sidebar's hook (until it does, the list is empty and hidden).
-        rig.Shell.Sidebar!.SetChats([.. DesignDemoData.SidebarChats.Select((title, index) => new SidebarEntry(title, isActive: index == 0))]);
-        var chat = rig.Shell.LibraryChat!.Chat;
+        rig.Shell.ShowNewChat(rig.ClientDemo);
+        var page = rig.Shell.LibraryChat!;
+        var chat = page.Chat;
         foreach (var exchange in DesignDemoData.Chat)
         {
             chat.Question = exchange.Question;
@@ -365,9 +379,24 @@ internal sealed class DesignScene : IDisposable
             await PumpUntilAsync(chat.AskTask);
         }
 
+        if (chat.Thread is not { } thread)
+        {
+            notes.Add("The chat was not saved as a thread.");
+        }
+        else
+        {
+            await rig.ChatStore.RenameThreadAsync(thread.Id, DesignDemoData.SidebarChats[0], CancellationToken.None);
+            await page.RefreshThreadsAsync();
+        }
+
         if (chat.Messages.Count != 2 * DesignDemoData.Chat.Count)
         {
             notes.Add("The chat has " + chat.Messages.Count + " messages, the board has " + (2 * DesignDemoData.Chat.Count) + ".");
+        }
+
+        if (!page.Entries.Select(e => e.Title).SequenceEqual(DesignDemoData.SidebarChats))
+        {
+            notes.Add("The Chats list is " + string.Join(", ", page.Entries.Select(e => e.Title)) + ".");
         }
     }
 

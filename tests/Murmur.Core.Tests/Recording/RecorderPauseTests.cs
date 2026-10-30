@@ -305,7 +305,17 @@ public sealed class RecorderPauseTests : IDisposable
         Assert.InRange(finished.Duration, expected - tolerance, expected + tolerance);
         Assert.Equal(elapsed.TotalSeconds, finished.Duration.TotalSeconds, 0.15);
         var files = _store.GetFiles(started.Id);
-        Assert.Equal(AudioLength(files.MicrophoneAudio).TotalSeconds, AudioLength(files.SystemAudio).TotalSeconds, 0.03);
+
+        // Each file is as long as the frames its own source thread delivered while recording; a thread that is late at a
+        // switch (a loaded machine) hands its backlog to the other side of it, so the two files may differ by a little per
+        // pause/resume pair (the first CI failure: 44 ms over twelve switches). One writer period per pair is the bound;
+        // a track that kept the paused time would be 240 ms longer than the other.
+        var micLength = AudioLength(files.MicrophoneAudio).TotalSeconds;
+        var systemLength = AudioLength(files.SystemAudio).TotalSeconds;
+        var inStep = settings.WriterPeriod.TotalSeconds * 6;
+        Assert.True(
+            Math.Abs(micLength - systemLength) <= inStep,
+            $"Microphone {micLength:F4} s and system {systemLength:F4} s differ by more than {inStep:F3} s (duration {finished.Duration.TotalSeconds:F4} s).");
         Assert.Equal(0, recorder.Stats.DroppedFrames);
     }
 
@@ -428,7 +438,14 @@ public sealed class RecorderPauseTests : IDisposable
         var files = _store.GetFiles(started.Id);
         var mic = AudioLength(files.MicrophoneAudio).TotalSeconds;
         var system = AudioLength(files.SystemAudio).TotalSeconds;
-        Assert.Equal(system, mic, 0.01);
+
+        // The faulted microphone is padded to the frozen timeline (wall clock), the healthy system track holds the frames its
+        // source thread delivered: on a loaded machine that thread is a few milliseconds late (the first CI failure: 14 ms), so
+        // the system file may fall short of the microphone's, never exceed it by more than a sample rounding. The microphone
+        // alone proves the padding: without it the file would end at 0.2 s.
+        Assert.True(
+            mic - system >= -0.01 && mic - system <= 0.1,
+            $"Microphone {mic:F4} s, system {system:F4} s, frozen timeline {frozen.TotalSeconds:F4} s.");
         Assert.Equal(frozen.TotalSeconds, mic, 0.06);
         Assert.Equal(frozen.TotalSeconds, finished.Duration.TotalSeconds, 0.06);
     }

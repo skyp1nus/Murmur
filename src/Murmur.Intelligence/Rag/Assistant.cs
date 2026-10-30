@@ -3,6 +3,7 @@ using System.Text;
 using Microsoft.Extensions.AI;
 using Murmur.Core.Intelligence;
 using Murmur.Core.Sessions;
+using ChatMessage = Microsoft.Extensions.AI.ChatMessage;
 
 namespace Murmur.Intelligence.Rag;
 

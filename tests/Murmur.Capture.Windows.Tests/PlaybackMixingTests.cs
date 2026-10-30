@@ -189,6 +189,74 @@ public sealed class TrackMixerTests
     }
 
     [Fact]
+    public void AMutedTrack_IsSkippedButStillAdvances()
+    {
+        var mic = TestWav.Constant(1_000, 1_000);
+        var system = TestWav.Constant(1_000, 20);
+        using var mixer = new TrackMixer([TestWav.Reader(mic), TestWav.Reader(system)]);
+        mixer.MutedMask = 0b01;
+
+        var output = new short[500];
+        Assert.Equal(500, mixer.Render(output));
+        Assert.All(output, s => Assert.Equal(20, s));
+
+        mixer.MutedMask = 0b10;
+        Assert.Equal(500, mixer.Render(output));
+        Assert.All(output, s => Assert.Equal(1_000, s));
+        Assert.Equal(1_000, mixer.Position);
+    }
+
+    [Fact]
+    public void ALiveSwitch_FadesOverTheRamp_WithoutAStep()
+    {
+        using var mixer = new TrackMixer([TestWav.Reader(TestWav.Constant(2_000, 10_000)), TestWav.Reader(TestWav.Constant(2_000, 0))]);
+        var output = new short[TrackMixer.RampFrames * 2];
+        mixer.Render(output.AsSpan(0, 10));
+
+        mixer.SetMuted(0, true);
+        Assert.Equal(output.Length, mixer.Render(output));
+
+        // Down in equal steps from full scale to silence, then silent: the biggest step is a small share of the signal.
+        var biggestStep = 0;
+        for (var i = 1; i < TrackMixer.RampFrames; i++)
+        {
+            biggestStep = Math.Max(biggestStep, Math.Abs(output[i] - output[i - 1]));
+        }
+
+        Assert.InRange(output[0], 9_900, 10_000);
+        Assert.InRange(biggestStep, 1, 100);
+        Assert.All(output.Skip(TrackMixer.RampFrames), s => Assert.Equal(0, s));
+
+        // And back up.
+        mixer.SetMuted(0, false);
+        var up = new short[TrackMixer.RampFrames * 2];
+        mixer.Render(up);
+        Assert.InRange(up[0], 0, 100);
+        Assert.All(up.Skip(TrackMixer.RampFrames), s => Assert.Equal(10_000, s));
+    }
+
+    [Fact]
+    public void AMutedSingleTrack_RendersSilence()
+    {
+        using var mixer = new TrackMixer([TestWav.Reader(TestWav.Constant(40, 500))]);
+        mixer.MutedMask = 1;
+        var output = new short[40];
+        Assert.Equal(40, mixer.Render(output));
+
+        Assert.All(output, s => Assert.Equal(0, s));
+    }
+
+    [Fact]
+    public void SetMuted_IgnoresIndexesOutOfRange()
+    {
+        using var mixer = new TrackMixer([TestWav.Reader(TestWav.Constant(40, 500))]);
+        mixer.SetMuted(32, true);
+        mixer.SetMuted(-1, true);
+
+        Assert.Equal(0, mixer.MutedMask);
+    }
+
+    [Fact]
     public void SingleTrack_IsCopiedUnchanged()
     {
         var samples = TestWav.Constant(100, short.MaxValue);

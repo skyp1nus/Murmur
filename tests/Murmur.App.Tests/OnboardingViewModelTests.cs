@@ -454,9 +454,9 @@ public sealed class OnboardingViewModelTests : IDisposable
         _ = microphone.StartAsync();
         _ = microphone.StartAsync();
         await rig.Onboarding.Audio.Settled;
-        await OnboardingRig.UntilAsync(() => rig.Devices.Sources.Count(s => s.Device.Kind == AudioDeviceKind.Microphone && !s.Disposed) <= 1);
+        await OnboardingRig.UntilAsync(() => rig.Devices.SourcesSnapshot().Count(s => s.Device.Kind == AudioDeviceKind.Microphone && !s.Disposed) <= 1);
 
-        Assert.Single(rig.Devices.Sources, s => s.Device.Kind == AudioDeviceKind.Microphone && !s.Disposed);
+        Assert.Single(rig.Devices.SourcesSnapshot(), s => s.Device.Kind == AudioDeviceKind.Microphone && !s.Disposed);
     }
 
     // The level meter feed --------------------------------------------------------------------------------------------

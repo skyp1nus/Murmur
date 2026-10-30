@@ -67,6 +67,18 @@ internal sealed class FakeCapture : ICapture
         return source;
     }
 
+    /// <summary>
+    /// A copy of <see cref="Sources"/> taken under its lock: sources are opened on worker threads, so enumerating the list
+    /// itself while one is added throws "Collection was modified".
+    /// </summary>
+    public FakeAudioSource[] SourcesSnapshot()
+    {
+        lock (Sources)
+        {
+            return [.. Sources];
+        }
+    }
+
     /// <summary>The newest source of a kind.</summary>
     public FakeAudioSource Latest(AudioDeviceKind kind)
     {

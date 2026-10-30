@@ -1,0 +1,7 @@
+Client demo — Q4 roadmap
+2026-10-18 10:30 · 47:12 · en · parakeet-tdt-0.6b-v3-int8
+
+[11:52] You: Okay, a quick run through the roadmap.
+[12:08] Others: Does search match <exact> words & phrases, or can I ask in my own words?
+[12:21] You: Both.
+[1:02:05] Others: One hour later.

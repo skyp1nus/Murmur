@@ -21,27 +21,120 @@ public enum SidebarContext
     Sections,
 }
 
-/// <summary>A row of the sidebar's context list: a pill with a title, highlighted while it is the open one.</summary>
+/// <summary>
+/// A row of the sidebar's context list: a pill with a title, highlighted while it is the open one. A chat row can also be renamed
+/// (inline, in place of the pill) and deleted from its context menu.
+/// </summary>
 public sealed partial class SidebarEntry : ObservableObject
 {
     private readonly Action? _open;
+    private readonly Action<string>? _rename;
+    private readonly Action? _delete;
 
-    public SidebarEntry(string title, Action? open = null, bool isActive = false)
+    /// <param name="title">The text of the pill.</param>
+    /// <param name="open">Clicking the pill.</param>
+    /// <param name="isActive">The open recording, chat or section.</param>
+    /// <param name="rename">Renames the row to the (trimmed, non-empty, changed) text; <c>null</c> = it cannot be renamed.</param>
+    /// <param name="delete">Deletes what the row stands for; <c>null</c> = it cannot be deleted.</param>
+    public SidebarEntry(string title, Action? open = null, bool isActive = false, Action<string>? rename = null, Action? delete = null)
     {
         ArgumentNullException.ThrowIfNull(title);
         Title = title;
         _open = open;
+        _rename = rename;
+        _delete = delete;
         IsActive = isActive;
+        EditText = title;
     }
 
     public string Title { get; }
+
+    /// <summary>The row has a context menu (Rename, Delete).</summary>
+    public bool CanManage => _rename is not null || _delete is not null;
+
+    public bool CanRename => _rename is not null;
+
+    public bool CanDelete => _delete is not null;
 
     /// <summary>The open recording, chat or section: the pill is filled and its text is medium.</summary>
     [ObservableProperty]
     public partial bool IsActive { get; set; }
 
+    /// <summary>The title is being edited in place of the pill.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ShowPill))]
+    public partial bool IsEditing { get; private set; }
+
+    /// <summary>Delete was chosen: "Delete? Delete / Cancel" is in place of the pill until it is confirmed or cancelled.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ShowPill))]
+    public partial bool IsConfirmingDelete { get; private set; }
+
+    /// <summary>The ordinary pill shows (not the editor, not the question).</summary>
+    public bool ShowPill => !IsEditing && !IsConfirmingDelete;
+
+    /// <summary>The text of the inline editor.</summary>
+    [ObservableProperty]
+    public partial string EditText { get; set; }
+
     [RelayCommand]
     private void Open() => _open?.Invoke();
+
+    [RelayCommand]
+    private void BeginRename()
+    {
+        if (_rename is null)
+        {
+            return;
+        }
+
+        EditText = Title;
+        IsEditing = true;
+    }
+
+    /// <summary>Enter in the editor: renames when the text is not blank and changed.</summary>
+    [RelayCommand]
+    private void CommitRename()
+    {
+        if (!IsEditing)
+        {
+            return;
+        }
+
+        IsEditing = false;
+        var text = EditText.Trim();
+        if (text.Length > 0 && text != Title)
+        {
+            _rename?.Invoke(text);
+        }
+    }
+
+    /// <summary>Escape in the editor.</summary>
+    [RelayCommand]
+    private void CancelRename() => IsEditing = false;
+
+    /// <summary>Delete in the context menu: asks first, in the row (like removing a model).</summary>
+    [RelayCommand]
+    private void Delete()
+    {
+        if (_delete is not null)
+        {
+            IsConfirmingDelete = true;
+        }
+    }
+
+    [RelayCommand]
+    private void ConfirmDelete()
+    {
+        if (IsConfirmingDelete)
+        {
+            IsConfirmingDelete = false;
+            _delete?.Invoke();
+        }
+    }
+
+    [RelayCommand]
+    private void CancelDelete() => IsConfirmingDelete = false;
 }
 
 /// <summary>
@@ -60,12 +153,29 @@ public sealed partial class SidebarViewModel : ObservableObject
 
     private readonly ShellViewModel _shell;
     private IReadOnlyList<SidebarEntry> _chats = [];
+    private SettingsViewModel? _watched;
 
     internal SidebarViewModel(ShellViewModel shell)
     {
         _shell = shell;
         Entries = [];
         Rebuild();
+    }
+
+    /// <summary>The section in view changed on the Settings page: the highlight of the Sections list follows (the rows stay, only <see cref="SidebarEntry.IsActive"/> changes).</summary>
+    private void OnSettingsPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName != nameof(SettingsViewModel.CurrentSectionId) || Context != SidebarContext.Sections)
+        {
+            return;
+        }
+
+        var current = _shell.Settings?.CurrentSectionId;
+        var sections = Sections;
+        for (var i = 0; i < Entries.Count && i < sections.Count; i++)
+        {
+            Entries[i].IsActive = sections[i].Id == current;
+        }
     }
 
     /// <summary>The library is the current place: its own screen, or a recording opened from it.</summary>
@@ -143,7 +253,7 @@ public sealed partial class SidebarViewModel : ObservableObject
     private void ShowLibrary() => _shell.ShowLibrary();
 
     [RelayCommand]
-    private void ShowChat() => _shell.ShowLibraryChat();
+    private void ShowChat() => _shell.ShowNewChat();
 
     [RelayCommand]
     private void ShowSettings() => _shell.ShowSettings();
@@ -171,6 +281,22 @@ public sealed partial class SidebarViewModel : ObservableObject
 
     private void Rebuild()
     {
+        // Follow the highlighted section of the settings only while their page is the open one (no subscription is left behind).
+        var settings = Context == SidebarContext.Sections ? _shell.Settings : null;
+        if (!ReferenceEquals(settings, _watched))
+        {
+            if (_watched is not null)
+            {
+                _watched.PropertyChanged -= OnSettingsPropertyChanged;
+            }
+
+            _watched = settings;
+            if (_watched is not null)
+            {
+                _watched.PropertyChanged += OnSettingsPropertyChanged;
+            }
+        }
+
         var entries = new List<SidebarEntry>();
         switch (Context)
         {
@@ -192,10 +318,11 @@ public sealed partial class SidebarViewModel : ObservableObject
                 break;
 
             case SidebarContext.Sections:
+                var current = _shell.Settings?.CurrentSectionId;
                 foreach (var section in Sections)
                 {
                     var captured = section;
-                    entries.Add(new SidebarEntry(section.Title, () => ShowSection(captured)));
+                    entries.Add(new SidebarEntry(section.Title, () => ShowSection(captured), isActive: section.Id == current));
                 }
 
                 break;

@@ -65,6 +65,10 @@ public static class TokenGenerator
         ("RowPad", 20, 16),
         ("LibraryItem", 32, 0),
         ("InputBare", 2, 0),
+        ("SessionRow", 14, 12),
+        ("SessionChip", 8, 3),
+        ("SessionVideoChip", 10, 4),
+        ("SessionTime", 6, 0),
     ];
 
     public static string Generate(string tokensJson)

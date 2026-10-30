@@ -42,6 +42,15 @@
     <DataTemplate DataType="vm:HotkeyHintViewModel">
       <views:HotkeyHintView />
     </DataTemplate>
+    <DataTemplate DataType="vm:SessionActionsViewModel">
+      <views:SessionActionsView />
+    </DataTemplate>
+    <DataTemplate DataType="vm:ChatScopeViewModel">
+      <views:ChatScopeView />
+    </DataTemplate>
+    <DataTemplate DataType="vm:ChatModelChipViewModel">
+      <views:ChatModelChipView />
+    </DataTemplate>
   </Window.DataTemplates>
 
   <Grid ColumnDefinitions="Auto,*">

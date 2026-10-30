@@ -476,7 +476,7 @@ public sealed class AppPolishTests
         var hotkeys = rig.Vm.Hotkeys;
         var appearance = rig.Vm.Appearance;
         var record = hotkeys.Rows[0];
-        var toggle = hotkeys.Rows[1];
+        var toggle = hotkeys.Rows[2];
         record.Error = "taken by another app";
         hotkeys.Error = "section error";
         appearance.Error = "could not save the theme";
@@ -490,7 +490,7 @@ public sealed class AppPolishTests
         Assert.Equal("could not save the theme", appearance.Error);
         Assert.True(toggle.IsCapturing);
         Assert.Same(toggle, hotkeys.Capturing);
-        Assert.Equal("Ctrl+Alt+K", hotkeys.Rows[2].Gesture);
+        Assert.Equal("Ctrl+Alt+K", hotkeys.Rows[3].Gesture);
     }
 
     [Fact]
