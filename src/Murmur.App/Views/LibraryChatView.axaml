@@ -6,5 +6,15 @@
              x:DataType="vm:LibraryChatViewModel">
 
   <!-- The Ask AI page of the canvas: the scope pills and the model chip are in the top bar, the page is the conversation of the chat in view. -->
-  <views:ConversationView DataContext="{Binding Chat}" />
+  <Grid RowDefinitions="Auto,*">
+    <!-- A saved chat that could not be opened -->
+    <TextBlock Grid.Row="0"
+               Classes="t13 muted"
+               HorizontalAlignment="Center"
+               Margin="{StaticResource Inset.8}"
+               IsVisible="{Binding HasError}"
+               Text="{Binding Error}" />
+    <views:ConversationView Grid.Row="1"
+                            DataContext="{Binding Chat}" />
+  </Grid>
 </UserControl>

@@ -399,7 +399,7 @@ public sealed partial class ShellViewModel : ObservableObject
 
         CloseSession();
         var page = EnsureLibraryChat();
-        page.RefreshThreadsAsync();
+        OnChatOpened(page);
         CurrentPage = page;
         PushChats();
     }
@@ -419,9 +419,17 @@ public sealed partial class ShellViewModel : ObservableObject
         CloseSession();
         var page = EnsureLibraryChat();
         page.StartNew(from);
-        page.RefreshThreadsAsync();
+        OnChatOpened(page);
         CurrentPage = page;
         PushChats();
+    }
+
+    /// <summary>Ask AI is on screen: the models may have been installed (or the chat model changed) in Settings, and the saved chats may have changed.</summary>
+    private void OnChatOpened(LibraryChatViewModel page)
+    {
+        page.Chat.RefreshAvailability();
+        _chatModelChip?.Refresh();
+        _ = page.RefreshThreadsAsync();
     }
 
     private LibraryChatViewModel EnsureLibraryChat()

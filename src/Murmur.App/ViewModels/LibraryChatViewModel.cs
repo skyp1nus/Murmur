@@ -35,6 +35,9 @@ public sealed partial class LibraryChatViewModel : ObservableObject, IFillsFrame
     private SessionId? _offered;
     private string? _offeredTitle;
     private IReadOnlyList<ChatThread> _threads = [];
+    private readonly List<ChatViewModel> _background = [];
+    private int _refreshVersion;
+    private bool _rebuildPending;
     private bool _disposed;
 
     /// <param name="chatFactory">Builds a conversation for a scope (<c>null</c> = the whole library), saving to <paramref name="store"/>.</param>
@@ -78,6 +81,13 @@ public sealed partial class LibraryChatViewModel : ObservableObject, IFillsFrame
 
     public string Title => Strings.Library_AskAll;
 
+    /// <summary>Why a saved chat could not be opened (short, in the UI language); <c>null</c> while nothing is wrong.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasError))]
+    public partial string? Error { get; private set; }
+
+    public bool HasError => Error is not null;
+
     /// <summary>The last refresh of the chat list (for tests).</summary>
     internal Task ThreadsTask { get; private set; } = Task.CompletedTask;
 
@@ -89,6 +99,13 @@ public sealed partial class LibraryChatViewModel : ObservableObject, IFillsFrame
         _disposed = true;
         Detach(Chat);
         Chat.Dispose();
+        foreach (var chat in _background.ToArray())
+        {
+            Detach(chat);
+            chat.Dispose();
+        }
+
+        _background.Clear();
         ModelChip?.Dispose();
     }
 
@@ -101,7 +118,8 @@ public sealed partial class LibraryChatViewModel : ObservableObject, IFillsFrame
     {
         _offered = from?.Id;
         _offeredTitle = from is null ? null : TitleOf(from);
-        if (!Chat.IsEmpty || Chat.Scope is not null || Chat.IsGenerating)
+        Error = null;
+        if (!Chat.IsEmpty || Chat.Scope is not null)
         {
             Replace(Create(null));
         }
@@ -127,6 +145,8 @@ public sealed partial class LibraryChatViewModel : ObservableObject, IFillsFrame
             return;
         }
 
+        // Only the newest answer counts: a slow older read must not bring back a deleted row or drop a new one.
+        var version = ++_refreshVersion;
         IReadOnlyList<ChatThread> threads;
         try
         {
@@ -137,7 +157,7 @@ public sealed partial class LibraryChatViewModel : ObservableObject, IFillsFrame
             return;
         }
 
-        if (_disposed)
+        if (_disposed || version != _refreshVersion)
         {
             return;
         }
@@ -158,6 +178,14 @@ public sealed partial class LibraryChatViewModel : ObservableObject, IFillsFrame
     /// <summary>The sidebar rows of the saved chats; the one in view is highlighted.</summary>
     private void RebuildEntries()
     {
+        // A row that is being renamed (or asked about deleting) keeps its editor: the list is rebuilt when it is done.
+        if (Entries.Any(e => e.IsEditing || e.IsConfirmingDelete))
+        {
+            _rebuildPending = true;
+            return;
+        }
+
+        _rebuildPending = false;
         var entries = new List<SidebarEntry>(_threads.Count);
         foreach (var thread in _threads)
         {
@@ -168,6 +196,18 @@ public sealed partial class LibraryChatViewModel : ObservableObject, IFillsFrame
                 isActive: Chat.Thread?.Id == thread.Id,
                 rename: title => ActionTask = RenameAsync(captured, title),
                 delete: () => ActionTask = DeleteAsync(captured)));
+        }
+
+        foreach (var entry in entries)
+        {
+            var row = entry;
+            entry.PropertyChanged += (_, e) =>
+            {
+                if (_rebuildPending && e.PropertyName is nameof(SidebarEntry.IsEditing) or nameof(SidebarEntry.IsConfirmingDelete) && !row.IsEditing && !row.IsConfirmingDelete)
+                {
+                    RebuildEntries();
+                }
+            };
         }
 
         Entries = entries;
@@ -181,16 +221,28 @@ public sealed partial class LibraryChatViewModel : ObservableObject, IFillsFrame
             return;
         }
 
-        var chat = Create(thread.Scope);
-        try
+        Error = null;
+
+        // The thread is still being answered in the background: show that conversation, not a stale copy of it.
+        var live = _background.FirstOrDefault(c => c.Thread?.Id == thread.Id);
+        var chat = live ?? Create(thread.Scope);
+        if (live is null)
         {
-            await chat.LoadThreadAsync(thread).ConfigureAwait(true);
+            try
+            {
+                await chat.LoadThreadAsync(thread).ConfigureAwait(true);
+            }
+            catch (Exception)
+            {
+                Detach(chat);
+                chat.Dispose();
+                Error = Strings.Chat_OpenFailed;
+                return;
+            }
         }
-        catch (Exception)
+        else
         {
-            Detach(chat);
-            chat.Dispose();
-            return;
+            _background.Remove(live);
         }
 
         string? title = null;
@@ -304,11 +356,40 @@ public sealed partial class LibraryChatViewModel : ObservableObject, IFillsFrame
         Chat = chat;
         if (!ReferenceEquals(old, chat))
         {
-            Detach(old);
-            old.Dispose();
+            if (old.IsGenerating)
+            {
+                // An answer in flight is never cancelled by leaving: it finishes in the background, saves its exchange (its thread joins the
+                // list) and is released then.
+                _background.Add(old);
+                _ = ReleaseWhenDoneAsync(old);
+            }
+            else
+            {
+                Detach(old);
+                old.Dispose();
+            }
         }
 
         RebuildEntries();
+    }
+
+    private async Task ReleaseWhenDoneAsync(ChatViewModel chat)
+    {
+        try
+        {
+            await chat.AskTask.ConfigureAwait(true);
+        }
+        catch (Exception)
+        {
+            // The answer reports its own failure.
+        }
+
+        // It may have been brought back to the screen meanwhile (its thread was opened again).
+        if (_background.Remove(chat))
+        {
+            Detach(chat);
+            chat.Dispose();
+        }
     }
 
     private void OnCitation(Citation citation) => CitationActivated?.Invoke(citation);
