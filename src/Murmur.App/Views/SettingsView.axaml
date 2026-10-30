@@ -936,8 +936,12 @@
                 <TextBlock Text="{x:Static res:Strings.Appearance_OnboardingRestart}" />
               </Button>
               <TextBlock Classes="settingsMeta"
-                         IsVisible="{Binding Appearance.OnboardingReset}"
+                         IsVisible="{Binding Appearance.OnboardingOpensNow}"
                          Text="{x:Static res:Strings.Appearance_OnboardingDone}" />
+              <TextBlock Classes="settingsMeta"
+                         x:Name="OnboardingDeferredNote"
+                         IsVisible="{Binding Appearance.OnboardingDeferred}"
+                         Text="{x:Static res:Strings.Appearance_OnboardingDeferred}" />
             </StackPanel>
             <TextBlock Classes="settingsMeta graphite"
                        IsVisible="{Binding Appearance.HasError}"

@@ -541,6 +541,35 @@ public sealed partial class SettingsViewTests
     }
 
     [Fact]
+    public async Task Onboarding_RestartButton_DuringARecording_SaysItOpensAtTheNextStart_NotNow()
+    {
+        var snapshot = await Session.Dispatch(
+            async () =>
+            {
+                using var scope = UiCulture.Override("en");
+                var rig = new Rig(new AppSettings { OnboardingCompleted = true });
+                rig.Settings.RecordingActive = () => true;
+                var window = rig.Show();
+
+                Named<Button>(window, "RestartOnboardingButton").Command!.Execute(null);
+                await rig.Settings.LastSave;
+                UiHarness.Pump(4);
+                var texts = VisibleTexts(window);
+                var result = (
+                    texts.Contains(Strings.Get("Appearance_OnboardingDeferred", "en")!),
+                    texts.Contains(Strings.Get("Appearance_OnboardingDone", "en")!),
+                    rig.Store.Current.OnboardingCompleted);
+                window.Close();
+                return result;
+            },
+            TestContext.Current.CancellationToken);
+
+        Assert.True(snapshot.Item1);
+        Assert.False(snapshot.Item2);
+        Assert.False(snapshot.Item3);
+    }
+
+    [Fact]
     public async Task Onboarding_RestartButton_ClearsTheCompletedFlag_AndSaysSo()
     {
         var snapshot = await Session.Dispatch(

@@ -713,6 +713,9 @@
   <data name="Appearance_OnboardingDone" xml:space="preserve">
     <value>Знайомство відкриється зараз.</value>
   </data>
+  <data name="Appearance_OnboardingDeferred" xml:space="preserve">
+    <value>Триває запис. Знайомство відкриється під час наступного запуску Murmur.</value>
+  </data>
   <data name="About_License" xml:space="preserve">
     <value>Ліцензія проєкту — {0}</value>
     <comment>{0} = licence name</comment>
