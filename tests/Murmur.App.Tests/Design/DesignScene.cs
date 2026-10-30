@@ -46,9 +46,9 @@ internal sealed class DesignScene : IDisposable
     /// Builds the board. Must run on the UI thread of the headless session. The UI language is English for the whole life of
     /// the scene (the scope is undone by <see cref="Dispose"/>).
     /// </summary>
-    public static async Task<DesignScene> BuildAsync(DesignBoard board)
+    public static async Task<DesignScene> BuildAsync(DesignBoard board, string language = "en")
     {
-        var culture = UiCulture.Override("en");
+        var culture = UiCulture.Override(language);
         var rig = new DesignRig(board.IsOnboarding);
         var notes = new List<string>();
         MainWindow window;
