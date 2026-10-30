@@ -154,6 +154,10 @@ jobs:
           dotnet test Murmur.sln -c Release --no-build --report-xunit-trx --results-directory artifacts/test-results
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
+      - name: Player seek recovery
+        if: always()
+        run: if (Test-Path artifacts/test-results/player-recovery.txt) { Get-Content artifacts/test-results/player-recovery.txt }
+
       - name: Upload test results
         if: always()
         uses: actions/upload-artifact@v4

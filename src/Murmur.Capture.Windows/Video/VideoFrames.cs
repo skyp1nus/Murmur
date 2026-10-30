@@ -300,32 +300,26 @@ internal enum SeekRecoveryStep
     /// <summary>Copy the presented frame once more although the engine reports no new one.</summary>
     Retransfer = 1,
 
-    /// <summary>Send the seek to the same target again (through the seek queue).</summary>
-    Reseek = 2,
-
-    /// <summary>Seek 1 ms before the target.</summary>
-    ReseekNudged = 3,
-
     /// <summary>Seek clearly away from the target (the frame there is only a detour).</summary>
-    SeekAway = 4,
+    SeekAway = 2,
 
     /// <summary>Seek to the target again after <see cref="SeekAway"/>.</summary>
-    SeekBack = 5,
+    SeekBack = 3,
 
     /// <summary>IMFMediaEngineEx::SetCurrentTimeEx(target, NORMAL).</summary>
-    SeekExNormal = 6,
+    SeekExNormal = 4,
 
     /// <summary>IMFMediaEngineEx::SetCurrentTimeEx(target, APPROXIMATE).</summary>
-    SeekExApproximate = 7,
+    SeekExApproximate = 5,
 
     /// <summary>IMFMediaEngineEx::FrameStep(forward).</summary>
-    FrameStep = 8,
+    FrameStep = 6,
 
     /// <summary>Seek to the target again after <see cref="FrameStep"/>.</summary>
-    FrameStepBack = 9,
+    FrameStepBack = 7,
 
     /// <summary>Play() immediately followed by Pause().</summary>
-    PlayPause = 10,
+    PlayPause = 8,
 }
 
 /// <summary>
@@ -342,7 +336,7 @@ internal enum SeekRecoveryStep
 internal struct SeekRecovery
 {
     /// <summary>Cures tried per seek target at most (the steps from <see cref="SeekRecoveryStep.Retransfer"/> to <see cref="SeekRecoveryStep.PlayPause"/>).</summary>
-    public const int MaxAttempts = 10;
+    public const int MaxAttempts = 8;
 
     /// <summary>Checks that found the engine not settled (playing, seeking, no data) before the recovery gives up.</summary>
     public const int MaxUnsettled = 10;
@@ -350,7 +344,6 @@ internal struct SeekRecovery
     /// <summary>Length (100 ns) of the frame assumed while the frame period is unknown.</summary>
     public const long DefaultFramePeriod = 400_000;
 
-    private static readonly TimeSpan Nudge = TimeSpan.FromMilliseconds(1);
     private static readonly TimeSpan Away = TimeSpan.FromMilliseconds(200);
 
     private bool _armed;
@@ -377,10 +370,9 @@ internal struct SeekRecovery
     /// <summary>The target the armed seek asked for.</summary>
     public readonly TimeSpan Target => _target;
 
-    /// <summary>Where a seek step must seek to: the target, <see cref="SeekRecoveryStep.ReseekNudged"/> 1 ms before it (not below 0), <see cref="SeekRecoveryStep.SeekAway"/> 200 ms away.</summary>
+    /// <summary>Where a seek step must seek to: the target, <see cref="SeekRecoveryStep.SeekAway"/> 200 ms away from it.</summary>
     public readonly TimeSpan TargetFor(SeekRecoveryStep step) => step switch
     {
-        SeekRecoveryStep.ReseekNudged => _target > Nudge ? _target - Nudge : _target,
         SeekRecoveryStep.SeekAway => _target >= Away ? _target - Away : _target + Away,
         _ => _target,
     };

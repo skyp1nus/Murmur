@@ -522,7 +522,7 @@ public sealed class MediaEngineVideoPlayer : IVideoPlayer
                 hr = IMFMediaEngine.Play(engine);
                 _ = IMFMediaEngine.Pause(engine);
                 break;
-            default: // Reseek, ReseekNudged, SeekAway, SeekBack, FrameStepBack
+            default: // SeekAway, SeekBack, FrameStepBack
                 hr = RecoverySeek(session, step, -1, now);
                 break;
         }
