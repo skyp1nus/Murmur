@@ -175,7 +175,7 @@ public sealed class ShellLibraryTests
         await rig.Shell.SessionLoadTask;
         var session = Assert.IsType<BreadcrumbViewModel>(bar.Leading);
         Assert.Equal(("Library", "Client demo — Q4 roadmap"), (session.Root, session.Current));
-        Assert.Null(bar.Trailing);
+        Assert.Same(rig.Shell.Session!.Actions, bar.Trailing);
 
         rig.Shell.ShowSettings();
         var settings = Assert.IsType<BreadcrumbViewModel>(bar.Leading);

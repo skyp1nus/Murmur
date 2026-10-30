@@ -13,6 +13,7 @@ using Murmur.Core.Settings;
 using Murmur.Core.Transcription;
 using Murmur.Intelligence;
 using Murmur.Intelligence.Rag;
+using Murmur.Intelligence.Summary;
 using Murmur.Models;
 using Murmur.Storage;
 
@@ -172,7 +173,8 @@ internal sealed class CompositionRoot : IDisposable
             CreatePlayback(),
             new SessionProcessingAdapter(processor, models),
             storage,
-            new AiServices(assistant, llm, models.ModelsDirectory, AccelerationProbe, llm, AccelerationRuntimeIds(modelManager)),
+            new AiServices(assistant, llm, models.ModelsDirectory, AccelerationProbe, llm, AccelerationRuntimeIds(modelManager),
+                new SessionSummarizer(llm, storage, SummarizerOptions.ForContext(new LocalLlmOptions().ContextSize))),
             settings,
             aiModels,
             modelManager.ActiveModelId,
@@ -181,7 +183,8 @@ internal sealed class CompositionRoot : IDisposable
             capture as IVideoPlayback,
             _hotkeys ??= CreateHotkeys(capture),
             _instance,
-            _motion ??= CreateMotionPreference());
+            _motion ??= CreateMotionPreference(),
+            storage);
     }
 
     public void Dispose()

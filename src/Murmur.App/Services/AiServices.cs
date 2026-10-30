@@ -10,10 +10,12 @@ namespace Murmur.App.Services;
 /// <param name="AccelerationProbe">Which accelerations this PC supports and the GPU name, for the Settings control; <c>null</c> = only the CPU build is offered.</param>
 /// <param name="AccelerationSource">Which build runs and why a GPU build does not (needs download, failed to start); <c>null</c> = always the chosen CPU build.</param>
 /// <param name="AccelerationRuntimeIds">The id of the model-manager item that holds the runtime of each GPU build on this platform (the items are unlisted, so the catalog does not name them); a build without an entry has nothing to download. <c>null</c> = none.</param>
+/// <param name="Summarizer">Writes the summary of a recording for the Summary tab; <c>null</c> = the tab explains how to install the models.</param>
 public sealed record AiServices(
     IAssistant Assistant,
     ILlm Llm,
     string ModelsDirectory,
     IAccelerationProbe? AccelerationProbe = null,
     IAccelerationStatusSource? AccelerationSource = null,
-    IReadOnlyDictionary<AiAcceleration, string>? AccelerationRuntimeIds = null);
+    IReadOnlyDictionary<AiAcceleration, string>? AccelerationRuntimeIds = null,
+    ISessionSummarizer? Summarizer = null);

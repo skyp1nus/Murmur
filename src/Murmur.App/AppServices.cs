@@ -53,6 +53,7 @@ namespace Murmur.App;
 /// The system's reduce-motion preference; decorative animation (the orbs) holds still while it is on and follows its changes.
 /// <c>null</c> = motion is never reduced.
 /// </param>
+/// <param name="Summaries">Keeps the summary of a recording between visits; <c>null</c> = a summary lives only while the recording is open.</param>
 public sealed record AppServices(
     IRecorder Recorder,
     ICapture Capture,
@@ -71,4 +72,5 @@ public sealed record AppServices(
     IVideoPlayback? VideoPlayback = null,
     IGlobalHotkeys? Hotkeys = null,
     IActivationRequests? Activation = null,
-    IMotionPreference? Motion = null);
+    IMotionPreference? Motion = null,
+    ISummaryStore? Summaries = null);

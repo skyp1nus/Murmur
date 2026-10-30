@@ -213,6 +213,12 @@
   <x:Double x:Key="FontSize.MetaRelaxed">13</x:Double>
   <x:Double x:Key="LineHeight.MetaRelaxed">20.8</x:Double>
   <x:Double x:Key="LetterSpacing.MetaRelaxed">0.14</x:Double>
+  <x:Double x:Key="FontSize.SegmentText">15</x:Double>
+  <x:Double x:Key="LineHeight.SegmentText">24</x:Double>
+  <x:Double x:Key="LetterSpacing.SegmentText">0.14</x:Double>
+  <x:Double x:Key="FontSize.OverviewText">16</x:Double>
+  <x:Double x:Key="LineHeight.OverviewText">25.6</x:Double>
+  <x:Double x:Key="LetterSpacing.OverviewText">0.14</x:Double>
   <x:Double x:Key="FontSize.Mono">13</x:Double>
   <x:Double x:Key="LineHeight.Mono">21.97</x:Double>
 
@@ -271,6 +277,10 @@
   <Thickness x:Key="Inset.RowPad">20,16</Thickness>
   <Thickness x:Key="Inset.LibraryItem">32,0</Thickness>
   <Thickness x:Key="Inset.InputBare">2,0</Thickness>
+  <Thickness x:Key="Inset.SessionRow">14,12</Thickness>
+  <Thickness x:Key="Inset.SessionChip">8,3</Thickness>
+  <Thickness x:Key="Inset.SessionVideoChip">10,4</Thickness>
+  <Thickness x:Key="Inset.SessionTime">6,0</Thickness>
 
   <!-- Radii (CardTop / CardBottom: the first and the last row of a card of rows round only their outer corners) -->
   <CornerRadius x:Key="Radius.Input">4</CornerRadius>

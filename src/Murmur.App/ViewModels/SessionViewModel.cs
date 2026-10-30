@@ -58,7 +58,7 @@ public enum TranscriptStatus
 /// <para><b>Threads.</b> Everything runs on the UI thread; player and pipeline events are marshalled with the
 /// <c>post</c> callback.</para>
 /// </remarks>
-public sealed partial class SessionViewModel : ObservableObject, IDisposable
+public sealed partial class SessionViewModel : ObservableObject, IDisposable, IFillsFrame
 {
     /// <summary>After a manual scroll the list is left alone for this long.</summary>
     public static readonly TimeSpan AutoScrollHold = TimeSpan.FromSeconds(3);
@@ -66,11 +66,13 @@ public sealed partial class SessionViewModel : ObservableObject, IDisposable
     private readonly SessionRecord _record;
     private readonly SessionFiles _files;
     private readonly ITranscriptStore _transcripts;
-    private readonly IAudioPlayer _player;
+    private IAudioPlayer _player;
     private readonly ISessionProcessing _processing;
     private readonly TimeProvider _time;
     private readonly Action<Action> _post;
+    private readonly SessionServices _services;
 
+    private Transcript? _transcript;
     private TranscriptTimeline? _timeline;
     private bool _playerReady;
     private bool _scrubbing;
@@ -89,7 +91,8 @@ public sealed partial class SessionViewModel : ObservableObject, IDisposable
         TimeProvider time,
         Action<Action>? post = null,
         ChatViewModel? chat = null,
-        IVideoPlayback? videoPlayback = null)
+        IVideoPlayback? videoPlayback = null,
+        SessionServices? services = null)
     {
         ArgumentNullException.ThrowIfNull(record);
         ArgumentNullException.ThrowIfNull(files);
@@ -104,18 +107,21 @@ public sealed partial class SessionViewModel : ObservableObject, IDisposable
         _processing = processing;
         _time = time;
         _videoPlayback = videoPlayback;
+        _services = services ?? new SessionServices();
         _post = post ?? (action => Avalonia.Threading.Dispatcher.UIThread.Post(action));
 
         Title = string.IsNullOrWhiteSpace(record.Title) ? Strings.Common_UntitledRecording : record.Title;
         DateText = UiFormat.Date(record.StartedAt, time);
         Duration = record.Duration;
-        DurationText = UiFormat.Duration(record.Duration);
-        PositionText = UiFormat.Duration(TimeSpan.Zero);
+        DurationText = UiFormat.Clock(record.Duration);
+        PositionText = UiFormat.Clock(TimeSpan.Zero);
+        Actions = new SessionActionsViewModel(this);
 
         // Without AI wiring the tab still exists and explains how to install the models.
         Chat = chat ?? new ChatViewModel(null, null, null, record.Id, post: _post);
         Chat.CitationActivated += OnCitationActivated;
 
+        _controls = player as IAudioPlayerControls;
         _player.StateChanged += OnPlayerStateChanged;
         _processing.ProgressChanged += OnProcessingChanged;
     }
@@ -134,9 +140,18 @@ public sealed partial class SessionViewModel : ObservableObject, IDisposable
 
     public SessionId Id => _record.Id;
 
-    public string Title { get; }
+    /// <summary>The title of the recording (the user's, or "Untitled recording"); <see cref="RenameAsync"/> changes it.</summary>
+    [ObservableProperty]
+    public partial string Title { get; private set; }
 
     public string DateText { get; }
+
+    /// <summary>The line under the title: "Today, 10:30 · 47:12 · English · Parakeet TDT v3" as separate pieces (the canvas sets each in its own box).</summary>
+    [ObservableProperty]
+    public partial IReadOnlyList<MetaPart> Meta { get; private set; }
+
+    /// <summary>The buttons of the top bar (Export, the "…" menu) for this recording.</summary>
+    public SessionActionsViewModel Actions { get; }
 
     // Player ------------------------------------------------------------------------------------------------------
 
@@ -254,6 +269,7 @@ public sealed partial class SessionViewModel : ObservableObject, IDisposable
         StartVideo();
         await LoadPeaksAsync().ConfigureAwait(true);
         await LoadTranscriptAsync().ConfigureAwait(true);
+        await LoadSummaryAsync().ConfigureAwait(true);
     }
 
     /// <summary>Stops following the player and the pipeline and releases the player.</summary>
@@ -265,12 +281,61 @@ public sealed partial class SessionViewModel : ObservableObject, IDisposable
         }
 
         _disposed = true;
+        CancelSummary();
         _player.StateChanged -= OnPlayerStateChanged;
         _processing.ProgressChanged -= OnProcessingChanged;
         Chat.CitationActivated -= OnCitationActivated;
         Chat.Dispose();
         DisposeVideo();
         _player.Dispose();
+    }
+
+    /// <summary>
+    /// Lets go of the audio and video files (a folder cannot be deleted on Windows while a player has its files open) and stops
+    /// the playback. The view stays usable for what needs no media (the transcript, the summary).
+    /// </summary>
+    private void ReleaseMedia()
+    {
+        if (_playerReady)
+        {
+            try
+            {
+                _player.Pause();
+            }
+            catch (Exception ex) when (ex is InvalidOperationException or ObjectDisposedException)
+            {
+                // Already closed.
+            }
+        }
+
+        _playerReady = false;
+        CanPlay = false;
+        IsPlaying = false;
+        DisposeVideo();
+        _player.StateChanged -= OnPlayerStateChanged;
+        _player.Dispose();
+    }
+
+    /// <summary>
+    /// Brings the playback back after <see cref="ReleaseMedia"/> when the recording was not deleted after all: a new player opens the
+    /// tracks at the position the old one had, and the picture follows. Without a way to make a player the playback stays closed.
+    /// </summary>
+    private async Task ReopenMediaAsync()
+    {
+        if (_services.CreatePlayer is not { } create || _disposed)
+        {
+            return;
+        }
+
+        var position = Position;
+        _player = create();
+        _controls = _player as IAudioPlayerControls;
+        _player.StateChanged += OnPlayerStateChanged;
+        _microphoneTrack = -1;
+        _systemTrack = -1;
+        await OpenPlayerAsync().ConfigureAwait(true);
+        StartVideo();
+        SeekTo(position);
     }
 
     // Player commands ---------------------------------------------------------------------------------------------
@@ -415,11 +480,13 @@ public sealed partial class SessionViewModel : ObservableObject, IDisposable
         var tracks = new List<string>(2);
         if (_record.HasMicrophone && File.Exists(_files.MicrophoneAudio))
         {
+            _microphoneTrack = tracks.Count;
             tracks.Add(_files.MicrophoneAudio);
         }
 
         if (_record.HasSystemAudio && File.Exists(_files.SystemAudio))
         {
+            _systemTrack = tracks.Count;
             tracks.Add(_files.SystemAudio);
         }
 
@@ -447,19 +514,24 @@ public sealed partial class SessionViewModel : ObservableObject, IDisposable
         _playerReady = true;
         CanPlay = true;
         PlayerError = null;
+        ApplyPlayerControls();
         if (_player.Duration > TimeSpan.Zero)
         {
             Duration = _player.Duration;
         }
     }
 
+    /// <summary>
+    /// The waveform overview: <c>peaks.bin</c> when the pipeline wrote it; for an older recording without one the peaks are computed from the
+    /// audio files once, off the UI thread, and kept in <c>peaks.bin</c> (when the folder is writable) and in memory.
+    /// </summary>
     private async Task LoadPeaksAsync()
     {
         var path = _files.Peaks;
         byte[] peaks;
         try
         {
-            peaks = File.Exists(path) ? await Task.Run(() => PeaksFile.Read(path)).ConfigureAwait(true) : [];
+            peaks = File.Exists(path) ? await Task.Run(() => PeaksFile.Read(path)).ConfigureAwait(true) : await ComputePeaksAsync().ConfigureAwait(true);
         }
         catch (Exception ex) when (ex is IOException or InvalidDataException or UnauthorizedAccessException)
         {
@@ -467,6 +539,46 @@ public sealed partial class SessionViewModel : ObservableObject, IDisposable
         }
 
         Peaks = peaks;
+    }
+
+    private async Task<byte[]> ComputePeaksAsync()
+    {
+        // The file of a recording that is still being written is not final, and without audio there is nothing to show.
+        if (_record.State == SessionState.Recording)
+        {
+            return [];
+        }
+
+        var tracks = new List<string>(2);
+        if (_record.HasMicrophone && File.Exists(_files.MicrophoneAudio))
+        {
+            tracks.Add(_files.MicrophoneAudio);
+        }
+
+        if (_record.HasSystemAudio && File.Exists(_files.SystemAudio))
+        {
+            tracks.Add(_files.SystemAudio);
+        }
+
+        if (tracks.Count == 0)
+        {
+            return [];
+        }
+
+        var output = _files.Peaks;
+        return await Task.Run(() =>
+        {
+            try
+            {
+                PeaksBuilder.Build(tracks, output);
+                return PeaksFile.Read(output);
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                // A folder that cannot be written: the peaks are kept in memory only.
+                return PeaksBuilder.Compute(tracks);
+            }
+        }).ConfigureAwait(true);
     }
 
     private async Task LoadTranscriptAsync()
@@ -503,14 +615,19 @@ public sealed partial class SessionViewModel : ObservableObject, IDisposable
         var rows = new SegmentViewModel[segments.Count];
         for (var i = 0; i < rows.Length; i++)
         {
-            rows[i] = new SegmentViewModel(segments[i], i, timeline.FirstWordOfSegment(i), OnSeekRequested);
+            rows[i] = new SegmentViewModel(segments[i], i, timeline.FirstWordOfSegment(i), OnSeekRequested) { ShowWord = IsPlaying };
         }
 
+        _transcript = transcript;
         _timeline = timeline;
         _currentWord = -1;
         _currentSegment = -1;
         CurrentSegmentIndex = -1;
         Segments = rows;
+        RefreshExport();
+        Meta = BuildMeta(transcript);
+        ApplyTrackFilters();
+        ApplySearch();
         if (rows.Length == 0)
         {
             SetStatus(TranscriptStatus.Empty, Strings.Session_NoSpeechTitle, Strings.Session_NoSpeechText, Strings.Session_TryAgain);
@@ -573,6 +690,8 @@ public sealed partial class SessionViewModel : ObservableObject, IDisposable
 
     private void SetStatus(TranscriptStatus status, string title, string? text, string retryLabel)
     {
+        OnPropertyChanged(nameof(CanRetranscribe));
+        OnPropertyChanged(nameof(CanDelete));
         StatusTitle = title;
         StatusText = text;
         RetryLabel = retryLabel;
@@ -629,6 +748,9 @@ public sealed partial class SessionViewModel : ObservableObject, IDisposable
     {
         await LoadPeaksAsync().ConfigureAwait(true);
         await LoadTranscriptAsync().ConfigureAwait(true);
+
+        // A new transcript made the summary of the old one stale: the store dropped it, so the tab shows what is stored now.
+        await LoadSummaryAsync().ConfigureAwait(true);
     }
 
     // Player events -----------------------------------------------------------------------------------------------
@@ -657,21 +779,33 @@ public sealed partial class SessionViewModel : ObservableObject, IDisposable
         }
     }
 
-    partial void OnIsPlayingChanged(bool value) => OnPropertyChanged(nameof(PlayPauseLabel));
+    partial void OnIsPlayingChanged(bool value)
+    {
+        OnPropertyChanged(nameof(PlayPauseLabel));
+        foreach (var row in Segments)
+        {
+            row.ShowWord = value;
+        }
+    }
 
     partial void OnPositionChanged(TimeSpan value)
     {
-        PositionText = UiFormat.Duration(value);
+        PositionText = UiFormat.Clock(value);
         OnPropertyChanged(nameof(PositionFraction));
     }
 
     partial void OnDurationChanged(TimeSpan value)
     {
-        DurationText = UiFormat.Duration(value);
+        DurationText = UiFormat.Clock(value);
+        Meta = BuildMeta(_transcript);
         OnPropertyChanged(nameof(PositionFraction));
     }
 
-    partial void OnStatusChanged(TranscriptStatus value) => RaiseLayoutChanged();
+    partial void OnStatusChanged(TranscriptStatus value)
+    {
+        RaiseLayoutChanged();
+        RefreshSummaryAvailability();
+    }
 
     partial void OnSelectedTabChanged(SessionTab value)
     {
@@ -679,10 +813,11 @@ public sealed partial class SessionViewModel : ObservableObject, IDisposable
         OnPropertyChanged(nameof(IsSummaryTab));
         OnPropertyChanged(nameof(IsAskTab));
         RaiseLayoutChanged();
-        if (value == SessionTab.Ask)
+        if (value is SessionTab.Ask or SessionTab.Summary)
         {
             // The models may have been installed (or a recording started) since the view opened.
             Chat.RefreshAvailability();
+            RefreshSummaryAvailability();
         }
     }
 
@@ -761,8 +896,18 @@ public sealed partial class SessionViewModel : ObservableObject, IDisposable
         var changed = segment != _currentSegment;
         if (changed)
         {
+            var rows = Segments;
+            if (_currentSegment >= 0 && _currentSegment < rows.Count)
+            {
+                rows[_currentSegment].IsCurrent = false;
+            }
+
             _currentSegment = segment;
             CurrentSegmentIndex = segment;
+            if (segment >= 0 && segment < rows.Count)
+            {
+                rows[segment].IsCurrent = true;
+            }
         }
 
         if (segment < 0)

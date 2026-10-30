@@ -167,7 +167,8 @@ public sealed partial class ShellViewModel : ObservableObject
                 processing ?? NullSessionProcessing.Instance,
                 services.Time,
                 chat: CreateChat(record.Id),
-                videoPlayback: services.VideoPlayback);
+                videoPlayback: services.VideoPlayback,
+                services: new SessionServices(ai?.Summarizer, services.Summaries, services.Sessions, SystemFolderLauncher.Instance, playback.CreatePlayer));
         }
 
         // Without a store from the composition root (designer, tests) the settings live in memory for the run.
@@ -392,6 +393,8 @@ public sealed partial class ShellViewModel : ObservableObject
         var session = _sessionFactory(record);
         session.BackRequested += OnSessionBack;
         session.OpenSessionRequested += OnOpenSessionRequested;
+        session.Deleted += OnSessionDeleted;
+        session.PropertyChanged += OnSessionPropertyChanged;
         _sessionReturnsToChat = returnsToChat;
         Session = session;
         CurrentPage = session;
@@ -477,8 +480,11 @@ public sealed partial class ShellViewModel : ObservableObject
                 TopBar.Trailing = _hint;
                 break;
             case SessionViewModel session:
-                TopBar.Leading = new BreadcrumbViewModel(Strings.Nav_Library, new RelayCommand(ShowLibrary), session.Title);
-                TopBar.Trailing = null;
+                // Opened from a chip of the library chat, the way back is the chat.
+                TopBar.Leading = _sessionReturnsToChat && LibraryChat is not null
+                    ? new BreadcrumbViewModel(Strings.Common_AskAi, new RelayCommand(OnSessionBack), session.Title)
+                    : new BreadcrumbViewModel(Strings.Nav_Library, new RelayCommand(ShowLibrary), session.Title);
+                TopBar.Trailing = session.Actions;
                 break;
             case LibraryChatViewModel:
                 TopBar.Leading = new BreadcrumbViewModel(Strings.Common_AskAi);
@@ -580,6 +586,18 @@ public sealed partial class ShellViewModel : ObservableObject
 
     private void OnOpenSessionRequested(SessionId id, TimeSpan at) => _ = OpenSessionAtAsync(id, at, play: true);
 
+    /// <summary>The recording on screen was renamed: the breadcrumb follows (the library re-reads its list when it is shown).</summary>
+    private void OnSessionPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(SessionViewModel.Title) && sender is SessionViewModel session && ReferenceEquals(CurrentPage, session))
+        {
+            UpdateTopBar(session);
+        }
+    }
+
+    /// <summary>The recording on screen was deleted: back to where it was opened from (the library re-reads its list).</summary>
+    private void OnSessionDeleted() => ShowLibrary();
+
     private void OnSessionBack()
     {
         if (_sessionReturnsToChat && LibraryChat is not null)
@@ -604,6 +622,8 @@ public sealed partial class ShellViewModel : ObservableObject
 
         session.BackRequested -= OnSessionBack;
         session.OpenSessionRequested -= OnOpenSessionRequested;
+        session.Deleted -= OnSessionDeleted;
+        session.PropertyChanged -= OnSessionPropertyChanged;
         Session = null;
         _sessionReturnsToChat = false;
         session.Dispose();

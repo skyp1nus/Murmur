@@ -42,6 +42,9 @@
     <DataTemplate DataType="vm:HotkeyHintViewModel">
       <views:HotkeyHintView />
     </DataTemplate>
+    <DataTemplate DataType="vm:SessionActionsViewModel">
+      <views:SessionActionsView />
+    </DataTemplate>
   </Window.DataTemplates>
 
   <Grid ColumnDefinitions="Auto,*">

@@ -41,6 +41,30 @@ public sealed class WasapiAudioPlayerContractTests : IDisposable
     private ValueTask OpenAsync(params string[] paths) => _player.OpenAsync(paths, TestContext.Current.CancellationToken);
 
     [Fact]
+    public void MutedTracks_ReachTheMixer_AlsoOfAnEngineCreatedLater()
+    {
+        Assert.True(_player.CanMuteTracks);
+        Assert.False(_player.CanChangeSpeed);
+        _player.SetTrackMuted(1, true);
+        Open();
+        Assert.Equal(0b10, Engine.Mixer.MutedMask);
+
+        _player.SetTrackMuted(0, true);
+        _player.SetTrackMuted(1, false);
+        Assert.Equal(0b01, Engine.Mixer.MutedMask);
+
+        Open();
+        Assert.Equal(0b01, Engine.Mixer.MutedMask);
+        _player.SetSpeed(2);
+        Assert.Equal(1, _player.Speed);
+        Assert.True(_player.IsTrackMuted(0));
+        Assert.False(_player.IsTrackMuted(1));
+        Assert.Throws<ArgumentOutOfRangeException>(() => _player.SetTrackMuted(-1, true));
+        Assert.Throws<ArgumentOutOfRangeException>(() => _player.SetTrackMuted(IAudioPlayerControls.MaxTracks, true));
+        Assert.Throws<ArgumentOutOfRangeException>(() => _player.IsTrackMuted(2));
+    }
+
+    [Fact]
     public void NewPlayer_IsClosed_AndRejectsCommands()
     {
         Assert.Equal(PlaybackState.Closed, _player.State);

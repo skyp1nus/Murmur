@@ -7,237 +7,938 @@
              x:Class="Murmur.App.Views.SessionView"
              x:DataType="vm:SessionViewModel">
 
+  <!--
+    The recording of the canvas (Session.dc.html / SessionDark.dc.html), in the page area below the top bar: the title and the
+    facts under it, then the video and the player on the left, the tabs Transcript / Summary / Ask AI on the right. Colours, type,
+    spacing and radii are tokens; what is declared here are the sizes of this screen's own components and its styles (every class
+    starts with "session", so none of them collides with the shared styles).
+  -->
+
+  <UserControl.KeyBindings>
+    <KeyBinding Gesture="Escape" Command="{Binding BackCommand}" />
+  </UserControl.KeyBindings>
+
   <UserControl.Resources>
-    <!-- Width of the player column and height of the waveform (layout sizes of this screen, not design tokens). -->
-    <x:Double x:Key="Session.PlayerWidth">340</x:Double>
-    <!-- With the screen recording the player column is as wide as the mockup's player section (flex-basis 480). -->
-    <x:Double x:Key="Session.PlayerWidthVideo">480</x:Double>
-    <x:Double x:Key="Session.WaveformHeight">96</x:Double>
-    <x:Double x:Key="Session.StatusWidth">480</x:Double>
+    <ResourceDictionary>
+      <!-- Layout of the canvas page: 1240 wide at most, columns of 480 and 520 that wrap below 1024. -->
+      <x:Double x:Key="Session.PageMaxWidth">1240</x:Double>
+      <x:Double x:Key="Session.LeftBasis">480</x:Double>
+      <x:Double x:Key="Session.RightBasis">520</x:Double>
+      <x:Double x:Key="Session.MinRightHeight">520</x:Double>
+      <Thickness x:Key="Session.PagePadding">32,16,32,24</Thickness>
+
+      <!-- Component sizes. -->
+      <x:Double x:Key="Session.Avatar">28</x:Double>
+      <x:Double x:Key="Session.Play">44</x:Double>
+      <x:Double x:Key="Session.PlayIcon">16</x:Double>
+      <x:Double x:Key="Session.Small">32</x:Double>
+      <x:Double x:Key="Session.Tab">36</x:Double>
+      <x:Double x:Key="Session.TabDot">6</x:Double>
+      <x:Double x:Key="Session.TabIcon">15</x:Double>
+      <x:Double x:Key="Session.Icon">16</x:Double>
+      <x:Double x:Key="Session.Check">18</x:Double>
+      <x:Double x:Key="Session.WaveformHeight">64</x:Double>
+      <x:Double x:Key="Session.VideoIconStroke">1.4</x:Double>
+      <x:Double x:Key="Session.DimmedOpacity">0.4</x:Double>
+      <x:Double x:Key="Session.StatusWidth">480</x:Double>
+      <Thickness x:Key="Session.WaveformMargin">0,-4</Thickness>
+      <!-- The title's 36.16 px line is rounded up to a whole pixel here; the canvas keeps the fraction. -->
+      <Thickness x:Key="Session.HeaderTrim">0,0,0,-1</Thickness>
+      <Thickness x:Key="Session.TimeShift">0,-2,0,0</Thickness>
+      <Thickness x:Key="Session.DateTrim">0,0,-2,0</Thickness>
+      <Thickness x:Key="Session.RowGap">0,0,0,2</Thickness>
+      <Thickness x:Key="Session.TimeNudge">0,1,0,0</Thickness>
+
+      <!-- Filled glyphs of the play button (24 x 24 grid, like the canvas SVGs). -->
+      <StreamGeometry x:Key="Session.PlayGlyph">M8 5v14l11-7z</StreamGeometry>
+      <StreamGeometry x:Key="Session.PauseGlyph">M7 5h2a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1z M15 5h2a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1h-2a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1z</StreamGeometry>
+    </ResourceDictionary>
   </UserControl.Resources>
 
-  <Grid RowDefinitions="Auto,*"
-        RowSpacing="{StaticResource Space.24}">
+  <UserControl.Styles>
+    <!-- Type of the canvas. Every step is a token step; a button's text has no tracking (a form control does not inherit it). -->
+    <Style Selector="TextBlock.sessionMeta">
+      <Setter Property="FontFamily" Value="{StaticResource Font.Body}" />
+      <Setter Property="FontWeight" Value="{StaticResource FontWeight.Body}" />
+      <Setter Property="FontSize" Value="{StaticResource FontSize.MetaTight}" />
+      <Setter Property="LineHeight" Value="{StaticResource LineHeight.MetaTight}" />
+      <Setter Property="LetterSpacing" Value="{StaticResource LetterSpacing.MetaTight}" />
+      <Setter Property="Foreground" Value="{DynamicResource Brush.Smoke}" />
+    </Style>
+    <Style Selector="TextBlock.sessionMeta.mono">
+      <Setter Property="FontFamily" Value="{StaticResource Font.Mono}" />
+      <Setter Property="FontWeight" Value="{StaticResource FontWeight.Mono}" />
+      <Setter Property="FontSize" Value="{StaticResource FontSize.MonoRow}" />
+      <Setter Property="LineHeight" Value="{StaticResource LineHeight.MonoRow}" />
+      <Setter Property="LetterSpacing" Value="{StaticResource LetterSpacing.MonoRow}" />
+    </Style>
+    <!-- Chromium sets the date a little narrower than Skia does; the facts after it keep the canvas's places. -->
+    <Style Selector="ItemsControl.sessionMetaList > ContentPresenter:nth-child(1)">
+      <Setter Property="Margin" Value="{StaticResource Session.DateTrim}" />
+    </Style>
+    <!-- The dot between the facts is 4 px wide in the canvas, a hair more than Skia sets it. -->
+    <Style Selector="TextBlock.sessionMeta.dot">
+      <Setter Property="LetterSpacing" Value="0.31" />
+    </Style>
+    <Style Selector="TextBlock.sessionLabel">
+      <Setter Property="FontFamily" Value="{StaticResource Font.Body}" />
+      <Setter Property="FontWeight" Value="{StaticResource FontWeight.Body}" />
+      <Setter Property="FontSize" Value="{StaticResource FontSize.Meta}" />
+      <Setter Property="LineHeight" Value="{StaticResource LineHeight.Meta}" />
+      <Setter Property="LetterSpacing" Value="{StaticResource LetterSpacing.Meta}" />
+      <Setter Property="Foreground" Value="{DynamicResource Brush.Smoke}" />
+    </Style>
+    <Style Selector="TextBlock.sessionNote">
+      <Setter Property="FontFamily" Value="{StaticResource Font.Body}" />
+      <Setter Property="FontWeight" Value="{StaticResource FontWeight.Body}" />
+      <Setter Property="FontSize" Value="{StaticResource FontSize.Small}" />
+      <Setter Property="LineHeight" Value="{StaticResource LineHeight.Small}" />
+      <Setter Property="LetterSpacing" Value="{StaticResource LetterSpacing.Small}" />
+      <Setter Property="Foreground" Value="{DynamicResource Brush.Smoke}" />
+      <Setter Property="TextWrapping" Value="Wrap" />
+    </Style>
+    <Style Selector="TextBlock.sessionBody">
+      <Setter Property="FontFamily" Value="{StaticResource Font.Body}" />
+      <Setter Property="FontWeight" Value="{StaticResource FontWeight.Body}" />
+      <Setter Property="FontSize" Value="{StaticResource FontSize.RowTitle}" />
+      <Setter Property="LineHeight" Value="{StaticResource LineHeight.RowTitle}" />
+      <Setter Property="LetterSpacing" Value="{StaticResource LetterSpacing.RowTitle}" />
+      <Setter Property="TextWrapping" Value="Wrap" />
+    </Style>
+    <Style Selector="TextBlock.sessionOverview">
+      <Setter Property="FontFamily" Value="{StaticResource Font.Body}" />
+      <Setter Property="FontWeight" Value="{StaticResource FontWeight.Body}" />
+      <Setter Property="FontSize" Value="{StaticResource FontSize.OverviewText}" />
+      <Setter Property="LineHeight" Value="{StaticResource LineHeight.OverviewText}" />
+      <Setter Property="LetterSpacing" Value="{StaticResource LetterSpacing.OverviewText}" />
+      <Setter Property="TextWrapping" Value="Wrap" />
+    </Style>
+    <Style Selector="TextBlock.sessionCardTitle">
+      <Setter Property="FontFamily" Value="{StaticResource Font.Body}" />
+      <Setter Property="FontWeight" Value="{StaticResource FontWeight.BodyMedium}" />
+      <Setter Property="FontSize" Value="{StaticResource FontSize.RowTitle}" />
+      <Setter Property="LineHeight" Value="{StaticResource LineHeight.RowTitle}" />
+      <Setter Property="LetterSpacing" Value="{StaticResource LetterSpacing.RowTitle}" />
+      <Setter Property="TextWrapping" Value="Wrap" />
+    </Style>
+    <!-- 13 px / 500 without tracking: the text of the tabs. -->
+    <Style Selector="TextBlock.sessionTabText">
+      <Setter Property="FontFamily" Value="{StaticResource Font.Body}" />
+      <Setter Property="FontWeight" Value="{StaticResource FontWeight.BodyMedium}" />
+      <Setter Property="FontSize" Value="{StaticResource FontSize.MetaTight}" />
+      <Setter Property="LineHeight" Value="{StaticResource LineHeight.MetaTight}" />
+      <Setter Property="LetterSpacing" Value="0" />
+      <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+    <!-- 12 px / 500 without tracking: You and Others. -->
+    <Style Selector="TextBlock.sessionSmallText">
+      <Setter Property="FontFamily" Value="{StaticResource Font.Body}" />
+      <Setter Property="FontWeight" Value="{StaticResource FontWeight.BodyMedium}" />
+      <Setter Property="FontSize" Value="{StaticResource FontSize.SmallTight}" />
+      <Setter Property="LineHeight" Value="{StaticResource LineHeight.SmallTight}" />
+      <Setter Property="LetterSpacing" Value="0" />
+      <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+    <Style Selector="TextBlock.sessionSmallText.mono">
+      <Setter Property="FontFamily" Value="{StaticResource Font.Mono}" />
+      <Setter Property="FontWeight" Value="{StaticResource FontWeight.Mono}" />
+      <Setter Property="FontSize" Value="{StaticResource FontSize.MonoSmall}" />
+      <Setter Property="LineHeight" Value="{StaticResource LineHeight.MonoSmall}" />
+    </Style>
+    <Style Selector="TextBlock.sessionName">
+      <Setter Property="FontFamily" Value="{StaticResource Font.Body}" />
+      <Setter Property="FontWeight" Value="{StaticResource FontWeight.BodyMedium}" />
+      <Setter Property="FontSize" Value="{StaticResource FontSize.MetaTight}" />
+      <Setter Property="LineHeight" Value="{StaticResource LineHeight.MetaTight}" />
+      <Setter Property="LetterSpacing" Value="{StaticResource LetterSpacing.MetaTight}" />
+    </Style>
+    <Style Selector="TextBlock.sessionTime">
+      <Setter Property="FontFamily" Value="{StaticResource Font.Mono}" />
+      <Setter Property="FontWeight" Value="{StaticResource FontWeight.Mono}" />
+      <Setter Property="FontSize" Value="{StaticResource FontSize.MonoSmall}" />
+      <Setter Property="LineHeight" Value="{StaticResource LineHeight.MonoSmall}" />
+      <Setter Property="LetterSpacing" Value="{StaticResource LetterSpacing.MonoSmall}" />
+    </Style>
+    <Style Selector="TextBlock.sessionAvatarText">
+      <Setter Property="FontFamily" Value="{StaticResource Font.Body}" />
+      <Setter Property="FontWeight" Value="{StaticResource FontWeight.BodyMedium}" />
+      <Setter Property="FontSize" Value="{StaticResource FontSize.Tag}" />
+      <Setter Property="LineHeight" Value="{StaticResource LineHeight.Tag}" />
+      <Setter Property="LetterSpacing" Value="{StaticResource LetterSpacing.Tag}" />
+      <Setter Property="HorizontalAlignment" Value="Center" />
+      <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+    <Style Selector="TextBlock.sessionChipText">
+      <Setter Property="FontFamily" Value="{StaticResource Font.Mono}" />
+      <Setter Property="FontWeight" Value="{StaticResource FontWeight.Mono}" />
+      <Setter Property="FontSize" Value="{StaticResource FontSize.MonoSmall}" />
+      <Setter Property="LineHeight" Value="{StaticResource LineHeight.MonoSmall}" />
+      <Setter Property="LetterSpacing" Value="{StaticResource LetterSpacing.MonoSmall}" />
+    </Style>
 
-    <!-- Header -->
-    <Grid Grid.Row="0"
-          ColumnDefinitions="Auto,*"
-          ColumnSpacing="{StaticResource Space.24}">
-      <Button Grid.Column="0"
-              Classes="outline"
-              VerticalAlignment="Center"
-              Content="{x:Static res:Strings.Common_Back}"
-              Command="{Binding BackCommand}" />
-      <StackPanel Grid.Column="1"
-                  VerticalAlignment="Center">
-        <TextBlock Classes="headingSm"
-                   TextTrimming="CharacterEllipsis"
-                   Text="{Binding Title}" />
-        <TextBlock Classes="bodySm"
-                   Foreground="{DynamicResource Brush.Smoke}"
-                   Text="{Binding DateText}" />
-      </StackPanel>
-    </Grid>
+    <!-- The page scrolls in a small window: its scroll bar keeps to the palette. -->
+    <Style Selector="ScrollBar RepeatButton">
+      <Setter Property="Foreground" Value="{DynamicResource Brush.Smoke}" />
+    </Style>
 
-    <Grid Grid.Row="1"
-          ColumnSpacing="{StaticResource Space.24}">
-      <Grid.ColumnDefinitions>
-        <ColumnDefinition Width="Auto" />
-        <ColumnDefinition Width="*" />
-      </Grid.ColumnDefinitions>
+    <!-- Pills with a hairline on the Canvas: the tabs (36), You / Others / speed (32). -->
+    <Style Selector="Button.sessionPill, ToggleButton.sessionPill">
+      <Setter Property="MinHeight" Value="0" />
+      <Setter Property="MinWidth" Value="0" />
+      <Setter Property="Height" Value="{StaticResource Session.Small}" />
+      <Setter Property="Padding" Value="{StaticResource Inset.Suggestion}" />
+      <Setter Property="CornerRadius" Value="{StaticResource Radius.Pill}" />
+      <Setter Property="HorizontalContentAlignment" Value="Center" />
+      <Setter Property="VerticalContentAlignment" Value="Center" />
+      <Setter Property="Background" Value="{DynamicResource Brush.Canvas}" />
+      <Setter Property="Foreground" Value="{DynamicResource Brush.Ink}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource Brush.ButtonBorder}" />
+      <Setter Property="BorderThickness" Value="{StaticResource Hairline.Thickness}" />
+    </Style>
+    <Style Selector="Button.sessionPill:pointerover /template/ ContentPresenter#PART_ContentPresenter, ToggleButton.sessionPill:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="{DynamicResource Brush.FillHover}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource Brush.ButtonBorder}" />
+      <Setter Property="Foreground" Value="{DynamicResource Brush.Ink}" />
+    </Style>
+    <Style Selector="Button.sessionPill:pressed /template/ ContentPresenter#PART_ContentPresenter, ToggleButton.sessionPill:pressed /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="{DynamicResource Brush.FillPressed}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource Brush.ButtonBorder}" />
+      <Setter Property="Foreground" Value="{DynamicResource Brush.Ink}" />
+    </Style>
+    <Style Selector="Button.sessionPill:disabled /template/ ContentPresenter#PART_ContentPresenter, ToggleButton.sessionPill:disabled /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="{DynamicResource Brush.Canvas}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource Brush.Stone}" />
+      <Setter Property="Foreground" Value="{DynamicResource Brush.Ash}" />
+    </Style>
+    <Style Selector="ToggleButton.sessionPill.filter">
+      <Setter Property="Foreground" Value="{DynamicResource Brush.Smoke}" />
+    </Style>
+    <Style Selector="ToggleButton.sessionPill.filter:checked">
+      <Setter Property="Foreground" Value="{DynamicResource Brush.Ink}" />
+    </Style>
+    <Style Selector="ToggleButton.sessionPill.filter /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Foreground" Value="{DynamicResource Brush.Smoke}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource Brush.Stone}" />
+    </Style>
+    <Style Selector="ToggleButton.sessionPill.filter:checked /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Foreground" Value="{DynamicResource Brush.Ink}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource Brush.ButtonBorder}" />
+    </Style>
+    <!-- Fluent fills a checked toggle with the system accent; here checked is the same Canvas pill (the tab has its dot). -->
+    <Style Selector="ToggleButton.sessionPill:checked /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="{DynamicResource Brush.Canvas}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource Brush.ButtonBorder}" />
+      <Setter Property="Foreground" Value="{DynamicResource Brush.Ink}" />
+    </Style>
+    <Style Selector="ToggleButton.sessionPill:checked:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="{DynamicResource Brush.FillHover}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource Brush.ButtonBorder}" />
+      <Setter Property="Foreground" Value="{DynamicResource Brush.Ink}" />
+    </Style>
+    <Style Selector="ToggleButton.sessionPill:checked:pressed /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="{DynamicResource Brush.FillPressed}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource Brush.ButtonBorder}" />
+      <Setter Property="Foreground" Value="{DynamicResource Brush.Ink}" />
+    </Style>
+    <Style Selector="ToggleButton.sessionPill:checked:disabled /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="{DynamicResource Brush.Canvas}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource Brush.Stone}" />
+      <Setter Property="Foreground" Value="{DynamicResource Brush.Ash}" />
+    </Style>
+    <Style Selector="ToggleButton.sessionPill.filter:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="{DynamicResource Brush.FillHover}" />
+    </Style>
+    <Style Selector="ToggleButton.sessionPill.tab">
+      <Setter Property="Height" Value="{StaticResource Session.Tab}" />
+      <Setter Property="Padding" Value="{StaticResource Inset.Toggle}" />
+    </Style>
 
-      <!-- Player (left): the screen recording above the waveform card -->
-      <StackPanel Grid.Column="0"
-                  Classes="player"
-                  Classes.video="{Binding HasVideo}"
-                  VerticalAlignment="Top"
-                  Spacing="{StaticResource Space.16}">
-        <StackPanel.Styles>
-          <Style Selector="StackPanel.player">
-            <Setter Property="Width" Value="{StaticResource Session.PlayerWidth}" />
-          </Style>
-          <Style Selector="StackPanel.player.video">
-            <Setter Property="Width" Value="{StaticResource Session.PlayerWidthVideo}" />
-          </Style>
-        </StackPanel.Styles>
+    <!-- The black play button. -->
+    <Style Selector="Button.sessionPlay">
+      <Setter Property="Width" Value="{StaticResource Session.Play}" />
+      <Setter Property="Height" Value="{StaticResource Session.Play}" />
+      <Setter Property="MinHeight" Value="0" />
+      <Setter Property="MinWidth" Value="0" />
+      <Setter Property="Padding" Value="0" />
+      <Setter Property="CornerRadius" Value="{StaticResource Radius.Pill}" />
+      <Setter Property="HorizontalContentAlignment" Value="Center" />
+      <Setter Property="VerticalContentAlignment" Value="Center" />
+      <Setter Property="Background" Value="{DynamicResource Brush.Ink}" />
+      <Setter Property="Foreground" Value="{DynamicResource Brush.Canvas}" />
+      <Setter Property="BorderThickness" Value="0" />
+    </Style>
+    <Style Selector="Button.sessionPlay:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="{DynamicResource Brush.InkHover}" />
+      <Setter Property="Foreground" Value="{DynamicResource Brush.Canvas}" />
+    </Style>
+    <Style Selector="Button.sessionPlay:pressed /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="{DynamicResource Brush.Smoke}" />
+      <Setter Property="Foreground" Value="{DynamicResource Brush.Canvas}" />
+    </Style>
+    <Style Selector="Button.sessionPlay:disabled /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="{DynamicResource Brush.Ash}" />
+      <Setter Property="Foreground" Value="{DynamicResource Brush.Canvas}" />
+    </Style>
 
-        <Border x:Name="VideoPanel"
-                Classes="videoPanel"
-                IsVisible="{Binding HasVideo}">
-          <Panel>
-            <controls:VideoSurface x:Name="Video"
-                                   Player="{Binding VideoPlayer}"
-                                   Active="{Binding IsVideoOpen}"
-                                   Revision="{Binding VideoRevision}" />
-            <StackPanel x:Name="VideoPlaceholder"
-                        HorizontalAlignment="Center"
-                        VerticalAlignment="Center"
-                        Spacing="{StaticResource Space.8}"
-                        IsVisible="{Binding ShowVideoPlaceholder}">
-              <controls:IconControl Width="{StaticResource Size.VideoIcon}"
-                                    Height="{StaticResource Size.VideoIcon}"
-                                    HorizontalAlignment="Center"
-                                    TextElement.Foreground="{DynamicResource Brush.Smoke}"
-                                    Data="{StaticResource Icon.Screen}" />
-              <TextBlock Classes="bodySm"
-                         HorizontalAlignment="Center"
-                         TextAlignment="Center"
-                         TextWrapping="Wrap"
-                         Foreground="{DynamicResource Brush.Smoke}"
-                         Text="{Binding VideoPlaceholderText}" />
-            </StackPanel>
-            <Panel x:Name="VideoChip"
-                   Classes="videoChip"
-                   IsVisible="{Binding IsVideoOpen}">
-              <Border Classes="videoChipBackground" />
-              <TextBlock Classes="mono videoChipText"
-                         Text="{Binding VideoInfoText}" />
-            </Panel>
-          </Panel>
-        </Border>
+    <!-- The tab's dot (the active one has it). -->
+    <Style Selector="Ellipse.sessionDot">
+      <Setter Property="Width" Value="{StaticResource Session.TabDot}" />
+      <Setter Property="Height" Value="{StaticResource Session.TabDot}" />
+      <Setter Property="Fill" Value="{DynamicResource Brush.Ink}" />
+      <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
 
-        <Border Classes="card"
-                Padding="{StaticResource Inset.24}">
-          <StackPanel Spacing="{StaticResource Space.16}">
-            <controls:WaveformControl x:Name="Waveform"
-                                      Height="{StaticResource Session.WaveformHeight}"
-                                      Peaks="{Binding Peaks}"
-                                      Fraction="{Binding PositionFraction}" />
-            <Grid ColumnDefinitions="*,Auto">
-              <TextBlock Grid.Column="0"
-                         Classes="mono"
-                         Text="{Binding PositionText}" />
-              <TextBlock Grid.Column="1"
-                         Classes="mono"
-                         Foreground="{DynamicResource Brush.Smoke}"
-                         Text="{Binding DurationText}" />
-            </Grid>
-            <Button Classes="primary"
-                    HorizontalAlignment="Center"
-                    Content="{Binding PlayPauseLabel}"
-                    IsEnabled="{Binding CanPlay}"
-                    Command="{Binding PlayPauseCommand}" />
-            <TextBlock Classes="bodySm"
-                       TextWrapping="Wrap"
-                       Foreground="{DynamicResource Brush.Smoke}"
-                       IsVisible="{Binding HasPlayerError}"
-                       Text="{Binding PlayerError}" />
-          </StackPanel>
-        </Border>
-      </StackPanel>
+    <!-- Cards: the player (hairline), the video (Surface) are in the shared styles; these are the summary's. -->
+    <Style Selector="Border.sessionPlayer">
+      <Setter Property="BorderBrush" Value="{DynamicResource Brush.Hairline}" />
+      <Setter Property="BorderThickness" Value="{StaticResource Hairline.Thickness}" />
+      <Setter Property="CornerRadius" Value="{StaticResource Radius.Card}" />
+      <Setter Property="Padding" Value="{StaticResource Inset.20}" />
+    </Style>
+    <Style Selector="Border.sessionSurface">
+      <Setter Property="Background" Value="{DynamicResource Brush.Surface}" />
+      <Setter Property="CornerRadius" Value="{StaticResource Radius.Card}" />
+      <Setter Property="Padding" Value="{StaticResource Inset.24}" />
+    </Style>
+    <Style Selector="Border.sessionOutline">
+      <Setter Property="BorderBrush" Value="{DynamicResource Brush.Hairline}" />
+      <Setter Property="BorderThickness" Value="{StaticResource Hairline.Thickness}" />
+      <Setter Property="CornerRadius" Value="{StaticResource Radius.Card}" />
+      <Setter Property="Padding" Value="{StaticResource Inset.24}" />
+    </Style>
 
-      <!-- Tabs and content (right) -->
-      <Grid Grid.Column="1"
-            RowDefinitions="Auto,*"
-            RowSpacing="{StaticResource Space.16}">
-        <StackPanel Grid.Row="0"
-                    Orientation="Horizontal"
-                    Spacing="{StaticResource Space.8}">
-          <ToggleButton Classes="pill"
-                        Content="{x:Static res:Strings.Session_TabTranscript}"
-                        IsChecked="{Binding IsTranscriptTab, Mode=TwoWay}" />
-          <ToggleButton Classes="pill"
-                        Content="{x:Static res:Strings.Session_TabSummary}"
-                        IsChecked="{Binding IsSummaryTab, Mode=TwoWay}" />
-          <ToggleButton Classes="pill"
-                        Content="{x:Static res:Strings.Common_AskAi}"
-                        IsChecked="{Binding IsAskTab, Mode=TwoWay}" />
+    <!-- The size chip over the video: Canvas at 90 %, 4 x 10 px. -->
+    <Style Selector="Panel.videoChip > TextBlock.sessionChipText">
+      <Setter Property="Margin" Value="{StaticResource Inset.SessionVideoChip}" />
+    </Style>
+
+    <!-- A line of the transcript: transparent, Surface under the pointer and for the current one, dimmed when its track is off. -->
+    <Style Selector="Button.sessionRow">
+      <Setter Property="MinHeight" Value="0" />
+      <Setter Property="Padding" Value="{StaticResource Inset.SessionRow}" />
+      <Setter Property="Margin" Value="{StaticResource Session.RowGap}" />
+      <Setter Property="CornerRadius" Value="{StaticResource Radius.Note}" />
+      <Setter Property="HorizontalAlignment" Value="Stretch" />
+      <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+      <Setter Property="VerticalContentAlignment" Value="Top" />
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="BorderThickness" Value="0" />
+      <Setter Property="Foreground" Value="{DynamicResource Brush.Ink}" />
+    </Style>
+    <Style Selector="Button.sessionRow /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="Transparent" />
+    </Style>
+    <Style Selector="Button.sessionRow:pointerover /template/ ContentPresenter#PART_ContentPresenter, Button.sessionRow:pressed /template/ ContentPresenter#PART_ContentPresenter, Button.sessionRow.current /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="{DynamicResource Brush.Surface}" />
+      <Setter Property="Foreground" Value="{DynamicResource Brush.Ink}" />
+    </Style>
+    <Style Selector="Button.sessionRow.dimmed">
+      <Setter Property="Opacity" Value="{StaticResource Session.DimmedOpacity}" />
+    </Style>
+    <Style Selector="Button.sessionRow controls|TranscriptTextControl">
+      <Setter Property="Foreground" Value="{DynamicResource Brush.Graphite}" />
+    </Style>
+    <Style Selector="Button.sessionRow.current controls|TranscriptTextControl">
+      <Setter Property="Foreground" Value="{DynamicResource Brush.Ink}" />
+    </Style>
+    <Style Selector="controls|TranscriptTextControl.sessionText">
+      <Setter Property="FontSize" Value="{StaticResource FontSize.SegmentText}" />
+      <Setter Property="LineHeight" Value="{StaticResource LineHeight.SegmentText}" />
+      <Setter Property="LetterSpacing" Value="{StaticResource LetterSpacing.SegmentText}" />
+      <Setter Property="MarkBrush" Value="{DynamicResource Brush.Ink}" />
+      <Setter Property="MarkForeground" Value="{DynamicResource Brush.Canvas}" />
+      <Setter Property="MarkCornerRadius" Value="{StaticResource Radius.Input}" />
+    </Style>
+
+    <!-- The avatar of a speaker: the ink for the microphone, Stone for the other side. -->
+    <Style Selector="Border.sessionAvatar">
+      <Setter Property="Width" Value="{StaticResource Session.Avatar}" />
+      <Setter Property="Height" Value="{StaticResource Session.Avatar}" />
+      <Setter Property="CornerRadius" Value="{StaticResource Radius.Pill}" />
+      <Setter Property="Background" Value="{DynamicResource Brush.Stone}" />
+    </Style>
+    <Style Selector="Border.sessionAvatar > TextBlock">
+      <Setter Property="Foreground" Value="{DynamicResource Brush.Ink}" />
+    </Style>
+    <Style Selector="Border.sessionAvatar.me">
+      <Setter Property="Background" Value="{DynamicResource Brush.Ink}" />
+    </Style>
+    <Style Selector="Border.sessionAvatar.me > TextBlock">
+      <Setter Property="Foreground" Value="{DynamicResource Brush.Canvas}" />
+    </Style>
+
+    <!-- The time of a line: Geist Mono in Smoke on a 6 px rounded box, Stone under the pointer; Ink on the current line. -->
+    <Style Selector="Button.sessionTime">
+      <Setter Property="MinHeight" Value="0" />
+      <Setter Property="MinWidth" Value="0" />
+      <Setter Property="Padding" Value="{StaticResource Inset.SessionTime}" />
+      <Setter Property="CornerRadius" Value="{StaticResource Radius.Key}" />
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="BorderThickness" Value="0" />
+      <Setter Property="Foreground" Value="{DynamicResource Brush.Smoke}" />
+      <Setter Property="VerticalAlignment" Value="Center" />
+      <Setter Property="Margin" Value="{StaticResource Session.TimeNudge}" />
+    </Style>
+    <Style Selector="Button.sessionTime /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="Foreground" Value="{DynamicResource Brush.Smoke}" />
+    </Style>
+    <Style Selector="Button.sessionTime:pointerover /template/ ContentPresenter#PART_ContentPresenter, Button.sessionTime:pressed /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="{DynamicResource Brush.FillPressed}" />
+    </Style>
+    <Style Selector="Button.sessionRow.current Button.sessionTime /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Foreground" Value="{DynamicResource Brush.Ink}" />
+    </Style>
+
+    <!-- A chip of the summary: the time an item cites, a pill on Surface (Stone in the dark theme) that plays from there. -->
+    <Style Selector="Button.sessionChip">
+      <Setter Property="MinHeight" Value="0" />
+      <Setter Property="MinWidth" Value="0" />
+      <Setter Property="Padding" Value="{StaticResource Inset.SessionChip}" />
+      <Setter Property="CornerRadius" Value="{StaticResource Radius.Pill}" />
+      <Setter Property="BorderThickness" Value="0" />
+      <Setter Property="Background" Value="{DynamicResource Brush.FillHover}" />
+      <Setter Property="Foreground" Value="{DynamicResource Brush.Ink}" />
+      <Setter Property="VerticalAlignment" Value="Top" />
+    </Style>
+    <Style Selector="Button.sessionChip /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="{DynamicResource Brush.FillHover}" />
+      <Setter Property="Foreground" Value="{DynamicResource Brush.Ink}" />
+    </Style>
+    <Style Selector="Button.sessionChip:pointerover /template/ ContentPresenter#PART_ContentPresenter, Button.sessionChip:pressed /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="{DynamicResource Brush.FillPressed}" />
+    </Style>
+    <Style Selector="Border.sessionChipLabel">
+      <Setter Property="Padding" Value="{StaticResource Inset.SessionChip}" />
+      <Setter Property="CornerRadius" Value="{StaticResource Radius.Pill}" />
+      <Setter Property="Background" Value="{DynamicResource Brush.FillHover}" />
+      <Setter Property="VerticalAlignment" Value="Top" />
+    </Style>
+
+    <!-- The checkbox of an action item: Ink when checked. -->
+    <Style Selector="CheckBox.sessionCheck">
+      <Setter Property="MinWidth" Value="0" />
+      <Setter Property="MinHeight" Value="0" />
+      <Setter Property="Padding" Value="0" />
+      <Setter Property="VerticalAlignment" Value="Center" />
+      <Setter Property="Template">
+        <ControlTemplate>
+          <Border x:Name="PART_Box"
+                  Width="{StaticResource Session.Check}"
+                  Height="{StaticResource Session.Check}"
+                  CornerRadius="{StaticResource Radius.Input}"
+                  Background="Transparent"
+                  BorderBrush="{DynamicResource Brush.Ash}"
+                  BorderThickness="{StaticResource Hairline.Thickness}">
+            <controls:IconControl x:Name="PART_Tick"
+                                  Width="{StaticResource Size.SmallIcon}"
+                                  Height="{StaticResource Size.SmallIcon}"
+                                  Stroke="2.2"
+                                  IsVisible="False"
+                                  TextElement.Foreground="{DynamicResource Brush.Canvas}"
+                                  Data="{StaticResource Icon.Check}" />
+          </Border>
+        </ControlTemplate>
+      </Setter>
+    </Style>
+    <Style Selector="CheckBox.sessionCheck:checked /template/ Border#PART_Box">
+      <Setter Property="Background" Value="{DynamicResource Brush.Ink}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource Brush.Ink}" />
+    </Style>
+    <Style Selector="CheckBox.sessionCheck:checked /template/ controls|IconControl#PART_Tick">
+      <Setter Property="IsVisible" Value="True" />
+    </Style>
+
+    <Style Selector="controls|WaveformControl">
+      <Setter Property="WaveBrush" Value="{DynamicResource Brush.DashedBorder}" />
+      <Setter Property="PlayedBrush" Value="{DynamicResource Brush.Ink}" />
+      <Setter Property="PlayheadBrush" Value="{DynamicResource Brush.Ink}" />
+    </Style>
+  </UserControl.Styles>
+
+  <ScrollViewer x:Name="PageScroller"
+                HorizontalScrollBarVisibility="Disabled"
+                VerticalScrollBarVisibility="Auto">
+    <Border MaxWidth="{StaticResource Session.PageMaxWidth}"
+            Padding="{StaticResource Session.PagePadding}"
+            HorizontalAlignment="Stretch"
+            VerticalAlignment="Top">
+      <controls:SessionPagePanel x:Name="Page"
+                                 ColumnSpacing="{StaticResource Space.24}"
+                                 RowSpacing="{StaticResource Space.28}"
+                                 LeftBasis="{StaticResource Session.LeftBasis}"
+                                 RightBasis="{StaticResource Session.RightBasis}"
+                                 MinRightHeight="{StaticResource Session.MinRightHeight}">
+
+        <!-- Title and the facts under it -->
+        <StackPanel Spacing="{StaticResource Space.8}"
+                    Margin="{StaticResource Session.HeaderTrim}">
+          <TextBlock Classes="headingSm"
+                     TextTrimming="CharacterEllipsis"
+                     Text="{Binding Title}" />
+          <ItemsControl Classes="sessionMetaList"
+                        ItemsSource="{Binding Meta}">
+            <ItemsControl.ItemsPanel>
+              <ItemsPanelTemplate>
+                <WrapPanel ItemSpacing="{StaticResource Space.8}" />
+              </ItemsPanelTemplate>
+            </ItemsControl.ItemsPanel>
+            <ItemsControl.ItemTemplate>
+              <DataTemplate x:DataType="vm:MetaPart">
+                <TextBlock Classes="sessionMeta"
+                           Classes.mono="{Binding IsMono}"
+                           Classes.dot="{Binding IsSeparator}"
+                           Text="{Binding Text}" />
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+          <TextBlock Classes="sessionNote"
+                     IsVisible="{Binding HasActionMessage}"
+                     Text="{Binding ActionMessage}" />
         </StackPanel>
 
-        <!-- Transcript: virtualised list of segments -->
-        <Border Grid.Row="1"
-                Classes="card transcript"
-                IsVisible="{Binding ShowTranscriptList}">
-          <ScrollViewer x:Name="TranscriptScroller"
+        <!-- Left: the video and the player -->
+        <StackPanel Spacing="{StaticResource Space.16}">
+          <Border x:Name="VideoPanel"
+                  Classes="videoPanel"
+                  IsVisible="{Binding HasVideo}">
+            <controls:AspectRatioBox>
+              <Panel>
+                <controls:VideoSurface x:Name="Video"
+                                       Player="{Binding VideoPlayer}"
+                                       Active="{Binding IsVideoOpen}"
+                                       Revision="{Binding VideoRevision}" />
+                <StackPanel x:Name="VideoPlaceholder"
+                            HorizontalAlignment="Center"
+                            VerticalAlignment="Center"
+                            Spacing="{StaticResource Space.10}"
+                            IsVisible="{Binding ShowVideoPlaceholder}">
+                  <controls:IconControl Width="{StaticResource Size.VideoIcon}"
+                                        Height="{StaticResource Size.VideoIcon}"
+                                        HorizontalAlignment="Center"
+                                        Stroke="{StaticResource Session.VideoIconStroke}"
+                                        TextElement.Foreground="{DynamicResource Brush.Smoke}"
+                                        Data="{StaticResource Icon.Screen}" />
+                  <TextBlock Classes="sessionLabel"
+                             HorizontalAlignment="Center"
+                             TextAlignment="Center"
+                             TextWrapping="Wrap"
+                             Text="{Binding VideoPlaceholderText}" />
+                </StackPanel>
+                <Panel x:Name="VideoChip"
+                       Classes="videoChip"
+                       IsVisible="{Binding IsVideoOpen}">
+                  <Border Classes="videoChipBackground" />
+                  <TextBlock Classes="sessionChipText videoChipText"
+                             Text="{Binding VideoInfoText}" />
+                </Panel>
+              </Panel>
+            </controls:AspectRatioBox>
+          </Border>
+
+          <Border Classes="sessionPlayer">
+            <StackPanel Spacing="{StaticResource Space.16}">
+              <controls:WaveformControl x:Name="Waveform"
+                                        Height="{StaticResource Session.WaveformHeight}"
+                                        Margin="{StaticResource Session.WaveformMargin}"
+                                        Peaks="{Binding Peaks}"
+                                        Fraction="{Binding PositionFraction}" />
+              <Grid ColumnDefinitions="Auto,*,Auto"
+                    ColumnSpacing="{StaticResource Space.12}">
+                <Button Grid.Column="0"
+                        Classes="sessionPlay"
+                        AutomationProperties.Name="{Binding PlayPauseLabel}"
+                        IsEnabled="{Binding CanPlay}"
+                        Command="{Binding PlayPauseCommand}">
+                  <Viewbox Width="{StaticResource Session.PlayIcon}"
+                           Height="{StaticResource Session.PlayIcon}">
+                    <Canvas Width="24" Height="24">
+                      <Path Data="{StaticResource Session.PlayGlyph}"
+                            Fill="{Binding $parent[Button].Foreground}"
+                            IsVisible="{Binding !IsPlaying}" />
+                      <Path Data="{StaticResource Session.PauseGlyph}"
+                            Fill="{Binding $parent[Button].Foreground}"
+                            IsVisible="{Binding IsPlaying}" />
+                    </Canvas>
+                  </Viewbox>
+                </Button>
+                <TextBlock Grid.Column="1"
+                           Classes="sessionMeta mono"
+                           VerticalAlignment="Center"
+                           Margin="{StaticResource Session.TimeShift}"
+                           Foreground="{DynamicResource Brush.Ink}">
+                  <Run Text="{Binding PositionText, StringFormat='{}{0} '}" /><Run Text="{Binding DurationText, StringFormat='/ {0}'}" Foreground="{DynamicResource Brush.Smoke}" />
+                </TextBlock>
+                <StackPanel Grid.Column="2"
+                            Orientation="Horizontal"
+                            Spacing="{StaticResource Space.6}">
+                  <ToggleButton Classes="sessionPill filter"
+                                IsEnabled="{Binding CanMuteTracks}"
+                                IsChecked="{Binding YouOn, Mode=TwoWay}"
+                                ToolTip.Tip="{x:Static res:Strings.Session_YouTip}">
+                    <TextBlock Classes="sessionSmallText"
+                               Text="{x:Static res:Strings.Segment_Me}" />
+                  </ToggleButton>
+                  <ToggleButton Classes="sessionPill filter"
+                                IsEnabled="{Binding CanMuteTracks}"
+                                IsChecked="{Binding OthersOn, Mode=TwoWay}"
+                                ToolTip.Tip="{x:Static res:Strings.Session_OthersTip}">
+                    <TextBlock Classes="sessionSmallText"
+                               Text="{x:Static res:Strings.Segment_Others}" />
+                  </ToggleButton>
+                  <Button Classes="sessionPill"
+                          Command="{Binding CycleSpeedCommand}"
+                          ToolTip.Tip="{x:Static res:Strings.Session_SpeedTip}">
+                    <TextBlock Classes="sessionSmallText mono"
+                               LetterSpacing="0"
+                               Text="{Binding SpeedText}" />
+                  </Button>
+                </StackPanel>
+              </Grid>
+              <TextBlock Classes="sessionNote"
+                         IsVisible="{Binding HasPlayerError}"
+                         Text="{Binding PlayerError}" />
+            </StackPanel>
+          </Border>
+        </StackPanel>
+
+        <!-- Right: the tabs and what they show -->
+        <Grid RowDefinitions="Auto,*"
+              RowSpacing="{StaticResource Space.16}">
+          <StackPanel Grid.Row="0"
+                      Orientation="Horizontal"
+                      Spacing="{StaticResource Space.6}">
+            <ToggleButton Classes="sessionPill tab"
+                          IsChecked="{Binding IsTranscriptTab, Mode=TwoWay}">
+              <StackPanel Orientation="Horizontal"
+                          Spacing="{StaticResource Space.8}">
+                <Ellipse Classes="sessionDot"
+                         IsVisible="{Binding $parent[ToggleButton].IsChecked}" />
+                <TextBlock Classes="sessionTabText"
+                           Text="{x:Static res:Strings.Session_TabTranscript}" />
+              </StackPanel>
+            </ToggleButton>
+            <ToggleButton Classes="sessionPill tab"
+                          IsChecked="{Binding IsSummaryTab, Mode=TwoWay}">
+              <StackPanel Orientation="Horizontal"
+                          Spacing="{StaticResource Space.8}">
+                <Ellipse Classes="sessionDot"
+                         IsVisible="{Binding $parent[ToggleButton].IsChecked}" />
+                <TextBlock Classes="sessionTabText"
+                           Text="{x:Static res:Strings.Session_TabSummary}" />
+              </StackPanel>
+            </ToggleButton>
+            <ToggleButton Classes="sessionPill tab"
+                          IsChecked="{Binding IsAskTab, Mode=TwoWay}">
+              <StackPanel Orientation="Horizontal"
+                          Spacing="{StaticResource Space.8}">
+                <Ellipse Classes="sessionDot"
+                         IsVisible="{Binding $parent[ToggleButton].IsChecked}" />
+                <controls:IconControl Width="{StaticResource Session.TabIcon}"
+                                      Height="{StaticResource Session.TabIcon}"
+                                      Data="{StaticResource Icon.Ai}" />
+                <TextBlock Classes="sessionTabText"
+                           LetterSpacing="{StaticResource LetterSpacing.MetaTight}"
+                           Text="{x:Static res:Strings.Common_AskAi}" />
+              </StackPanel>
+            </ToggleButton>
+          </StackPanel>
+
+          <!-- Transcript: the search box, then the virtualised list of lines (or a card that says why there is none) -->
+          <Grid Grid.Row="1"
+                RowDefinitions="Auto,*"
+                RowSpacing="{StaticResource Space.12}"
+                IsVisible="{Binding IsTranscriptTab}">
+            <Border Grid.Row="0"
+                    Classes="searchBox"
+                    IsVisible="{Binding ShowTranscriptList}">
+              <Grid ColumnDefinitions="Auto,*"
+                    ColumnSpacing="{StaticResource Space.10}">
+                <controls:IconControl Grid.Column="0"
+                                      Width="{StaticResource Size.SearchIcon}"
+                                      Height="{StaticResource Size.SearchIcon}"
+                                      TextElement.Foreground="{DynamicResource Brush.Smoke}"
+                                      Data="{StaticResource Icon.Search}" />
+                <TextBox x:Name="SearchBox"
+                         Grid.Column="1"
+                         Classes="bare"
+                         AutomationProperties.Name="{x:Static res:Strings.Session_SearchPlaceholder}"
+                         PlaceholderText="{x:Static res:Strings.Session_SearchPlaceholder}"
+                         Text="{Binding SearchText, Mode=TwoWay}">
+                  <TextBox.KeyBindings>
+                    <KeyBinding Gesture="Enter" Command="{Binding NextHitCommand}" />
+                    <KeyBinding Gesture="Shift+Enter" Command="{Binding PreviousHitCommand}" />
+                  </TextBox.KeyBindings>
+                </TextBox>
+              </Grid>
+            </Border>
+
+            <ScrollViewer x:Name="TranscriptScroller"
+                          Grid.Row="1"
+                          HorizontalScrollBarVisibility="Disabled"
+                          VerticalScrollBarVisibility="Auto"
+                          IsVisible="{Binding ShowTranscriptList}">
+              <ItemsControl x:Name="Transcript"
+                            ItemsSource="{Binding Segments}">
+                <ItemsControl.ItemsPanel>
+                  <ItemsPanelTemplate>
+                    <VirtualizingStackPanel />
+                  </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate x:DataType="vm:SegmentViewModel">
+                    <Button Classes="sessionRow"
+                            Classes.current="{Binding IsCurrent}"
+                            Classes.dimmed="{Binding IsDimmed}"
+                            Command="{Binding SeekCommand}">
+                      <Grid ColumnDefinitions="Auto,*"
+                            ColumnSpacing="{StaticResource Space.14}">
+                        <Border Grid.Column="0"
+                                Classes="sessionAvatar"
+                                Classes.me="{Binding IsMe}"
+                                VerticalAlignment="Top">
+                          <TextBlock Classes="sessionAvatarText"
+                                     Text="{Binding Initial}" />
+                        </Border>
+                        <StackPanel Grid.Column="1"
+                                    Spacing="{StaticResource Space.4}">
+                          <StackPanel Orientation="Horizontal"
+                                      Spacing="{StaticResource Space.10}">
+                            <TextBlock Classes="sessionName"
+                                       VerticalAlignment="Center"
+                                       Text="{Binding SpeakerLabel}" />
+                            <Button Classes="sessionTime"
+                                    Command="{Binding SeekCommand}">
+                              <TextBlock Classes="sessionTime"
+                                         Text="{Binding TimeText}" />
+                            </Button>
+                          </StackPanel>
+                          <controls:TranscriptTextControl Classes="sessionText"
+                                                          Text="{Binding Text}"
+                                                          WordStarts="{Binding WordStarts}"
+                                                          WordLengths="{Binding WordLengths}"
+                                                          ActiveWord="{Binding VisibleWord}"
+                                                          HighlightTerm="{Binding HighlightTerm}"
+                                                          Command="{Binding SeekWordCommand}" />
+                        </StackPanel>
+                      </Grid>
+                    </Button>
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
+            </ScrollViewer>
+
+            <!-- State card: loading, progress, install hint, error, empty -->
+            <Border Grid.Row="0"
+                    Grid.RowSpan="2"
+                    Classes="card"
+                    Width="{StaticResource Session.StatusWidth}"
+                    HorizontalAlignment="Center"
+                    VerticalAlignment="Center"
+                    IsVisible="{Binding ShowStatusCard}">
+              <StackPanel Spacing="{StaticResource Space.16}">
+                <TextBlock Classes="subheading"
+                           FontWeight="{StaticResource FontWeight.BodyMedium}"
+                           TextWrapping="Wrap"
+                           Text="{Binding StatusTitle}" />
+                <TextBlock Classes="body"
+                           TextWrapping="Wrap"
+                           Foreground="{DynamicResource Brush.Graphite}"
+                           Text="{Binding StatusText}" />
+                <ProgressBar Minimum="0"
+                             Maximum="100"
+                             Value="{Binding ProgressValue}"
+                             IsVisible="{Binding ShowProgress}" />
+                <TextBlock Classes="mono"
+                           Foreground="{DynamicResource Brush.Smoke}"
+                           IsVisible="{Binding ShowProgress}"
+                           Text="{Binding ProgressText}" />
+                <Button Classes="primary"
+                        HorizontalAlignment="Left"
+                        Content="{Binding RetryLabel}"
+                        IsVisible="{Binding CanRetry}"
+                        Command="{Binding RetryCommand}" />
+              </StackPanel>
+            </Border>
+          </Grid>
+
+          <!-- Summary: the empty state, progress, the three cards, or why it failed -->
+          <ScrollViewer Grid.Row="1"
                         HorizontalScrollBarVisibility="Disabled"
-                        VerticalScrollBarVisibility="Auto">
-            <ItemsControl x:Name="Transcript"
-                          ItemsSource="{Binding Segments}">
-              <ItemsControl.ItemsPanel>
-                <ItemsPanelTemplate>
-                  <VirtualizingStackPanel />
-                </ItemsPanelTemplate>
-              </ItemsControl.ItemsPanel>
-              <ItemsControl.ItemTemplate>
-                <DataTemplate x:DataType="vm:SegmentViewModel">
-                  <StackPanel Margin="{StaticResource Inset.12}"
-                              Spacing="{StaticResource Space.4}">
-                    <StackPanel Orientation="Horizontal"
-                                Spacing="{StaticResource Space.8}">
-                      <TextBlock Classes="speaker"
-                                 VerticalAlignment="Center"
-                                 Text="{Binding SpeakerLabel}" />
-                      <Button Classes="chip"
-                              Content="{Binding TimeText}"
-                              Command="{Binding SeekCommand}" />
-                    </StackPanel>
-                    <controls:TranscriptTextControl Text="{Binding Text}"
-                                                    WordStarts="{Binding WordStarts}"
-                                                    WordLengths="{Binding WordLengths}"
-                                                    ActiveWord="{Binding ActiveWord}"
-                                                    Command="{Binding SeekWordCommand}" />
+                        VerticalScrollBarVisibility="Auto"
+                        IsVisible="{Binding IsSummaryTab}">
+            <StackPanel Spacing="{StaticResource Space.16}">
+
+              <Border Classes="sessionSurface"
+                      IsVisible="{Binding ShowSummaryEmpty}">
+                <StackPanel Spacing="{StaticResource Space.10}">
+                  <TextBlock Classes="sessionCardTitle"
+                             Text="{x:Static res:Strings.Session_SummaryEmptyTitle}" />
+                  <TextBlock Classes="sessionNote"
+                             Text="{x:Static res:Strings.Session_SummaryEmptyText}" />
+                  <TextBlock Classes="sessionNote"
+                             Foreground="{DynamicResource Brush.Graphite}"
+                             IsVisible="{Binding HasSummaryNotice}"
+                             Text="{Binding SummaryNotice}" />
+                  <StackPanel Orientation="Horizontal"
+                              Spacing="{StaticResource Space.8}">
+                    <Button Classes="primary compact"
+                            HorizontalAlignment="Left"
+                            Content="{x:Static res:Strings.Session_SummarySummarize}"
+                            IsEnabled="{Binding CanSummarize}"
+                            Command="{Binding SummarizeCommand}" />
+                    <Button Classes="outline compact"
+                            Content="{x:Static res:Strings.Chat_CheckAgain}"
+                            IsVisible="{Binding SummaryNeedsModels}"
+                            Command="{Binding Chat.RefreshAvailabilityCommand}" />
                   </StackPanel>
-                </DataTemplate>
-              </ItemsControl.ItemTemplate>
-            </ItemsControl>
+                </StackPanel>
+              </Border>
+
+              <Border Classes="sessionSurface"
+                      IsVisible="{Binding ShowSummaryWorking}">
+                <StackPanel Spacing="{StaticResource Space.10}">
+                  <TextBlock Classes="sessionCardTitle"
+                             Text="{x:Static res:Strings.Session_SummaryWorking}" />
+                  <TextBlock Classes="sessionNote"
+                             Text="{x:Static res:Strings.Session_SummaryWorkingText}" />
+                  <ProgressBar Minimum="0"
+                               Maximum="100"
+                               Value="{Binding SummaryProgress}" />
+                  <Grid ColumnDefinitions="*,Auto">
+                    <TextBlock Grid.Column="0"
+                               Classes="sessionMeta mono"
+                               VerticalAlignment="Center"
+                               Text="{Binding SummaryProgressText}" />
+                    <Button Grid.Column="1"
+                            Classes="outline compact"
+                            Content="{x:Static res:Strings.Common_Stop}"
+                            Command="{Binding CancelSummaryRunCommand}" />
+                  </Grid>
+                </StackPanel>
+              </Border>
+
+              <Border Classes="sessionSurface"
+                      IsVisible="{Binding ShowSummaryFailed}">
+                <StackPanel Spacing="{StaticResource Space.10}">
+                  <TextBlock Classes="sessionCardTitle"
+                             Text="{x:Static res:Strings.Session_SummaryFailedTitle}" />
+                  <TextBlock Classes="sessionNote"
+                             Foreground="{DynamicResource Brush.Graphite}"
+                             Text="{Binding SummaryError}" />
+                  <Button Classes="primary compact"
+                          HorizontalAlignment="Left"
+                          Content="{x:Static res:Strings.Session_TryAgain}"
+                          IsEnabled="{Binding CanSummarize}"
+                          Command="{Binding SummarizeCommand}" />
+                </StackPanel>
+              </Border>
+
+              <StackPanel Spacing="{StaticResource Space.16}"
+                          IsVisible="{Binding ShowSummaryReady}">
+                <Border Classes="sessionSurface">
+                  <StackPanel Spacing="{StaticResource Space.10}">
+                    <TextBlock Classes="sessionLabel"
+                               Text="{x:Static res:Strings.Session_SummaryOverview}" />
+                    <TextBlock Classes="sessionOverview"
+                               Text="{Binding SummaryOverview}" />
+                  </StackPanel>
+                </Border>
+
+                <Border Classes="sessionOutline"
+                        IsVisible="{Binding HasKeyPoints}">
+                  <StackPanel Spacing="{StaticResource Space.14}">
+                    <TextBlock Classes="sessionLabel"
+                               Text="{x:Static res:Strings.Session_SummaryKeyPoints}" />
+                    <ItemsControl ItemsSource="{Binding KeyPoints}">
+                      <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                          <StackPanel Spacing="{StaticResource Space.14}" />
+                        </ItemsPanelTemplate>
+                      </ItemsControl.ItemsPanel>
+                      <ItemsControl.ItemTemplate>
+                        <DataTemplate x:DataType="vm:SummaryItemViewModel">
+                          <Grid ColumnDefinitions="*,Auto"
+                                ColumnSpacing="{StaticResource Space.12}">
+                            <TextBlock Grid.Column="0"
+                                       Classes="sessionBody"
+                                       Text="{Binding Text}" />
+                            <Button Grid.Column="1"
+                                    Classes="sessionChip"
+                                    IsVisible="{Binding HasTime}"
+                                    Command="{Binding PlayCommand}">
+                              <TextBlock Classes="sessionChipText"
+                                         Text="{Binding TimeText}" />
+                            </Button>
+                          </Grid>
+                        </DataTemplate>
+                      </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                  </StackPanel>
+                </Border>
+
+                <Border Classes="sessionOutline"
+                        IsVisible="{Binding HasActionItems}">
+                  <StackPanel Spacing="{StaticResource Space.14}">
+                    <TextBlock Classes="sessionLabel"
+                               Text="{x:Static res:Strings.Session_SummaryActionItems}" />
+                    <ItemsControl ItemsSource="{Binding ActionItems}">
+                      <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                          <StackPanel Spacing="{StaticResource Space.14}" />
+                        </ItemsPanelTemplate>
+                      </ItemsControl.ItemsPanel>
+                      <ItemsControl.ItemTemplate>
+                        <DataTemplate x:DataType="vm:SummaryItemViewModel">
+                          <Grid ColumnDefinitions="Auto,*,Auto"
+                                ColumnSpacing="{StaticResource Space.12}">
+                            <CheckBox Grid.Column="0"
+                                      Classes="sessionCheck"
+                                      VerticalAlignment="Top"
+                                      IsChecked="{Binding IsDone, Mode=TwoWay}" />
+                            <TextBlock Grid.Column="1"
+                                       Classes="sessionBody"
+                                       Text="{Binding Text}" />
+                            <Button Grid.Column="2"
+                                    Classes="sessionChip"
+                                    IsVisible="{Binding HasTime}"
+                                    Command="{Binding PlayCommand}">
+                              <TextBlock Classes="sessionChipText"
+                                         Text="{Binding TimeText}" />
+                            </Button>
+                          </Grid>
+                        </DataTemplate>
+                      </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                  </StackPanel>
+                </Border>
+
+                <Grid ColumnDefinitions="*,Auto">
+                  <TextBlock Grid.Column="0"
+                             Classes="sessionNote"
+                             VerticalAlignment="Center"
+                             Text="{Binding SummaryFooter}" />
+                  <Button Grid.Column="1"
+                          Classes="outline compact"
+                          Content="{x:Static res:Strings.Session_SummaryRegenerate}"
+                          IsEnabled="{Binding CanSummarize}"
+                          Command="{Binding SummarizeCommand}" />
+                </Grid>
+                <TextBlock Classes="sessionNote"
+                           Foreground="{DynamicResource Brush.Graphite}"
+                           IsVisible="{Binding HasSummaryNotice}"
+                           Text="{Binding SummaryNotice}" />
+              </StackPanel>
+            </StackPanel>
           </ScrollViewer>
-        </Border>
 
-        <!-- State card: loading, progress, install hint, error, empty -->
-        <Border Grid.Row="1"
-                Classes="card"
-                Width="{StaticResource Session.StatusWidth}"
-                HorizontalAlignment="Center"
-                VerticalAlignment="Center"
-                IsVisible="{Binding ShowStatusCard}">
-          <StackPanel Spacing="{StaticResource Space.16}">
-            <TextBlock Classes="subheading"
-                       FontWeight="{StaticResource FontWeight.BodyMedium}"
-                       TextWrapping="Wrap"
-                       Text="{Binding StatusTitle}" />
-            <TextBlock Classes="body"
-                       TextWrapping="Wrap"
-                       Foreground="{DynamicResource Brush.Graphite}"
-                       Text="{Binding StatusText}" />
-            <ProgressBar Minimum="0"
-                         Maximum="100"
-                         Value="{Binding ProgressValue}"
-                         IsVisible="{Binding ShowProgress}" />
-            <TextBlock Classes="mono"
-                       Foreground="{DynamicResource Brush.Smoke}"
-                       IsVisible="{Binding ShowProgress}"
-                       Text="{Binding ProgressText}" />
-            <Button Classes="primary"
-                    HorizontalAlignment="Left"
-                    Content="{Binding RetryLabel}"
-                    IsVisible="{Binding CanRetry}"
-                    Command="{Binding RetryCommand}" />
-          </StackPanel>
-        </Border>
-
-        <!-- Placeholders for phase 3 -->
-        <Border Grid.Row="1"
-                Classes="card"
-                Width="{StaticResource Session.StatusWidth}"
-                HorizontalAlignment="Center"
-                VerticalAlignment="Center"
-                IsVisible="{Binding ShowSummary}">
-          <StackPanel Spacing="{StaticResource Space.12}">
-            <TextBlock Classes="subheading"
-                       FontWeight="{StaticResource FontWeight.BodyMedium}"
-                       Text="{x:Static res:Strings.Session_TabSummary}" />
-            <TextBlock Classes="body"
-                       TextWrapping="Wrap"
-                       Foreground="{DynamicResource Brush.Graphite}"
-                       Text="{x:Static res:Strings.Session_SummaryPlaceholder}" />
-          </StackPanel>
-        </Border>
-        <!-- "Ask AI" tab: chat about this session; chips seek the player -->
-        <Panel Grid.Row="1"
-               IsVisible="{Binding ShowAsk}">
-          <views:ChatView DataContext="{Binding Chat}" />
-        </Panel>
-      </Grid>
-    </Grid>
-  </Grid>
+          <!-- "Ask AI" tab: chat about this recording; chips seek the player -->
+          <Panel Grid.Row="1"
+                 IsVisible="{Binding IsAskTab}">
+            <views:ChatView DataContext="{Binding Chat}" />
+          </Panel>
+        </Grid>
+      </controls:SessionPagePanel>
+    </Border>
+  </ScrollViewer>
 </UserControl>
