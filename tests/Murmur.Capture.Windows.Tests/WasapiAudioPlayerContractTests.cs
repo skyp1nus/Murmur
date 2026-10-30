@@ -55,8 +55,13 @@ public sealed class WasapiAudioPlayerContractTests : IDisposable
 
         Open();
         Assert.Equal(0b01, Engine.Mixer.MutedMask);
-        _player.Speed = 2;
+        _player.SetSpeed(2);
         Assert.Equal(1, _player.Speed);
+        Assert.True(_player.IsTrackMuted(0));
+        Assert.False(_player.IsTrackMuted(1));
+        Assert.Throws<ArgumentOutOfRangeException>(() => _player.SetTrackMuted(-1, true));
+        Assert.Throws<ArgumentOutOfRangeException>(() => _player.SetTrackMuted(IAudioPlayerControls.MaxTracks, true));
+        Assert.Throws<ArgumentOutOfRangeException>(() => _player.IsTrackMuted(2));
     }
 
     [Fact]

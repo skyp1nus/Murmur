@@ -62,7 +62,9 @@ public sealed partial class SessionViewModel
         SpeedText = SpeedLabel(Speed);
         if (_controls is { CanChangeSpeed: true } controls)
         {
-            controls.Speed = Speed;
+            controls.SetSpeed(Speed);
+            Speed = controls.Speed;
+            SpeedText = SpeedLabel(Speed);
         }
     }
 
@@ -83,7 +85,7 @@ public sealed partial class SessionViewModel
 
         if (_controls.CanChangeSpeed)
         {
-            _controls.Speed = Speed;
+            _controls.SetSpeed(Speed);
         }
 
         ApplyTrackFilters();

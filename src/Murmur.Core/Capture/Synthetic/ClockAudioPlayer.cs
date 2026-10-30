@@ -54,7 +54,7 @@ public sealed class ClockAudioPlayer : IAudioPlayer, IAudioPlayerControls
     private long _generation;
     private bool _disposed;
     private double _speed = 1;
-    private ulong _mutedTracks;
+    private uint _mutedTracks;
 
     public ClockAudioPlayer(TimeProvider? time = null)
     {
@@ -102,7 +102,7 @@ public sealed class ClockAudioPlayer : IAudioPlayer, IAudioPlayerControls
     /// <summary>The clock runs at the chosen speed.</summary>
     public bool CanChangeSpeed => true;
 
-    /// <summary>Playback speed (see <see cref="IAudioPlayerControls.Speed"/>); changing it while playing keeps the position.</summary>
+    /// <summary>The speed in effect (see <see cref="IAudioPlayerControls.Speed"/>).</summary>
     public double Speed
     {
         get
@@ -112,50 +112,49 @@ public sealed class ClockAudioPlayer : IAudioPlayer, IAudioPlayerControls
                 return _speed;
             }
         }
+    }
 
-        set
+    /// <summary>Clamps to [0.25, 4]; changing the speed while playing keeps the position.</summary>
+    public void SetSpeed(double speed)
+    {
+        speed = double.IsNaN(speed) ? 1 : Math.Clamp(speed, 0.25, 4);
+        lock (_gate)
         {
-            var speed = double.IsNaN(value) ? 1 : Math.Clamp(value, 0.25, 4);
-            lock (_gate)
+            if (_speed.Equals(speed))
             {
-                if (_speed.Equals(speed))
-                {
-                    return;
-                }
+                return;
+            }
 
-                if (_state == PlaybackState.Playing && !_disposed)
-                {
-                    _basePosition = CurrentPositionLocked();
-                    _speed = speed;
-                    StartPlayingLocked();
-                }
-                else
-                {
-                    _speed = speed;
-                }
+            if (_state == PlaybackState.Playing && !_disposed)
+            {
+                _basePosition = CurrentPositionLocked();
+                _speed = speed;
+                StartPlayingLocked();
+            }
+            else
+            {
+                _speed = speed;
             }
         }
     }
 
-    public void SetTrackMuted(int trackIndex, bool muted)
+    public void SetTrackMuted(int track, bool muted)
     {
-        if (trackIndex is < 0 or >= 64)
-        {
-            return;
-        }
-
+        ArgumentOutOfRangeException.ThrowIfNegative(track);
+        ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual(track, IAudioPlayerControls.MaxTracks);
         lock (_gate)
         {
-            _mutedTracks = muted ? _mutedTracks | (1UL << trackIndex) : _mutedTracks & ~(1UL << trackIndex);
+            _mutedTracks = muted ? _mutedTracks | (1U << track) : _mutedTracks & ~(1U << track);
         }
     }
 
-    /// <summary>Whether the track at <paramref name="trackIndex"/> is muted (diagnostics and tests).</summary>
-    public bool IsTrackMuted(int trackIndex)
+    public bool IsTrackMuted(int track)
     {
+        ArgumentOutOfRangeException.ThrowIfNegative(track);
+        ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual(track, IAudioPlayerControls.MaxTracks);
         lock (_gate)
         {
-            return trackIndex is >= 0 and < 64 && (_mutedTracks & (1UL << trackIndex)) != 0;
+            return (_mutedTracks & (1U << track)) != 0;
         }
     }
 

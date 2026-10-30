@@ -28,7 +28,11 @@ internal sealed class FakeAudioPlayer : IAudioPlayer, IAudioPlayerControls
 
     public bool CanChangeSpeed { get; set; } = true;
 
-    public double Speed { get; set; } = 1;
+    public double Speed { get; private set; } = 1;
+
+    public void SetSpeed(double speed) => Speed = speed;
+
+    public bool IsTrackMuted(int track) => MuteCalls.LastOrDefault(c => c.Track == track).Muted;
 
     /// <summary>Every <see cref="SetTrackMuted"/> call in order: (track index, muted).</summary>
     public List<(int Track, bool Muted)> MuteCalls { get; } = [];

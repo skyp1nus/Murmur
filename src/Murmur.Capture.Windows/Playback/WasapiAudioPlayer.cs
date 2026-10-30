@@ -111,34 +111,39 @@ public sealed class WasapiAudioPlayer : IAudioPlayer, IAudioPlayerControls, IPla
     /// <summary>Any of the opened tracks can be silenced (the mixer skips it; the position is unaffected).</summary>
     public bool CanMuteTracks => true;
 
-    /// <summary>Not yet: the render engine plays at the speed of the recording (a time-stretching mixer is needed for another one).</summary>
+    /// <summary>Not yet: the render engine plays at the speed of the recording (another speed needs a time-stretching mixer).</summary>
     public bool CanChangeSpeed => false;
 
-    /// <summary>Always 1 (see <see cref="CanChangeSpeed"/>); setting it does nothing.</summary>
-    public double Speed
+    /// <summary>Always 1 (see <see cref="CanChangeSpeed"/>).</summary>
+    public double Speed => 1;
+
+    /// <summary>Does nothing: the speed of the recording is the only one this player has.</summary>
+    public void SetSpeed(double speed)
     {
-        get => 1;
-        set
-        {
-            // The speed of the recording is the only one this player has.
-        }
     }
 
     /// <summary>
-    /// Silences (or restores) the track at <paramref name="trackIndex"/> of the opened list, at once and also for the engines created
+    /// Silences (or restores) the track at <paramref name="track"/> of the opened list, at once and also for the engines created
     /// later (a restart after the device was lost, opening again).
     /// </summary>
-    public void SetTrackMuted(int trackIndex, bool muted)
+    public void SetTrackMuted(int track, bool muted)
     {
-        if (trackIndex is < 0 or >= 32)
-        {
-            return;
-        }
-
+        ArgumentOutOfRangeException.ThrowIfNegative(track);
+        ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual(track, IAudioPlayerControls.MaxTracks);
         lock (_gate)
         {
-            _mutedMask = muted ? _mutedMask | (1 << trackIndex) : _mutedMask & ~(1 << trackIndex);
-            _mixer?.SetMuted(trackIndex, muted);
+            _mutedMask = muted ? _mutedMask | (1 << track) : _mutedMask & ~(1 << track);
+            _mixer?.SetMuted(track, muted);
+        }
+    }
+
+    public bool IsTrackMuted(int track)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(track);
+        ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual(track, IAudioPlayerControls.MaxTracks);
+        lock (_gate)
+        {
+            return (_mutedMask & (1 << track)) != 0;
         }
     }
 

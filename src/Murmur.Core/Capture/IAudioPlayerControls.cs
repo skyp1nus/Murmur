@@ -8,21 +8,39 @@ namespace Murmur.Core.Capture;
 /// </summary>
 public interface IAudioPlayerControls
 {
+    /// <summary>
+    /// The number of tracks a session has and the player can address: the track at index 0 of the list given to
+    /// <see cref="IAudioPlayer.OpenAsync"/> is the microphone, the one at index 1 the system audio (the session view opens them in that
+    /// order; with one of them missing the other one is index 0).
+    /// </summary>
+    public const int MaxTracks = 2;
+
     /// <summary>The player can silence one of the tracks it was opened with.</summary>
     bool CanMuteTracks { get; }
+
+    /// <summary>
+    /// Silences (or restores) the track at <paramref name="track"/>. The setting survives seeks and opening the tracks again, and may be
+    /// made before the tracks are opened. Does nothing without <see cref="CanMuteTracks"/>.
+    /// </summary>
+    /// <exception cref="ArgumentOutOfRangeException"><paramref name="track"/> is not in [0, <see cref="MaxTracks"/>).</exception>
+    void SetTrackMuted(int track, bool muted);
+
+    /// <summary>Whether the track at <paramref name="track"/> is silenced (always <c>false</c> without <see cref="CanMuteTracks"/>).</summary>
+    /// <exception cref="ArgumentOutOfRangeException"><paramref name="track"/> is not in [0, <see cref="MaxTracks"/>).</exception>
+    bool IsTrackMuted(int track);
 
     /// <summary>The player can play faster or slower than real time.</summary>
     bool CanChangeSpeed { get; }
 
     /// <summary>
-    /// Silences (or restores) the track at <paramref name="trackIndex"/> of the list given to <see cref="IAudioPlayer.OpenAsync"/>.
-    /// The setting survives seeks and opening the tracks again; a call without <see cref="CanMuteTracks"/> does nothing.
+    /// The playback speed in effect, 1 = real time; <see cref="IAudioPlayer.Position"/> advances at this rate. Always 1 without
+    /// <see cref="CanChangeSpeed"/>.
     /// </summary>
-    void SetTrackMuted(int trackIndex, bool muted);
+    double Speed { get; }
 
     /// <summary>
-    /// Playback speed, 1 = real time (the UI offers 0.75 to 2). <see cref="IAudioPlayer.Position"/> advances at this rate; a value
-    /// outside [0.25, 4] is clamped. Setting it without <see cref="CanChangeSpeed"/> does nothing.
+    /// Asks for a playback speed (the UI offers 0.75 to 2). The player clamps it to what it supports; <see cref="Speed"/> reports the value
+    /// that is in effect afterwards. Does nothing without <see cref="CanChangeSpeed"/>.
     /// </summary>
-    double Speed { get; set; }
+    void SetSpeed(double speed);
 }
