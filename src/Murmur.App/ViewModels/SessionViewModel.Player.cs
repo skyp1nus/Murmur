@@ -57,6 +57,12 @@ public sealed partial class SessionViewModel
     [RelayCommand(CanExecute = nameof(CanChangeSpeed))]
     private void CycleSpeed()
     {
+        // Execute does not consult CanExecute: a player that cannot change speed keeps the chip as it is.
+        if (!CanChangeSpeed)
+        {
+            return;
+        }
+
         _speedIndex = (_speedIndex + 1) % Speeds.Length;
         Speed = Speeds[_speedIndex];
         SpeedText = SpeedLabel(Speed);

@@ -13,7 +13,16 @@ internal static class RepoPaths
 
     public static string ResourcesDirectory => Path.Combine(AppDirectory, "Resources");
 
-    public static string ScreenshotsDirectory => Path.Combine(Root, "docs", "screenshots");
+    /// <summary>Set to <c>1</c> to refresh the tracked screenshots in <c>docs/screenshots</c>.</summary>
+    public const string UpdateScreenshotsVariable = "MURMUR_UPDATE_SCREENSHOTS";
+
+    /// <summary>
+    /// Where the screenshot tests write: <c>artifacts/screenshots</c> (untracked) by default, so a test run never dirties the tree, and the
+    /// tracked <c>docs/screenshots</c> only when <see cref="UpdateScreenshotsVariable"/> is <c>1</c>.
+    /// </summary>
+    public static string ScreenshotsDirectory { get; } = Environment.GetEnvironmentVariable(UpdateScreenshotsVariable) == "1"
+        ? Path.Combine(Root, "docs", "screenshots")
+        : Path.Combine(Root, "artifacts", "screenshots");
 
     private static string FindRoot()
     {

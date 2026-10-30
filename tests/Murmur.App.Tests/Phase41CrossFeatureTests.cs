@@ -44,13 +44,12 @@ public sealed class Phase41CrossFeatureTests
     // ---- Ask AI: the tab and the page can hold the same saved thread -----------------------------------------------
 
     /// <summary>
-    /// CHARACTERIZATION of a defect (P2). The page of Ask AI survives a visit to a recording, and the recording's Ask AI tab continues the
-    /// latest chat of that recording, which can be the very thread the page shows. Each view counts the messages it knows (a private
-    /// copy), so after the tab appended an exchange the page's next exchange targets an index that is already taken; the store's
-    /// "only the last answer can be replaced" check refuses it and the exchange is only on screen ("could not be saved").
+    /// The page of Ask AI survives a visit to a recording, and the recording's Ask AI tab continues the latest chat of that recording, which
+    /// can be the very thread the page shows. After the tab appended an exchange, the page (shown again) reads the thread anew and its next
+    /// exchange is stored after the tab's: nothing is refused, nothing is lost.
     /// </summary>
     [Fact]
-    public async Task ThePageAndTheTab_HoldingOneThread_RefuseTheLaterSave_AndTheExchangeIsNotStored()
+    public async Task ThePageAndTheTab_HoldingOneThread_StoreEveryExchange_WhicheverViewAsksLater()
     {
         using var english = UiCulture.Override("en");
         using var rig = new DesignRig();
@@ -78,20 +77,87 @@ public sealed class Phase41CrossFeatureTests
         Assert.Equal(4, rig.ChatStore.MessagesOf(thread.Id).Count);
         Assert.All(tab.Messages, m => Assert.Null(m.SaveNote));
 
-        // Back on the page (the same, stale object) the user asks another question.
+        // Back on the page (the same object) the thread is read again, and the user asks another question.
         rig.Shell.ShowLibraryChat();
         Assert.Same(page, rig.Shell.LibraryChat);
+        await DesignRig.UntilAsync(() => page.Chat.Messages.Count == 4, "the page shows what the tab added");
         page.Chat.Question = "And the deadline?";
         page.Chat.AskCommand.Execute(null);
         rig.Assistant.Answer(["Friday."]);
         await page.Chat.AskTask;
 
-        // Reproduced: the answer is on screen but refused by the store, with a visible note; the thread does not contain it.
-        var answer = page.Chat.Messages[^1];
-        Assert.Equal("Friday.", answer.Text);
-        Assert.Equal(Strings.Chat_NotSaved, answer.SaveNote);
-        Assert.DoesNotContain(rig.ChatStore.MessagesOf(thread.Id), m => m.Text == "And the deadline?");
+        Assert.All(page.Chat.Messages, m => Assert.Null(m.SaveNote));
+        var stored = rig.ChatStore.MessagesOf(thread.Id);
+        Assert.Equal(["What was decided?", "PDF export moved.", "Who owns the follow-up?", "Anna does.", "And the deadline?", "Friday."], stored.Select(m => m.Text));
+        Assert.Equal(6, page.Chat.Messages.Count);
+    }
+
+    /// <summary>
+    /// Even before the page has read the thread again (the user asks at once), the exchange is stored after what the other view appended.
+    /// </summary>
+    [Fact]
+    public async Task ThePage_AskingAtOnceAfterTheTabAppended_StoresItsExchangeAfterTheTabs()
+    {
+        using var english = UiCulture.Override("en");
+        using var rig = new DesignRig();
+        await rig.Library.LoadAsync();
+        var thread = await rig.ChatStore.CreateThreadAsync("Decisions", rig.ClientDemo.Id, Ct);
+        await rig.ChatStore.AppendMessageAsync(new ChatMessage(thread.Id, 0, TurnRole.User, "What was decided?", [], UiHarness.Now), Ct);
+        await rig.ChatStore.AppendMessageAsync(new ChatMessage(thread.Id, 1, TurnRole.Assistant, "PDF export moved.", [], UiHarness.Now), Ct);
+        rig.Shell.ShowLibraryChat();
+        var page = rig.Shell.LibraryChat!;
+        await page.OpenThreadAsync(thread);
+
+        // Another writer (the tab) appends behind the page's back; the page asks without having reloaded.
+        await rig.ChatStore.AppendMessageAsync(new ChatMessage(thread.Id, 2, TurnRole.User, "Who owns the follow-up?", [], UiHarness.Now), Ct);
+        await rig.ChatStore.AppendMessageAsync(new ChatMessage(thread.Id, 3, TurnRole.Assistant, "Anna does.", [], UiHarness.Now), Ct);
+        page.Chat.Question = "And the deadline?";
+        page.Chat.AskCommand.Execute(null);
+        rig.Assistant.Answer(["Friday."]);
+        await page.Chat.AskTask;
+
+        Assert.All(page.Chat.Messages, m => Assert.Null(m.SaveNote));
+        Assert.Equal(["What was decided?", "PDF export moved.", "Who owns the follow-up?", "Anna does.", "And the deadline?", "Friday."], rig.ChatStore.MessagesOf(thread.Id).Select(m => m.Text));
+    }
+
+    /// <summary>
+    /// The other order: the page's answer is still streaming when the user opens the recording, so the tab reads the thread before the
+    /// page has saved. The page then saves, and the tab's next exchange follows it instead of being refused.
+    /// </summary>
+    [Fact]
+    public async Task TheTab_OpenedWhileThePageStillAnswers_StoresItsExchangeAfterThePages()
+    {
+        using var english = UiCulture.Override("en");
+        using var rig = new DesignRig();
+        await rig.Library.LoadAsync();
+        var thread = await rig.ChatStore.CreateThreadAsync("Decisions", rig.ClientDemo.Id, Ct);
+        await rig.ChatStore.AppendMessageAsync(new ChatMessage(thread.Id, 0, TurnRole.User, "What was decided?", [], UiHarness.Now), Ct);
+        await rig.ChatStore.AppendMessageAsync(new ChatMessage(thread.Id, 1, TurnRole.Assistant, "PDF export moved.", [], UiHarness.Now), Ct);
+        rig.Shell.ShowLibraryChat();
+        var page = rig.Shell.LibraryChat!;
+        await page.OpenThreadAsync(thread);
+
+        page.Chat.Question = "And the deadline?";
+        page.Chat.AskCommand.Execute(null);
+        rig.Assistant.Push("Fri");
+        await DesignRig.UntilAsync(() => page.Chat.IsGenerating && page.Chat.Messages[^1].Text.Length > 0, "the page's answer streams");
+
+        rig.Shell.OpenSession(rig.ClientDemo);
+        await rig.Shell.SessionLoadTask;
+        var tab = rig.Shell.Session!.Chat;
+        await DesignRig.UntilAsync(() => tab.Messages.Count == 2, "the tab continues the thread as it was stored");
+
+        rig.Assistant.Answer(["day."]);
+        await page.Chat.AskTask;
         Assert.Equal(4, rig.ChatStore.MessagesOf(thread.Id).Count);
+
+        tab.Question = "Who owns the follow-up?";
+        tab.AskCommand.Execute(null);
+        rig.Assistant.Answer(["Anna does."]);
+        await tab.AskTask;
+
+        Assert.All(tab.Messages, m => Assert.Null(m.SaveNote));
+        Assert.Equal(["What was decided?", "PDF export moved.", "And the deadline?", "Friday.", "Who owns the follow-up?", "Anna does."], rig.ChatStore.MessagesOf(thread.Id).Select(m => m.Text));
     }
 
     // ---- Chat: the recording of a scoped chat is deleted while an answer is being generated ------------------------
@@ -247,7 +313,25 @@ public sealed class Phase41CrossFeatureTests
         // The recording is never interrupted by the introduction; the reset is kept for the next start.
         Assert.False(rig.Shell.IsOnboarding);
         Assert.False(rig.Store.Current.OnboardingCompleted);
+
+        // Settings says so: not "opens now" but "the next time Murmur starts".
+        Assert.True(rig.Settings.Appearance.OnboardingDeferred);
+        Assert.False(rig.Settings.Appearance.OnboardingOpensNow);
         await rig.Recording.StartStopAsync();
+    }
+
+    [Fact]
+    public async Task RunningTheOnboardingAgain_WhileIdle_OpensItNow_AndDefersNothing()
+    {
+        using var english = UiCulture.Override("en");
+        using var rig = new DesignRig();
+        await rig.Library.LoadAsync();
+
+        rig.Settings.Appearance.RestartOnboardingCommand.Execute(null);
+        await rig.Settings.Appearance.LastSave;
+
+        Assert.False(rig.Settings.Appearance.OnboardingDeferred);
+        Assert.True(rig.Settings.Appearance.OnboardingOpensNow);
     }
 
     // ---- Speed: players without the optional capabilities ------------------------------------------------------------
@@ -345,6 +429,11 @@ public sealed class Phase41CrossFeatureTests
             Assert.False(vm.CanChangeSpeed);
             Assert.False(vm.CycleSpeedCommand.CanExecute(null));
             Assert.Equal("1×", vm.SpeedText);
+
+            // Execute does not consult CanExecute: the chip must stay put even so.
+            vm.CycleSpeedCommand.Execute(null);
+            Assert.Equal("1×", vm.SpeedText);
+            Assert.Equal(1, vm.Speed);
             Assert.Equal(1, audio.Speed);
             Assert.All(video.Rates, rate => Assert.Equal(1, rate)); // the neutral rate at most
             vm.PlayFrom(TimeSpan.FromSeconds(2));

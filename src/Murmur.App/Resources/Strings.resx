@@ -707,6 +707,9 @@
   <data name="Appearance_OnboardingDone" xml:space="preserve">
     <value>The introduction opens now.</value>
   </data>
+  <data name="Appearance_OnboardingDeferred" xml:space="preserve">
+    <value>A recording is running. The introduction opens the next time Murmur starts.</value>
+  </data>
   <data name="About_License" xml:space="preserve">
     <value>Project license — {0}</value>
   </data>

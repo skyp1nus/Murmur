@@ -130,9 +130,12 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable, I
     public HotkeysSettingsViewModel Hotkeys => _hotkeys ?? (CanCreate() ? _hotkeys = new HotkeysSettingsViewModel(_writer) : null!);
 
     /// <summary>Created on first use.</summary>
-    public AppearanceSettingsViewModel Appearance => _appearance ?? (CanCreate() ? _appearance = new AppearanceSettingsViewModel(_writer) : null!);
+    public AppearanceSettingsViewModel Appearance => _appearance ?? (CanCreate() ? _appearance = new AppearanceSettingsViewModel(_writer, () => RecordingActive?.Invoke() == true) : null!);
 
     public AboutViewModel About { get; }
+
+    /// <summary>Tells whether a recording is running (set by the shell); the introduction is not shown over a recording.</summary>
+    internal Func<bool>? RecordingActive { get; set; }
 
     public IReadOnlyList<SettingsSection> Sections { get; }
 

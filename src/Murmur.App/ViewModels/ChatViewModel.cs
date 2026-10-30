@@ -435,6 +435,14 @@ public sealed partial class ChatViewModel : ObservableObject, IDisposable
             var thread = Thread;
             if (user.StoredIndex is null)
             {
+                // Another view of this thread (the Ask AI page and the tab of its recording can show the same one) may have appended since this
+                // one was loaded: continue after what is stored, so the exchange is never refused and lost.
+                var stored = await _store.GetMessagesAsync(thread.Id, CancellationToken.None).ConfigureAwait(true);
+                if (stored.Count > _storedCount)
+                {
+                    _storedCount = stored.Count;
+                }
+
                 user.StoredIndex = _storedCount;
                 await _store.AppendMessageAsync(new ChatMessage(thread.Id, _storedCount, TurnRole.User, user.Text, [], _time.GetUtcNow()), CancellationToken.None).ConfigureAwait(true);
             }
@@ -478,6 +486,38 @@ public sealed partial class ChatViewModel : ObservableObject, IDisposable
         }
 
         var saved = await _store.GetMessagesAsync(thread.Id, CancellationToken.None).ConfigureAwait(true);
+        await ShowSavedAsync(thread, saved, abandon: null).ConfigureAwait(true);
+    }
+
+    /// <summary>
+    /// Reads the open thread again when the store holds more messages than this view knows (the Ask AI page and the tab of a recording
+    /// can show one thread, and the other view appended meanwhile). Does nothing while an answer is generating, and gives up when the user
+    /// asked something in the meantime: what is on screen is never replaced under an exchange.
+    /// </summary>
+    public async Task ReloadIfChangedAsync()
+    {
+        if (_store is null || _disposed || Thread is not { } thread || IsGenerating)
+        {
+            return;
+        }
+
+        var shown = Messages.Count;
+        try
+        {
+            var saved = await _store.GetMessagesAsync(thread.Id, CancellationToken.None).ConfigureAwait(true);
+            if (saved.Count > _storedCount)
+            {
+                await ShowSavedAsync(thread, saved, () => _disposed || IsGenerating || Messages.Count != shown || !ReferenceEquals(Thread, thread)).ConfigureAwait(true);
+            }
+        }
+        catch (Exception)
+        {
+            // The view stays as it is; the next save continues after whatever is stored.
+        }
+    }
+
+    private async Task ShowSavedAsync(ChatThread thread, IReadOnlyList<ChatMessage> saved, Func<bool>? abandon)
+    {
         var citations = new List<Citation>();
         foreach (var message in saved)
         {
@@ -485,6 +525,11 @@ public sealed partial class ChatViewModel : ObservableObject, IDisposable
         }
 
         var titles = await ResolveTitlesAsync(citations).ConfigureAwait(true);
+        if (abandon?.Invoke() == true)
+        {
+            return;
+        }
+
         Messages.Clear();
         foreach (var message in saved)
         {

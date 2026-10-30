@@ -9,7 +9,7 @@ using Murmur.Core.Sessions;
 
 namespace Murmur.App.Tests;
 
-/// <summary>Renders the phase 3 screens (AI chat, library search) with Avalonia.Headless (Skia) into docs/screenshots.</summary>
+/// <summary>Renders the phase 3 screens (AI chat, library search) with Avalonia.Headless (Skia) into artifacts/screenshots, or into the tracked docs/screenshots when MURMUR_UPDATE_SCREENSHOTS=1 (see <see cref="RepoPaths.ScreenshotsDirectory"/>).</summary>
 public sealed class Phase3ScreenshotTests
 {
     private static HeadlessUnitTestSession Session => UiHarness.Session;

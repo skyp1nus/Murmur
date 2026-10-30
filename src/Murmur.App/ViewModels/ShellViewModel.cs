@@ -73,6 +73,10 @@ public sealed partial class ShellViewModel : ObservableObject
         _sessionStore = sessionStore;
         _chatModelChip = chatModelChip;
         Settings = settings;
+        if (settings is not null)
+        {
+            settings.RecordingActive = () => Recording.State != RecorderState.Idle;
+        }
         _sidebar = settings is null ? null : new SidebarViewModel(this);
         CurrentPage = library;
 
@@ -430,6 +434,9 @@ public sealed partial class ShellViewModel : ObservableObject
     private void OnChatOpened(LibraryChatViewModel page)
     {
         page.Chat.RefreshAvailability();
+
+        // The recording just visited may have added to the very thread in view (its Ask AI tab continues it).
+        _ = page.Chat.ReloadIfChangedAsync();
         _chatModelChip?.Refresh();
         _ = page.RefreshThreadsAsync();
     }
