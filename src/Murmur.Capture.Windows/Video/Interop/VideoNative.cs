@@ -15,6 +15,7 @@ internal static class VideoConstants
     public static readonly Guid ClsidMFMediaEngineClassFactory = new("B44392DA-499B-446B-A4CB-005FEAD0E6D5");
     public static readonly Guid IidIMFMediaEngineClassFactory = new("4D645ACE-26AA-4688-9BE1-DF3516990B93");
     public static readonly Guid IidIMFMediaEngine = new("98A1B0BB-03EB-4935-AE7C-93C1FA0E1C93");
+    public static readonly Guid IidIMFMediaEngineEx = new("83015EAD-B1E6-40D0-A98A-37145FFE1AD1");
     public static readonly Guid IidIMFMediaEngineNotify = new("FEE7C112-E776-42B5-9BBF-0048524E2BD5");
     public static readonly Guid IidIMFMediaError = new("FC0E10D2-AB2A-4501-A951-06BB1075184C");
     public static readonly Guid ClsidWICImagingFactory = new("CACAF262-9370-4615-A13B-9F5539DA4C0A");
@@ -33,6 +34,11 @@ internal static class VideoConstants
 
     /// <summary>GUID_WICPixelFormat32bppBGRA (wincodec.h).</summary>
     public static readonly Guid WicPixelFormat32bppBgra = new("6FDDC324-4E03-4BFE-B185-3D77768DC90F");
+
+    // ---- MF_MEDIA_ENGINE_SEEK_MODE (IMFMediaEngineEx::SetCurrentTimeEx) ----
+
+    public const int SeekModeNormal = 0;
+    public const int SeekModeApproximate = 1;
 
     // ---- MF_MEDIA_ENGINE_CREATEFLAGS ----
 

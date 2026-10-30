@@ -29,7 +29,8 @@ namespace Murmur.Capture.Windows.Video;
 /// <para><b>Seeks.</b> One seek is in flight at a time: a seek requested before the engine reported the previous one done
 /// (MF_MEDIA_ENGINE_EVENT_SEEKED) is queued, only the latest queued target is kept, and it is sent on the next
 /// <see cref="Position"/> / <see cref="TryCopyFrame"/> call after the previous one completed. While a seek is in flight or
-/// queued, <see cref="Position"/> is its target.</para>
+/// queued, <see cref="Position"/> is its target. Rarely a finished paused seek leaves the old picture up (no new time
+/// stamp is ever presented); <see cref="SeekRecovery"/> then copies the frame again and, if needed, repeats the seek.</para>
 /// <para><b>Frames.</b> <see cref="TryCopyFrame"/> asks the engine for the presented frame (OnVideoStreamTick); when it
 /// is new (another time stamp, the first frame, a completed seek) or the requested size changed, TransferVideoFrame scales
 /// it into the target surface and the rows are copied into the caller's buffer. Allocation-free once the surface exists
@@ -48,6 +49,15 @@ public sealed class MediaEngineVideoPlayer : IVideoPlayer
     /// <summary>The longest wait for MF_MEDIA_ENGINE_EVENT_SEEKED before a queued seek is sent anyway.</summary>
     internal static readonly TimeSpan SeekTimeout = TimeSpan.FromSeconds(2);
 
+    /// <summary>How long a finished paused seek may show no new frame before the recovery steps in (<see cref="SeekRecovery"/>).</summary>
+    internal static readonly TimeSpan SeekRecoveryDelay = TimeSpan.FromMilliseconds(300);
+
+    /// <summary>The engine has a frame for the current position (HTML HAVE_CURRENT_DATA).</summary>
+    private const ushort HaveCurrentData = 2;
+
+    private const int RecoveryStepKinds = (int)SeekRecoveryStep.PlayPause + 1;
+    private const int RecoveryLogSize = 24;
+
     private readonly VideoOutput _requested;
 
     private EngineSession? _session;
@@ -57,7 +67,14 @@ public sealed class MediaEngineVideoPlayer : IVideoPlayer
     private VideoSize _size;
     private FrameChangeTracker _frames = new();
     private SeekQueue _seeks = new((long)(SeekTimeout.TotalSeconds * Stopwatch.Frequency));
+    private SeekRecovery _recovery = new((long)(SeekRecoveryDelay.TotalSeconds * Stopwatch.Frequency));
     private int _transferFailures;
+    private int _lastTickResult;
+    private long _lastTickPts;
+    private readonly int[] _stepsTaken = new int[RecoveryStepKinds];
+    private readonly int[] _stepsHealed = new int[RecoveryStepKinds];
+    private readonly RecoveryLogEntry[] _recoveryLog = new RecoveryLogEntry[RecoveryLogSize];
+    private int _recoveryLogCount;
 
     private GpuDevice? _gpu;
     private nint _wicFactory;
@@ -125,6 +142,12 @@ public sealed class MediaEngineVideoPlayer : IVideoPlayer
     /// <summary>The HRESULT of the last failed frame transfer or copy, 0 when the last one succeeded (diagnostics).</summary>
     internal int LastTransferResult { get; private set; }
 
+    /// <summary>How often each <see cref="SeekRecoveryStep"/> was taken since the file was opened (diagnostics and tests).</summary>
+    internal int RecoveryStepsTaken => SumOf(_stepsTaken);
+
+    /// <summary>How often a seek was healed by the step it followed (see <see cref="SeekRecovery.TakeHealedBy"/>).</summary>
+    internal int RecoveryHealed => SumOf(_stepsHealed);
+
     public async ValueTask OpenAsync(string filePath, CancellationToken cancellationToken)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
@@ -175,7 +198,11 @@ public sealed class MediaEngineVideoPlayer : IVideoPlayer
         CloseSession();
     }
 
-    public void Play() => Command(static engine => IMFMediaEngine.Play(engine), "IMFMediaEngine::Play");
+    public void Play()
+    {
+        _recovery.Disarm(); // playing presents frames on its own
+        Command(static engine => IMFMediaEngine.Play(engine), "IMFMediaEngine::Play");
+    }
 
     public void Pause() => Command(static engine => IMFMediaEngine.Pause(engine), "IMFMediaEngine::Pause");
 
@@ -183,6 +210,7 @@ public sealed class MediaEngineVideoPlayer : IVideoPlayer
     {
         var session = OpenSession();
         var target = position < TimeSpan.Zero ? TimeSpan.Zero : _duration > TimeSpan.Zero && position > _duration ? _duration : position;
+        _recovery.Arm(target, _frames.PresentedPts);
         if (_seeks.Request(target, Volatile.Read(ref session.SeekedEvents), Stopwatch.GetTimestamp()))
         {
             SendSeek(session, target);
@@ -201,9 +229,12 @@ public sealed class MediaEngineVideoPlayer : IVideoPlayer
         PumpSeeks(session);
         long pts = -1;
         var tick = IMFMediaEngine.OnVideoStreamTick(session.Engine, &pts);
-        _frames.Tick(tick, pts);
+        _lastTickResult = tick;
+        _lastTickPts = pts;
+        _frames.Tick(tick, pts, observePeriod: !_seeks.IsBusy && !_recovery.IsArmed);
+        var forced = _recovery.IsArmed && RecoverSeek(session);
         var events = Volatile.Read(ref session.PictureEvents);
-        if (!_frames.IsDue(width, height, events))
+        if (!forced && !_frames.IsDue(width, height, events))
         {
             return false;
         }
@@ -273,7 +304,8 @@ public sealed class MediaEngineVideoPlayer : IVideoPlayer
         text.Append(CultureInfo.InvariantCulture, $"paused {IMFMediaEngine.IsPaused(engine) != 0}, ended {IMFMediaEngine.IsEnded(engine) != 0}, ");
         text.Append(CultureInfo.InvariantCulture, $"seeking {IMFMediaEngine.IsSeeking(engine) != 0}, currentTime {IMFMediaEngine.GetCurrentTime(engine):F3} s, ");
         text.Append(CultureInfo.InvariantCulture, $"duration {IMFMediaEngine.GetDuration(engine):F3} s, seek queue {(_seeks.IsBusy ? _seeks.LatestTarget.TotalSeconds.ToString("F3", CultureInfo.InvariantCulture) + " s" : "idle")}, ");
-        text.Append(CultureInfo.InvariantCulture, $"last copied pts {_frames.CopiedPts?.ToString(CultureInfo.InvariantCulture) ?? "none"}; events: ");
+        text.Append(CultureInfo.InvariantCulture, $"last copied pts {_frames.CopiedPts?.ToString(CultureInfo.InvariantCulture) ?? "none"}, ");
+        text.Append(CultureInfo.InvariantCulture, $"{DescribeRecovery()}; events: ");
         text.Append(session.DescribeEvents());
         return text.ToString();
     }
@@ -309,8 +341,10 @@ public sealed class MediaEngineVideoPlayer : IVideoPlayer
             _target = EnsureTarget(output);
             _frames.Reset();
             _seeks.Reset();
+            _recovery.Reset();
             _transferFailures = 0;
             LastTransferResult = 0;
+            ResetRecoveryDiagnostics();
             _open = true;
         }
         catch
@@ -423,6 +457,7 @@ public sealed class MediaEngineVideoPlayer : IVideoPlayer
         _size = default;
         _frames.Reset();
         _seeks.Reset();
+        _recovery.Reset();
         session?.Dispose();
     }
 
@@ -437,6 +472,148 @@ public sealed class MediaEngineVideoPlayer : IVideoPlayer
         return session;
     }
 
+    /// <summary>
+    /// The seek recovery (see <see cref="SeekRecovery"/>); true when the presented frame must be copied now although the
+    /// engine reports no new one. Seeks go through the seek queue like any other. Allocation-free (the log is a fixed ring).
+    /// </summary>
+    private bool RecoverSeek(EngineSession session)
+    {
+        var now = Stopwatch.GetTimestamp();
+        var due = _recovery.IsDue(now, _seeks.IsBusy, _frames.PresentedPts, _frames.FramePeriod);
+        var healedBy = _recovery.TakeHealedBy();
+        if (healedBy != SeekRecoveryStep.None)
+        {
+            _stepsHealed[(int)healedBy]++;
+            Log(session, now, healedBy, healed: true, hr: 0);
+        }
+
+        if (!due)
+        {
+            return false;
+        }
+
+        var engine = session.Engine;
+        var settled = IMFMediaEngine.IsPaused(engine) != 0 && IMFMediaEngine.IsSeeking(engine) == 0
+            && IMFMediaEngine.GetReadyState(engine) >= HaveCurrentData;
+        var step = _recovery.Take(settled, now);
+        if (step == SeekRecoveryStep.None)
+        {
+            return false;
+        }
+
+        _stepsTaken[(int)step]++;
+        var hr = 0;
+        var copy = false;
+        switch (step)
+        {
+            case SeekRecoveryStep.Retransfer:
+                copy = true;
+                break;
+            case SeekRecoveryStep.SeekExNormal:
+                hr = RecoverySeek(session, step, VideoConstants.SeekModeNormal, now);
+                break;
+            case SeekRecoveryStep.SeekExApproximate:
+                hr = RecoverySeek(session, step, VideoConstants.SeekModeApproximate, now);
+                break;
+            case SeekRecoveryStep.FrameStep:
+                hr = session.EngineEx is var ex && ex != 0 ? IMFMediaEngineEx.FrameStep(ex, 1) : unchecked((int)0x80004002); // E_NOINTERFACE
+                break;
+            case SeekRecoveryStep.PlayPause:
+                hr = IMFMediaEngine.Play(engine);
+                _ = IMFMediaEngine.Pause(engine);
+                break;
+            default: // SeekAway, SeekBack, FrameStepBack
+                hr = RecoverySeek(session, step, -1, now);
+                break;
+        }
+
+        Log(session, now, step, healed: false, hr);
+        return copy;
+    }
+
+    /// <summary>A recovery seek (mode -1: SetCurrentTime, else SetCurrentTimeEx) through the seek queue; the HRESULT, 0 when queued.</summary>
+    private int RecoverySeek(EngineSession session, SeekRecoveryStep step, int mode, long now)
+    {
+        var target = _recovery.TargetFor(step);
+        if (_duration > TimeSpan.Zero && target > _duration)
+        {
+            target = _duration;
+        }
+
+        return _seeks.Request(target, Volatile.Read(ref session.SeekedEvents), now) ? SendRecoverySeek(session, target, mode) : 0;
+    }
+
+    private void Log(EngineSession session, long now, SeekRecoveryStep step, bool healed, int hr)
+    {
+        var engine = session.Engine;
+        _recoveryLog[_recoveryLogCount++ % RecoveryLogSize] = new RecoveryLogEntry(
+            now - session.Created, step, healed, hr, _lastTickResult, _lastTickPts,
+            Volatile.Read(ref session.SeekedEvents), session.SeeksSent, Volatile.Read(ref session.PictureEvents),
+            IMFMediaEngine.GetCurrentTime(engine), IMFMediaEngine.IsSeeking(engine) != 0);
+    }
+
+    private void ResetRecoveryDiagnostics()
+    {
+        Array.Clear(_stepsTaken);
+        Array.Clear(_stepsHealed);
+        _recoveryLogCount = 0;
+    }
+
+    private static int SumOf(int[] counts)
+    {
+        var sum = 0;
+        foreach (var count in counts)
+        {
+            sum += count;
+        }
+
+        return sum;
+    }
+
+    /// <summary>
+    /// What the seek recovery did since the open: steps taken and seeks healed per step, and the log of the last steps with
+    /// the engine state at each (SEEKED events against seeks sent, picture events, the OnVideoStreamTick result and pts).
+    /// Allocates; not for the render tick.
+    /// </summary>
+    internal string DescribeRecovery()
+    {
+        var text = new StringBuilder("seek recovery: taken [");
+        AppendCounts(text, _stepsTaken);
+        text.Append("], healed by [");
+        AppendCounts(text, _stepsHealed);
+        text.Append("], log [");
+        var first = Math.Max(0, _recoveryLogCount - RecoveryLogSize);
+        for (var i = first; i < _recoveryLogCount; i++)
+        {
+            var e = _recoveryLog[i % RecoveryLogSize];
+            text.Append(i > first ? "; " : string.Empty);
+            text.Append(CultureInfo.InvariantCulture, $"+{e.Elapsed * 1000 / Stopwatch.Frequency} ms {(e.Healed ? "HEALED by " : string.Empty)}{e.Step}");
+            text.Append(CultureInfo.InvariantCulture, $" hr 0x{e.Hr:X8}, tick 0x{e.TickResult:X8} pts {e.TickPts}, SEEKED {e.Seeked}/sent {e.Sent}, pictures {e.Pictures}, currentTime {e.CurrentTime:F3}, seeking {e.Seeking}");
+        }
+
+        text.Append(']');
+        return text.ToString();
+    }
+
+    private static void AppendCounts(StringBuilder text, int[] counts)
+    {
+        var any = false;
+        for (var i = 1; i < counts.Length; i++)
+        {
+            if (counts[i] != 0)
+            {
+                text.Append(CultureInfo.InvariantCulture, $"{(any ? ", " : string.Empty)}{(SeekRecoveryStep)i} {counts[i]}");
+                any = true;
+            }
+        }
+
+        text.Append(any ? string.Empty : "none");
+    }
+
+    private readonly record struct RecoveryLogEntry(
+        long Elapsed, SeekRecoveryStep Step, bool Healed, int Hr, int TickResult, long TickPts,
+        int Seeked, int Sent, int Pictures, double CurrentTime, bool Seeking);
+
     /// <summary>Sends the queued seek once the one in flight is done. Allocation-free.</summary>
     private void PumpSeeks(EngineSession session)
     {
@@ -448,11 +625,27 @@ public sealed class MediaEngineVideoPlayer : IVideoPlayer
 
     private static void SendSeek(EngineSession session, TimeSpan target)
     {
-        var hr = IMFMediaEngine.SetCurrentTime(session.Engine, target.Ticks / (double)TimeSpan.TicksPerSecond);
+        var hr = SendRecoverySeek(session, target, -1);
         if (hr < 0)
         {
             session.RaiseFailed($"IMFMediaEngine::SetCurrentTime failed: {ComHelpers.Describe(hr)}");
         }
+    }
+
+    /// <summary>
+    /// SetCurrentTime (<paramref name="mode"/> -1) or IMFMediaEngineEx::SetCurrentTimeEx with the seek mode; without the Ex
+    /// interface the latter is E_NOINTERFACE. The HRESULT is returned, not reported (recovery steps are only tries).
+    /// </summary>
+    private static int SendRecoverySeek(EngineSession session, TimeSpan target, int mode)
+    {
+        session.SeeksSent++;
+        var seconds = target.Ticks / (double)TimeSpan.TicksPerSecond;
+        if (mode < 0)
+        {
+            return IMFMediaEngine.SetCurrentTime(session.Engine, seconds);
+        }
+
+        return session.EngineEx is var ex && ex != 0 ? IMFMediaEngineEx.SetCurrentTimeEx(ex, seconds, mode) : unchecked((int)0x80004002);
     }
 
     private void Command(Func<nint, int> call, string what)
@@ -481,6 +674,8 @@ public sealed class MediaEngineVideoPlayer : IVideoPlayer
         private readonly Action<string> _failed;
         private readonly Action _resourceLost;
         private readonly long _created = Stopwatch.GetTimestamp();
+        private nint _engineEx;
+        private bool _engineExQueried;
         private readonly (long Timestamp, uint Event, nuint Param1, uint Param2)[] _events = new (long, uint, nuint, uint)[EventLogSize];
         private readonly Lock _eventsGate = new();
         private int _eventCount;
@@ -494,6 +689,9 @@ public sealed class MediaEngineVideoPlayer : IVideoPlayer
         public int SeekedEvents;
         public int DurationChanged;
 
+        // Written by the player's thread: the SetCurrentTime / SetCurrentTimeEx calls made (diagnostics).
+        public int SeeksSent;
+
         private EngineSession(string path, VideoOutput output, Action<string> failed, Action resourceLost)
         {
             _path = path;
@@ -503,6 +701,24 @@ public sealed class MediaEngineVideoPlayer : IVideoPlayer
         }
 
         public nint Engine => _engine;
+
+        /// <summary>The Stopwatch timestamp of the creation.</summary>
+        public long Created => _created;
+
+        /// <summary>IMFMediaEngineEx of the engine (QueryInterface once, UI thread); 0 when the engine has none.</summary>
+        public nint EngineEx
+        {
+            get
+            {
+                if (!_engineExQueried && _engine != 0)
+                {
+                    _engineExQueried = true;
+                    _engineEx = ComCall.Query(_engine, VideoConstants.IidIMFMediaEngineEx);
+                }
+
+                return _engineEx;
+            }
+        }
 
         public VideoOutput Output { get; }
 
@@ -673,6 +889,7 @@ public sealed class MediaEngineVideoPlayer : IVideoPlayer
             Loaded.TrySetCanceled();
             if (_engine != 0)
             {
+                ComCall.Release(ref _engineEx);
                 IMFMediaEngine.Shutdown(_engine);
                 ComCall.Release(ref _engine);
             }

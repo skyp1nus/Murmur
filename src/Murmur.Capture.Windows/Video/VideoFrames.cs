@@ -10,9 +10,13 @@ namespace Murmur.Capture.Windows.Video;
 /// </summary>
 internal struct FrameChangeTracker
 {
-    private const long None = long.MinValue;
+    /// <summary>The "no time stamp" value of <see cref="PresentedPts"/>.</summary>
+    internal const long None = long.MinValue;
+
+    private const long MaxFramePeriod = TimeSpan.TicksPerSecond;
 
     private long _presentedPts;
+    private long _framePeriod;
     private long _copiedPts;
     private int _copiedWidth;
     private int _copiedHeight;
@@ -27,6 +31,15 @@ internal struct FrameChangeTracker
     /// <summary>Time stamp (100 ns) of the frame copied last; null before the first copy.</summary>
     public readonly long? CopiedPts => _hasCopy && _copiedPts != None ? _copiedPts : null;
 
+    /// <summary>Time stamp (100 ns) of the frame the engine presented last, <see cref="None"/> before the first one.</summary>
+    public readonly long PresentedPts => _presentedPts;
+
+    /// <summary>
+    /// The shortest distance (100 ns) seen between two frames presented one after the other while playing; 0 until two
+    /// such frames were seen. A frame lasts at most this long (a constant-rate stream: exactly this long).
+    /// </summary>
+    public readonly long FramePeriod => _framePeriod;
+
     /// <summary>At least one copy succeeded since the last <see cref="Reset"/>.</summary>
     public readonly bool HasCopy => _hasCopy;
 
@@ -34,6 +47,7 @@ internal struct FrameChangeTracker
     public void Reset()
     {
         _presentedPts = None;
+        _framePeriod = 0;
         _copiedPts = None;
         _copiedWidth = 0;
         _copiedHeight = 0;
@@ -42,10 +56,23 @@ internal struct FrameChangeTracker
     }
 
     /// <summary>Records the result of IMFMediaEngine::OnVideoStreamTick: S_OK with a time stamp = a frame is presented.</summary>
-    public void Tick(int hr, long pts)
+    public void Tick(int hr, long pts) => Tick(hr, pts, observePeriod: false);
+
+    /// <summary>
+    /// Like <see cref="Tick(int, long)"/>; with <paramref name="observePeriod"/> (the picture moves on its own: no seek
+    /// is involved) the distance to the previously presented frame feeds <see cref="FramePeriod"/>.
+    /// </summary>
+    public void Tick(int hr, long pts, bool observePeriod)
     {
         if (hr == 0 && pts >= 0)
         {
+            var distance = pts - _presentedPts;
+            if (observePeriod && _presentedPts != None && distance > 0 && distance <= MaxFramePeriod
+                && (_framePeriod == 0 || distance < _framePeriod))
+            {
+                _framePeriod = distance;
+            }
+
             _presentedPts = pts;
         }
     }
@@ -260,6 +287,218 @@ internal struct SeekQueue
         if (_inFlight && (seekedEvents != _seekedAtIssue || now - _issuedAt >= Timeout))
         {
             _inFlight = false;
+        }
+    }
+}
+
+/// <summary>What <see cref="SeekRecovery"/> asks the player to do (the cures are tried in this order).</summary>
+internal enum SeekRecoveryStep
+{
+    /// <summary>Nothing (yet).</summary>
+    None = 0,
+
+    /// <summary>Copy the presented frame once more although the engine reports no new one.</summary>
+    Retransfer = 1,
+
+    /// <summary>Seek clearly away from the target (the frame there is only a detour).</summary>
+    SeekAway = 2,
+
+    /// <summary>Seek to the target again after <see cref="SeekAway"/>.</summary>
+    SeekBack = 3,
+
+    /// <summary>IMFMediaEngineEx::SetCurrentTimeEx(target, NORMAL).</summary>
+    SeekExNormal = 4,
+
+    /// <summary>IMFMediaEngineEx::SetCurrentTimeEx(target, APPROXIMATE).</summary>
+    SeekExApproximate = 5,
+
+    /// <summary>IMFMediaEngineEx::FrameStep(forward).</summary>
+    FrameStep = 6,
+
+    /// <summary>Seek to the target again after <see cref="FrameStep"/>.</summary>
+    FrameStepBack = 7,
+
+    /// <summary>Play() immediately followed by Pause().</summary>
+    PlayPause = 8,
+}
+
+/// <summary>
+/// Self-recovery for a rare Media Engine race (D-035): after a seek while paused, SEEKED arrives (~5 ms), currentTime is the
+/// target, but the presented frame is still the old one and OnVideoStreamTick never reports another time stamp, so the old
+/// picture stays up. Armed by every seek request. The seek worked as soon as the presented frame is the target's (it starts
+/// at or before the target, no more than one frame period before it; whenever it arrived) or, after the queue went idle,
+/// another time stamp than before was presented. Frames presented while a seek is in flight or queued belong to older
+/// targets and only move the baseline. When the queue has been idle for <see cref="Delay"/> without success and the engine is
+/// settled (paused, not seeking, has data), it asks for the next of <see cref="MaxAttempts"/> cures, one per wait, in the
+/// order of <see cref="SeekRecoveryStep"/> (this ladder is diagnostic: which one un-sticks the engine is read from
+/// <see cref="TakeHealedBy"/> in the CI log). Pure; one per player, UI thread; allocation-free.
+/// </summary>
+internal struct SeekRecovery
+{
+    /// <summary>Cures tried per seek target at most (the steps from <see cref="SeekRecoveryStep.Retransfer"/> to <see cref="SeekRecoveryStep.PlayPause"/>).</summary>
+    public const int MaxAttempts = 8;
+
+    /// <summary>Checks that found the engine not settled (playing, seeking, no data) before the recovery gives up.</summary>
+    public const int MaxUnsettled = 10;
+
+    /// <summary>Length (100 ns) of the frame assumed while the frame period is unknown.</summary>
+    public const long DefaultFramePeriod = 400_000;
+
+    private static readonly TimeSpan Away = TimeSpan.FromMilliseconds(200);
+
+    private bool _armed;
+    private bool _ignoreNewFrame;
+    private long _baselinePts;
+    private long _quietSince;
+    private int _attempts;
+    private int _unsettled;
+    private SeekRecoveryStep _lastStep;
+    private SeekRecoveryStep _healedBy;
+    private TimeSpan _target;
+
+    public SeekRecovery(long delay)
+    {
+        Delay = delay;
+        _quietSince = FrameChangeTracker.None;
+    }
+
+    /// <summary>How long (in the caller's timestamp units) a finished seek may show no new frame before a step is taken.</summary>
+    public long Delay { get; }
+
+    public readonly bool IsArmed => _armed;
+
+    /// <summary>The target the armed seek asked for.</summary>
+    public readonly TimeSpan Target => _target;
+
+    /// <summary>Where a seek step must seek to: the target, <see cref="SeekRecoveryStep.SeekAway"/> 200 ms away from it.</summary>
+    public readonly TimeSpan TargetFor(SeekRecoveryStep step) => step switch
+    {
+        SeekRecoveryStep.SeekAway => _target >= Away ? _target - Away : _target + Away,
+        _ => _target,
+    };
+
+    /// <summary>Forgets everything (a file was opened or closed).</summary>
+    public void Reset()
+    {
+        _armed = false;
+        _ignoreNewFrame = false;
+        _quietSince = FrameChangeTracker.None;
+        _attempts = 0;
+        _unsettled = 0;
+        _lastStep = SeekRecoveryStep.None;
+        _healedBy = SeekRecoveryStep.None;
+    }
+
+    /// <summary>A seek to <paramref name="target"/> was requested while the engine presented <paramref name="presentedPts"/>.</summary>
+    public void Arm(TimeSpan target, long presentedPts)
+    {
+        Reset();
+        _armed = true;
+        _target = target;
+        _baselinePts = presentedPts;
+    }
+
+    /// <summary>The picture is moving on its own (Play) or is no longer of interest.</summary>
+    public void Disarm() => _armed = false;
+
+    /// <summary>
+    /// The step after which the seek turned out to work (once; <see cref="SeekRecoveryStep.None"/> when no step was taken
+    /// before it worked, or nothing happened since the last call).
+    /// </summary>
+    public SeekRecoveryStep TakeHealedBy()
+    {
+        var by = _healedBy;
+        _healedBy = SeekRecoveryStep.None;
+        return by;
+    }
+
+    /// <summary>
+    /// True when the seek is done (<paramref name="seekBusy"/> false), did not show its frame, and that has lasted
+    /// <see cref="Delay"/>: the caller then reads the engine state and calls <see cref="Take"/>. Cheap: no engine calls.
+    /// <paramref name="framePeriod"/> (100 ns, 0 = unknown) is the length of a frame.
+    /// </summary>
+    public bool IsDue(long now, bool seekBusy, long presentedPts, long framePeriod = 0)
+    {
+        if (!_armed)
+        {
+            return false;
+        }
+
+        if (Covers(presentedPts, framePeriod))
+        {
+            Succeeded(); // the target's own frame is up, whenever it arrived
+            return false;
+        }
+
+        if (seekBusy)
+        {
+            // Whatever is presented now belongs to an older target (two quick clicks: the first one's frame).
+            _baselinePts = presentedPts;
+            _quietSince = FrameChangeTracker.None;
+            return false;
+        }
+
+        if (!_ignoreNewFrame && presentedPts != _baselinePts && presentedPts != FrameChangeTracker.None)
+        {
+            Succeeded(); // a new frame was presented after the last seek was done
+            return false;
+        }
+
+        if (_quietSince == FrameChangeTracker.None)
+        {
+            _quietSince = now;
+            return false;
+        }
+
+        return now - _quietSince >= Delay;
+    }
+
+    /// <summary>
+    /// Takes the next step after <see cref="IsDue"/> said true. An engine that is not <paramref name="engineSettled"/>
+    /// (playing, seeking, no data yet) costs no attempt: the wait starts over, up to <see cref="MaxUnsettled"/> times.
+    /// After the last step one more wait is given to show its effect, then the recovery gives up (None, disarmed).
+    /// </summary>
+    public SeekRecoveryStep Take(bool engineSettled, long now)
+    {
+        if (!_armed)
+        {
+            return SeekRecoveryStep.None;
+        }
+
+        if (!engineSettled)
+        {
+            _quietSince = now;
+            if (++_unsettled >= MaxUnsettled)
+            {
+                _armed = false;
+            }
+
+            return SeekRecoveryStep.None;
+        }
+
+        if (_attempts >= MaxAttempts)
+        {
+            _armed = false;
+            return SeekRecoveryStep.None;
+        }
+
+        _attempts++;
+        _quietSince = FrameChangeTracker.None;
+        _lastStep = (SeekRecoveryStep)_attempts;
+        _ignoreNewFrame = _lastStep is SeekRecoveryStep.SeekAway or SeekRecoveryStep.FrameStep; // their frame is a detour
+        return _lastStep;
+    }
+
+    private readonly bool Covers(long presentedPts, long framePeriod) =>
+        presentedPts != FrameChangeTracker.None && presentedPts <= _target.Ticks
+        && _target.Ticks - presentedPts < (framePeriod > 0 ? framePeriod : DefaultFramePeriod);
+
+    private void Succeeded()
+    {
+        _armed = false;
+        if (_attempts > 0)
+        {
+            _healedBy = _lastStep;
         }
     }
 }

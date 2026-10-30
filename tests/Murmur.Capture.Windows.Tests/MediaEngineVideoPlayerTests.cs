@@ -43,6 +43,36 @@ public sealed class TestVideoFile : IDisposable
 }
 
 /// <summary>
+/// Appends what the seek recovery did to <c>artifacts/test-results/player-recovery.txt</c> of the checkout (CI prints it:
+/// the test output of passing tests is not in the log).
+/// </summary>
+internal static class RecoveryReport
+{
+    private static readonly Lock Gate = new();
+
+    public static void Append(string title, string text)
+    {
+        var dir = new DirectoryInfo(AppContext.BaseDirectory);
+        while (dir is not null && !File.Exists(Path.Combine(dir.FullName, "Murmur.sln")))
+        {
+            dir = dir.Parent;
+        }
+
+        if (dir is null)
+        {
+            return;
+        }
+
+        var folder = Path.Combine(dir.FullName, "artifacts", "test-results");
+        Directory.CreateDirectory(folder);
+        lock (Gate)
+        {
+            File.AppendAllText(Path.Combine(folder, "player-recovery.txt"), $"{title}: {text}{Environment.NewLine}");
+        }
+    }
+}
+
+/// <summary>
 /// The Media Engine player against a real file: open, play, pause, seek with the colour of the frame checked, the frame
 /// copy contract, failures and clean-up. <see cref="VideoOutput.Auto"/> is what the app uses; the explicit outputs check
 /// both pipelines where the machine has them (D3D11 is skipped with the reason where it cannot play, e.g. WARP).
@@ -89,7 +119,36 @@ public sealed class MediaEngineVideoPlayerTests(TestVideoFile video, ITestOutput
             Assert.True(TestVideo.SlotAt(target) == await WaitForSlotAsync(player, frame, TestVideo.SlotAt(target)), player.DescribeState());
         }
 
+        output.WriteLine(player.DescribeRecovery());
+        RecoveryReport.Append(nameof(Seek_ThenTryCopyFrame_ShowsTheFrameAtTheNewPosition) + " " + requested, player.DescribeRecovery());
         Assert.False(player.IsPlaying);
+    }
+
+    [Theory]
+    [InlineData(nameof(VideoOutput.Auto))]
+    [InlineData(nameof(VideoOutput.Wic))]
+    public async Task FastPausedSeeks_EachShowsItsFrame(string requested)
+    {
+        // Regression for the rare race where SEEKED arrives at once with the old picture and no new time stamp is ever
+        // presented (BACKLOG, seen on the WARP runner); the self-recovery must show every target's slot.
+        using var player = await OpenAsync(Enum.Parse<VideoOutput>(requested));
+        var frame = new byte[FrameStride * FrameHeight];
+        Assert.Equal(0, await WaitForSlotAsync(player, frame, 0));
+        var slots = new[] { 2.25, 0.75, 3.75, 1.25, 3.25, 0.25, 2.75, 1.75 };
+        for (var round = 0; round < 6; round++)
+        {
+            foreach (var seconds in slots)
+            {
+                var target = TimeSpan.FromSeconds(seconds);
+                player.Seek(target);
+                var expected = TestVideo.SlotAt(target);
+                Assert.True(expected == await WaitForSlotAsync(player, frame, expected), $"round {round}, target {target}: {player.DescribeState()}");
+            }
+        }
+
+        // Tells "the race never happened" from "the recovery healed it": which step showed the frame is in the CI log.
+        output.WriteLine($"{requested}: {slots.Length * 6} fast paused seeks; {player.DescribeRecovery()}");
+        RecoveryReport.Append(nameof(FastPausedSeeks_EachShowsItsFrame) + " " + requested + $" ({slots.Length * 6} seeks)", player.DescribeRecovery());
     }
 
     [Fact]
