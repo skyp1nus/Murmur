@@ -27,7 +27,9 @@ namespace Murmur.App.Controls;
 /// <para>
 /// <b>Animation.</b> Not <see cref="IsActive"/>: one static frame, no timer. Active without a <see cref="LevelSource"/>: the
 /// canvas "breathe" (3.6 s, the sphere grows 5 %, the halo 16 % and fades). Active with a source: the sphere and halo follow
-/// the voice level. A 15 Hz timer drives it, never the 60 Hz animation-frame loop.
+/// the voice level. A 15 Hz timer drives it, never the 60 Hz animation-frame loop. While <see cref="Motion.ReduceMotionProperty"/>
+/// is on, the breathing and the voice pulse are decoration the user asked to do without: the orb holds its rest frame and the
+/// timer is stopped.
 /// </para>
 /// </remarks>
 public sealed class GlassOrbControl : Panel
@@ -174,6 +176,9 @@ public sealed class GlassOrbControl : Panel
     /// <summary>True while the halo layer holds its computed bitmap (for tests).</summary>
     internal bool HasHaloBitmap => _halo.HasBitmap;
 
+    /// <summary>True while the system asks for less motion (inherited from the window): the orb holds its rest frame.</summary>
+    private bool ReduceMotion => Motion.GetReduceMotion(this);
+
     /// <summary>True while the control runs its update timer (for tests).</summary>
     internal bool IsFrameLoopRunning => _timer.IsEnabled;
 
@@ -278,12 +283,28 @@ public sealed class GlassOrbControl : Panel
             _primed = false;
             if (!IsActive)
             {
-                _smoothed = 0;
-                Apply(1, 1, 0);
+                HoldRest();
             }
 
             UpdateLoop();
         }
+        else if (change.Property == Motion.ReduceMotionProperty)
+        {
+            _primed = false;
+            if (ReduceMotion)
+            {
+                HoldRest();
+            }
+
+            UpdateLoop();
+        }
+    }
+
+    /// <summary>Shows the rest frame (the canvas' static orb) and forgets the running animation.</summary>
+    private void HoldRest()
+    {
+        _smoothed = 0;
+        Apply(1, 1, 0);
     }
 
     private void OnLookChanged(bool layout, bool halo, bool body)
@@ -308,7 +329,7 @@ public sealed class GlassOrbControl : Panel
 
     private void UpdateLoop()
     {
-        var run = IsActive && ((Visual)this).IsAttachedToVisualTree();
+        var run = IsActive && !ReduceMotion && ((Visual)this).IsAttachedToVisualTree();
         if (run && !_timer.IsEnabled)
         {
             _primed = false;
@@ -324,6 +345,11 @@ public sealed class GlassOrbControl : Panel
     /// <summary>One animation step at <paramref name="timestamp"/> on the orb's clock; a step too soon after the last changes nothing.</summary>
     internal void Update(TimeSpan timestamp)
     {
+        if (ReduceMotion)
+        {
+            return;
+        }
+
         var elapsed = (timestamp - _lastFrame).TotalSeconds;
         if (_primed && elapsed < MinUpdateSeconds * UpdateSlack)
         {
@@ -335,7 +361,6 @@ public sealed class GlassOrbControl : Panel
         if (source is null)
         {
             // The canvas "breathe": ease in and out between rest (0) and the peak (1) every 3.6 s, starting at rest.
-            // TODO(reduced-motion): hold the rest frame when the user prefers reduced motion (Core preference, follow-up task for all orbs).
             _primed = true;
             _lastFrame = timestamp;
             _phaseSeconds = starting ? 0 : _phaseSeconds + Math.Min(elapsed, MaxStepSeconds);

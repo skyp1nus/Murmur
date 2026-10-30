@@ -98,6 +98,13 @@ public partial class App : Application
                 window.Closed += (_, _) => activation.Requested -= OnActivationRequested;
             }
 
+            if (services.Motion is { } motion)
+            {
+                // The orbs hold still while the system asks for less motion, and move again when it stops asking.
+                var follower = MotionFollower.Follow(window, motion);
+                window.Closed += (_, _) => follower.Dispose();
+            }
+
             var probing = StartupProbe.TryGetPath(Args, out var probePath);
             if (probing)
             {
