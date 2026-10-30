@@ -157,7 +157,8 @@ if ($Build) {
 if ($Test) {
     $log = Join-Path $runDir 'test.log'
     $trx = Join-Path $runDir 'test-results'
-    $noBuild = if ($Build -and $buildOk) { @('--no-build') } else { @() }
+    # @(...) keeps an array: `$x = if (...) { @('a') }` unrolls to the string 'a', and splatting a string passes its characters.
+    $noBuild = @(if ($Build -and $buildOk) { '--no-build' })
     $code = Invoke-Logged $log { dotnet test Murmur.sln -c Release @noBuild --report-xunit-trx --results-directory $trx }
     $text = Read-Text $log
     $totals = [regex]::Matches($text, 'total:\s*(\d+)\s+failed:\s*(\d+)\s+succeeded:\s*(\d+)\s+skipped:\s*(\d+)')
@@ -379,15 +380,15 @@ function Invoke-Recording([string] $Step, [int] $Seconds, [bool] $WithScreen, [s
     $name = $Step.ToLowerInvariant() -replace '[^a-z0-9]+', '-'
     $perf = Join-Path $runDir "$name.json"
     $md = Join-Path $runDir "$name.md"
-    $screenArg = if ($WithScreen) { @('-Screen') } else { @() }
+    $screenArg = @(if ($WithScreen) { '-Screen' })
     $code = Invoke-Logged (Join-Path $runDir "$name.log") { pwsh -NoProfile -File scripts/run-autorecord.ps1 -Exe $murmurExe -Seconds $Seconds @screenArg -PerfOut $perf }
     if ($code -ne 0 -or -not (Test-Path -LiteralPath $perf)) {
         Add-Result $Step 'FAIL' "Murmur.exe --autorecord failed (exit $code, see $name.log)"
         return
     }
 
-    $toneArg = if ($Tone) { @('-ExpectTone') } else { @() }
-    $screenCheck = if ($WithScreen) { @('-ExpectScreen') } else { @() }
+    $toneArg = @(if ($Tone) { '-ExpectTone' })
+    $screenCheck = @(if ($WithScreen) { '-ExpectScreen' })
     $code = Invoke-Logged (Join-Path $runDir "$name-check.log") { pwsh -NoProfile -File scripts/check-recording.ps1 -PerfJson $perf @toneArg @screenCheck -Title $Step -MarkdownOut $md @CheckArgs }
     $json = Get-Content -LiteralPath $perf -Raw | ConvertFrom-Json
     $parts = @()
