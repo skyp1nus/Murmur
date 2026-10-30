@@ -367,16 +367,26 @@
   <Style Selector="StackPanel.onbWelcome">
     <Setter Property="Spacing" Value="{StaticResource Space.48}" />
   </Style>
-  <!-- The canvas halo is absolutely positioned, so it paints over the (static) siblings that follow it: ZIndex 1. -->
+  <!-- The canvas orbs (welcome, voice: sphere, inner glow, blurred halo; sizes and look are the Glass.* tokens). The halo is absolutely positioned, so it paints over the (static) siblings that follow it: ZIndex 1. -->
   <Style Selector="controls|GlassOrbControl.welcome">
     <Setter Property="ZIndex" Value="1" />
     <Setter Property="Width" Value="{StaticResource Glass.Welcome.Size}" />
     <Setter Property="Height" Value="{StaticResource Glass.Welcome.Size}" />
+    <Setter Property="BodyFraction" Value="{StaticResource Glass.Welcome.Body}" />
+    <Setter Property="HaloBlur" Value="{DynamicResource Glass.Welcome.HaloBlur}" />
+    <Setter Property="HaloOpacity" Value="{DynamicResource Glass.Welcome.HaloOpacity}" />
+    <Setter Property="InnerGlowBlur" Value="{StaticResource Glass.Welcome.GlowBlur}" />
+    <Setter Property="InnerGlowOpacity" Value="{DynamicResource Glass.Welcome.Glow}" />
   </Style>
   <Style Selector="controls|GlassOrbControl.voice">
     <Setter Property="ZIndex" Value="1" />
     <Setter Property="Width" Value="{StaticResource Glass.Voice.Size}" />
     <Setter Property="Height" Value="{StaticResource Glass.Voice.Size}" />
+    <Setter Property="BodyFraction" Value="{StaticResource Glass.Voice.Body}" />
+    <Setter Property="HaloBlur" Value="{DynamicResource Glass.Voice.HaloBlur}" />
+    <Setter Property="HaloOpacity" Value="{DynamicResource Glass.Voice.HaloOpacity}" />
+    <Setter Property="InnerGlowBlur" Value="{StaticResource Glass.Voice.GlowBlur}" />
+    <Setter Property="InnerGlowOpacity" Value="{DynamicResource Glass.Voice.Glow}" />
   </Style>
   <Style Selector=":is(UserControl).compact StackPanel.onbStep, :is(UserControl).compact StackPanel.onbStep.audio, :is(UserControl).compact StackPanel.onbStep.voice, :is(UserControl).compact StackPanel.onbWelcome">
     <Setter Property="Spacing" Value="{StaticResource Space.20}" />
@@ -653,22 +663,6 @@
     <Setter Property="StrokeThickness" Value="{StaticResource Hairline.Width}" />
     <Setter Property="StrokeDashArray" Value="{StaticResource Onb.Dash.Outline}" />
     <Setter Property="IsHitTestVisible" Value="False" />
-  </Style>
-
-  <!-- The canvas orb: wordmark (plain sphere), welcome orb and voice orb (sphere, inner glow, blurred halo). -->
-  <Style Selector="controls|GlassOrbControl.welcome">
-    <Setter Property="BodyFraction" Value="{StaticResource Glass.Welcome.Body}" />
-    <Setter Property="HaloBlur" Value="{DynamicResource Glass.Welcome.HaloBlur}" />
-    <Setter Property="HaloOpacity" Value="{DynamicResource Glass.Welcome.HaloOpacity}" />
-    <Setter Property="InnerGlowBlur" Value="{StaticResource Glass.Welcome.GlowBlur}" />
-    <Setter Property="InnerGlowOpacity" Value="{DynamicResource Glass.Welcome.Glow}" />
-  </Style>
-  <Style Selector="controls|GlassOrbControl.voice">
-    <Setter Property="BodyFraction" Value="{StaticResource Glass.Voice.Body}" />
-    <Setter Property="HaloBlur" Value="{DynamicResource Glass.Voice.HaloBlur}" />
-    <Setter Property="HaloOpacity" Value="{DynamicResource Glass.Voice.HaloOpacity}" />
-    <Setter Property="InnerGlowBlur" Value="{StaticResource Glass.Voice.GlowBlur}" />
-    <Setter Property="InnerGlowOpacity" Value="{DynamicResource Glass.Voice.Glow}" />
   </Style>
 
   <!-- The footer's buttons: 44 px tall pills. Disabled primary = Stone with Ash text (OnbComponents). -->

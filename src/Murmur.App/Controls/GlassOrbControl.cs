@@ -1,3 +1,4 @@
+using System.Buffers;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Media;
@@ -96,14 +97,16 @@ public sealed class GlassOrbControl : Panel
     private Size _size;
     private Palette _palette;
     private bool _hasColours;
+    private bool _centreKnown;
 
     static GlassOrbControl()
     {
-        BodyFractionProperty.Changed.AddClassHandler<GlassOrbControl>((o, _) => o.OnLookChanged(layout: true));
-        HaloBlurProperty.Changed.AddClassHandler<GlassOrbControl>((o, _) => o.OnLookChanged(layout: true));
-        HaloOpacityProperty.Changed.AddClassHandler<GlassOrbControl>((o, _) => o.OnLookChanged(layout: false));
-        InnerGlowBlurProperty.Changed.AddClassHandler<GlassOrbControl>((o, _) => o.OnLookChanged(layout: false));
-        InnerGlowOpacityProperty.Changed.AddClassHandler<GlassOrbControl>((o, _) => o.OnLookChanged(layout: false));
+        // Only the layers a property shows in repaint; the halo bitmap is never dropped here, its cache key decides when it is rebuilt.
+        BodyFractionProperty.Changed.AddClassHandler<GlassOrbControl>((o, _) => o.OnLookChanged(layout: true, halo: false, body: true));
+        HaloBlurProperty.Changed.AddClassHandler<GlassOrbControl>((o, _) => o.OnLookChanged(layout: true, halo: true, body: false));
+        HaloOpacityProperty.Changed.AddClassHandler<GlassOrbControl>((o, _) => o.OnLookChanged(layout: false, halo: true, body: false));
+        InnerGlowBlurProperty.Changed.AddClassHandler<GlassOrbControl>((o, _) => o.OnLookChanged(layout: false, halo: false, body: true));
+        InnerGlowOpacityProperty.Changed.AddClassHandler<GlassOrbControl>((o, _) => o.OnLookChanged(layout: false, halo: false, body: true));
     }
 
     public GlassOrbControl()
@@ -167,6 +170,9 @@ public sealed class GlassOrbControl : Panel
 
     /// <summary>Where the halo layer sits relative to the control (for tests).</summary>
     internal Rect HaloBounds => _halo.Bounds;
+
+    /// <summary>True while the halo layer holds its computed bitmap (for tests).</summary>
+    internal bool HasHaloBitmap => _halo.HasBitmap;
 
     /// <summary>True while the control runs its update timer (for tests).</summary>
     internal bool IsFrameLoopRunning => _timer.IsEnabled;
@@ -239,6 +245,7 @@ public sealed class GlassOrbControl : Panel
         var pad = Math.Ceiling(HaloBlur * 3);
         _halo.Arrange(rect.Inflate(pad));
         _body.Arrange(rect);
+        _centreKnown = false;
         PushFrame();
         return finalSize;
     }
@@ -246,6 +253,7 @@ public sealed class GlassOrbControl : Panel
     protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
     {
         base.OnAttachedToVisualTree(e);
+        _centreKnown = false;
         ResolveColours();
         PushFrame();
         UpdateLoop();
@@ -256,6 +264,10 @@ public sealed class GlassOrbControl : Panel
         base.OnDetachedFromVisualTree(e);
         _primed = false;
         _timer.Stop();
+
+        // A detached orb holds no bitmap; attaching it again draws (and builds) the halo anew.
+        _halo.ReleaseHalo();
+        _centreKnown = false;
     }
 
     protected override void OnPropertyChanged(AvaloniaPropertyChangedEventArgs change)
@@ -274,10 +286,18 @@ public sealed class GlassOrbControl : Panel
         }
     }
 
-    private void OnLookChanged(bool layout)
+    private void OnLookChanged(bool layout, bool halo, bool body)
     {
-        _halo.InvalidateLook();
-        _body.InvalidateLook();
+        if (halo)
+        {
+            _halo.InvalidateLook();
+        }
+
+        if (body)
+        {
+            _body.InvalidateLook();
+        }
+
         if (layout)
         {
             InvalidateMeasure();
@@ -362,20 +382,34 @@ public sealed class GlassOrbControl : Panel
     private void PushFrame()
     {
         _appliedFrames++;
+
+        // The centre points only change when the control is arranged or attached: the animation sets just the scale and the opacity.
+        var setCentres = !_centreKnown;
         var centre = new Vector3D(_size.Width / 2, _size.Height / 2, 0);
         if (ElementComposition.GetElementVisual(_body) is { } body)
         {
-            body.CenterPoint = centre;
+            if (setCentres)
+            {
+                body.CenterPoint = centre;
+            }
+
             body.Scale = new Vector3D(_appliedBody, _appliedBody, 1);
         }
 
         if (ElementComposition.GetElementVisual(_halo) is { } halo)
         {
-            var pad = Math.Ceiling(HaloBlur * 3);
-            halo.CenterPoint = new Vector3D(centre.X + pad, centre.Y + pad, 0);
+            if (setCentres)
+            {
+                var pad = Math.Ceiling(HaloBlur * 3);
+                halo.CenterPoint = new Vector3D(centre.X + pad, centre.Y + pad, 0);
+            }
+
             halo.Scale = new Vector3D(_appliedHalo, _appliedHalo, 1);
             halo.Opacity = (float)(1 - _appliedFade);
         }
+
+        // Both visuals exist (or neither does yet): only then is the centre pushed for good.
+        _centreKnown = ElementComposition.GetElementVisual(_body) is not null && ElementComposition.GetElementVisual(_halo) is not null;
     }
 
     /// <summary>Reads the gradient from the <c>Orb.*</c> resources of the current theme; an orb whose resources are missing paints nothing.</summary>
@@ -392,6 +426,7 @@ public sealed class GlassOrbControl : Panel
             _hasColours = false;
         }
 
+        // The bodies repaint with the new colours; the halo's bitmap is rebuilt only if its key (which has the palette) really changed.
         _halo.InvalidateLook();
         _body.InvalidateLook();
     }
@@ -443,7 +478,23 @@ public sealed class GlassOrbControl : Panel
         {
             var width = (int)Math.Ceiling(layer.Width / Scale);
             var height = (int)Math.Ceiling(layer.Height / Scale);
-            var plane = new float[width * height * 4];
+            var length = width * height * 4;
+            var plane = ArrayPool<float>.Shared.Rent(length);
+            var temp = ArrayPool<float>.Shared.Rent(length);
+            try
+            {
+                Array.Clear(plane, 0, length);
+                return Render(diameter, sigma, layer, palette, width, height, plane, temp);
+            }
+            finally
+            {
+                ArrayPool<float>.Shared.Return(plane);
+                ArrayPool<float>.Shared.Return(temp);
+            }
+        }
+
+        private static WriteableBitmap Render(double diameter, double sigma, Size layer, Palette palette, int width, int height, float[] plane, float[] temp)
+        {
 
             // 1. The sphere: the CSS gradients over the lavender base, premultiplied, with a one-pixel soft rim.
             var blobs = palette.Blobs();
@@ -506,7 +557,6 @@ public sealed class GlassOrbControl : Panel
                 kernel[k] /= sum;
             }
 
-            var temp = new float[plane.Length];
             Convolve(plane, temp, width, height, kernel, half, horizontal: true);
             Convolve(temp, plane, width, height, kernel, half, horizontal: false);
 
@@ -514,18 +564,27 @@ public sealed class GlassOrbControl : Panel
             var bitmap = new WriteableBitmap(new PixelSize(width, height), new Vector(96, 96), PixelFormat.Bgra8888, AlphaFormat.Premul);
             using (var frame = bitmap.Lock())
             {
-                var bytes = new byte[width * height * 4];
-                for (var p = 0; p < width * height; p++)
+                // One row at a time through a pooled buffer, straight into the bitmap's memory.
+                var row = ArrayPool<byte>.Shared.Rent(width * 4);
+                try
                 {
-                    bytes[(p * 4) + 0] = ToByte(plane[(p * 4) + 2]);
-                    bytes[(p * 4) + 1] = ToByte(plane[(p * 4) + 1]);
-                    bytes[(p * 4) + 2] = ToByte(plane[p * 4]);
-                    bytes[(p * 4) + 3] = ToByte(plane[(p * 4) + 3]);
-                }
+                    for (var j = 0; j < height; j++)
+                    {
+                        for (var i = 0; i < width; i++)
+                        {
+                            var o = ((j * width) + i) * 4;
+                            row[i * 4] = ToByte(plane[o + 2]);
+                            row[(i * 4) + 1] = ToByte(plane[o + 1]);
+                            row[(i * 4) + 2] = ToByte(plane[o]);
+                            row[(i * 4) + 3] = ToByte(plane[o + 3]);
+                        }
 
-                for (var row = 0; row < height; row++)
+                        System.Runtime.InteropServices.Marshal.Copy(row, 0, frame.Address + (j * frame.RowBytes), width * 4);
+                    }
+                }
+                finally
                 {
-                    System.Runtime.InteropServices.Marshal.Copy(bytes, row * width * 4, frame.Address + (row * frame.RowBytes), width * 4);
+                    ArrayPool<byte>.Shared.Return(row);
                 }
             }
 
@@ -578,7 +637,7 @@ public sealed class GlassOrbControl : Panel
         private IBrush? _glow;
         private Size _brushesFor;
         private WriteableBitmap? _haloBitmap;
-        private (double Diameter, double Sigma, Palette Palette) _haloKey;
+        private (double Diameter, double Sigma, Size Layer, Palette Palette) _haloKey;
 
         public Layer(GlassOrbControl owner, bool isHalo)
         {
@@ -586,15 +645,24 @@ public sealed class GlassOrbControl : Panel
             _isHalo = isHalo;
         }
 
+        public bool HasBitmap => _haloBitmap is not null;
+
+        /// <summary>The sphere's brushes are rebuilt on the next paint. The halo bitmap is not touched: its cache key decides.</summary>
         public void InvalidateLook()
         {
             _blobs = null;
             _glow = null;
             _brushesFor = default;
-            _haloBitmap?.Dispose();
-            _haloBitmap = null;
             IsVisible = !_isHalo || _owner.HaloBlur > 0;
             InvalidateVisual();
+        }
+
+        /// <summary>Frees the halo bitmap and forgets its key (the control left the visual tree).</summary>
+        public void ReleaseHalo()
+        {
+            _haloBitmap?.Dispose();
+            _haloBitmap = null;
+            _haloKey = default;
         }
 
         public override void Render(DrawingContext context)
@@ -642,7 +710,7 @@ public sealed class GlassOrbControl : Panel
                 return;
             }
 
-            var key = (diameter, sigma, _owner._palette);
+            var key = (diameter, sigma, Bounds.Size, _owner._palette);
             if (_haloBitmap is null || _haloKey != key)
             {
                 _haloBitmap?.Dispose();

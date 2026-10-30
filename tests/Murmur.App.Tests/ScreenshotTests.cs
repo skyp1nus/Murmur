@@ -108,6 +108,9 @@ public sealed class ScreenshotTests
         var shell = harness.CreateShell();
         shell.ShowRecording();
         shell.Recording.Refresh();
+
+        // The default title carries the wall-clock time ("Untitled — Oct 30, 16:37"): two renders a minute apart would differ in its glyphs.
+        shell.Recording.Title = "Weekly sync";
         return shell;
     }
 

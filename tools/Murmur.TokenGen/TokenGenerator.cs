@@ -22,7 +22,7 @@ public static class TokenGenerator
                                 "colorDark" (same keys in both). Look them up with DynamicResource so a runtime theme change
                                 re-resolves them; StaticResource would freeze the theme that was active at load time.
             Font.Display/Body   Inter (embedded via Avalonia.Fonts.Inter)    Font.Mono   Geist Mono (embedded asset)
-            FontWeight.<Role>   Display = 300, Body = first body weight, BodyMedium = second body weight, BodySemiBold = third, Mono
+            FontWeight.<Role>   Display = 300, Body = 400, BodyMedium = 500, BodySemiBold = 600 (all three must be in font.body.weights), Mono
             FontSize.<Scale>    double, one per typeScale entry (plus FontSize.Mono)
             LineHeight.<Scale>  double = size * ratio (Avalonia TextBlock.LineHeight is absolute, not a multiplier)
             LetterSpacing.<Scale>
@@ -191,12 +191,16 @@ public static class TokenGenerator
         sb.Append("  <FontFamily x:Key=\"Font.Mono\">").Append(FamilyUri(mono.GetProperty("family").GetString()!)).Append("</FontFamily>\n");
 
         sb.Append("  <FontWeight x:Key=\"FontWeight.Display\">").Append(WeightName(display.GetProperty("weight").GetInt32())).Append("</FontWeight>\n");
-        var weights = body.GetProperty("weights");
-        sb.Append("  <FontWeight x:Key=\"FontWeight.Body\">").Append(WeightName(weights[0].GetInt32())).Append("</FontWeight>\n");
-        sb.Append("  <FontWeight x:Key=\"FontWeight.BodyMedium\">").Append(WeightName(weights[1].GetInt32())).Append("</FontWeight>\n");
-        if (weights.GetArrayLength() > 2)
+        // The weights are looked up by value, so reordering the array cannot make "SemiBold" hold another weight.
+        var weights = body.GetProperty("weights").EnumerateArray().Select(w => w.GetInt32()).ToArray();
+        foreach (var (key, weight) in new[] { ("Body", 400), ("BodyMedium", 500), ("BodySemiBold", 600) })
         {
-            sb.Append("  <FontWeight x:Key=\"FontWeight.BodySemiBold\">").Append(WeightName(weights[2].GetInt32())).Append("</FontWeight>\n");
+            if (!weights.Contains(weight))
+            {
+                throw new InvalidOperationException($"tokens.json: font.body.weights must contain {weight} (FontWeight.{key}).");
+            }
+
+            sb.Append("  <FontWeight x:Key=\"FontWeight.").Append(key).Append("\">").Append(WeightName(weight)).Append("</FontWeight>\n");
         }
 
         sb.Append("  <FontWeight x:Key=\"FontWeight.Mono\">").Append(WeightName(mono.GetProperty("weight").GetInt32())).Append("</FontWeight>\n");

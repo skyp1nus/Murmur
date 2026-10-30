@@ -8,7 +8,7 @@
                         "colorDark" (same keys in both). Look them up with DynamicResource so a runtime theme change
                         re-resolves them; StaticResource would freeze the theme that was active at load time.
     Font.Display/Body   Inter (embedded via Avalonia.Fonts.Inter)    Font.Mono   Geist Mono (embedded asset)
-    FontWeight.<Role>   Display = 300, Body = first body weight, BodyMedium = second body weight, BodySemiBold = third, Mono
+    FontWeight.<Role>   Display = 300, Body = 400, BodyMedium = 500, BodySemiBold = 600 (all three must be in font.body.weights), Mono
     FontSize.<Scale>    double, one per typeScale entry (plus FontSize.Mono)
     LineHeight.<Scale>  double = size * ratio (Avalonia TextBlock.LineHeight is absolute, not a multiplier)
     LetterSpacing.<Scale>

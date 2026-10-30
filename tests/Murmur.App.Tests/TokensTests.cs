@@ -155,6 +155,9 @@ public sealed partial class TokensTests
         "Controls.axaml: Hairline.End",
     ];
 
+    /// <summary>The controls that paint an orb and so read the Orb.* resources (an explicit list, not a name pattern).</summary>
+    private static readonly HashSet<string> OrbFiles = ["OrbDisc.cs", "OrbControl.cs", "GlassOrbControl.cs"];
+
     [Fact]
     public void OrbResources_AreOnlyReadByTheOrbAndIconFiles()
     {
@@ -165,7 +168,7 @@ public sealed partial class TokensTests
             .Where(f => f.EndsWith(".axaml", StringComparison.Ordinal) || f.EndsWith(".cs", StringComparison.Ordinal))
             .Where(f => !Path.GetRelativePath(RepoPaths.AppDirectory, f).Replace('\\', '/').StartsWith("obj/", StringComparison.Ordinal)
                 && !Path.GetRelativePath(RepoPaths.AppDirectory, f).Replace('\\', '/').StartsWith("bin/", StringComparison.Ordinal))
-            .Where(f => !IsAccentAllowed(f) && !Path.GetFileName(f).Contains("Orb", StringComparison.Ordinal));
+            .Where(f => !IsAccentAllowed(f) && !OrbFiles.Contains(Path.GetFileName(f)));
         foreach (var path in files)
         {
             if (references.IsMatch(File.ReadAllText(path)))
@@ -415,6 +418,62 @@ public sealed partial class TokensTests
 
         Assert.Empty(offenders);
     }
+
+    [Fact]
+    public void ThemedResources_AreNeverLookedUpWithStaticResource()
+    {
+        // Every key defined inside any ThemeDictionaries element (the generated Tokens.axaml and the hand-written style files: colours,
+        // brushes, the themed Glass.* numbers, theme aliases) resolves per theme: a StaticResource outside ThemeDictionaries would freeze
+        // the theme that was active when the XAML loaded.
+        var documents = AxamlFiles().Select(f => (File: f, Document: XDocument.Load(f))).ToArray();
+        var themed = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var (_, document) in documents)
+        {
+            foreach (var dictionaries in document.Descendants().Where(e => e.Name.LocalName == "ResourceDictionary.ThemeDictionaries"))
+            {
+                foreach (var variant in dictionaries.Elements())
+                {
+                    foreach (var key in variant.Elements().Select(e => (string?)e.Attribute(Xaml + "Key")).Where(k => k is not null))
+                    {
+                        themed.Add(key!);
+                    }
+                }
+            }
+        }
+
+        Assert.Contains("Brush.Canvas", themed);
+        Assert.Contains("Glass.Recording.HaloBlur", themed);
+        Assert.Contains("Onb.Shadow.List", themed);
+
+        var offenders = new List<string>();
+        foreach (var (file, document) in documents)
+        {
+            foreach (var removed in document.Descendants().Where(e => e.Name.LocalName == "ResourceDictionary.ThemeDictionaries").ToList())
+            {
+                removed.Remove();
+            }
+
+            foreach (var comment in document.DescendantNodes().OfType<XComment>().ToList())
+            {
+                comment.Remove();
+            }
+
+            foreach (Match match in StaticLookup().Matches(document.ToString()))
+            {
+                var key = match.Groups[1].Success ? match.Groups[1].Value : match.Groups[2].Value;
+                if (themed.Contains(key))
+                {
+                    offenders.Add(Path.GetRelativePath(RepoPaths.AppDirectory, file) + ": " + key);
+                }
+            }
+        }
+
+        Assert.Empty(offenders.Distinct());
+    }
+
+    /// <summary><c>{StaticResource Key}</c> (group 1) or <c>ResourceKey="Key"</c> of a <c>StaticResource</c> alias element (group 2).</summary>
+    [GeneratedRegex(@"\{\s*StaticResource\s+([^\s}]+)\s*\}|ResourceKey=""([^""]+)""")]
+    private static partial Regex StaticLookup();
 
     private const string Root = "<Styles xmlns=\"https://github.com/avaloniaui\" xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\">@BODY@</Styles>";
 

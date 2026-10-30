@@ -263,9 +263,9 @@ public sealed class GlassOrbControlTests
     }
 
     [Fact]
-    public async Task TheHalo_IsComputedOncePerSizeAndTheme_NotOnEveryFrame()
+    public async Task TheHalo_IsComputedOncePerSize_NotOnEveryFrame()
     {
-        var (first, afterAnimation, afterResize, afterTheme) = await Session.Dispatch(
+        var (first, afterAnimation, afterResize) = await Session.Dispatch(
             () =>
             {
                 var orb = NewOrb(active: true);
@@ -281,11 +281,7 @@ public sealed class GlassOrbControlTests
                 orb.Width = 200;
                 orb.Height = 200;
                 UiHarness.Pump(5);
-                var resized = orb.HaloBuilds;
-
-                window.RequestedThemeVariant = ThemeVariant.Dark;
-                UiHarness.Pump(5);
-                var result = (built, animated, resized, orb.HaloBuilds);
+                var result = (built, animated, orb.HaloBuilds);
                 window.Close();
                 return result;
             },
@@ -294,7 +290,148 @@ public sealed class GlassOrbControlTests
         Assert.Equal(1, first);
         Assert.Equal(1, afterAnimation);
         Assert.Equal(2, afterResize);
-        Assert.True(afterTheme >= afterResize, "the theme change may rebuild the halo, never the animation");
+    }
+
+    [Fact]
+    public async Task TheHalo_IsRebuiltExactlyOnce_WhenTheThemeChangesItsBlur_AndNeverForTheOtherLookChanges()
+    {
+        var (first, dark, sameTheme, opacities, glow, back) = await Session.Dispatch(
+            () =>
+            {
+                // The welcome class takes HaloBlur from the themed Glass.Welcome.HaloBlur (30 light, 34 dark).
+                var orb = new GlassOrbControl();
+                orb.Classes.Add("welcome");
+                var window = Host(orb);
+                var built = orb.HaloBuilds;
+
+                window.RequestedThemeVariant = ThemeVariant.Dark;
+                UiHarness.Pump(5);
+                var toDark = orb.HaloBuilds;
+
+                window.RequestedThemeVariant = ThemeVariant.Dark;
+                UiHarness.Pump(5);
+                var same = orb.HaloBuilds;
+
+                orb.HaloOpacity = 0.5;
+                UiHarness.Pump(5);
+                orb.InnerGlowOpacity = 0.1;
+                UiHarness.Pump(5);
+                var afterOpacities = orb.HaloBuilds;
+
+                orb.InnerGlowBlur = 12;
+                UiHarness.Pump(5);
+                var afterGlow = orb.HaloBuilds;
+
+                window.RequestedThemeVariant = ThemeVariant.Light;
+                UiHarness.Pump(5);
+                var result = (built, toDark, same, afterOpacities, afterGlow, orb.HaloBuilds);
+                window.Close();
+                return result;
+            },
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal(1, first);
+        Assert.Equal(2, dark);
+        Assert.Equal(2, sameTheme);
+        Assert.Equal(2, opacities);
+        Assert.Equal(2, glow);
+        Assert.Equal(3, back);
+    }
+
+    [Fact]
+    public async Task WithoutTheGradientResources_TheOrbPaintsNothing_AndDoesNotThrow()
+    {
+        var built = await Session.Dispatch(
+            () =>
+            {
+                var orb = NewOrb();
+                orb.Resources["Orb.Base"] = "not a colour";
+                var window = Host(orb);
+                UiHarness.Pump(5);
+                var result = orb.HaloBuilds;
+                window.Close();
+                return result;
+            },
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal(0, built);
+    }
+
+    [Fact]
+    public async Task Detaching_ReleasesTheHaloBitmap_AndAttachingAgainBuildsItAnew()
+    {
+        var (attached, detached, reattached, builds) = await Session.Dispatch(
+            () =>
+            {
+                var orb = NewOrb();
+                var window = Host(orb);
+                var first = orb.HasHaloBitmap;
+
+                window.Content = null;
+                UiHarness.Pump(5);
+                var second = orb.HasHaloBitmap;
+
+                window.Content = orb;
+                UiHarness.Pump(5);
+                var result = (first, second, orb.HasHaloBitmap, orb.HaloBuilds);
+                window.Close();
+                return result;
+            },
+            TestContext.Current.CancellationToken);
+
+        Assert.True(attached);
+        Assert.False(detached);
+        Assert.True(reattached);
+        Assert.Equal(2, builds);
+    }
+
+    [Fact]
+    public async Task TheAnimationSteps_AllocateNothing_OnceWarm()
+    {
+        var attempts = await Session.Dispatch(
+            () =>
+            {
+                var level = new FixedLevel(0.2f);
+                var breathing = NewOrb(active: true);
+                var voice = NewOrb(active: true, source: level);
+                var window = new Window { Width = 700, Height = 400, Content = new StackPanel { Children = { breathing, voice } } };
+                window.Show();
+                UiHarness.Pump();
+
+                var step = 0;
+                void Pass()
+                {
+                    for (var i = 0; i < 100; i++)
+                    {
+                        step++;
+                        level.Level = (step & 1) == 0 ? 0.1f : 0.6f;
+                        var at = TimeSpan.FromMilliseconds(100 * step);
+                        breathing.Update(at);
+                        voice.Update(at);
+                    }
+                }
+
+                // Warm up first; a pass that allocates nothing proves the steady state, while one-time runtime work (tiered JIT) can land
+                // in any single pass.
+                Pass();
+                var bytes = new List<long>();
+                for (var attempt = 0; attempt < 3; attempt++)
+                {
+                    var before = GC.GetAllocatedBytesForCurrentThread();
+                    Pass();
+                    bytes.Add(GC.GetAllocatedBytesForCurrentThread() - before);
+                    if (bytes[^1] == 0)
+                    {
+                        break;
+                    }
+                }
+
+                window.Close();
+                return bytes;
+            },
+            TestContext.Current.CancellationToken);
+
+        Assert.True(attempts[^1] == 0, $"bytes allocated per pass of 100 steps: {string.Join(", ", attempts)}");
     }
 
     [Fact]
