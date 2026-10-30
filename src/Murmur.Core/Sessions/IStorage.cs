@@ -74,8 +74,8 @@ public interface ISearchIndex
     ValueTask<IReadOnlyList<SearchHit>> SearchVectorAsync(ReadOnlyMemory<float> embedding, SessionId? scope, int limit, CancellationToken cancellationToken);
 }
 
-/// <summary>Everything persisted: session metadata, transcripts, search index and session files.</summary>
-public interface IStorage : ISessionStore, ITranscriptStore, ISearchIndex
+/// <summary>Everything persisted: session metadata, transcripts, summaries, search index and session files.</summary>
+public interface IStorage : ISessionStore, ITranscriptStore, ISearchIndex, ISummaryStore
 {
     /// <summary>Folder that contains the database and every session folder.</summary>
     string RootDirectory { get; }
