@@ -41,7 +41,7 @@ namespace Murmur.Capture.Windows.Video;
 /// that calls <see cref="Close"/> or <see cref="Dispose"/>).</para>
 /// UNVERIFIED-ON-WINDOWS until the Windows-trait tests run in CI.
 /// </remarks>
-public sealed class MediaEngineVideoPlayer : IVideoPlayer
+public sealed class MediaEngineVideoPlayer : IVideoPlayer, IVideoPlayerControls
 {
     /// <summary>Consecutive failed transfers of a due frame before <see cref="Failed"/> is raised (once per file).</summary>
     internal const int TransferFailuresBeforeReport = 60;
@@ -75,6 +75,7 @@ public sealed class MediaEngineVideoPlayer : IVideoPlayer
     private readonly int[] _stepsHealed = new int[RecoveryStepKinds];
     private readonly RecoveryLogEntry[] _recoveryLog = new RecoveryLogEntry[RecoveryLogSize];
     private int _recoveryLogCount;
+    private double _playbackRate = 1;
 
     private GpuDevice? _gpu;
     private nint _wicFactory;
@@ -147,6 +148,8 @@ public sealed class MediaEngineVideoPlayer : IVideoPlayer
 
     /// <summary>How often a seek was healed by the step it followed (see <see cref="SeekRecovery.TakeHealedBy"/>).</summary>
     internal int RecoveryHealed => SumOf(_stepsHealed);
+    /// <summary>The HRESULT of the last refused playback rate, 0 when the last rate was accepted (diagnostics).</summary>
+    internal int LastRateResult { get; private set; }
 
     public async ValueTask OpenAsync(string filePath, CancellationToken cancellationToken)
     {
@@ -304,6 +307,7 @@ public sealed class MediaEngineVideoPlayer : IVideoPlayer
         text.Append(CultureInfo.InvariantCulture, $"paused {IMFMediaEngine.IsPaused(engine) != 0}, ended {IMFMediaEngine.IsEnded(engine) != 0}, ");
         text.Append(CultureInfo.InvariantCulture, $"seeking {IMFMediaEngine.IsSeeking(engine) != 0}, currentTime {IMFMediaEngine.GetCurrentTime(engine):F3} s, ");
         text.Append(CultureInfo.InvariantCulture, $"duration {IMFMediaEngine.GetDuration(engine):F3} s, seek queue {(_seeks.IsBusy ? _seeks.LatestTarget.TotalSeconds.ToString("F3", CultureInfo.InvariantCulture) + " s" : "idle")}, ");
+        text.Append(CultureInfo.InvariantCulture, $"rate {_playbackRate} (last result 0x{LastRateResult:X8}), ");
         text.Append(CultureInfo.InvariantCulture, $"last copied pts {_frames.CopiedPts?.ToString(CultureInfo.InvariantCulture) ?? "none"}, ");
         text.Append(CultureInfo.InvariantCulture, $"{DescribeRecovery()}; events: ");
         text.Append(session.DescribeEvents());
@@ -346,6 +350,10 @@ public sealed class MediaEngineVideoPlayer : IVideoPlayer
             LastTransferResult = 0;
             ResetRecoveryDiagnostics();
             _open = true;
+            if (_playbackRate != 1)
+            {
+                ApplyPlaybackRate(session);
+            }
         }
         catch
         {
@@ -661,6 +669,35 @@ public sealed class MediaEngineVideoPlayer : IVideoPlayer
     private void OnFailed(string message) => Failed?.Invoke(message);
 
     private void OnResourceLost() => Volatile.Write(ref _resourceLost, 1);
+
+    /// <summary>
+    /// The rate the open file plays at (1 = real time), kept for the files opened later. The session view sets it to the speed of
+    /// the audio, which is the master clock: a video that plays at 1x while the audio runs at 2x would drift out of tolerance
+    /// and be re-sought over and over. Clamped to [0.25, 4]; a failure is reported through <see cref="Failed"/>, not thrown.
+    /// The engine keeps the rate across Play, Pause and seeks (HTML playbackRate semantics), so a Play-then-Pause recovery step does not reset it.
+    /// </summary>
+    public void SetPlaybackRate(double rate)
+    {
+        _playbackRate = double.IsNaN(rate) ? 1 : Math.Clamp(rate, 0.25, 4);
+        if (_open && _session is { } session)
+        {
+            ApplyPlaybackRate(session);
+        }
+    }
+
+    /// <summary>
+    /// A refused rate (e.g. MF_E_UNSUPPORTED_RATE at 2x) is not a failure of the segment: <see cref="Failed"/> would make the view
+    /// give the segment up. The engine goes back to 1x, <see cref="LastRateResult"/> keeps the HRESULT, and the audio clock keeps the
+    /// picture in step by seeking.
+    /// </summary>
+    private void ApplyPlaybackRate(EngineSession session)
+    {
+        var engine = session.Engine;
+        LastRateResult = PlaybackRateRequest.Apply(
+            _playbackRate,
+            rate => IMFMediaEngine.SetDefaultPlaybackRate(engine, rate),
+            rate => IMFMediaEngine.SetPlaybackRate(engine, rate));
+    }
 
     /// <summary>
     /// One Media Engine with its notify callback, for one file. Created and disposed on the player's thread; engine events

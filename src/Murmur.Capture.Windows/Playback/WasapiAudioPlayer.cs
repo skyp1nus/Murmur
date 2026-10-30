@@ -27,6 +27,11 @@ public sealed class WasapiAudioPlayback : IAudioPlayback
 /// seeking to the end while playing -&gt; Ended, seeking before the end while Ended -&gt; Paused.</item>
 /// <item><see cref="Position"/> = (frames submitted since the last flush - GetCurrentPadding) as time, refreshed by the
 /// render thread every device period (~10 ms), so it is accurate to ~20 ms; it never exceeds <see cref="Duration"/>.</item>
+/// <item>Speed (<see cref="IAudioPlayerControls"/>): 0.5-2x, pitch preserved (WSOLA time stretch of the mixed tracks, see
+/// <see cref="WsolaStretcher"/>), changeable at any time (it takes effect within ~50 ms, without a click) and kept across
+/// seeks, re-opening and a restarted stream. <see cref="Position"/> and the end are in media time: the position advances at
+/// <c>speed</c> x real time and <see cref="Duration"/> is the recording's own, so the transcript highlight and the screen
+/// video (which follow <see cref="Position"/>) stay in step.</item>
 /// <item>Ended: when the data has been played out, State = Ended, Position = Duration, StateChanged(Ended) once.</item>
 /// <item>Faults: when the stream dies (AUDCLNT_E_DEVICE_INVALIDATED: the output was unplugged or disabled, the audio
 /// service stopped, a track became unreadable) the player becomes Paused at the last heard position, raises
@@ -57,6 +62,7 @@ public sealed class WasapiAudioPlayer : IAudioPlayer, IAudioPlayerControls, IPla
     private IPlaybackEngine? _engine;
     private TrackMixer? _mixer;
     private int _mutedMask;
+    private double _speed = 1;
     private CaptureFault? _lastFault;
     private bool _disposed;
 
@@ -111,15 +117,33 @@ public sealed class WasapiAudioPlayer : IAudioPlayer, IAudioPlayerControls, IPla
     /// <summary>Any of the opened tracks can be silenced (the mixer skips it; the position is unaffected).</summary>
     public bool CanMuteTracks => true;
 
-    /// <summary>Not yet: the render engine plays at the speed of the recording (another speed needs a time-stretching mixer).</summary>
-    public bool CanChangeSpeed => false;
+    /// <summary>Yes: the render engine time-stretches the mix (WSOLA, pitch preserved) between 0.5x and 2x.</summary>
+    public bool CanChangeSpeed => true;
 
-    /// <summary>Always 1 (see <see cref="CanChangeSpeed"/>).</summary>
-    public double Speed => 1;
+    /// <summary>The speed in effect, 1 = the recording's own.</summary>
+    public double Speed
+    {
+        get
+        {
+            lock (_gate)
+            {
+                return _speed;
+            }
+        }
+    }
 
-    /// <summary>Does nothing: the speed of the recording is the only one this player has.</summary>
+    /// <summary>
+    /// Clamps to [0.5, 2] (NaN = 1) and applies at once, also while playing and for engines created later. Allowed before the
+    /// tracks are opened.
+    /// </summary>
     public void SetSpeed(double speed)
     {
+        speed = WsolaStretcher.ClampSpeed(speed);
+        lock (_gate)
+        {
+            _speed = speed;
+            _engine?.SetSpeed(speed);
+        }
     }
 
     /// <summary>
@@ -214,6 +238,7 @@ public sealed class WasapiAudioPlayer : IAudioPlayer, IAudioPlayerControls, IPla
             _engine = engine;
             _mixer = mixer;
             mixer.MutedMask = _mutedMask;
+            engine.SetSpeed(_speed);
             _paths = paths;
             _sampleRate = mixer.SampleRate;
             _totalFrames = mixer.TotalFrames;
@@ -421,6 +446,7 @@ public sealed class WasapiAudioPlayer : IAudioPlayer, IAudioPlayerControls, IPla
             mixer = OpenMixer(_paths);
             mixer.MutedMask = _mutedMask;
             _engine = _factory(mixer, frame, this);
+            _engine.SetSpeed(_speed);
             _mixer = mixer;
             return true;
         }

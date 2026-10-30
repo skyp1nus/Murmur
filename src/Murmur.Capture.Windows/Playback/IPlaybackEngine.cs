@@ -19,6 +19,12 @@ internal interface IPlaybackEngine : IDisposable
     /// <summary>IAudioClient.Stop: the buffered audio and the position are kept.</summary>
     int Pause();
 
+    /// <summary>
+    /// Plays at <paramref name="speed"/> (already clamped, 1 = the recording's own speed) from the next hop on; lock-free and
+    /// callable while rendering. <see cref="PlayedFrame"/> stays in media frames.
+    /// </summary>
+    void SetSpeed(double speed);
+
     /// <summary>Flushes (Stop + Reset), repositions the tracks to <paramref name="frame"/>, and plays if asked.</summary>
     int Seek(long frame, bool play);
 }

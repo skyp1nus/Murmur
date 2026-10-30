@@ -74,6 +74,8 @@ public sealed unsafe class VideoInteropLayoutTests
         { "IMFMediaEngine::SetCurrentTime", 17 },
         { "IMFMediaEngine::GetDuration", 19 },
         { "IMFMediaEngine::IsPaused", 20 },
+        { "IMFMediaEngine::SetDefaultPlaybackRate", 22 },
+        { "IMFMediaEngine::SetPlaybackRate", 24 },
         { "IMFMediaEngine::IsEnded", 27 },
         { "IMFMediaEngine::SetAutoPlay", 29 },
         { "IMFMediaEngine::SetLoop", 31 },
@@ -166,6 +168,8 @@ public sealed unsafe class VideoInteropLayoutTests
             case "IMFMediaEngine::SetCurrentTime": IMFMediaEngine.SetCurrentTime(s, 1.5); break;
             case "IMFMediaEngine::GetDuration": IMFMediaEngine.GetDuration(s); break;
             case "IMFMediaEngine::IsPaused": IMFMediaEngine.IsPaused(s); break;
+            case "IMFMediaEngine::SetDefaultPlaybackRate": IMFMediaEngine.SetDefaultPlaybackRate(s, 1.5); break;
+            case "IMFMediaEngine::SetPlaybackRate": IMFMediaEngine.SetPlaybackRate(s, 1.5); break;
             case "IMFMediaEngine::IsEnded": IMFMediaEngine.IsEnded(s); break;
             case "IMFMediaEngine::SetAutoPlay": IMFMediaEngine.SetAutoPlay(s, 0); break;
             case "IMFMediaEngine::SetLoop": IMFMediaEngine.SetLoop(s, 0); break;

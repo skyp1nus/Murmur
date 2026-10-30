@@ -127,6 +127,118 @@ public sealed class SessionVideoTests : IDisposable
     }
 
     [Fact]
+    public async Task TheSpeedChip_ReachesTheVideo()
+    {
+        var (vm, video, _) = Create();
+        await vm.LoadAsync();
+        Assert.Equal(1, video.Rate);
+
+        vm.CycleSpeedCommand.Execute(null);
+        Assert.Equal(1.25, video.Rate);
+        vm.CycleSpeedCommand.Execute(null);
+        vm.CycleSpeedCommand.Execute(null);
+        Assert.Equal(2, video.Rate);
+        Assert.Equal(_fixture.Player.Speed, video.Rate);
+        vm.CycleSpeedCommand.Execute(null);
+        vm.CycleSpeedCommand.Execute(null);
+        Assert.Equal(1, video.Rate);
+    }
+
+    [Fact]
+    public async Task ANewSegment_KeepsTheCurrentRate_WithoutTheViewModelAskingAgain()
+    {
+        var (vm, video, _) = Create();
+        await vm.LoadAsync();
+        vm.CycleSpeedCommand.Execute(null);
+        vm.CycleSpeedCommand.Execute(null); // 1.5x
+
+        vm.SeekTo(S(15)); // the gap closes segment 0
+        vm.SeekTo(S(25)); // segment 1 opens
+
+        Assert.Equal(1.5, video.Rate);
+        // The player keeps the rate across the segments it opens (IVideoPlayerControls): no per-open call.
+        Assert.Equal([1, 1.25, 1.5], video.Rates);
+        Assert.Equal(2, video.Opens.Count);
+    }
+
+    [Fact]
+    public async Task ASpeedChosenBeforeTheVideoExists_IsHandedOverWhenItIsCreated()
+    {
+        _fixture.Player.SetSpeed(2);
+        var (vm, video, _) = Create();
+        vm.CycleSpeedCommand.Execute(null); // 1.25x on the view model, applied again when the player opens
+
+        await vm.LoadAsync();
+
+        Assert.Equal(_fixture.Player.Speed, video.Rate);
+    }
+
+    [Fact]
+    public async Task AVideoPlayerWithoutRateControl_StillPlaysAndSeeks()
+    {
+        var inner = new FakeVideoPlayer(S(10));
+        var record = _fixture.Record with { ScreenSegments = TwoSegments };
+        foreach (var segment in TwoSegments)
+        {
+            File.WriteAllBytes(_fixture.Files.ScreenSegment(segment.Index), [0]);
+        }
+
+        var vm = new SessionViewModel(record, _fixture.Files, _fixture.Transcripts, _fixture.Player, _fixture.Processing, _fixture.Time, action => action(), videoPlayback: new PlainVideoPlayback(inner));
+        await vm.LoadAsync();
+
+        vm.CycleSpeedCommand.Execute(null);
+        vm.PlayPauseCommand.Execute(null);
+        vm.SeekTo(S(5));
+
+        Assert.True(vm.IsVideoOpen);
+        Assert.Equal(1.25, _fixture.Player.Speed);
+        Assert.Empty(inner.Rates);
+        Assert.Equal(1, inner.Plays);
+        Assert.Equal([S(5)], inner.Seeks);
+    }
+
+    /// <summary>A video player that offers nothing beyond <see cref="IVideoPlayer"/>.</summary>
+    private sealed class PlainVideoPlayer(IVideoPlayer inner) : IVideoPlayer
+    {
+        public bool IsOpen => inner.IsOpen;
+
+        public TimeSpan Duration => inner.Duration;
+
+        public VideoSize Size => inner.Size;
+
+        public TimeSpan Position => inner.Position;
+
+        public bool IsPlaying => inner.IsPlaying;
+
+        public event Action<string>? Failed
+        {
+            add => inner.Failed += value;
+            remove => inner.Failed -= value;
+        }
+
+        public ValueTask OpenAsync(string filePath, CancellationToken cancellationToken) => inner.OpenAsync(filePath, cancellationToken);
+
+        public void Close() => inner.Close();
+
+        public void Play() => inner.Play();
+
+        public void Pause() => inner.Pause();
+
+        public void Seek(TimeSpan position) => inner.Seek(position);
+
+        public bool TryCopyFrame(Span<byte> destination, int width, int height, int stride) => inner.TryCopyFrame(destination, width, height, stride);
+
+        public void Dispose() => inner.Dispose();
+    }
+
+    private sealed class PlainVideoPlayback(IVideoPlayer inner) : IVideoPlayback
+    {
+        public bool IsSupported => true;
+
+        public IVideoPlayer CreateVideoPlayer() => new PlainVideoPlayer(inner);
+    }
+
+    [Fact]
     public async Task PlayAndPause_FollowTheAudio()
     {
         var (vm, video, _) = Create();

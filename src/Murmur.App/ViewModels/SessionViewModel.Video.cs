@@ -83,6 +83,7 @@ public sealed partial class SessionViewModel
         player.Failed += OnVideoFailed;
         VideoPlayer = player;
         HasVideo = true;
+        ApplyVideoRate();
         SyncVideo();
     }
 

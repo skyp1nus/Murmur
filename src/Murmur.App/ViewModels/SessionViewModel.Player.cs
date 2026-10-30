@@ -66,6 +66,33 @@ public sealed partial class SessionViewModel
             Speed = controls.Speed;
             SpeedText = SpeedLabel(Speed);
         }
+
+        ApplyVideoRate();
+    }
+
+    /// <summary>
+    /// Hands the speed in effect to the screen video (when its player can follow it), so it keeps pace with the audio clock instead of
+    /// being re-sought all the time, and tells the sync the audio rate. Called on every speed change and when the player is created;
+    /// the player keeps the rate across the segments it opens (<see cref="IVideoPlayerControls"/>).
+    /// </summary>
+    private void ApplyVideoRate()
+    {
+        if (_sync is { } sync)
+        {
+            sync.Rate = Speed; // both clocks are media time: the sync expects the audio to advance at this rate per second of wall time
+        }
+
+        if (_video is IVideoPlayerControls video)
+        {
+            try
+            {
+                video.SetPlaybackRate(Speed);
+            }
+            catch (Exception)
+            {
+                // A video that cannot change its rate is kept in step by the audio clock's seeks, as before.
+            }
+        }
     }
 
     partial void OnYouOnChanged(bool value) => ApplyTrackFilters();
@@ -86,8 +113,11 @@ public sealed partial class SessionViewModel
         if (_controls.CanChangeSpeed)
         {
             _controls.SetSpeed(Speed);
+            Speed = _controls.Speed;
+            SpeedText = SpeedLabel(Speed);
         }
 
+        ApplyVideoRate();
         ApplyTrackFilters();
     }
 

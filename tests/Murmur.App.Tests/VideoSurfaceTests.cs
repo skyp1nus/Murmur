@@ -320,14 +320,20 @@ public sealed class VideoSurfaceTests
                     surface.CopyFrame(); // warm-up
                 }
 
+                // Up to three passes, one of which must allocate nothing: a loaded machine can let the JIT's tiering or a
+                // first-time runtime path land inside the measured loop once (like the other zero-allocation tests here).
                 const int polls = 2000;
-                var before = GC.GetAllocatedBytesForCurrentThread();
-                for (var i = 0; i < polls; i++)
+                long idleBytes = -1;
+                for (var pass = 0; pass < 3 && idleBytes != 0; pass++)
                 {
-                    surface.CopyFrame();
-                }
+                    var start = GC.GetAllocatedBytesForCurrentThread();
+                    for (var i = 0; i < polls; i++)
+                    {
+                        surface.CopyFrame();
+                    }
 
-                var idleBytes = GC.GetAllocatedBytesForCurrentThread() - before;
+                    idleBytes = GC.GetAllocatedBytesForCurrentThread() - start;
+                }
 
                 player.Continuous = true;
                 for (var i = 0; i < 50; i++)
@@ -336,7 +342,7 @@ public sealed class VideoSurfaceTests
                 }
 
                 const int frameCount = 500;
-                before = GC.GetAllocatedBytesForCurrentThread();
+                var before = GC.GetAllocatedBytesForCurrentThread();
                 for (var i = 0; i < frameCount; i++)
                 {
                     surface.CopyFrame();

@@ -7,7 +7,7 @@ namespace Murmur.App.Tests.Fakes;
 /// are a solid colour. A picture is "new" once per <see cref="NewPicture"/> call, or on every call with
 /// <see cref="Continuous"/>.
 /// </summary>
-internal sealed class FakeVideoPlayer : IVideoPlayer
+internal sealed class FakeVideoPlayer : IVideoPlayer, IVideoPlayerControls
 {
     private readonly TimeSpan _fileDuration;
     private bool _fresh;
@@ -43,6 +43,18 @@ internal sealed class FakeVideoPlayer : IVideoPlayer
     public int Pauses { get; private set; }
 
     public bool Disposed { get; private set; }
+
+    /// <summary>The rate asked for last (1 until then); every call is also in <see cref="Calls"/> as "rate:x".</summary>
+    public double Rate { get; private set; } = 1;
+
+    public List<double> Rates { get; } = [];
+
+    public void SetPlaybackRate(double rate)
+    {
+        Rate = rate;
+        Rates.Add(rate);
+        Calls.Add(FormattableString.Invariant($"rate:{rate}"));
+    }
 
     /// <summary>Completes the open when set by the test; null = the open completes at once.</summary>
     public TaskCompletionSource? OpenGate { get; set; }

@@ -33,6 +33,14 @@ internal static class PlaybackTiming
     public static long PlayedFrame(long startFrame, long submittedFrames, uint paddingFrames, long totalFrames) =>
         Math.Clamp(startFrame + submittedFrames - paddingFrames, 0, totalFrames);
 
+    /// <summary>
+    /// The media frame being heard, from the media position of the output frame at the speaker (<paramref name="heardMedia"/>, see
+    /// <see cref="WsolaStretcher.MediaAtOutput"/>: output submitted minus <c>GetCurrentPadding</c>), rounded and clamped to
+    /// [<paramref name="startFrame"/>, total]. At speed 1 this equals <see cref="PlayedFrame"/>.
+    /// </summary>
+    public static long PlayedMediaFrame(long startFrame, double heardMedia, long totalFrames) =>
+        Math.Clamp((long)Math.Floor(heardMedia + 0.5), startFrame, totalFrames);
+
     /// <summary>WAVEFORMATEX (mmreg.h, 18 bytes, pack 1) for mono 16-bit PCM at <paramref name="sampleRate"/>.</summary>
     public static byte[] Pcm16MonoFormat(int sampleRate)
     {
