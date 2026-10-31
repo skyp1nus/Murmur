@@ -2,7 +2,7 @@ namespace Murmur.Core.Recording;
 
 /// <summary>
 /// Keeps the managed heap from growing for as long as a recording runs: while the recorder is
-/// <see cref="RecorderState.Recording"/> it induces a young-generation (gen0) collection every
+/// <see cref="RecorderState.Recording"/> or <see cref="RecorderState.Paused"/> it induces a young-generation (gen0) collection every
 /// <see cref="Interval"/>, but only when at least <see cref="MinimumAllocatedBytes"/> were allocated since the
 /// previous check.
 /// </summary>
@@ -21,6 +21,10 @@ namespace Murmur.Core.Recording;
 /// <b>Cost.</b> A gen0 collection of this small heap takes well under a millisecond, twice a minute; the capture
 /// rings hold seconds of audio, so a pause cannot drop frames. Nothing runs while idle and nothing ever runs on an
 /// audio thread: the collection is made from a timer (thread-pool) callback.
+/// </para>
+/// <para>
+/// <b>Paused counts as recording.</b> A paused recording writes nothing, but its screen is still on: the 4 Hz poll, the
+/// orb and the level strips keep allocating, so a long pause grows the working set exactly like a recording does.
 /// </para>
 /// </remarks>
 public sealed class RecordingHeapTrimmer : IDisposable
@@ -118,7 +122,7 @@ public sealed class RecordingHeapTrimmer : IDisposable
     {
         lock (_gate)
         {
-            if (_disposed || _timer is null || _recorder.State != RecorderState.Recording)
+            if (_disposed || _timer is null || _recorder.State is not (RecorderState.Recording or RecorderState.Paused))
             {
                 return;
             }
@@ -155,7 +159,7 @@ public sealed class RecordingHeapTrimmer : IDisposable
                 return;
             }
 
-            if (state == RecorderState.Recording)
+            if (state is RecorderState.Recording or RecorderState.Paused)
             {
                 if (_timer is null)
                 {

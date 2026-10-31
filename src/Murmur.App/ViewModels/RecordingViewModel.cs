@@ -1,6 +1,7 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Murmur.App.Controls;
+using Murmur.App.Localization;
 using Murmur.App.Resources;
 using Murmur.Core.Capture;
 using Murmur.Core.Recording;
@@ -34,6 +35,9 @@ public sealed partial class RecordingViewModel : ObservableObject, ILevelSource,
     private bool _titleEdited;
     private bool _microphoneRequested;
     private bool _systemAudioRequested;
+    private long _shownSeconds = -1;
+    private readonly TrackDetailMemo _microphoneDetail = new();
+    private readonly TrackDetailMemo _systemDetail = new();
     private string _microphoneName = string.Empty;
     private string _systemAudioName = string.Empty;
     private CancellationTokenSource? _copiedReset;
@@ -238,7 +242,7 @@ public sealed partial class RecordingViewModel : ObservableObject, ILevelSource,
 
         Error = null;
         ClearNotices();
-        TimerText = UiFormat.Duration(TimeSpan.Zero);
+        ResetTimer();
         RefreshDevices();
         ApplyDefaults();
         NewTitle();
@@ -249,13 +253,35 @@ public sealed partial class RecordingViewModel : ObservableObject, ILevelSource,
     {
         if (State is RecorderState.Recording or RecorderState.Paused)
         {
-            TimerText = UiFormat.Duration(_recorder.Elapsed);
+            ShowElapsed(_recorder.Elapsed);
             UpdateTracks();
             if (State == RecorderState.Recording)
             {
                 SyncScreenWithRecorder();
             }
         }
+    }
+
+    /// <summary>
+    /// The timer shows whole seconds: the text is built when the second changes, not at every 4 Hz poll (three of four polls
+    /// would build, compare and throw away the same string).
+    /// </summary>
+    private void ResetTimer()
+    {
+        _shownSeconds = -1;
+        TimerText = UiFormat.Duration(TimeSpan.Zero);
+    }
+
+    private void ShowElapsed(TimeSpan elapsed)
+    {
+        var seconds = (long)elapsed.TotalSeconds;
+        if (seconds == _shownSeconds && seconds >= 0)
+        {
+            return;
+        }
+
+        _shownSeconds = seconds;
+        TimerText = UiFormat.Duration(elapsed);
     }
 
     /// <summary>Starts the recording, or stops it when one is running.</summary>
@@ -326,7 +352,7 @@ public sealed partial class RecordingViewModel : ObservableObject, ILevelSource,
 
             _sessionId = null;
             ApplyState(_recorder.State);
-            TimerText = UiFormat.Duration(TimeSpan.Zero);
+            ResetTimer();
             ResetTracks();
 
             // The session's own text (Error below) carries every warning of the recording.
@@ -601,7 +627,7 @@ public sealed partial class RecordingViewModel : ObservableObject, ILevelSource,
             _committedTitle = session.Title;
             _titleEdited = false;
             Title = session.Title;
-            TimerText = UiFormat.Duration(TimeSpan.Zero);
+            ResetTimer();
             ResetTracks();
             UpdateTracks();
 
@@ -830,7 +856,7 @@ public sealed partial class RecordingViewModel : ObservableObject, ILevelSource,
 
         _sessionId = null;
         Error = reason;
-        TimerText = UiFormat.Duration(TimeSpan.Zero);
+        ResetTimer();
         ResetTracks();
     }
 
@@ -975,6 +1001,28 @@ public sealed partial class RecordingViewModel : ObservableObject, ILevelSource,
     {
         var requested = track.IsMicrophone ? _microphoneRequested : _systemAudioRequested;
         var recorded = track.IsMicrophone ? _recorder.Current?.HasMicrophone ?? requested : _recorder.Current?.HasSystemAudio ?? requested;
+
+        // The text depends on these inputs only and is asked for at every poll: it is built again only when one of them changes.
+        var memo = track.IsMicrophone ? _microphoneDetail : _systemDetail;
+        if (memo.Matches(requested, recorded, device, sessionError, UiCulture.Language))
+        {
+            return memo.Text;
+        }
+
+        var text = BuildTrackDetail(track, device, loopback, deniedCode, sessionError, requested, recorded);
+        memo.Store(requested, recorded, device, sessionError, UiCulture.Language, text);
+        return text;
+    }
+
+    private static string BuildTrackDetail(
+        RecordingTrackViewModel track,
+        string device,
+        bool loopback,
+        string deniedCode,
+        string? sessionError,
+        bool requested,
+        bool recorded)
+    {
         if (!requested)
         {
             return Strings.Recording_TrackOffDetail;
@@ -993,6 +1041,32 @@ public sealed partial class RecordingViewModel : ObservableObject, ILevelSource,
         }
 
         return loopback ? UiText.Format(Strings.Recording_Loopback, device) : device;
+    }
+
+    /// <summary>The last <see cref="TrackDetail"/> of one track with the inputs it was built from (compared by reference: they are stored strings).</summary>
+    private sealed class TrackDetailMemo
+    {
+        private bool _requested;
+        private bool _recorded;
+        private string? _device;
+        private string? _error;
+        private string? _language;
+
+        public string Text { get; private set; } = string.Empty;
+
+        public bool Matches(bool requested, bool recorded, string device, string? error, string language) =>
+            _language is not null && _requested == requested && _recorded == recorded && ReferenceEquals(_device, device)
+                && ReferenceEquals(_error, error) && ReferenceEquals(_language, language);
+
+        public void Store(bool requested, bool recorded, string device, string? error, string language, string text)
+        {
+            _requested = requested;
+            _recorded = recorded;
+            _device = device;
+            _error = error;
+            _language = language;
+            Text = text;
+        }
     }
 
     private static bool HasCode(string? sessionError, string code)

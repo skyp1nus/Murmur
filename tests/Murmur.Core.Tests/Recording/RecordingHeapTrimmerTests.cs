@@ -76,6 +76,32 @@ public sealed class RecordingHeapTrimmerTests
     }
 
     [Fact]
+    public void WhilePaused_TheScreenStillAllocates_SoItIsTrimmedLikeARecording()
+    {
+        using var trimmer = Create();
+        _recorder.BeginRecording(Session());
+        _recorder.Pause();
+
+        Assert.True(trimmer.IsArmed);
+        for (var i = 1; i <= 4; i++)
+        {
+            _allocated += Minimum;
+            _time.Advance(Interval);
+            Assert.Equal(i, _collections);
+        }
+
+        // Resuming neither re-arms a second timer nor skips a check.
+        _recorder.Resume();
+        Assert.Equal(1, _time.ActiveTimers);
+        _allocated += Minimum;
+        _time.Advance(Interval);
+        Assert.Equal(5, _collections);
+
+        _recorder.EndRecording();
+        Assert.False(trimmer.IsArmed);
+    }
+
+    [Fact]
     public void AfterTheRecording_TheTimerIsReleased_AndANewRecordingArmsItAgain()
     {
         using var trimmer = Create();

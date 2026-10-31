@@ -30,6 +30,9 @@ public enum RecordingTrackState
 public sealed partial class RecordingTrackViewModel : ObservableObject
 {
     private double _lastDb = LevelHistory.FloorDb;
+    private int _shownDb = int.MinValue;
+    private string? _shownDbFormat;
+    private string _shownDbText = string.Empty;
 
     public RecordingTrackViewModel(bool isMicrophone)
     {
@@ -70,6 +73,7 @@ public sealed partial class RecordingTrackViewModel : ObservableObject
     {
         History.Clear();
         _lastDb = LevelHistory.FloorDb;
+        _shownDb = int.MinValue;
         State = RecordingTrackState.Off;
         LevelText = string.Empty;
         Detail = string.Empty;
@@ -88,7 +92,7 @@ public sealed partial class RecordingTrackViewModel : ObservableObject
             }
 
             _lastDb = LevelHistory.DecibelsOf(peak);
-            LevelText = UiText.Format(Strings.Recording_LevelDb, FormatDb(_lastDb));
+            LevelText = LevelDbText(_lastDb);
         }
         else
         {
@@ -100,6 +104,24 @@ public sealed partial class RecordingTrackViewModel : ObservableObject
                 _ => Strings.Recording_TrackOff,
             };
         }
+    }
+
+    /// <summary>
+    /// "−18 dB" for a level. The text only has a whole number in it, so the last one is kept and built again only when the
+    /// number (or the language, which changes the format string) changes: a steady level costs nothing per poll.
+    /// </summary>
+    private string LevelDbText(double db)
+    {
+        var rounded = (int)Math.Round(db, MidpointRounding.AwayFromZero);
+        var format = Strings.Recording_LevelDb;
+        if (rounded != _shownDb || !ReferenceEquals(format, _shownDbFormat))
+        {
+            _shownDb = rounded;
+            _shownDbFormat = format;
+            _shownDbText = UiText.Format(format, FormatDb(db));
+        }
+
+        return _shownDbText;
     }
 
     /// <summary>A whole number with the typographic minus of the canvas ("−18"); 0 stays "0".</summary>
