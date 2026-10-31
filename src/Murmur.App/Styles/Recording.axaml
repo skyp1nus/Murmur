@@ -1,0 +1,26 @@
+<Styles xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+  <!--
+    Per-theme resources of the Recording screen (Recording.dc.html / RecordingDark.dc.html). Like the other style files this one holds
+    no literal colours: the chip fill is a palette brush that differs between the themes. The orb's numbers (halo blur and glow per
+    theme) are the generated Glass.Recording.* tokens.
+  -->
+  <Styles.Resources>
+    <ResourceDictionary>
+      <ResourceDictionary.MergedDictionaries>
+        <ResourceInclude Source="/Styles/Tokens.axaml" />
+      </ResourceDictionary.MergedDictionaries>
+
+      <ResourceDictionary.ThemeDictionaries>
+        <!-- The source chips are Canvas in the light theme and Surface in the dark one. -->
+        <ResourceDictionary x:Key="Light">
+          <StaticResource x:Key="Brush.RecordingChip" ResourceKey="Brush.Canvas" />
+        </ResourceDictionary>
+        <ResourceDictionary x:Key="Dark">
+          <StaticResource x:Key="Brush.RecordingChip" ResourceKey="Brush.Surface" />
+        </ResourceDictionary>
+      </ResourceDictionary.ThemeDictionaries>
+    </ResourceDictionary>
+  </Styles.Resources>
+</Styles>

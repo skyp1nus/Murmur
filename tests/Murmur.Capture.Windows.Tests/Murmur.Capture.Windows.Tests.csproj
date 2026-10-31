@@ -29,6 +29,8 @@
   <ItemGroup>
     <!-- The MP4 reader of scripts/check-recording.ps1: the recorded files must pass the same duration check. -->
     <Compile Include="..\..\scripts\MurmurMp4Scan.cs" Link="MurmurMp4Scan.cs" />
+    <!-- The in-memory session store of the Core tests: the recorder tests here need one. -->
+    <Compile Include="..\Murmur.Core.Tests\Fakes\InMemorySessionStore.cs" Link="InMemorySessionStore.cs" />
   </ItemGroup>
 
   <ItemGroup>

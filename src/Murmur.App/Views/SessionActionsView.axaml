@@ -1,0 +1,142 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Murmur.App.ViewModels"
+             xmlns:res="using:Murmur.App.Resources"
+             xmlns:controls="using:Murmur.App.Controls"
+             x:Class="Murmur.App.Views.SessionActionsView"
+             x:DataType="vm:SessionActionsViewModel">
+
+  <!-- The right side of the top bar of a recording (Session.dc.html): "Export" and "..." -->
+  <StackPanel Orientation="Horizontal"
+              Spacing="{StaticResource Space.8}">
+
+    <Button x:Name="ExportButton"
+            Classes="sessionGhost"
+            IsEnabled="{Binding Session.CanExport}">
+      <Button.Flyout>
+        <Flyout Placement="BottomEdgeAlignedRight"
+                FlyoutPresenterClasses="sessionMenu">
+          <StackPanel>
+            <Button Classes="sessionMenuItem"
+                    Content="{x:Static res:Strings.Session_ExportMarkdown}"
+                    Command="{Binding Session.ExportMarkdownCommand}"
+                    Click="OnMenuItemClick" />
+            <Button Classes="sessionMenuItem"
+                    Content="{x:Static res:Strings.Session_ExportText}"
+                    Command="{Binding Session.ExportTextCommand}"
+                    Click="OnMenuItemClick" />
+            <Button Classes="sessionMenuItem"
+                    Content="{x:Static res:Strings.Session_ExportSrt}"
+                    Command="{Binding Session.ExportSrtCommand}"
+                    Click="OnMenuItemClick" />
+            <Button Classes="sessionMenuItem"
+                    Content="{x:Static res:Strings.Session_ExportWebVtt}"
+                    Command="{Binding Session.ExportWebVttCommand}"
+                    Click="OnMenuItemClick" />
+          </StackPanel>
+        </Flyout>
+      </Button.Flyout>
+      <StackPanel Orientation="Horizontal"
+                  Spacing="{StaticResource Space.8}">
+        <controls:IconControl Width="{StaticResource Size.SearchIcon}"
+                              Height="{StaticResource Size.SearchIcon}"
+                              Data="{StaticResource Icon.Download}" />
+        <TextBlock Classes="sessionGhostText"
+                   Text="{x:Static res:Strings.Session_Export}" />
+      </StackPanel>
+    </Button>
+
+    <Button x:Name="MoreButton"
+            Classes="sessionGhost round"
+            AutomationProperties.Name="{x:Static res:Strings.Session_More}">
+      <Button.Flyout>
+        <Flyout
+                Placement="BottomEdgeAlignedRight"
+                FlyoutPresenterClasses="sessionMenu">
+          <Panel>
+            <!-- The list -->
+            <StackPanel IsVisible="{Binding IsMenu}">
+              <Button Classes="sessionMenuItem"
+                      Content="{x:Static res:Strings.Session_AskAi}"
+                      Command="{Binding Session.OpenInAskAiCommand}"
+                      Click="OnMenuItemClick" />
+              <Button Classes="sessionMenuItem"
+                      Content="{x:Static res:Strings.Session_Rename}"
+                      IsVisible="{Binding Session.CanEditRecording}"
+                      Command="{Binding BeginRenameCommand}" />
+              <Button Classes="sessionMenuItem"
+                      Content="{x:Static res:Strings.Session_ShowInFolder}"
+                      IsVisible="{Binding Session.CanShowFolder}"
+                      Command="{Binding Session.ShowInFolderCommand}"
+                      Click="OnMenuItemClick" />
+              <Button Classes="sessionMenuItem"
+                      Content="{x:Static res:Strings.Session_Retranscribe}"
+                      IsEnabled="{Binding Session.CanRetranscribe}"
+                      Command="{Binding Session.RetryCommand}"
+                      Click="OnMenuItemClick" />
+              <Button Classes="sessionMenuItem"
+                      Content="{x:Static res:Strings.Session_Delete}"
+                      IsVisible="{Binding Session.CanEditRecording}"
+                      IsEnabled="{Binding Session.CanDelete}"
+                      Command="{Binding BeginDeleteCommand}" />
+            </StackPanel>
+
+            <!-- Rename -->
+            <StackPanel Width="{StaticResource Size.SessionRenameWidth}"
+                        Spacing="{StaticResource Space.12}"
+                        Margin="{StaticResource Inset.8}"
+                        IsVisible="{Binding IsRename}">
+              <TextBox x:Name="RenameBox"
+                       Text="{Binding RenameText, Mode=TwoWay}"
+                       AutomationProperties.Name="{x:Static res:Strings.Session_Rename}" />
+              <StackPanel Orientation="Horizontal"
+                          HorizontalAlignment="Right"
+                          Spacing="{StaticResource Space.8}">
+                <Button Classes="outline compact"
+                        Content="{x:Static res:Strings.Session_Cancel}"
+                        Command="{Binding BackCommand}" />
+                <Button Classes="primary compact"
+                        Content="{x:Static res:Strings.Session_RenameSave}"
+                        Command="{Binding ApplyRenameCommand}"
+                        Click="OnMenuItemClick" />
+              </StackPanel>
+            </StackPanel>
+
+            <!-- Delete: asks first -->
+            <StackPanel Width="{StaticResource Size.SessionRenameWidth}"
+                        Spacing="{StaticResource Space.12}"
+                        Margin="{StaticResource Inset.8}"
+                        IsVisible="{Binding IsConfirmDelete}">
+              <TextBlock Classes="body medium"
+                         TextWrapping="Wrap"
+                         FontWeight="{StaticResource FontWeight.BodyMedium}"
+                         Text="{x:Static res:Strings.Session_DeleteConfirmTitle}" />
+              <TextBlock Classes="bodySm"
+                         TextWrapping="Wrap"
+                         Foreground="{DynamicResource Brush.Smoke}"
+                         Text="{x:Static res:Strings.Session_DeleteConfirmText}" />
+              <StackPanel Orientation="Horizontal"
+                          HorizontalAlignment="Right"
+                          Spacing="{StaticResource Space.8}">
+                <Button Classes="outline compact"
+                        Content="{x:Static res:Strings.Session_Cancel}"
+                        Command="{Binding BackCommand}" />
+                <Button Classes="primary compact"
+                        Content="{x:Static res:Strings.Session_Delete}"
+                        Command="{Binding ConfirmDeleteCommand}"
+                        Click="OnMenuItemClick" />
+              </StackPanel>
+            </StackPanel>
+          </Panel>
+        </Flyout>
+      </Button.Flyout>
+      <Viewbox Width="{StaticResource Size.SearchIcon}"
+               Height="{StaticResource Size.SearchIcon}">
+        <Canvas Width="24" Height="24">
+          <Path Data="{StaticResource Session.Dots}"
+                Fill="{Binding $parent[Button].Foreground}" />
+        </Canvas>
+      </Viewbox>
+    </Button>
+  </StackPanel>
+</UserControl>

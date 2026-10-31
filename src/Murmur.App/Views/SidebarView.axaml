@@ -6,129 +6,210 @@
              x:Class="Murmur.App.Views.SidebarView"
              x:DataType="vm:SidebarViewModel">
 
-  <!-- The left navigation of the mockups (Main / Settings): brand, new recording, pages, sections, offline note. -->
-  <Border BorderBrush="{DynamicResource Brush.Hairline}"
-          BorderThickness="{StaticResource Hairline.End}"
-          Width="{StaticResource Size.Sidebar}"
-          Padding="{StaticResource Inset.16}">
-    <Grid RowDefinitions="Auto,Auto,Auto,*,Auto"
-          RowSpacing="{StaticResource Space.24}">
+  <!-- The left navigation of the canvas: wordmark, New recording (the Recording pill while recording), pages, the context list, the offline note. -->
+  <Border Classes="sidebar">
+    <DockPanel LastChildFill="True">
 
-      <!-- Brand: the orb at rest and the wordmark -->
-      <StackPanel Grid.Row="0"
-                  Orientation="Horizontal"
-                  Spacing="{StaticResource Space.12}"
-                  Margin="{StaticResource Inset.8}">
-        <Grid Width="{StaticResource Size.OrbSlot}"
-              Height="{StaticResource Size.OrbSlot}"
-              VerticalAlignment="Center">
-          <controls:OrbControl Width="{StaticResource Size.SidebarOrb}"
-                               Height="{StaticResource Size.SidebarOrb}"
-                               HorizontalAlignment="Center"
-                               VerticalAlignment="Center" />
-        </Grid>
-        <TextBlock Classes="subheading"
-                   FontWeight="{StaticResource FontWeight.BodyMedium}"
-                   VerticalAlignment="Center"
-                   Text="Murmur" />
-      </StackPanel>
-
-      <Button Grid.Row="1"
-              Classes="primary"
-              HorizontalAlignment="Stretch"
-              Command="{Binding NewRecordingCommand}">
-        <StackPanel Orientation="Horizontal"
-                    Spacing="{StaticResource Space.12}">
-          <Ellipse Width="{StaticResource Space.8}"
-                   Height="{StaticResource Space.8}"
-                   VerticalAlignment="Center"
-                   Fill="{DynamicResource Brush.Canvas}" />
-          <TextBlock Foreground="{DynamicResource Brush.Canvas}"
-                     Text="{x:Static res:Strings.Library_NewRecording}" />
-        </StackPanel>
-      </Button>
-
-      <!-- Pages -->
-      <StackPanel Grid.Row="2"
-                  Spacing="{StaticResource Space.4}">
-        <Button Classes="nav"
-                Classes.on="{Binding IsLibrary}"
-                Command="{Binding ShowLibraryCommand}">
-          <StackPanel Orientation="Horizontal"
-                      Spacing="{StaticResource Space.12}">
-            <controls:IconControl Width="{StaticResource Size.NavIcon}"
-                                  Height="{StaticResource Size.NavIcon}"
-                                  Data="{StaticResource Icon.Library}" />
-            <TextBlock Foreground="{Binding $parent[ContentPresenter].Foreground}"
-                       Text="{x:Static res:Strings.Nav_Library}" />
-          </StackPanel>
-        </Button>
-        <Button Classes="nav"
-                Classes.on="{Binding IsChat}"
-                IsVisible="{Binding CanAskAi}"
-                Command="{Binding ShowChatCommand}">
-          <StackPanel Orientation="Horizontal"
-                      Spacing="{StaticResource Space.12}">
-            <controls:IconControl Width="{StaticResource Size.NavIcon}"
-                                  Height="{StaticResource Size.NavIcon}"
-                                  Data="{StaticResource Icon.Ai}" />
-            <TextBlock Foreground="{Binding $parent[ContentPresenter].Foreground}"
-                       Text="{x:Static res:Strings.Common_AskAi}" />
-          </StackPanel>
-        </Button>
-        <Button Classes="nav"
-                Classes.on="{Binding IsSettings}"
-                Command="{Binding ShowSettingsCommand}">
-          <StackPanel Orientation="Horizontal"
-                      Spacing="{StaticResource Space.12}">
-            <controls:IconControl Width="{StaticResource Size.NavIcon}"
-                                  Height="{StaticResource Size.NavIcon}"
-                                  Data="{StaticResource Icon.Settings}" />
-            <TextBlock Foreground="{Binding $parent[ContentPresenter].Foreground}"
-                       Text="{x:Static res:Strings.Nav_Settings}" />
-          </StackPanel>
-        </Button>
-      </StackPanel>
-
-      <!-- Sections of the Settings screen -->
-      <StackPanel Grid.Row="3"
-                  Spacing="{StaticResource Space.4}"
-                  IsVisible="{Binding IsSettings}">
-        <TextBlock Classes="note"
-                   Margin="{StaticResource Inset.12}"
-                   Text="{x:Static res:Strings.Nav_Sections}" />
-        <ItemsControl ItemsSource="{Binding Sections}">
-          <ItemsControl.ItemTemplate>
-            <DataTemplate x:DataType="vm:SettingsSection">
-              <Button Classes="nav sub"
-                      Command="{Binding $parent[ItemsControl].((vm:SidebarViewModel)DataContext).ShowSectionCommand}"
-                      CommandParameter="{Binding}">
-                <TextBlock Foreground="{Binding $parent[ContentPresenter].Foreground}"
-                           Text="{Binding Title}" />
-              </Button>
-            </DataTemplate>
-          </ItemsControl.ItemTemplate>
-        </ItemsControl>
-      </StackPanel>
-
-      <!-- Offline note -->
-      <Border Grid.Row="4"
-              Classes="well"
-              Padding="{StaticResource Inset.16}">
-        <StackPanel Spacing="{StaticResource Space.4}">
+      <!-- Offline note (not on the Settings screen of the canvas) -->
+      <Border DockPanel.Dock="Bottom"
+              Classes="offline"
+              VerticalAlignment="Bottom"
+              IsVisible="{Binding ShowOffline}">
+        <StackPanel Spacing="{StaticResource Space.6}">
           <StackPanel Orientation="Horizontal"
                       Spacing="{StaticResource Space.8}">
-            <controls:IconControl Width="{StaticResource Size.NavIcon}"
-                                  Height="{StaticResource Size.NavIcon}"
+            <controls:IconControl Width="{StaticResource Size.OfflineIcon}"
+                                  Height="{StaticResource Size.OfflineIcon}"
                                   Data="{StaticResource Icon.Shield}" />
-            <TextBlock Classes="label"
+            <TextBlock Classes="t13 medium"
                        VerticalAlignment="Center"
                        Text="{x:Static res:Strings.Nav_OfflineTitle}" />
           </StackPanel>
-          <TextBlock Classes="note"
-                     Text="{x:Static res:Strings.Nav_OfflineText}" />
+          <TextBlock Classes="note12"
+                     Text="{Binding OfflineText}" />
         </StackPanel>
       </Border>
-    </Grid>
+
+      <StackPanel DockPanel.Dock="Top"
+                  Spacing="{StaticResource Space.24}">
+
+        <!-- Wordmark -->
+        <StackPanel Orientation="Horizontal"
+                    Spacing="{StaticResource Space.10}"
+                    Margin="{StaticResource Inset.Wordmark}">
+          <controls:OrbDisc Width="{StaticResource Size.WordmarkOrb}"
+                            Height="{StaticResource Size.WordmarkOrb}"
+                            VerticalAlignment="Center" />
+          <TextBlock Classes="wordmark"
+                     VerticalAlignment="Center"
+                     Text="Murmur" />
+        </StackPanel>
+
+        <!-- New recording, or the pill that leads back to the recording that runs -->
+        <Panel>
+          <Button Classes="side"
+                  IsVisible="{Binding ShowNewRecording}"
+                  Command="{Binding NewRecordingCommand}">
+            <StackPanel Orientation="Horizontal"
+                        Spacing="{StaticResource Space.10}">
+              <Ellipse Width="{StaticResource Space.8}"
+                       Height="{StaticResource Space.8}"
+                       VerticalAlignment="Center"
+                       Fill="{DynamicResource Brush.Canvas}" />
+              <TextBlock Classes="t14"
+                         Foreground="{DynamicResource Brush.Canvas}"
+                         Text="{x:Static res:Strings.Library_NewRecording}" />
+            </StackPanel>
+          </Button>
+          <Button Classes="side recording"
+                  IsVisible="{Binding IsRecordingActive}"
+                  Command="{Binding ShowRecordingCommand}">
+            <StackPanel Orientation="Horizontal"
+                        Spacing="{StaticResource Space.10}">
+              <controls:OrbDisc Width="{StaticResource Size.PillOrb}"
+                                Height="{StaticResource Size.PillOrb}"
+                                VerticalAlignment="Center" />
+              <TextBlock Classes="t14"
+                         Foreground="{DynamicResource Brush.Ink}"
+                         Text="{x:Static res:Strings.Nav_Recording}" />
+            </StackPanel>
+          </Button>
+        </Panel>
+
+        <!-- Pages -->
+        <StackPanel Spacing="{StaticResource Space.2}">
+          <Button Classes="nav"
+                  Classes.on="{Binding IsLibrary}"
+                  Command="{Binding ShowLibraryCommand}">
+            <StackPanel Orientation="Horizontal"
+                        Spacing="{StaticResource Space.10}">
+              <controls:IconControl Width="{StaticResource Size.NavIcon}"
+                                    Height="{StaticResource Size.NavIcon}"
+                                    Data="{StaticResource Icon.Library}" />
+              <TextBlock Classes="t14"
+                         Foreground="{Binding $parent[ContentPresenter].Foreground}"
+                         Text="{x:Static res:Strings.Nav_Library}" />
+            </StackPanel>
+          </Button>
+          <Button Classes="nav"
+                  Classes.on="{Binding IsChat}"
+                  IsVisible="{Binding CanAskAi}"
+                  Command="{Binding ShowChatCommand}">
+            <StackPanel Orientation="Horizontal"
+                        Spacing="{StaticResource Space.10}">
+              <controls:IconControl Width="{StaticResource Size.NavIcon}"
+                                    Height="{StaticResource Size.NavIcon}"
+                                    Data="{StaticResource Icon.Ai}" />
+              <TextBlock Classes="t14"
+                         Foreground="{Binding $parent[ContentPresenter].Foreground}"
+                         Text="{x:Static res:Strings.Common_AskAi}" />
+            </StackPanel>
+          </Button>
+          <Button Classes="nav"
+                  Classes.on="{Binding IsSettings}"
+                  Command="{Binding ShowSettingsCommand}">
+            <StackPanel Orientation="Horizontal"
+                        Spacing="{StaticResource Space.10}">
+              <controls:IconControl Width="{StaticResource Size.NavIcon}"
+                                    Height="{StaticResource Size.NavIcon}"
+                                    Data="{StaticResource Icon.Settings}" />
+              <TextBlock Classes="t14"
+                         Foreground="{Binding $parent[ContentPresenter].Foreground}"
+                         Text="{x:Static res:Strings.Nav_Settings}" />
+            </StackPanel>
+          </Button>
+        </StackPanel>
+      </StackPanel>
+
+      <!-- Recent recordings / chats / sections of the settings: takes the room between the pages and the offline note and scrolls when it has more rows than room. -->
+      <ScrollViewer Margin="{StaticResource Margin.SidebarList}"
+                    HorizontalScrollBarVisibility="Disabled"
+                    VerticalScrollBarVisibility="Auto"
+                    IsVisible="{Binding HasEntries}">
+        <StackPanel Spacing="{StaticResource Space.2}">
+          <TextBlock Classes="t12 muted"
+                     Margin="{StaticResource Margin.NavTitle}"
+                     Text="{Binding ContextTitle}" />
+          <ItemsControl ItemsSource="{Binding Entries}">
+            <ItemsControl.ItemsPanel>
+              <ItemsPanelTemplate>
+                <StackPanel Spacing="{StaticResource Space.2}" />
+              </ItemsPanelTemplate>
+            </ItemsControl.ItemsPanel>
+            <ItemsControl.ItemTemplate>
+              <DataTemplate x:DataType="vm:SidebarEntry">
+                <Panel>
+                  <!-- A row that only opens something (recent recordings, settings sections) -->
+                  <Button Classes="nav sub"
+                          Classes.on="{Binding IsActive}"
+                          IsVisible="{Binding !CanManage}"
+                          Command="{Binding OpenCommand}">
+                    <TextBlock Classes="t13"
+                               TextTrimming="CharacterEllipsis"
+                               Foreground="{Binding $parent[ContentPresenter].Foreground}"
+                               Text="{Binding Title}" />
+                  </Button>
+
+                  <!-- A chat: the same pill with Rename and Delete in its context menu, and an inline editor while it is renamed -->
+                  <Panel IsVisible="{Binding CanManage}">
+                    <Button Classes="nav sub"
+                            Classes.on="{Binding IsActive}"
+                            IsVisible="{Binding ShowPill}"
+                            Command="{Binding OpenCommand}">
+                      <Button.ContextMenu>
+                        <ContextMenu>
+                          <MenuItem Header="{x:Static res:Strings.Chat_RenameChat}"
+                                    IsVisible="{Binding CanRename}"
+                                    Command="{Binding BeginRenameCommand}" />
+                          <MenuItem Header="{x:Static res:Strings.Chat_DeleteChat}"
+                                    IsVisible="{Binding CanDelete}"
+                                    Command="{Binding DeleteCommand}" />
+                        </ContextMenu>
+                      </Button.ContextMenu>
+                      <TextBlock Classes="t13"
+                                 TextTrimming="CharacterEllipsis"
+                                 Foreground="{Binding $parent[ContentPresenter].Foreground}"
+                                 Text="{Binding Title}" />
+                    </Button>
+                    <StackPanel Orientation="Horizontal"
+                                Spacing="{StaticResource Space.8}"
+                                Margin="{StaticResource Inset.Toggle}"
+                                IsVisible="{Binding IsConfirmingDelete}">
+                      <TextBlock Classes="t13 muted"
+                                 VerticalAlignment="Center"
+                                 Text="{x:Static res:Strings.Chat_DeleteQuestion}" />
+                      <Button Classes="suggestion"
+                              Command="{Binding ConfirmDeleteCommand}">
+                        <TextBlock Classes="t13 plain"
+                                   Foreground="{Binding $parent[ContentPresenter].Foreground}"
+                                   Text="{x:Static res:Strings.Chat_DeleteChat}" />
+                      </Button>
+                      <Button Classes="suggestion"
+                              Command="{Binding CancelDeleteCommand}">
+                        <TextBlock Classes="t13 plain"
+                                   Foreground="{Binding $parent[ContentPresenter].Foreground}"
+                                   Text="{x:Static res:Strings.Models_Cancel}" />
+                      </Button>
+                    </StackPanel>
+                    <controls:RenameBox Classes="chatRename"
+                                        IsVisible="{Binding IsEditing}"
+                                        AutomationProperties.Name="{x:Static res:Strings.Chat_RenameChat}"
+                                        Text="{Binding EditText, Mode=TwoWay}"
+                                        Finished="OnRenameFinished">
+                      <controls:RenameBox.KeyBindings>
+                        <KeyBinding Gesture="Enter"
+                                    Command="{Binding CommitRenameCommand}" />
+                        <KeyBinding Gesture="Escape"
+                                    Command="{Binding CancelRenameCommand}" />
+                      </controls:RenameBox.KeyBindings>
+                    </controls:RenameBox>
+                  </Panel>
+                </Panel>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+        </StackPanel>
+      </ScrollViewer>
+    </DockPanel>
   </Border>
 </UserControl>

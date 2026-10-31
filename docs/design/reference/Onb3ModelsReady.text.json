@@ -1,0 +1,487 @@
+{
+ "board": "Onb3ModelsReady",
+ "width": 1280,
+ "height": 800,
+ "texts": [
+  {
+   "text": "Murmur",
+   "lines": [
+    {
+     "x": 74,
+     "y": 42.5,
+     "w": 56.88,
+     "h": 19
+    }
+   ],
+   "baseline": 57.5,
+   "blockId": 0,
+   "blockText": "Murmur",
+   "fontFamily": "Inter, ui-sans-serif, system-ui, \"Segoe UI\", sans-serif",
+   "fontSize": 15,
+   "fontWeight": 600,
+   "letterSpacing": "-0.15px",
+   "lineHeight": "normal",
+   "color": "rgb(0, 0, 0)"
+  },
+  {
+   "text": "3 / 5",
+   "lines": [
+    {
+     "x": 521.14,
+     "y": 43.5,
+     "w": 39.7,
+     "h": 17
+    }
+   ],
+   "baseline": 56.5,
+   "blockId": 1,
+   "blockText": "3 / 5",
+   "fontFamily": "\"Geist Mono\", ui-monospace, monospace",
+   "fontSize": 13,
+   "fontWeight": 400,
+   "letterSpacing": "0.14px",
+   "lineHeight": "normal",
+   "color": "rgb(119, 113, 105)"
+  },
+  {
+   "text": "Download the brains.",
+   "lines": [
+    {
+     "x": 432.2,
+     "y": 168.8,
+     "w": 415.58,
+     "h": 54
+    }
+   ],
+   "baseline": 211.8,
+   "blockId": 2,
+   "blockText": "Download the brains.",
+   "fontFamily": "Inter, ui-sans-serif, system-ui, \"Segoe UI\", sans-serif",
+   "fontSize": 44,
+   "fontWeight": 300,
+   "letterSpacing": "-0.88px",
+   "lineHeight": "48.4px",
+   "color": "rgb(0, 0, 0)"
+  },
+  {
+   "text": "Models run on your PC. Pick what fits your hardware.",
+   "lines": [
+    {
+     "x": 435.41,
+     "y": 234.19,
+     "w": 409.17,
+     "h": 20
+    }
+   ],
+   "baseline": 250.19,
+   "blockId": 3,
+   "blockText": "Models run on your PC. Pick what fits your hardware.",
+   "fontFamily": "Inter, ui-sans-serif, system-ui, \"Segoe UI\", sans-serif",
+   "fontSize": 16,
+   "fontWeight": 400,
+   "letterSpacing": "0.14px",
+   "lineHeight": "24px",
+   "color": "rgb(119, 113, 105)"
+  },
+  {
+   "text": "Transcription · Parakeet v3",
+   "lines": [
+    {
+     "x": 285,
+     "y": 313.69,
+     "w": 196.36,
+     "h": 19
+    }
+   ],
+   "baseline": 328.69,
+   "blockId": 4,
+   "blockText": "Transcription · Parakeet v3",
+   "fontFamily": "Inter, ui-sans-serif, system-ui, \"Segoe UI\", sans-serif",
+   "fontSize": 15,
+   "fontWeight": 500,
+   "letterSpacing": "0.14px",
+   "lineHeight": "normal",
+   "color": "rgb(0, 0, 0)"
+  },
+  {
+   "text": "Required",
+   "lines": [
+    {
+     "x": 498.36,
+     "y": 316.19,
+     "w": 48.06,
+     "h": 14
+    }
+   ],
+   "baseline": 327.19,
+   "blockId": 5,
+   "blockText": "Required",
+   "fontFamily": "Inter, ui-sans-serif, system-ui, \"Segoe UI\", sans-serif",
+   "fontSize": 11,
+   "fontWeight": 500,
+   "letterSpacing": "0.14px",
+   "lineHeight": "normal",
+   "color": "rgb(68, 64, 59)"
+  },
+  {
+   "text": "Speech to text · 25 European languages",
+   "lines": [
+    {
+     "x": 285,
+     "y": 336.19,
+     "w": 250.28,
+     "h": 16
+    }
+   ],
+   "baseline": 349.19,
+   "blockId": 6,
+   "blockText": "Speech to text · 25 European languages",
+   "fontFamily": "Inter, ui-sans-serif, system-ui, \"Segoe UI\", sans-serif",
+   "fontSize": 13,
+   "fontWeight": 400,
+   "letterSpacing": "0.14px",
+   "lineHeight": "normal",
+   "color": "rgb(119, 113, 105)"
+  },
+  {
+   "text": "0.67 GB",
+   "lines": [
+    {
+     "x": 851.7,
+     "y": 324.19,
+     "w": 55.59,
+     "h": 17
+    }
+   ],
+   "baseline": 337.19,
+   "blockId": 7,
+   "blockText": "0.67 GB",
+   "fontFamily": "\"Geist Mono\", ui-monospace, monospace",
+   "fontSize": 13,
+   "fontWeight": 400,
+   "letterSpacing": "0.14px",
+   "lineHeight": "normal",
+   "color": "rgb(68, 64, 59)"
+  },
+  {
+   "text": "Ready",
+   "lines": [
+    {
+     "x": 948.3,
+     "y": 325.19,
+     "w": 36.7,
+     "h": 15
+    }
+   ],
+   "baseline": 337.19,
+   "blockId": 8,
+   "blockText": "Ready",
+   "fontFamily": "Inter, ui-sans-serif, system-ui, \"Segoe UI\", sans-serif",
+   "fontSize": 12,
+   "fontWeight": 500,
+   "letterSpacing": "0.14px",
+   "lineHeight": "normal",
+   "color": "rgb(0, 0, 0)"
+  },
+  {
+   "text": "AI assistant",
+   "lines": [
+    {
+     "x": 264,
+     "y": 411.19,
+     "w": 73.69,
+     "h": 16
+    }
+   ],
+   "baseline": 424.19,
+   "blockId": 9,
+   "blockText": "AI assistant",
+   "fontFamily": "Inter, ui-sans-serif, system-ui, \"Segoe UI\", sans-serif",
+   "fontSize": 13,
+   "fontWeight": 500,
+   "letterSpacing": "0.14px",
+   "lineHeight": "normal",
+   "color": "rgb(0, 0, 0)"
+  },
+  {
+   "text": "Search, chat and summaries",
+   "lines": [
+    {
+     "x": 837.66,
+     "y": 411.19,
+     "w": 178.34,
+     "h": 16
+    }
+   ],
+   "baseline": 424.19,
+   "blockId": 10,
+   "blockText": "Search, chat and summaries",
+   "fontFamily": "Inter, ui-sans-serif, system-ui, \"Segoe UI\", sans-serif",
+   "fontSize": 13,
+   "fontWeight": 400,
+   "letterSpacing": "0.14px",
+   "lineHeight": "normal",
+   "color": "rgb(119, 113, 105)"
+  },
+  {
+   "text": "Gemma 4 E4B",
+   "lines": [
+    {
+     "x": 315,
+     "y": 462.19,
+     "w": 101.78,
+     "h": 19
+    }
+   ],
+   "baseline": 477.19,
+   "blockId": 11,
+   "blockText": "Gemma 4 E4B",
+   "fontFamily": "Inter, ui-sans-serif, system-ui, \"Segoe UI\", sans-serif",
+   "fontSize": 15,
+   "fontWeight": 500,
+   "letterSpacing": "normal",
+   "lineHeight": "normal",
+   "color": "rgb(0, 0, 0)"
+  },
+  {
+   "text": "Recommended for your PC",
+   "lines": [
+    {
+     "x": 315,
+     "y": 485.19,
+     "w": 165.83,
+     "h": 16
+    }
+   ],
+   "baseline": 498.19,
+   "blockId": 12,
+   "blockText": "Recommended for your PC",
+   "fontFamily": "Inter, ui-sans-serif, system-ui, \"Segoe UI\", sans-serif",
+   "fontSize": 13,
+   "fontWeight": 400,
+   "letterSpacing": "normal",
+   "lineHeight": "normal",
+   "color": "rgb(119, 113, 105)"
+  },
+  {
+   "text": "Ready",
+   "lines": [
+    {
+     "x": 344,
+     "y": 516.69,
+     "w": 36,
+     "h": 15
+    }
+   ],
+   "baseline": 528.69,
+   "blockId": 13,
+   "blockText": "Ready",
+   "fontFamily": "Inter, ui-sans-serif, system-ui, \"Segoe UI\", sans-serif",
+   "fontSize": 12,
+   "fontWeight": 500,
+   "letterSpacing": "normal",
+   "lineHeight": "normal",
+   "color": "rgb(0, 0, 0)"
+  },
+  {
+   "text": "[X.X] GB",
+   "lines": [
+    {
+     "x": 547.59,
+     "y": 462.19,
+     "w": 62.41,
+     "h": 17
+    }
+   ],
+   "baseline": 475.19,
+   "blockId": 14,
+   "blockText": "[X.X] GB",
+   "fontFamily": "\"Geist Mono\", ui-monospace, monospace",
+   "fontSize": 13,
+   "fontWeight": 400,
+   "letterSpacing": "normal",
+   "lineHeight": "normal",
+   "color": "rgb(68, 64, 59)"
+  },
+  {
+   "text": "Gemma 4 26B",
+   "lines": [
+    {
+     "x": 702,
+     "y": 462.19,
+     "w": 101.58,
+     "h": 19
+    }
+   ],
+   "baseline": 477.19,
+   "blockId": 15,
+   "blockText": "Gemma 4 26B",
+   "fontFamily": "Inter, ui-sans-serif, system-ui, \"Segoe UI\", sans-serif",
+   "fontSize": 15,
+   "fontWeight": 500,
+   "letterSpacing": "normal",
+   "lineHeight": "normal",
+   "color": "rgb(0, 0, 0)"
+  },
+  {
+   "text": "Best quality, needs GPU",
+   "lines": [
+    {
+     "x": 702,
+     "y": 485.19,
+     "w": 147.75,
+     "h": 16
+    }
+   ],
+   "baseline": 498.19,
+   "blockId": 16,
+   "blockText": "Best quality, needs GPU",
+   "fontFamily": "Inter, ui-sans-serif, system-ui, \"Segoe UI\", sans-serif",
+   "fontSize": 13,
+   "fontWeight": 400,
+   "letterSpacing": "normal",
+   "lineHeight": "normal",
+   "color": "rgb(119, 113, 105)"
+  },
+  {
+   "text": "Not downloaded",
+   "lines": [
+    {
+     "x": 702,
+     "y": 511.19,
+     "w": 93.42,
+     "h": 15
+    }
+   ],
+   "baseline": 523.19,
+   "blockId": 17,
+   "blockText": "Not downloaded",
+   "fontFamily": "Inter, ui-sans-serif, system-ui, \"Segoe UI\", sans-serif",
+   "fontSize": 12,
+   "fontWeight": 400,
+   "letterSpacing": "normal",
+   "lineHeight": "normal",
+   "color": "rgb(119, 113, 105)"
+  },
+  {
+   "text": "[XX] GB",
+   "lines": [
+    {
+     "x": 942.39,
+     "y": 462.19,
+     "w": 54.61,
+     "h": 17
+    }
+   ],
+   "baseline": 475.19,
+   "blockId": 18,
+   "blockText": "[XX] GB",
+   "fontFamily": "\"Geist Mono\", ui-monospace, monospace",
+   "fontSize": 13,
+   "fontWeight": 400,
+   "letterSpacing": "normal",
+   "lineHeight": "normal",
+   "color": "rgb(68, 64, 59)"
+  },
+  {
+   "text": "Skip AI for now",
+   "lines": [
+    {
+     "x": 292,
+     "y": 583.69,
+     "w": 101.06,
+     "h": 17
+    }
+   ],
+   "baseline": 597.69,
+   "blockId": 19,
+   "blockText": "Skip AI for now",
+   "fontFamily": "Inter, ui-sans-serif, system-ui, \"Segoe UI\", sans-serif",
+   "fontSize": 14,
+   "fontWeight": 500,
+   "letterSpacing": "normal",
+   "lineHeight": "normal",
+   "color": "rgb(0, 0, 0)"
+  },
+  {
+   "text": "All downloads finished.",
+   "lines": [
+    {
+     "x": 870.55,
+     "y": 584.19,
+     "w": 145.45,
+     "h": 16
+    }
+   ],
+   "baseline": 597.19,
+   "blockId": 20,
+   "blockText": "All downloads finished.",
+   "fontFamily": "Inter, ui-sans-serif, system-ui, \"Segoe UI\", sans-serif",
+   "fontSize": 13,
+   "fontWeight": 400,
+   "letterSpacing": "0.14px",
+   "lineHeight": "normal",
+   "color": "rgb(68, 64, 59)"
+  },
+  {
+   "text": "Back",
+   "lines": [
+    {
+     "x": 86,
+     "y": 727.5,
+     "w": 33.63,
+     "h": 17
+    }
+   ],
+   "baseline": 741.5,
+   "blockId": 21,
+   "blockText": "Back",
+   "fontFamily": "Inter, ui-sans-serif, system-ui, \"Segoe UI\", sans-serif",
+   "fontSize": 14,
+   "fontWeight": 500,
+   "letterSpacing": "0.14px",
+   "lineHeight": "normal",
+   "color": "rgb(0, 0, 0)"
+  },
+  {
+   "text": "Skip",
+   "lines": [
+    {
+     "x": 155.63,
+     "y": 727.5,
+     "w": 29.63,
+     "h": 17
+    }
+   ],
+   "baseline": 741.5,
+   "blockId": 22,
+   "blockText": "Skip",
+   "fontFamily": "Inter, ui-sans-serif, system-ui, \"Segoe UI\", sans-serif",
+   "fontSize": 14,
+   "fontWeight": 500,
+   "letterSpacing": "0.14px",
+   "lineHeight": "normal",
+   "color": "rgb(119, 113, 105)"
+  },
+  {
+   "text": "Continue",
+   "lines": [
+    {
+     "x": 1146.38,
+     "y": 727.5,
+     "w": 61.63,
+     "h": 17
+    }
+   ],
+   "baseline": 741.5,
+   "blockId": 23,
+   "blockText": "Continue",
+   "fontFamily": "Inter, ui-sans-serif, system-ui, \"Segoe UI\", sans-serif",
+   "fontSize": 14,
+   "fontWeight": 500,
+   "letterSpacing": "0.14px",
+   "lineHeight": "normal",
+   "color": "rgb(255, 255, 255)"
+  }
+ ]
+}

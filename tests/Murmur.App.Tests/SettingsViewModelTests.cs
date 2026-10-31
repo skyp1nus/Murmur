@@ -10,8 +10,13 @@ using Murmur.Core.Settings;
 namespace Murmur.App.Tests;
 
 /// <summary>The Settings screen's view models: models, devices, storage, hotkeys, appearance and about, against fake services.</summary>
-public sealed class SettingsViewModelTests
+public sealed class SettingsViewModelTests : IDisposable
 {
+    // The texts asserted below are Ukrainian; English is the default language (D-039).
+    private readonly IDisposable _ukrainian = UiCulture.Override("uk");
+
+    public void Dispose() => _ukrainian.Dispose();
+
     private sealed class Rig
     {
         public Rig(AppSettings? initial = null, Func<ModelKind, string?>? activeModel = null, bool withModels = true, string? defaultFolder = "/data/Recordings")
@@ -95,6 +100,31 @@ public sealed class SettingsViewModelTests
         Assert.False(rig.Row(FakeModelManager.ChatSmallId).IsDefault);
         Assert.False(rig.Row(FakeModelManager.ChatSmallId).IsRecommended);
         Assert.True(rig.Row(FakeModelManager.ChatSmallId).ShowMakeDefault);
+    }
+
+    [Fact]
+    public async Task Models_AChatModelBeingInstalled_WearsDefault_OnlyWhileNoInstalledChatModelIs()
+    {
+        // Nothing installed: the one being downloaded is the default to be (and loses "Recommended" for it).
+        var rig = new Rig();
+        rig.Row(FakeModelManager.ChatSmallId).InstallCommand.Execute(null);
+
+        Assert.Equal(Strings.Models_Default, rig.Row(FakeModelManager.ChatSmallId).BadgeText);
+        Assert.Equal(1, rig.Vm.Models!.Rows.Count(r => r.BadgeText == Strings.Models_Default));
+
+        // An installed chat model is the default: the download of another one never shows a second "Default".
+        var other = new Rig();
+        other.Manager.SetInstalled(FakeModelManager.ChatSmallId);
+        other.Vm.Refresh();
+        other.Row(FakeModelManager.ChatLargeId).InstallCommand.Execute(null);
+
+        Assert.Equal(Strings.Models_Default, other.Row(FakeModelManager.ChatSmallId).BadgeText);
+        Assert.False(other.Row(FakeModelManager.ChatLargeId).HasBadge);
+        Assert.Equal(1, other.Vm.Models!.Rows.Count(r => r.BadgeText == Strings.Models_Default));
+
+        // Cancelled: the badge goes back to what it was.
+        rig.Row(FakeModelManager.ChatSmallId).CancelCommand.Execute(null);
+        await WaitFor(() => rig.Row(FakeModelManager.ChatSmallId).BadgeText == Strings.Models_Recommended);
     }
 
     [Fact]
@@ -365,7 +395,7 @@ public sealed class SettingsViewModelTests
         Assert.False(rig.Vm.HasModels);
         Assert.DoesNotContain(rig.Vm.Sections, s => s.Id == SettingsViewModel.ModelsSectionId);
         Assert.Equal(
-            [SettingsViewModel.DevicesSectionId, SettingsViewModel.StorageSectionId, SettingsViewModel.HotkeysSectionId, SettingsViewModel.AppearanceSectionId, SettingsViewModel.AboutSectionId],
+            [SettingsViewModel.DevicesSectionId, SettingsViewModel.StorageSectionId, SettingsViewModel.HotkeysSectionId, SettingsViewModel.AboutSectionId, SettingsViewModel.AppearanceSectionId],
             rig.Vm.Sections.Select(s => s.Id));
     }
 
@@ -581,8 +611,27 @@ public sealed class SettingsViewModelTests
         var rig = new Rig();
         var rows = rig.Vm.Hotkeys.Rows;
 
-        Assert.Equal(["Ctrl Shift R", "Ctrl Shift S", "Ctrl Shift M"], rows.Select(r => r.DisplayText));
-        Assert.Equal([HotkeyAction.ToggleRecording, HotkeyAction.ToggleScreen, HotkeyAction.ShowApp], rows.Select(r => r.Action));
+        Assert.Equal(["Ctrl Shift R", "Ctrl Shift P", "Ctrl Shift S", "Ctrl Shift M"], rows.Select(r => r.DisplayText));
+        Assert.Equal([HotkeyAction.ToggleRecording, HotkeyAction.TogglePause, HotkeyAction.ToggleScreen, HotkeyAction.ShowApp], rows.Select(r => r.Action));
+    }
+
+    [Fact]
+    public async Task Hotkeys_ThePauseRow_SavesItsOwnSetting_AndRefusesAGestureAnotherRowHas()
+    {
+        var rig = new Rig();
+        var hotkeys = rig.Vm.Hotkeys;
+        var row = hotkeys.Rows.Single(r => r.Action == HotkeyAction.TogglePause);
+
+        row.CaptureCommand.Execute(null);
+        hotkeys.HandleKey(Avalonia.Input.Key.F9, Avalonia.Input.KeyModifiers.Control | Avalonia.Input.KeyModifiers.Alt);
+        await hotkeys.LastSave;
+        Assert.Equal("Ctrl+Alt+F9", rig.Store.Current.PauseHotkey);
+        Assert.Equal("Ctrl+Shift+R", rig.Store.Current.RecordHotkey);
+
+        row.CaptureCommand.Execute(null);
+        hotkeys.HandleKey(Avalonia.Input.Key.R, Avalonia.Input.KeyModifiers.Control | Avalonia.Input.KeyModifiers.Shift);
+        Assert.Equal("Ctrl+Alt+F9", rig.Store.Current.PauseHotkey);
+        Assert.NotNull(row.Error);
     }
 
     [Fact]
@@ -618,10 +667,10 @@ public sealed class SettingsViewModelTests
         var rig = new Rig();
         var hotkeys = rig.Vm.Hotkeys;
 
-        hotkeys.Rows[1].CaptureCommand.Execute(null);
+        hotkeys.Rows[2].CaptureCommand.Execute(null);
         hotkeys.HandleKey(Key.F13, KeyModifiers.None);
         await hotkeys.LastSave;
-        hotkeys.Rows[2].CaptureCommand.Execute(null);
+        hotkeys.Rows[3].CaptureCommand.Execute(null);
         hotkeys.HandleKey(Key.J, KeyModifiers.Control | KeyModifiers.Shift);
         await hotkeys.LastSave;
 
@@ -793,26 +842,38 @@ public sealed class SettingsViewModelTests
     [Fact]
     public async Task Appearance_Language_IsSaved_AndFlagsARestartOnlyWhenItDiffersFromTheRunningOne()
     {
-        using var uk = UiCulture.Override("uk");
+        using var en = UiCulture.Override("en");
         var rig = new Rig();
         var appearance = rig.Vm.Appearance;
-        Assert.True(appearance.IsUkrainian);
-        Assert.False(appearance.NeedsRestart);
-
-        appearance.IsEnglish = true;
-        await appearance.LastSave;
-
-        Assert.Equal("en", rig.Store.Current.Language);
-        Assert.True(appearance.NeedsRestart);
         Assert.True(appearance.IsEnglish);
-        Assert.False(appearance.IsUkrainian);
-        // The running language does not change (decision D-032).
-        Assert.Equal("uk", UiCulture.Language);
+        Assert.False(appearance.NeedsRestart);
 
         appearance.IsUkrainian = true;
         await appearance.LastSave;
+
         Assert.Equal("uk", rig.Store.Current.Language);
+        Assert.True(appearance.NeedsRestart);
+        Assert.True(appearance.IsUkrainian);
+        Assert.False(appearance.IsEnglish);
+        // The running language does not change (decision D-032).
+        Assert.Equal("en", UiCulture.Language);
+
+        appearance.IsEnglish = true;
+        await appearance.LastSave;
+        Assert.Equal("en", rig.Store.Current.Language);
         Assert.False(appearance.NeedsRestart);
+    }
+
+    [Fact]
+    public void Appearance_OnACleanProfile_ShowsEnglish()
+    {
+        using var en = UiCulture.Override("en");
+        var rig = new Rig();
+
+        Assert.Equal("en", rig.Store.Current.Language);
+        Assert.Equal("en", rig.Vm.Appearance.Language);
+        Assert.True(rig.Vm.Appearance.IsEnglish);
+        Assert.False(rig.Vm.Appearance.IsUkrainian);
     }
 
     [Fact]
@@ -838,7 +899,7 @@ public sealed class SettingsViewModelTests
         var about = new SettingsViewModel(new FakeSettingsStore(), new FakeDisplayCapture(), version: "9.8.7").About;
 
         Assert.Equal("9.8.7", about.Version);
-        Assert.Equal("Project licence — Apache 2.0", about.License);
+        Assert.Equal("Project license — Apache 2.0", about.License);
         Assert.Contains("Parakeet TDT v3 — NVIDIA, CC-BY-4.0", about.Credits);
         Assert.Contains("Gemma 4 — Google, Apache 2.0", about.Credits);
         Assert.Contains("EmbeddingGemma — Google, Gemma Terms of Use", about.Credits);
@@ -875,12 +936,12 @@ public sealed class SettingsViewModelTests
 
         var first = writer.UpdateAsync(s => s with { ScreenByDefault = true });
         var second = writer.UpdateAsync(s => s with { RecordingsDirectory = "/x" });
-        var third = writer.UpdateAsync(s => s with { Language = "en" });
+        var third = writer.UpdateAsync(s => s with { Language = "uk" });
         await Task.WhenAll(first, second, third);
 
         Assert.True(store.Current.ScreenByDefault);
         Assert.Equal("/x", store.Current.RecordingsDirectory);
-        Assert.Equal("en", store.Current.Language);
+        Assert.Equal("uk", store.Current.Language);
         Assert.Equal(3, store.Saves);
     }
 

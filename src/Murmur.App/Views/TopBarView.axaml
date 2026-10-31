@@ -1,0 +1,18 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Murmur.App.ViewModels"
+             x:Class="Murmur.App.Views.TopBarView"
+             x:DataType="vm:TopBarViewModel">
+
+  <!-- The 60 px bar of every main screen: the breadcrumb (or the screen's own header) on the left, the hotkey hint (or the screen's buttons) on the right. -->
+  <Border Classes="topBar">
+    <DockPanel LastChildFill="False">
+      <ContentControl DockPanel.Dock="Right"
+                      VerticalAlignment="Center"
+                      Content="{Binding Trailing}" />
+      <ContentControl DockPanel.Dock="Left"
+                      VerticalAlignment="Center"
+                      Content="{Binding Leading}" />
+    </DockPanel>
+  </Border>
+</UserControl>

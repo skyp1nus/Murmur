@@ -24,6 +24,12 @@ public sealed record LlamaServerOptions
     /// <summary>Adds <c>--embedding</c>: the server only serves <c>/v1/embeddings</c>.</summary>
     public bool Embedding { get; init; }
 
+    /// <summary>
+    /// A GPU build: a server that becomes healthy but says it found no usable GPU or offloaded no layer
+    /// (<see cref="LlamaServerProcess.RunsWithoutGpu"/>) counts as a failed start.
+    /// </summary>
+    public bool RequireGpu { get; init; }
+
     /// <summary>Extra arguments appended verbatim after the standard ones.</summary>
     public IReadOnlyList<string> ExtraArguments { get; init; } = [];
 
@@ -152,6 +158,15 @@ public sealed class LlamaServerProcess : ILlamaServer
         return args;
     }
 
+    /// <summary>
+    /// Whether the server output says the GPU backend did not take part: llama.cpp prints <c>no usable GPU found</c> when a
+    /// GPU build finds no device and <c>offloaded 0/N layers to GPU</c> when nothing was offloaded. Second guard behind
+    /// <c>--device</c>; the output is read asynchronously, so a line printed the very moment the server became healthy can be missed.
+    /// </summary>
+    public static bool RunsWithoutGpu(string outputTail) =>
+        outputTail.Contains("no usable GPU", StringComparison.OrdinalIgnoreCase)
+        || outputTail.Contains("offloaded 0/", StringComparison.Ordinal);
+
     /// <summary>Picks a free TCP port on 127.0.0.1.</summary>
     public static int GetFreePort()
     {
@@ -228,6 +243,11 @@ public sealed class LlamaServerProcess : ILlamaServer
         try
         {
             await server.WaitUntilHealthyAsync(cancellationToken).ConfigureAwait(false);
+            if (options.RequireGpu && RunsWithoutGpu(server.OutputTail))
+            {
+                throw new LlamaServerException("llama-server started without a usable GPU.", server.OutputTail);
+            }
+
             return server;
         }
         catch

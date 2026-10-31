@@ -129,6 +129,9 @@ public sealed partial class ModelsStepViewModel : OnboardingStepViewModel
 
     public bool HasFreeSpace => FreeSpaceText.Length > 0;
 
+    /// <summary>The free space as the tooltip of the background note; <c>null</c> (no tooltip at all) when the drive cannot be read.</summary>
+    public string? FreeSpaceTip => HasFreeSpace ? FreeSpaceText : null;
+
     /// <summary>Everything that was chosen is installed: the "Ready" variant of the step.</summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(ShowBackgroundNote))]
@@ -269,6 +272,7 @@ public sealed partial class ModelsStepViewModel : OnboardingStepViewModel
         {
             OnPropertyChanged(nameof(FreeSpaceText));
             OnPropertyChanged(nameof(HasFreeSpace));
+            OnPropertyChanged(nameof(FreeSpaceTip));
             RefreshFreeBytes();
             Recompute();
         }
@@ -303,7 +307,7 @@ public sealed partial class ModelsStepViewModel : OnboardingStepViewModel
             : RequiredModelsState.Waiting;
         RequiredPercent = total > 0 ? done * 100 / total : 100;
         RequiredTransferText = RequiredState == RequiredModelsState.Downloading
-            ? UiText.Format(Strings.Onb3_Transfer, UiFormat.Size((long)done), UiFormat.Size(total))
+            ? UiFormat.SizeProgress((long)done, total)
             : string.Empty;
 
         var chatBusy = Choices.Any(c => c.IsBusy);

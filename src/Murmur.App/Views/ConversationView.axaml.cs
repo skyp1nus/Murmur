@@ -1,18 +1,22 @@
 using Avalonia.Controls;
+using Avalonia.Controls.Primitives;
 using Avalonia.Input;
+using Avalonia.Input.Platform;
 using Avalonia.Interactivity;
 using Avalonia.Threading;
+using Avalonia.VisualTree;
 using Murmur.App.ViewModels;
 
 namespace Murmur.App.Views;
 
-/// <summary>The "Ask AI" chat: conversation list, input pill, Ask / Stop. Used by the recording view and the library-wide chat.</summary>
-public partial class ChatView : UserControl
+/// <summary>The conversation of Ask AI: the virtualised messages, the composer with Send / Stop, Copy answer on the clipboard.</summary>
+public partial class ConversationView : UserControl
 {
     private ChatViewModel? _viewModel;
     private bool _scrollQueued;
+    private ScrollViewer? _scroller;
 
-    public ChatView()
+    public ConversationView()
     {
         InitializeComponent();
 
@@ -26,16 +30,18 @@ public partial class ChatView : UserControl
         if (_viewModel is not null)
         {
             _viewModel.ScrollToEndRequested -= OnScrollToEnd;
+            _viewModel.ClipboardWriter = null;
         }
 
         _viewModel = DataContext as ChatViewModel;
         if (_viewModel is not null)
         {
             _viewModel.ScrollToEndRequested += OnScrollToEnd;
+            _viewModel.ClipboardWriter = WriteToClipboardAsync;
         }
     }
 
-    /// <summary>Enter asks (Shift+Enter is left to the text box).</summary>
+    /// <summary>Enter asks (Shift+Enter is a new line).</summary>
     private void OnQuestionKeyDown(object? sender, KeyEventArgs e)
     {
         if (e.Key != Key.Enter || e.KeyModifiers.HasFlag(KeyModifiers.Shift) || _viewModel is null)
@@ -51,6 +57,18 @@ public partial class ChatView : UserControl
         e.Handled = true;
     }
 
+    /// <summary>The window's clipboard; the view model catches what it throws (the Windows clipboard fails while another program holds it).</summary>
+    private async Task<bool> WriteToClipboardAsync(string text)
+    {
+        if (TopLevel.GetTopLevel(this)?.Clipboard is not { } clipboard)
+        {
+            return false;
+        }
+
+        await clipboard.SetTextAsync(text);
+        return true;
+    }
+
     /// <summary>Deltas arrive many times a second: one scroll per rendered frame at most, after layout.</summary>
     private void OnScrollToEnd()
     {
@@ -64,7 +82,7 @@ public partial class ChatView : UserControl
             () =>
             {
                 _scrollQueued = false;
-                Scroller.ScrollToEnd();
+                (_scroller ??= MessageList.GetVisualDescendants().OfType<ScrollViewer>().FirstOrDefault())?.ScrollToEnd();
             },
             DispatcherPriority.Render);
     }

@@ -5,8 +5,8 @@
     <OutputType>Library</OutputType>
     <RootNamespace>Murmur.App</RootNamespace>
     <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
-    <!-- Resources/Strings.resx is Ukrainian, the neutral language of the resources (see the EmbeddedResource items below). -->
-    <NeutralLanguage>uk</NeutralLanguage>
+    <!-- Resources/Strings.resx is English, the neutral language of the resources (D-039; see the EmbeddedResource items below). -->
+    <NeutralLanguage>en</NeutralLanguage>
   </PropertyGroup>
 
   <ItemGroup>
@@ -24,13 +24,13 @@
 
   <ItemGroup>
     <!--
-      Both languages are embedded in Murmur.App.dll itself (Murmur.App.Resources.Strings.resources = Ukrainian,
-      Murmur.App.Resources.Strings.en.resources = English); WithCulture="false" stops the SDK from turning Strings.en.resx
-      into a satellite assembly. Native AOT cannot load satellite assemblies: the English texts would never be found.
+      Both languages are embedded in Murmur.App.dll itself (Murmur.App.Resources.Strings.resources = English, the default,
+      Murmur.App.Resources.Strings.uk.resources = Ukrainian); WithCulture="false" stops the SDK from turning Strings.uk.resx
+      into a satellite assembly. Native AOT cannot load satellite assemblies: the Ukrainian texts would never be found.
       Strings.cs picks the resource set by the UI culture.
     -->
     <EmbeddedResource Update="Resources\Strings.resx" />
-    <EmbeddedResource Update="Resources\Strings.en.resx" WithCulture="false" />
+    <EmbeddedResource Update="Resources\Strings.uk.resx" WithCulture="false" />
   </ItemGroup>
 
   <!--

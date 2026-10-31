@@ -11,12 +11,27 @@ internal sealed class FakeSettingsStore(AppSettings? initial = null) : ISettings
 
     public int SaveCount { get; private set; }
 
-    public ValueTask SaveAsync(AppSettings settings, CancellationToken cancellationToken)
+    /// <summary>When set, <see cref="SaveAsync"/> throws it (nothing is stored).</summary>
+    public Exception? SaveFailure { get; set; }
+
+    /// <summary>When set, <see cref="SaveAsync"/> waits for it before it stores anything (a save that is still running while the user clicks on).</summary>
+    public Task? SaveBlocker { get; set; }
+
+    public async ValueTask SaveAsync(AppSettings settings, CancellationToken cancellationToken)
     {
+        if (SaveBlocker is { } blocker)
+        {
+            await blocker.ConfigureAwait(false);
+        }
+
+        if (SaveFailure is { } failure)
+        {
+            throw failure;
+        }
+
         Current = settings;
         SaveCount++;
         Changed?.Invoke(settings);
-        return ValueTask.CompletedTask;
     }
 
     /// <summary>Raises <see cref="Changed"/> without touching <see cref="Current"/> (an event that arrives late or out of order).</summary>

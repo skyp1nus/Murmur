@@ -3,14 +3,17 @@ using Murmur.App.Services;
 using Murmur.Core.Capture;
 using Murmur.Core.Capture.Synthetic;
 using Murmur.Core.Input;
+using Murmur.Core.Intelligence;
 using Murmur.Core.Jobs;
 using Murmur.Core.Models;
+using Murmur.Core.Platform;
 using Murmur.Core.Processing;
 using Murmur.Core.Recording;
 using Murmur.Core.Settings;
 using Murmur.Core.Transcription;
 using Murmur.Intelligence;
 using Murmur.Intelligence.Rag;
+using Murmur.Intelligence.Summary;
 using Murmur.Models;
 using Murmur.Storage;
 
@@ -34,8 +37,10 @@ internal sealed class CompositionRoot : IDisposable
     private ModelManager? _modelManager;
     private AiAwareModelManager? _aiModels;
     private AiReindexScheduler? _reindex;
+    private IAccelerationProbe? _acceleration;
     private CancellationTokenSource? _recoveryRetry;
     private IGlobalHotkeys? _hotkeys;
+    private IMotionPreference? _motion;
     private readonly SingleInstance? _instance;
 
     /// <param name="instance">The single-instance guard whose "a second start wants the window" signal goes to the app; <c>null</c> = none.</param>
@@ -45,6 +50,15 @@ internal sealed class CompositionRoot : IDisposable
         Args = args;
         _instance = instance;
     }
+
+    /// <summary>
+    /// What AI acceleration this PC supports (the Windows probe: DXGI adapters and the Vulkan loader; CPU only elsewhere).
+    /// Detected on the first read and cached.
+    /// </summary>
+    public IAccelerationProbe AccelerationProbe => _acceleration ??= CreateAccelerationProbe();
+
+    /// <summary>The local AI after <see cref="CreateServices"/> ran (its <c>Acceleration</c> tells whether the GPU build runs or why not); <c>null</c> before.</summary>
+    internal LocalLlm? Llm => _llm;
 
     /// <summary>Command-line arguments the process was started with.</summary>
     public IReadOnlyList<string> Args { get; }
@@ -86,7 +100,7 @@ internal sealed class CompositionRoot : IDisposable
         // Recording guard: the models are never loaded while recording. LocalLlm refuses new requests while the
         // recorder is busy, and the moment a recording starts its llama-server processes are killed.
         var activity = _activity ??= new RecordingActivity(recorder);
-        var llm = _llm ??= CreateLlm(models.ModelsDirectory, activity);
+        var llm = _llm ??= CreateLlm(models.ModelsDirectory, activity, settings);
         var assistant = _assistant ??= new Assistant(llm, storage);
 
         // The model manager installs into the same folder the ASR and the AI read from. Its active-model lookup is handed
@@ -159,7 +173,8 @@ internal sealed class CompositionRoot : IDisposable
             CreatePlayback(),
             new SessionProcessingAdapter(processor, models),
             storage,
-            new AiServices(assistant, llm, models.ModelsDirectory),
+            new AiServices(assistant, llm, models.ModelsDirectory, AccelerationProbe, llm, AccelerationRuntimeIds(modelManager),
+                new SessionSummarizer(llm, storage, SummarizerOptions.ForContext(new LocalLlmOptions().ContextSize))),
             settings,
             aiModels,
             modelManager.ActiveModelId,
@@ -167,7 +182,10 @@ internal sealed class CompositionRoot : IDisposable
             // WindowsCapture also plays the screen recordings (Media Engine); the synthetic capture does not.
             capture as IVideoPlayback,
             _hotkeys ??= CreateHotkeys(capture),
-            _instance);
+            _instance,
+            _motion ??= CreateMotionPreference(),
+            storage,
+            Chats: storage);
     }
 
     public void Dispose()
@@ -176,6 +194,7 @@ internal sealed class CompositionRoot : IDisposable
 
         // The app (the hotkey coordinator) stopped using it when its window closed; this releases the hotkey thread.
         _hotkeys?.Dispose();
+        (_motion as IDisposable)?.Dispose();
         _heapTrimmer?.Dispose();
         _reindex?.Dispose();
         _processor?.Dispose();
@@ -191,13 +210,43 @@ internal sealed class CompositionRoot : IDisposable
         _storage?.Dispose();
     }
 
-    private static LocalLlm CreateLlm(string modelsDirectory, RecordingActivity activity)
+    private static LocalLlm CreateLlm(string modelsDirectory, RecordingActivity activity, ISettingsStore settings)
     {
-        // Paths are resolved again on demand (environment, manifest, defaults), so models installed, switched or removed
-        // in the app are noticed without a restart.
-        var llm = new LocalLlm(() => AiModelPaths.Resolve(modelsDirectory, Environment.GetEnvironmentVariable), () => activity.IsRecording);
+        // Paths are resolved again on demand (environment, manifest, defaults, the chosen acceleration), so models
+        // installed, switched or removed and an acceleration change in Settings are noticed without a restart.
+        var llm = new LocalLlm(
+            () => AiModelPaths.Resolve(modelsDirectory, Environment.GetEnvironmentVariable, settings.Current.Acceleration),
+            () => activity.IsRecording);
         activity.RecordingStarted += llm.NotifyRecordingStarted;
+
+        // A new acceleration applies to the next model load; idle servers of the old one stop now (frees the VRAM).
+        var acceleration = settings.Current.Acceleration;
+        settings.Changed += changed =>
+        {
+            if (changed.Acceleration != Interlocked.Exchange(ref acceleration, changed.Acceleration))
+            {
+                llm.RetireStaleServers();
+            }
+        };
         return llm;
+    }
+
+    /// <summary>
+    /// The model-manager item of the runtime of each GPU build, only those this platform's catalog has (CUDA is Windows-only): the
+    /// Settings downloads the one of the chosen build. The CPU build is a listed item the AI bundle installs.
+    /// </summary>
+    internal static IReadOnlyDictionary<AiAcceleration, string> AccelerationRuntimeIds(ModelManager manager)
+    {
+        var ids = new Dictionary<AiAcceleration, string>();
+        foreach (var (acceleration, id) in new[] { (AiAcceleration.Vulkan, ModelCatalog.LlamaCppVulkanId), (AiAcceleration.Cuda, ModelCatalog.LlamaCppCudaId) })
+        {
+            if (manager.Items.Any(item => string.Equals(item.Id, id, StringComparison.Ordinal)))
+            {
+                ids[acceleration] = id;
+            }
+        }
+
+        return ids;
     }
 
     private static string? ItemPath(ModelManager manager, string id)
@@ -226,6 +275,15 @@ internal sealed class CompositionRoot : IDisposable
         return false;
     }
 
+    private static IAccelerationProbe CreateAccelerationProbe()
+    {
+#if WINDOWS
+        return new Murmur.Capture.Windows.Ai.WindowsAccelerationProbe();
+#else
+        return new CpuOnlyAccelerationProbe();
+#endif
+    }
+
     private static ICapture CreateCapture()
     {
 #if WINDOWS
@@ -243,6 +301,16 @@ internal sealed class CompositionRoot : IDisposable
         return ((Murmur.Capture.Windows.WindowsCapture)capture).CreateGlobalHotkeys();
 #else
         return new UnsupportedGlobalHotkeys();
+#endif
+    }
+
+    /// <summary>The system's reduce-motion preference: the Windows setting on Windows, never reduced elsewhere.</summary>
+    internal static IMotionPreference CreateMotionPreference()
+    {
+#if WINDOWS
+        return Murmur.Capture.Windows.WindowsCapture.CreateMotionPreference();
+#else
+        return new FullMotionPreference();
 #endif
     }
 

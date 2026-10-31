@@ -33,7 +33,11 @@ namespace Murmur.Core.Playback;
 /// behind the video is once such a seek has landed and <see cref="ScreenPlaybackSyncOptions.MinSeekInterval"/> has
 /// passed: half of that error is added each time (damped, so a seek latency that varies does not make it flip), clamped
 /// to [0, <see cref="ScreenPlaybackSyncOptions.MaxSeekLead"/>]. A decoder that needs time to seek then does not drift
-/// back out of tolerance after every seek.</item>
+/// back out of tolerance after every seek. The decoder's latency is wall time, so the lead is kept as wall time and applied
+/// as <c>lead × <see cref="Rate"/></c> in media time.</item>
+/// <item>Speed: both clocks are media time. The caller sets <see cref="Rate"/> to the playback speed of the audio (default 1):
+/// the audio advances <c>Rate</c> × wall time between two updates, which is what a normal tick looks like to the "user seek"
+/// detection, so a UI stall at 2× is not mistaken for a seek.</item>
 /// <item>Play / pause follow the audio. Within <see cref="ScreenPlaybackSyncOptions.Tolerance"/> of the end of the file
 /// the video is not started (a media player restarts an ended file from 0); it holds the last frame until the audio
 /// leaves the segment, which then closes it.</item>
@@ -80,6 +84,8 @@ public sealed class ScreenPlaybackSync
 
     private bool _hasLast;
     private TimeSpan _lastAudio;
+    private TimeSpan _leadWall; // the learned seek lead as wall time; SeekLead = this x Rate
+    private double _rate = 1;
     private bool _lastAudioPlaying;
     private long _lastTimestamp;
 
@@ -115,7 +121,25 @@ public sealed class ScreenPlaybackSync
     public ScreenPlaybackSyncOptions Options => _options;
 
     /// <summary>How far ahead of the audio a seek while playing lands (learned; diagnostics).</summary>
-    public TimeSpan SeekLead { get; private set; }
+    public TimeSpan SeekLead => _leadWall * _rate;
+
+    /// <summary>
+    /// The playback speed of the audio (1 = real time): media time that passes per second of wall time. Set it when the speed
+    /// changes (the audio position then advances at this rate between two updates). Must be positive.
+    /// </summary>
+    public double Rate
+    {
+        get => _rate;
+        set
+        {
+            if (!(value > 0) || !double.IsFinite(value))
+            {
+                throw new ArgumentOutOfRangeException(nameof(value), value, "The rate must be a positive number.");
+            }
+
+            _rate = value;
+        }
+    }
 
     /// <summary>
     /// The segment to show at session time <paramref name="sessionPosition"/> (see the rules), or null when the screen
@@ -231,7 +255,7 @@ public sealed class ScreenPlaybackSync
                 _leadMeasurable = false;
                 if (error.Duration() > tolerance)
                 {
-                    SeekLead = Clamp(SeekLead + (error / 2), _options.MaxSeekLead);
+                    _leadWall = Clamp(_leadWall + (error / (2 * _rate)), _options.MaxSeekLead);
                 }
             }
 
@@ -290,7 +314,7 @@ public sealed class ScreenPlaybackSync
     /// <summary>The audio moved by more than the tolerance away from where the clock says it should be.</summary>
     private bool Jumped(TimeSpan audioPosition, bool audioPlaying, long now)
     {
-        var expected = audioPlaying || _lastAudioPlaying ? _time.GetElapsedTime(_lastTimestamp, now) : TimeSpan.Zero;
+        var expected = audioPlaying || _lastAudioPlaying ? _time.GetElapsedTime(_lastTimestamp, now) * _rate : TimeSpan.Zero;
         var moved = audioPosition - _lastAudio;
         if (audioPlaying != _lastAudioPlaying)
         {

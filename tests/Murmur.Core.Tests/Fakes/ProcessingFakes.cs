@@ -37,6 +37,18 @@ internal sealed class InMemoryTranscriptStore : ITranscriptStore
             return ValueTask.FromResult(_transcripts.GetValueOrDefault(id));
         }
     }
+
+    public ValueTask<IReadOnlyList<TranscriptSummary>> GetTranscriptSummariesAsync(IReadOnlyList<SessionId> sessions, CancellationToken cancellationToken)
+    {
+        lock (_transcripts)
+        {
+            IReadOnlyList<TranscriptSummary> result =
+            [
+                .. sessions.Where(_transcripts.ContainsKey).Select(id => new TranscriptSummary(id, _transcripts[id].Language, _transcripts[id].Segments.Count > 0 ? _transcripts[id].Segments[0].Text : null)),
+            ];
+            return ValueTask.FromResult(result);
+        }
+    }
 }
 
 /// <summary>
@@ -158,7 +170,17 @@ internal sealed class FakeRecorder : IRecorder
 
     public ValueTask SetScreenEnabledAsync(bool enabled, CancellationToken cancellationToken) => throw new NotSupportedException();
 
+    public ValueTask PauseAsync(CancellationToken cancellationToken) => throw new NotSupportedException();
+
+    public ValueTask ResumeAsync(CancellationToken cancellationToken) => throw new NotSupportedException();
+
     public ValueTask<SessionRecord> StopAsync(CancellationToken cancellationToken) => throw new NotSupportedException();
+
+    /// <summary>Raises Recording -&gt; Paused, like a pause of the real recorder.</summary>
+    public void Pause() => Set(RecorderState.Paused);
+
+    /// <summary>Raises Paused -&gt; Recording.</summary>
+    public void Resume() => Set(RecorderState.Recording);
 
     private void Set(RecorderState state)
     {

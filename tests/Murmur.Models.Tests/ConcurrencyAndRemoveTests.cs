@@ -31,6 +31,7 @@ public sealed class ConcurrencyAndRemoveTests
         Assert.Same(first, third);
         await Task.WhenAll(first, second, third);
         Assert.Equal(1, h.Server.Requests.Count(r => r.Range != "bytes=0-0")); // one download, one probe
+        await Harness.ServedSettledAsync(route, 300_000);
         Assert.Equal(300_000, route.BytesServed);
     }
 

@@ -1,0 +1,647 @@
+<Styles xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:controls="using:Murmur.App.Controls">
+
+  <!--
+    Styles of the shell and the Library as drawn on the canvas (Main*.dc.html): the sidebar, the top bar, the New recording and Ask
+    your library cards, the filter chips and the day cards of rows. Like Controls.axaml this file holds no literal colours, fonts,
+    radii or spacing of its own: colours are token brushes (DynamicResource), spacing and radii come from the token scale, and the
+    few sizes the canvas uses that the scale lacks (13 / 15 / 17 px text, the 10 and 16 px radii) are named component resources.
+  -->
+
+  <Styles.Resources>
+    <ResourceDictionary>
+      <ResourceDictionary.MergedDictionaries>
+        <ResourceInclude Source="/Styles/Tokens.axaml" />
+      </ResourceDictionary.MergedDictionaries>
+
+      <ResourceDictionary.ThemeDictionaries>
+        <!-- The plate in the middle of the New recording orb and its dot are the page and the ink swapped (light plate on dark, dark plate on light). -->
+        <ResourceDictionary x:Key="Light">
+          <StaticResource x:Key="Brush.OrbPlate" ResourceKey="Brush.Canvas" />
+          <StaticResource x:Key="Brush.OrbDot" ResourceKey="Brush.Ink" />
+          <!-- The question box has the subtle shadow on the light page and a hairline on the dark one. -->
+          <StaticResource x:Key="Shell.AskShadow" ResourceKey="Shadow.Subtle" />
+          <Thickness x:Key="Shell.AskBorder">0</Thickness>
+          <Thickness x:Key="Shell.AskInset">20,0,6,0</Thickness>
+          <!-- The calendar of "Pick dates": token brushes in place of Fluent's accent and greys. -->
+          <StaticResource x:Key="CalendarViewBackground" ResourceKey="Brush.Canvas" />
+          <StaticResource x:Key="CalendarViewBorderBrush" ResourceKey="Brush.Canvas" />
+          <StaticResource x:Key="CalendarViewForeground" ResourceKey="Brush.Ink" />
+          <StaticResource x:Key="CalendarViewCalendarItemForeground" ResourceKey="Brush.Ink" />
+          <StaticResource x:Key="CalendarViewCalendarItemRevealBackground" ResourceKey="Brush.Canvas" />
+          <StaticResource x:Key="CalendarViewCalendarItemRevealBorderBrush" ResourceKey="Brush.Canvas" />
+          <StaticResource x:Key="CalendarViewBlackoutForeground" ResourceKey="Brush.Ash" />
+          <StaticResource x:Key="CalendarViewOutOfScopeBackground" ResourceKey="Brush.Canvas" />
+          <StaticResource x:Key="CalendarViewOutOfScopeForeground" ResourceKey="Brush.Ash" />
+          <StaticResource x:Key="CalendarViewWeekDayForegroundDisabled" ResourceKey="Brush.Smoke" />
+          <StaticResource x:Key="CalendarViewTodayForeground" ResourceKey="Brush.Ink" />
+          <StaticResource x:Key="CalendarViewHoverBorderBrush" ResourceKey="Brush.Canvas" />
+          <StaticResource x:Key="CalendarViewPressedBorderBrush" ResourceKey="Brush.Canvas" />
+          <StaticResource x:Key="CalendarViewSelectedBorderBrush" ResourceKey="Brush.Ink" />
+          <StaticResource x:Key="CalendarViewSelectedHoverBorderBrush" ResourceKey="Brush.Ink" />
+          <StaticResource x:Key="CalendarViewSelectedPressedBorderBrush" ResourceKey="Brush.Ink" />
+          <StaticResource x:Key="CalendarViewNavigationButtonBackground" ResourceKey="Brush.Canvas" />
+          <StaticResource x:Key="CalendarViewNavigationButtonBorderBrush" ResourceKey="Brush.Canvas" />
+          <StaticResource x:Key="CalendarViewNavigationButtonBorderBrushPointerOver" ResourceKey="Brush.Canvas" />
+          <StaticResource x:Key="CalendarViewNavigationButtonForegroundPointerOver" ResourceKey="Brush.Ink" />
+          <StaticResource x:Key="CalendarViewNavigationButtonForegroundPressed" ResourceKey="Brush.Smoke" />
+        </ResourceDictionary>
+        <ResourceDictionary x:Key="Dark">
+          <StaticResource x:Key="Brush.OrbPlate" ResourceKey="Brush.Ink" />
+          <StaticResource x:Key="Brush.OrbDot" ResourceKey="Brush.Canvas" />
+          <BoxShadows x:Key="Shell.AskShadow">0 0 0 0 Transparent</BoxShadows>
+          <Thickness x:Key="Shell.AskBorder">1</Thickness>
+          <Thickness x:Key="Shell.AskInset">19,0,5,0</Thickness>
+          <!-- The calendar of "Pick dates": token brushes in place of Fluent's accent and greys. -->
+          <StaticResource x:Key="CalendarViewBackground" ResourceKey="Brush.Canvas" />
+          <StaticResource x:Key="CalendarViewBorderBrush" ResourceKey="Brush.Canvas" />
+          <StaticResource x:Key="CalendarViewForeground" ResourceKey="Brush.Ink" />
+          <StaticResource x:Key="CalendarViewCalendarItemForeground" ResourceKey="Brush.Ink" />
+          <StaticResource x:Key="CalendarViewCalendarItemRevealBackground" ResourceKey="Brush.Canvas" />
+          <StaticResource x:Key="CalendarViewCalendarItemRevealBorderBrush" ResourceKey="Brush.Canvas" />
+          <StaticResource x:Key="CalendarViewBlackoutForeground" ResourceKey="Brush.Ash" />
+          <StaticResource x:Key="CalendarViewOutOfScopeBackground" ResourceKey="Brush.Canvas" />
+          <StaticResource x:Key="CalendarViewOutOfScopeForeground" ResourceKey="Brush.Ash" />
+          <StaticResource x:Key="CalendarViewWeekDayForegroundDisabled" ResourceKey="Brush.Smoke" />
+          <StaticResource x:Key="CalendarViewTodayForeground" ResourceKey="Brush.Ink" />
+          <StaticResource x:Key="CalendarViewHoverBorderBrush" ResourceKey="Brush.Canvas" />
+          <StaticResource x:Key="CalendarViewPressedBorderBrush" ResourceKey="Brush.Canvas" />
+          <StaticResource x:Key="CalendarViewSelectedBorderBrush" ResourceKey="Brush.Ink" />
+          <StaticResource x:Key="CalendarViewSelectedHoverBorderBrush" ResourceKey="Brush.Ink" />
+          <StaticResource x:Key="CalendarViewSelectedPressedBorderBrush" ResourceKey="Brush.Ink" />
+          <StaticResource x:Key="CalendarViewNavigationButtonBackground" ResourceKey="Brush.Canvas" />
+          <StaticResource x:Key="CalendarViewNavigationButtonBorderBrush" ResourceKey="Brush.Canvas" />
+          <StaticResource x:Key="CalendarViewNavigationButtonBorderBrushPointerOver" ResourceKey="Brush.Canvas" />
+          <StaticResource x:Key="CalendarViewNavigationButtonForegroundPointerOver" ResourceKey="Brush.Ink" />
+          <StaticResource x:Key="CalendarViewNavigationButtonForegroundPressed" ResourceKey="Brush.Smoke" />
+        </ResourceDictionary>
+      </ResourceDictionary.ThemeDictionaries>
+
+      <Thickness x:Key="Border.RowMiddle">1,1,1,0</Thickness>
+      <Thickness x:Key="Border.RowLast">1,1,1,1</Thickness>
+
+      <!-- Component sizes. -->
+      <x:Double x:Key="Size.SidebarFrame">241</x:Double>
+      <x:Double x:Key="Size.SidebarButton">44</x:Double>
+      <x:Double x:Key="Size.WordmarkOrb">22</x:Double>
+      <x:Double x:Key="Size.PillOrb">10</x:Double>
+      <x:Double x:Key="Size.OfflineIcon">16</x:Double>
+      <x:Double x:Key="Size.TopBar">60</x:Double>
+      <x:Double x:Key="Size.HeroOrb">132</x:Double>
+      <x:Double x:Key="Size.HeroPlate">48</x:Double>
+      <x:Double x:Key="Size.HeroDot">14</x:Double>
+      <x:Double x:Key="Size.CardMinWidth">420</x:Double>
+      <x:Double x:Key="Size.Toggle">36</x:Double>
+      <x:Double x:Key="Size.ToggleIcon">16</x:Double>
+      <x:Double x:Key="Size.ToggleRadius">18</x:Double>
+      <x:Double x:Key="Size.StartButton">44</x:Double>
+      <x:Double x:Key="Size.AskBox">52</x:Double>
+      <x:Double x:Key="Size.AskSend">40</x:Double>
+      <x:Double x:Key="Size.Suggestion">32</x:Double>
+      <x:Double x:Key="Size.SearchBox">40</x:Double>
+      <x:Double x:Key="Size.SearchBoxWidth">360</x:Double>
+      <x:Double x:Key="Size.SearchIcon">16</x:Double>
+      <x:Double x:Key="Size.FilterChip">34</x:Double>
+      <x:Double x:Key="Size.FilterIcon">15</x:Double>
+      <x:Double x:Key="Size.ChipDot">6</x:Double>
+      <x:Double x:Key="Size.RowTile">40</x:Double>
+      <x:Double x:Key="Size.RowBar">160</x:Double>
+      <x:Double x:Key="Size.RowChevron">16</x:Double>
+      <x:Double x:Key="Size.LibraryPage">1080</x:Double>
+      <Thickness x:Key="Margin.NavTitle">12,0,12,6</Thickness>
+      <Thickness x:Key="Margin.LibraryEnd">0,0,0,96</Thickness>
+      <Thickness x:Key="Margin.DashedOutline">-14,0</Thickness>
+      <Thickness x:Key="Margin.SidebarList">0,24,0,0</Thickness>
+      <Thickness x:Key="Margin.AskBox">0,20</Thickness>
+      <Thickness x:Key="Margin.RowBar">0,4,0,0</Thickness>
+      <Thickness x:Key="Margin.HeroTop">0,32,0,0</Thickness>
+      <Thickness x:Key="Margin.RecordingsTop">0,56,0,0</Thickness>
+      <Thickness x:Key="Margin.FiltersTop">0,20,0,0</Thickness>
+      <Thickness x:Key="Margin.GroupTop">0,20,0,10</Thickness>
+
+      <!-- Line icons of the canvas (24 x 24 grid), drawn by controls:IconControl. -->
+      <StreamGeometry x:Key="Icon.Mic">M9 6a3 3 0 0 1 6 0v5a3 3 0 0 1-6 0z M5 11a7 7 0 0 0 14 0M12 18v3</StreamGeometry>
+      <StreamGeometry x:Key="Icon.Search">M4 11a7 7 0 1 0 14 0a7 7 0 1 0-14 0 M20 20l-4-4</StreamGeometry>
+      <StreamGeometry x:Key="Icon.Calendar">M5 5h14a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2z M3 10h18M8 3v4M16 3v4</StreamGeometry>
+      <StreamGeometry x:Key="Icon.Chevron">M9 6l6 6-6 6</StreamGeometry>
+      <StreamGeometry x:Key="Icon.ArrowUp">M12 19V5M6 11l6-6 6 6</StreamGeometry>
+    </ResourceDictionary>
+  </Styles.Resources>
+
+  <!-- The arrows of the scroll bars (the Library is one scrolling list): palette colour instead of Fluent's own. -->
+  <Style Selector="ScrollBar RepeatButton">
+    <Setter Property="Foreground" Value="{DynamicResource Brush.Smoke}" />
+  </Style>
+
+  <!-- ==== Page frame ============================================================================================================ -->
+  <Style Selector="ContentControl.page">
+    <Setter Property="Margin" Value="0" />
+  </Style>
+  <Style Selector="ContentControl.page.inset">
+    <Setter Property="Margin" Value="{StaticResource Inset.48}" />
+  </Style>
+
+  <!-- ==== Text ================================================================================================================== -->
+  <Style Selector="TextBlock.t12">
+    <Setter Property="FontFamily" Value="{StaticResource Font.Body}" />
+    <Setter Property="FontSize" Value="{StaticResource FontSize.Small}" />
+    <Setter Property="LetterSpacing" Value="{StaticResource LetterSpacing.Small}" />
+  </Style>
+  <Style Selector="TextBlock.t13">
+    <Setter Property="FontFamily" Value="{StaticResource Font.Body}" />
+    <Setter Property="FontSize" Value="{StaticResource FontSize.Meta}" />
+    <Setter Property="LetterSpacing" Value="{StaticResource LetterSpacing.Meta}" />
+  </Style>
+  <Style Selector="TextBlock.t14">
+    <Setter Property="FontFamily" Value="{StaticResource Font.Body}" />
+    <Setter Property="FontSize" Value="{StaticResource FontSize.BodySm}" />
+    <Setter Property="LetterSpacing" Value="{StaticResource LetterSpacing.BodySm}" />
+  </Style>
+  <Style Selector="TextBlock.t15">
+    <Setter Property="FontFamily" Value="{StaticResource Font.Body}" />
+    <Setter Property="FontSize" Value="{StaticResource FontSize.RowTitle}" />
+    <Setter Property="LetterSpacing" Value="{StaticResource LetterSpacing.RowTitle}" />
+  </Style>
+  <Style Selector="TextBlock.medium">
+    <Setter Property="FontWeight" Value="{StaticResource FontWeight.BodyMedium}" />
+  </Style>
+  <Style Selector="TextBlock.muted">
+    <Setter Property="Foreground" Value="{DynamicResource Brush.Smoke}" />
+  </Style>
+  <Style Selector="TextBlock.graphite">
+    <Setter Property="Foreground" Value="{DynamicResource Brush.Graphite}" />
+  </Style>
+  <!-- The text of a button has no tracking on the canvas (a form control does not inherit it). -->
+  <Style Selector="TextBlock.plain">
+    <Setter Property="LetterSpacing" Value="0" />
+  </Style>
+  <Style Selector="TextBlock.wordmark">
+    <Setter Property="FontFamily" Value="{StaticResource Font.Body}" />
+    <Setter Property="FontSize" Value="{StaticResource FontSize.Wordmark}" />
+    <Setter Property="LetterSpacing" Value="{StaticResource LetterSpacing.Wordmark}" />
+    <Setter Property="FontWeight" Value="SemiBold" />
+  </Style>
+  <Style Selector="TextBlock.cardTitle">
+    <Setter Property="FontFamily" Value="{StaticResource Font.Display}" />
+    <Setter Property="FontWeight" Value="{StaticResource FontWeight.Display}" />
+    <Setter Property="FontSize" Value="{StaticResource FontSize.CardTitle}" />
+    <Setter Property="LetterSpacing" Value="{StaticResource LetterSpacing.CardTitle}" />
+    <Setter Property="LineHeight" Value="{StaticResource LineHeight.CardTitle}" />
+  </Style>
+  <!-- The title of a page: the heading step at the canvas's own 42 px line. -->
+  <Style Selector="TextBlock.pageTitle">
+    <Setter Property="FontFamily" Value="{StaticResource Font.Display}" />
+    <Setter Property="FontWeight" Value="{StaticResource FontWeight.Display}" />
+    <Setter Property="FontSize" Value="{StaticResource FontSize.PageTitle}" />
+    <Setter Property="LineHeight" Value="{StaticResource LineHeight.PageTitle}" />
+    <Setter Property="LetterSpacing" Value="{StaticResource LetterSpacing.PageTitle}" />
+  </Style>
+  <Style Selector="TextBlock.paragraph">
+    <Setter Property="FontFamily" Value="{StaticResource Font.Body}" />
+    <Setter Property="FontSize" Value="{StaticResource FontSize.BodySm}" />
+    <Setter Property="LineHeight" Value="{StaticResource LineHeight.BodySm}" />
+    <Setter Property="LetterSpacing" Value="{StaticResource LetterSpacing.BodySm}" />
+    <Setter Property="Foreground" Value="{DynamicResource Brush.Smoke}" />
+    <Setter Property="TextWrapping" Value="Wrap" />
+  </Style>
+  <!-- The 12 px note under a title: Smoke, 1.5 line height, wraps. -->
+  <Style Selector="TextBlock.note12">
+    <Setter Property="FontFamily" Value="{StaticResource Font.Body}" />
+    <Setter Property="FontSize" Value="{StaticResource FontSize.Small}" />
+    <Setter Property="LineHeight" Value="{StaticResource LineHeight.Small}" />
+    <Setter Property="LetterSpacing" Value="{StaticResource LetterSpacing.Small}" />
+    <Setter Property="Foreground" Value="{DynamicResource Brush.Smoke}" />
+    <Setter Property="TextWrapping" Value="Wrap" />
+  </Style>
+  <Style Selector="TextBlock.monoMeta">
+    <Setter Property="FontFamily" Value="{StaticResource Font.Mono}" />
+    <Setter Property="FontWeight" Value="{StaticResource FontWeight.Mono}" />
+    <Setter Property="FontSize" Value="{StaticResource FontSize.Mono}" />
+    <Setter Property="LetterSpacing" Value="{StaticResource LetterSpacing.MonoRow}" />
+    <Setter Property="LineHeight" Value="{StaticResource LineHeight.MonoRow}" />
+  </Style>
+
+  <!-- ==== Sidebar =============================================================================================================== -->
+  <Style Selector="Border.sidebar">
+    <Setter Property="BorderBrush" Value="{DynamicResource Brush.Hairline}" />
+    <Setter Property="BorderThickness" Value="{StaticResource Hairline.End}" />
+    <Setter Property="Width" Value="{StaticResource Size.SidebarFrame}" />
+    <Setter Property="Padding" Value="{StaticResource Inset.SidebarFrame}" />
+  </Style>
+
+  <!-- "New recording": the black pill (ink on the light page, the light ink on the dark one). -->
+  <Style Selector="Button.side">
+    <Setter Property="Height" Value="{StaticResource Size.SidebarButton}" />
+    <Setter Property="Padding" Value="0" />
+    <Setter Property="CornerRadius" Value="{StaticResource Radius.Pill}" />
+    <Setter Property="HorizontalAlignment" Value="Stretch" />
+    <Setter Property="HorizontalContentAlignment" Value="Center" />
+    <Setter Property="VerticalContentAlignment" Value="Center" />
+    <Setter Property="FontFamily" Value="{StaticResource Font.Body}" />
+    <Setter Property="FontSize" Value="{StaticResource FontSize.BodySm}" />
+    <Setter Property="FontWeight" Value="{StaticResource FontWeight.BodyMedium}" />
+    <Setter Property="Background" Value="{DynamicResource Brush.Ink}" />
+    <Setter Property="Foreground" Value="{DynamicResource Brush.Canvas}" />
+    <Setter Property="BorderThickness" Value="0" />
+  </Style>
+  <Style Selector="Button.side:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="{DynamicResource Brush.InkHover}" />
+    <Setter Property="Foreground" Value="{DynamicResource Brush.Canvas}" />
+  </Style>
+  <Style Selector="Button.side:pressed /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="{DynamicResource Brush.Smoke}" />
+    <Setter Property="Foreground" Value="{DynamicResource Brush.Canvas}" />
+  </Style>
+  <!-- While recording the same place is the "Recording" pill: Surface with the ink text, no black. -->
+  <Style Selector="Button.side.recording">
+    <Setter Property="Background" Value="{DynamicResource Brush.Surface}" />
+    <Setter Property="Foreground" Value="{DynamicResource Brush.Ink}" />
+  </Style>
+  <Style Selector="Button.side.recording:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="{DynamicResource Brush.FillHover}" />
+    <Setter Property="Foreground" Value="{DynamicResource Brush.Ink}" />
+  </Style>
+  <Style Selector="Button.side.recording:pressed /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="{DynamicResource Brush.FillPressed}" />
+    <Setter Property="Foreground" Value="{DynamicResource Brush.Ink}" />
+  </Style>
+
+  <!-- Context list: 36 px pills, 13 px text. -->
+  <Style Selector="Button.nav.sub">
+    <Setter Property="FontSize" Value="{StaticResource FontSize.Meta}" />
+  </Style>
+  <Style Selector="Button.nav.sub TextBlock">
+    <Setter Property="LetterSpacing" Value="{StaticResource LetterSpacing.Meta}" />
+  </Style>
+  <Style Selector="Button.nav TextBlock.navText">
+    <Setter Property="LetterSpacing" Value="{StaticResource LetterSpacing.BodySm}" />
+  </Style>
+
+  <Style Selector="Border.offline">
+    <Setter Property="Background" Value="{DynamicResource Brush.Surface}" />
+    <Setter Property="CornerRadius" Value="{StaticResource Radius.Note}" />
+    <Setter Property="Padding" Value="{StaticResource Inset.Offline}" />
+  </Style>
+
+  <!-- ==== Top bar =============================================================================================================== -->
+  <Style Selector="Border.topBar">
+    <Setter Property="MinHeight" Value="{StaticResource Size.TopBar}" />
+    <Setter Property="Padding" Value="{StaticResource Inset.TopBar}" />
+  </Style>
+  <Style Selector="Border.keyCap">
+    <Setter Property="Background" Value="{DynamicResource Brush.Surface}" />
+    <Setter Property="CornerRadius" Value="{StaticResource Radius.Key}" />
+    <Setter Property="Padding" Value="{StaticResource Inset.Key}" />
+  </Style>
+  <Style Selector="Border.keyCap > TextBlock">
+    <Setter Property="FontFamily" Value="{StaticResource Font.Mono}" />
+    <Setter Property="FontWeight" Value="{StaticResource FontWeight.Mono}" />
+    <Setter Property="FontSize" Value="{StaticResource FontSize.MonoSmall}" />
+    <Setter Property="LetterSpacing" Value="{StaticResource LetterSpacing.MonoSmall}" />
+    <Setter Property="Foreground" Value="{DynamicResource Brush.Graphite}" />
+  </Style>
+  <Style Selector="Button.crumbLink">
+    <Setter Property="Padding" Value="0" />
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="BorderThickness" Value="0" />
+    <Setter Property="MinHeight" Value="0" />
+    <Setter Property="Foreground" Value="{DynamicResource Brush.Smoke}" />
+    <Setter Property="Cursor" Value="Hand" />
+  </Style>
+  <Style Selector="Button.crumbLink:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="Foreground" Value="{DynamicResource Brush.Graphite}" />
+  </Style>
+  <Style Selector="Button.crumbLink:pressed /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="Foreground" Value="{DynamicResource Brush.Ink}" />
+  </Style>
+
+  <!-- ==== Library =============================================================================================================== -->
+  <Style Selector="ItemsControl.library">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="Padding" Value="{StaticResource Margin.LibraryEnd}" />
+  </Style>
+  <!-- Every entry is a row of a page 1080 px wide at most (the canvas), centred, with 32 px at the sides. -->
+  <Style Selector="ItemsControl.library > ContentPresenter">
+    <Setter Property="Padding" Value="{StaticResource Inset.LibraryItem}" />
+    <Setter Property="MaxWidth" Value="{StaticResource Size.LibraryPage}" />
+    <Setter Property="HorizontalAlignment" Value="Stretch" />
+    <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+  </Style>
+
+  <!-- The two cards of the hero: Surface with the large radius. -->
+  <Style Selector="Border.heroCard">
+    <Setter Property="Background" Value="{DynamicResource Brush.Surface}" />
+    <Setter Property="CornerRadius" Value="{StaticResource Radius.CardLarge}" />
+    <Setter Property="Padding" Value="{StaticResource Inset.32}" />
+  </Style>
+
+  <!-- Source switches: a Canvas pill with a hairline while on, a dashed (here: dash-colour) outline and Smoke text while off. -->
+  <Style Selector="ToggleButton.source">
+    <Setter Property="Height" Value="{StaticResource Size.Toggle}" />
+    <Setter Property="MinHeight" Value="0" />
+    <Setter Property="Padding" Value="{StaticResource Inset.Toggle}" />
+    <Setter Property="CornerRadius" Value="{StaticResource Radius.Pill}" />
+    <Setter Property="FontFamily" Value="{StaticResource Font.Body}" />
+    <Setter Property="FontSize" Value="{StaticResource FontSize.Meta}" />
+    <Setter Property="FontWeight" Value="{StaticResource FontWeight.BodyMedium}" />
+    <Setter Property="HorizontalContentAlignment" Value="Center" />
+    <Setter Property="VerticalContentAlignment" Value="Center" />
+    <Setter Property="BorderThickness" Value="0" />
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="BorderBrush" Value="{DynamicResource Brush.ButtonBorder}" />
+    <Setter Property="Foreground" Value="{DynamicResource Brush.Smoke}" />
+  </Style>
+  <Style Selector="ToggleButton.source:checked">
+    <Setter Property="BorderThickness" Value="{StaticResource Hairline.Thickness}" />
+  </Style>
+  <Style Selector="Rectangle.dashedOutline">
+    <Setter Property="Height" Value="{StaticResource Size.Toggle}" />
+    <Setter Property="Margin" Value="{StaticResource Margin.DashedOutline}" />
+    <Setter Property="RadiusX" Value="{StaticResource Size.ToggleRadius}" />
+    <Setter Property="RadiusY" Value="{StaticResource Size.ToggleRadius}" />
+    <Setter Property="Stroke" Value="{DynamicResource Brush.DashedBorder}" />
+    <Setter Property="StrokeThickness" Value="{StaticResource Hairline.Width}" />
+    <Setter Property="StrokeDashArray" Value="3,2" />
+    <Setter Property="IsHitTestVisible" Value="False" />
+  </Style>
+  <Style Selector="ToggleButton.source:checked /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="{DynamicResource Brush.Canvas}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource Brush.ButtonBorder}" />
+    <Setter Property="Foreground" Value="{DynamicResource Brush.Ink}" />
+  </Style>
+  <Style Selector="ToggleButton.source:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="{DynamicResource Brush.FillHover}" />
+  </Style>
+  <Style Selector="ToggleButton.source:checked:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="{DynamicResource Brush.FillHover}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource Brush.ButtonBorder}" />
+    <Setter Property="Foreground" Value="{DynamicResource Brush.Ink}" />
+  </Style>
+  <Style Selector="ToggleButton.source:disabled /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Opacity" Value="0.5" />
+  </Style>
+
+  <!-- "Start recording" and the circular send button: the same black pill as the sidebar's. -->
+  <Style Selector="Button.start">
+    <Setter Property="Height" Value="{StaticResource Size.StartButton}" />
+    <Setter Property="MinHeight" Value="0" />
+    <Setter Property="Padding" Value="{StaticResource Inset.StartButton}" />
+    <Setter Property="CornerRadius" Value="{StaticResource Radius.Pill}" />
+    <Setter Property="HorizontalContentAlignment" Value="Center" />
+    <Setter Property="VerticalContentAlignment" Value="Center" />
+    <Setter Property="FontFamily" Value="{StaticResource Font.Body}" />
+    <Setter Property="FontSize" Value="{StaticResource FontSize.BodySm}" />
+    <Setter Property="FontWeight" Value="{StaticResource FontWeight.BodyMedium}" />
+    <Setter Property="Background" Value="{DynamicResource Brush.Ink}" />
+    <Setter Property="Foreground" Value="{DynamicResource Brush.Canvas}" />
+    <Setter Property="BorderThickness" Value="0" />
+  </Style>
+  <Style Selector="Button.start.send">
+    <Setter Property="Width" Value="{StaticResource Size.AskSend}" />
+    <Setter Property="Height" Value="{StaticResource Size.AskSend}" />
+    <Setter Property="Padding" Value="0" />
+  </Style>
+  <Style Selector="Button.start:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="{DynamicResource Brush.InkHover}" />
+    <Setter Property="Foreground" Value="{DynamicResource Brush.Canvas}" />
+  </Style>
+  <Style Selector="Button.start:pressed /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="{DynamicResource Brush.Smoke}" />
+    <Setter Property="Foreground" Value="{DynamicResource Brush.Canvas}" />
+  </Style>
+  <Style Selector="Button.start:disabled /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="{DynamicResource Brush.Ash}" />
+    <Setter Property="Foreground" Value="{DynamicResource Brush.Canvas}" />
+  </Style>
+  <!-- The send button of the canvas is always black, even before a question is typed. -->
+  <Style Selector="Button.start.send:disabled /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="{DynamicResource Brush.Ink}" />
+    <Setter Property="Foreground" Value="{DynamicResource Brush.Canvas}" />
+  </Style>
+
+  <!-- The question box: a pill on the Canvas, a shadow (light) or a hairline (dark) around it. -->
+  <Style Selector="Border.askBox">
+    <Setter Property="Height" Value="{StaticResource Size.AskBox}" />
+    <Setter Property="CornerRadius" Value="{StaticResource Radius.Pill}" />
+    <Setter Property="Background" Value="{DynamicResource Brush.Canvas}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource Brush.ButtonBorder}" />
+    <Setter Property="BorderThickness" Value="{DynamicResource Shell.AskBorder}" />
+    <Setter Property="BoxShadow" Value="{DynamicResource Shell.AskShadow}" />
+    <Setter Property="Padding" Value="{DynamicResource Shell.AskInset}" />
+  </Style>
+
+  <!-- A text box that is only text: the surrounding border draws the box. -->
+  <Style Selector="TextBox.bare">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="BorderThickness" Value="0" />
+    <Setter Property="Padding" Value="{StaticResource Inset.InputBare}" />
+    <Setter Property="MinHeight" Value="0" />
+    <Setter Property="MinWidth" Value="0" />
+    <Setter Property="CornerRadius" Value="0" />
+    <Setter Property="VerticalContentAlignment" Value="Center" />
+    <Setter Property="VerticalAlignment" Value="Center" />
+  </Style>
+  <Style Selector="TextBox.bare /template/ Border#PART_BorderElement">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="BorderThickness" Value="0" />
+  </Style>
+  <Style Selector="TextBox.bare:pointerover /template/ Border#PART_BorderElement">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="BorderThickness" Value="0" />
+  </Style>
+  <Style Selector="TextBox.bare:focus /template/ Border#PART_BorderElement">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="BorderThickness" Value="0" />
+  </Style>
+  <Style Selector="TextBox.bare.ask">
+    <Setter Property="FontSize" Value="{StaticResource FontSize.RowTitle}" />
+    <Setter Property="LetterSpacing" Value="{StaticResource LetterSpacing.RowTitle}" />
+  </Style>
+
+  <Style Selector="Border.searchBox">
+    <Setter Property="Height" Value="{StaticResource Size.SearchBox}" />
+    <Setter Property="CornerRadius" Value="{StaticResource Radius.Pill}" />
+    <Setter Property="Background" Value="{DynamicResource Brush.Canvas}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource Brush.ButtonBorder}" />
+    <Setter Property="BorderThickness" Value="{StaticResource Hairline.Thickness}" />
+    <Setter Property="Padding" Value="{StaticResource Inset.SearchBox}" />
+  </Style>
+
+  <!-- Suggestion chips and the filter chips: pills with a hairline (suggestions, the active filter) or none (the other filters). -->
+  <Style Selector="Button.suggestion">
+    <Setter Property="Height" Value="{StaticResource Size.Suggestion}" />
+    <Setter Property="MinHeight" Value="0" />
+    <Setter Property="Padding" Value="{StaticResource Inset.Suggestion}" />
+    <Setter Property="CornerRadius" Value="{StaticResource Radius.Pill}" />
+    <Setter Property="FontFamily" Value="{StaticResource Font.Body}" />
+    <Setter Property="FontSize" Value="{StaticResource FontSize.Meta}" />
+    <Setter Property="HorizontalContentAlignment" Value="Center" />
+    <Setter Property="VerticalContentAlignment" Value="Center" />
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="Foreground" Value="{DynamicResource Brush.Graphite}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource Brush.ButtonBorder}" />
+    <Setter Property="BorderThickness" Value="{StaticResource Hairline.Thickness}" />
+  </Style>
+  <Style Selector="Button.suggestion:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="{DynamicResource Brush.FillHover}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource Brush.ButtonBorder}" />
+    <Setter Property="Foreground" Value="{DynamicResource Brush.Graphite}" />
+  </Style>
+  <Style Selector="Button.suggestion:pressed /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="{DynamicResource Brush.FillPressed}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource Brush.ButtonBorder}" />
+  </Style>
+
+  <Style Selector="Button.filter">
+    <Setter Property="Height" Value="{StaticResource Size.FilterChip}" />
+    <Setter Property="MinHeight" Value="0" />
+    <Setter Property="Padding" Value="{StaticResource Inset.Toggle}" />
+    <Setter Property="CornerRadius" Value="{StaticResource Radius.Pill}" />
+    <Setter Property="FontFamily" Value="{StaticResource Font.Body}" />
+    <Setter Property="FontSize" Value="{StaticResource FontSize.Meta}" />
+    <Setter Property="FontWeight" Value="{StaticResource FontWeight.Body}" />
+    <Setter Property="HorizontalContentAlignment" Value="Center" />
+    <Setter Property="VerticalContentAlignment" Value="Center" />
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="Foreground" Value="{DynamicResource Brush.Graphite}" />
+    <Setter Property="BorderBrush" Value="Transparent" />
+    <Setter Property="BorderThickness" Value="{StaticResource Hairline.Thickness}" />
+  </Style>
+  <Style Selector="Button.filter:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="{DynamicResource Brush.FillHover}" />
+    <Setter Property="BorderBrush" Value="Transparent" />
+    <Setter Property="Foreground" Value="{DynamicResource Brush.Graphite}" />
+  </Style>
+  <Style Selector="Button.filter:pressed /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="{DynamicResource Brush.FillPressed}" />
+    <Setter Property="BorderBrush" Value="Transparent" />
+  </Style>
+  <Style Selector="Button.filter.on">
+    <Setter Property="FontWeight" Value="{StaticResource FontWeight.BodyMedium}" />
+  </Style>
+  <Style Selector="Button.filter.on /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="{DynamicResource Brush.Canvas}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource Brush.ButtonBorder}" />
+    <Setter Property="Foreground" Value="{DynamicResource Brush.Ink}" />
+  </Style>
+  <Style Selector="Button.filter.on:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="{DynamicResource Brush.FillHover}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource Brush.ButtonBorder}" />
+    <Setter Property="Foreground" Value="{DynamicResource Brush.Ink}" />
+  </Style>
+  <Style Selector="Ellipse.chipDot">
+    <Setter Property="Width" Value="{StaticResource Size.ChipDot}" />
+    <Setter Property="Height" Value="{StaticResource Size.ChipDot}" />
+    <Setter Property="Fill" Value="{DynamicResource Brush.Ink}" />
+    <Setter Property="VerticalAlignment" Value="Center" />
+  </Style>
+
+  <!-- A day's card of rows: one Border per row; the first row has the top corners, the last one the bottom ones. -->
+  <Style Selector="Border.rowCard">
+    <Setter Property="BorderBrush" Value="{DynamicResource Brush.Hairline}" />
+    <Setter Property="BorderThickness" Value="{StaticResource Border.RowMiddle}" />
+    <Setter Property="ClipToBounds" Value="True" />
+  </Style>
+  <Style Selector="Border.rowCard.top">
+    <Setter Property="CornerRadius" Value="{StaticResource Radius.CardTop}" />
+  </Style>
+  <Style Selector="Border.rowCard.bottom">
+    <Setter Property="BorderThickness" Value="{StaticResource Border.RowLast}" />
+    <Setter Property="CornerRadius" Value="{StaticResource Radius.CardBottom}" />
+  </Style>
+  <Style Selector="Border.rowCard.top.bottom">
+    <Setter Property="CornerRadius" Value="{StaticResource Radius.Card}" />
+  </Style>
+  <Style Selector="Button.libraryRow">
+    <Setter Property="Padding" Value="{StaticResource Inset.RowPad}" />
+    <Setter Property="MinHeight" Value="0" />
+    <Setter Property="HorizontalAlignment" Value="Stretch" />
+    <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+    <Setter Property="VerticalContentAlignment" Value="Center" />
+    <Setter Property="CornerRadius" Value="0" />
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="BorderThickness" Value="0" />
+    <Setter Property="Foreground" Value="{DynamicResource Brush.Ink}" />
+  </Style>
+  <Style Selector="Button.libraryRow:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="{DynamicResource Brush.Surface}" />
+    <Setter Property="Foreground" Value="{DynamicResource Brush.Ink}" />
+  </Style>
+  <Style Selector="Button.libraryRow:pressed /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="{DynamicResource Brush.Stone}" />
+    <Setter Property="Foreground" Value="{DynamicResource Brush.Ink}" />
+  </Style>
+  <Style Selector="Border.rowTile">
+    <Setter Property="Width" Value="{StaticResource Size.RowTile}" />
+    <Setter Property="Height" Value="{StaticResource Size.RowTile}" />
+    <Setter Property="CornerRadius" Value="{StaticResource Radius.Tile}" />
+    <Setter Property="Background" Value="{DynamicResource Brush.Stone}" />
+    <Setter Property="VerticalAlignment" Value="Center" />
+  </Style>
+  <Style Selector="ProgressBar.rowBar">
+    <Setter Property="Width" Value="{StaticResource Size.RowBar}" />
+    <Setter Property="Height" Value="{StaticResource Size.Progress}" />
+    <Setter Property="MinHeight" Value="0" />
+    <Setter Property="MinWidth" Value="0" />
+    <Setter Property="Minimum" Value="0" />
+    <Setter Property="Maximum" Value="100" />
+    <Setter Property="VerticalAlignment" Value="Center" />
+  </Style>
+
+  <!-- ==== Pick dates: the flyout and its calendar ================================================================================= -->
+  <Style Selector="FlyoutPresenter.rangeFlyout">
+    <Setter Property="Background" Value="{DynamicResource Brush.Canvas}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource Brush.Hairline}" />
+    <Setter Property="BorderThickness" Value="{StaticResource Hairline.Thickness}" />
+    <Setter Property="CornerRadius" Value="{StaticResource Radius.Card}" />
+    <Setter Property="Padding" Value="{StaticResource Inset.16}" />
+  </Style>
+  <Style Selector="controls|DateRangeCalendar">
+    <Setter Property="Background" Value="{DynamicResource Brush.Canvas}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource Brush.Canvas}" />
+    <Setter Property="Foreground" Value="{DynamicResource Brush.Ink}" />
+    <Setter Property="FontFamily" Value="{StaticResource Font.Body}" />
+  </Style>
+  <!-- A day: Surface-grey on hover, the Ink pill with Canvas text when selected, a hairline ring when it is today. -->
+  <Style Selector="CalendarDayButton /template/ Border#Root">
+    <Setter Property="CornerRadius" Value="{StaticResource Radius.Pill}" />
+  </Style>
+  <Style Selector="CalendarDayButton /template/ Border#Border">
+    <Setter Property="CornerRadius" Value="{StaticResource Radius.Pill}" />
+  </Style>
+  <Style Selector="CalendarDayButton:pointerover /template/ Border#Root">
+    <Setter Property="Background" Value="{DynamicResource Brush.FillHover}" />
+  </Style>
+  <Style Selector="CalendarDayButton:today /template/ Border#Root">
+    <Setter Property="Background" Value="Transparent" />
+  </Style>
+  <Style Selector="CalendarDayButton:today">
+    <Setter Property="Foreground" Value="{DynamicResource Brush.Ink}" />
+  </Style>
+  <Style Selector="CalendarDayButton:today /template/ Border#Border">
+    <Setter Property="BorderBrush" Value="{DynamicResource Brush.Ash}" />
+    <Setter Property="BorderThickness" Value="{StaticResource Hairline.Thickness}" />
+  </Style>
+  <Style Selector="CalendarDayButton:selected /template/ Border#Root">
+    <Setter Property="Background" Value="{DynamicResource Brush.Ink}" />
+  </Style>
+  <Style Selector="CalendarDayButton:selected">
+    <Setter Property="Foreground" Value="{DynamicResource Brush.Canvas}" />
+  </Style>
+  <!-- The app's TextBlock style sets Ink on every text block itself, so the day's text is styled directly. -->
+  <Style Selector="CalendarDayButton:selected TextBlock">
+    <Setter Property="Foreground" Value="{DynamicResource Brush.Canvas}" />
+  </Style>
+  <Style Selector="CalendarDayButton:inactive TextBlock">
+    <Setter Property="Foreground" Value="{DynamicResource Brush.Ash}" />
+  </Style>
+  <Style Selector="CalendarDayButton:selected:pointerover /template/ Border#Root">
+    <Setter Property="Background" Value="{DynamicResource Brush.InkHover}" />
+  </Style>
+  <Style Selector="CalendarDayButton:inactive">
+    <Setter Property="Foreground" Value="{DynamicResource Brush.Ash}" />
+  </Style>
+</Styles>

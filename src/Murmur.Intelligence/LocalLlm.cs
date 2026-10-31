@@ -1,7 +1,9 @@
 using System.Runtime.CompilerServices;
 using Microsoft.Extensions.AI;
 using Murmur.Core.Intelligence;
+using Murmur.Core.Settings;
 using Murmur.Intelligence.Llama;
+using ChatMessage = Microsoft.Extensions.AI.ChatMessage;
 
 namespace Murmur.Intelligence;
 
@@ -24,8 +26,15 @@ public sealed class AiPausedException : InvalidOperationException
 /// (and on every request), so models installed, switched or removed while the app runs are noticed without a
 /// restart. When the active model of a running server changes, the next request retires that server (an in-flight request
 /// finishes on it, then it stops) and starts one with the new model.
+/// <para>
+/// Acceleration: with a GPU build chosen and installed the chat server runs from it (<c>-ngl 99</c>); the embedding server
+/// stays on the CPU build (see <see cref="LocalLlmOptions.AccelerateEmbeddings"/>). A GPU server that fails to start is
+/// replaced by the CPU build for the rest of the session (until the choice or the files change) and
+/// <see cref="Acceleration"/> says why. The fallback only happens inside a load that is allowed to run: during a recording
+/// nothing starts at all.
+/// </para>
 /// </remarks>
-public sealed class LocalLlm : ILlm
+public sealed class LocalLlm : ILlm, IAccelerationStatusSource
 {
     /// <summary>How long a resolved set of options is reused before the provider is asked again.</summary>
     public static readonly TimeSpan OptionsRefreshInterval = TimeSpan.FromSeconds(2);
@@ -42,6 +51,13 @@ public sealed class LocalLlm : ILlm
     private readonly LocalChatClient _chatClient;
     private readonly LocalEmbeddingGenerator _embeddingGenerator;
     private OptionsSnapshot? _snapshot;
+
+    // Orders the status events: the status is computed from the latest snapshot and compared with the last one published under it.
+    private readonly Lock _statusLock = new();
+
+    // The GPU build that failed to start in this session (written and read without the lock; replaced as a whole).
+    private AccelerationFailure? _accelerationFailure;
+    private AccelerationStatus? _publishedStatus;
 
     // Servers being stopped gracefully (idle, model switch): recording start kills them, unload and dispose wait for them.
     private readonly Dictionary<ILlamaServer, StopEntry> _stopping = [];
@@ -126,7 +142,111 @@ public sealed class LocalLlm : ILlm
     /// Re-resolves the options right now, so <see cref="IsInstalled"/> and <see cref="Status"/> see a model that was
     /// just installed, switched or removed without waiting for <see cref="OptionsRefreshInterval"/>.
     /// </summary>
-    public void Refresh() => GetOptions(force: true);
+    public void Refresh()
+    {
+        GetSnapshot(force: true);
+        PublishStatus();
+    }
+
+    /// <inheritdoc />
+    /// <remarks>
+    /// Handlers run synchronously under a small private lock (so events cannot be reordered) on whatever thread changed the
+    /// state: keep them short and marshal to the UI thread. The event is raised from the code paths that change state
+    /// (<see cref="Refresh"/>, <see cref="RetireStaleServers"/>, a model load, a GPU server that failed to start), never
+    /// from the <see cref="Current"/> getter.
+    /// </remarks>
+    public event Action<AccelerationStatus>? Changed;
+
+    /// <summary>
+    /// The build the chat server uses and why it is not the chosen one: <see cref="AccelerationFallback.RuntimeNotInstalled"/>
+    /// = download it first, <see cref="AccelerationFallback.StartFailed"/> = "GPU unavailable: <see cref="AccelerationStatus.Detail"/>".
+    /// Computed on every read from the options as last resolved (at most <see cref="OptionsRefreshInterval"/> old); reading raises nothing.
+    /// </summary>
+    public AccelerationStatus Current => ComputeStatus(GetSnapshot());
+
+    private AccelerationStatus ComputeStatus(OptionsSnapshot snapshot)
+    {
+        var options = snapshot.Options;
+        if (options.Acceleration == AiAcceleration.Cpu)
+        {
+            return new AccelerationStatus(AiAcceleration.Cpu, AiAcceleration.Cpu, AccelerationFallback.None);
+        }
+
+        if (!snapshot.AcceleratedInstalled)
+        {
+            return new AccelerationStatus(options.Acceleration, AiAcceleration.Cpu, AccelerationFallback.RuntimeNotInstalled);
+        }
+
+        return FailureFor(options, options.ChatModelPath) is { } failure
+            ? new AccelerationStatus(options.Acceleration, AiAcceleration.Cpu, AccelerationFallback.StartFailed, failure.Reason)
+            : new AccelerationStatus(options.Acceleration, options.Acceleration, AccelerationFallback.None);
+    }
+
+    /// <summary>
+    /// Computes the status from the latest snapshot and raises <see cref="Changed"/> when it differs from the one published
+    /// last (the first one is only remembered). Compute, compare and raise happen under one lock, so two threads cannot publish out of order.
+    /// </summary>
+    private void PublishStatus()
+    {
+        lock (_statusLock)
+        {
+            if (Volatile.Read(ref _snapshot) is not { } snapshot)
+            {
+                return;
+            }
+
+            var status = ComputeStatus(snapshot);
+            var previous = _publishedStatus;
+            _publishedStatus = status;
+            if (previous is null || previous == status)
+            {
+                return;
+            }
+
+            try
+            {
+                Changed?.Invoke(status);
+            }
+            catch (Exception)
+            {
+                // A faulty subscriber must not break model loading.
+            }
+        }
+    }
+
+    /// <summary>
+    /// Stops the idle servers that no longer match the configuration (another acceleration or model was chosen), so a
+    /// GPU build does not keep its VRAM after the user went back to the CPU. Servers with a request in flight are left
+    /// alone; every server restarts lazily, with the new configuration, at its next request. No-op during a recording
+    /// (the servers are gone already).
+    /// </summary>
+    public void RetireStaleServers()
+    {
+        var snapshot = GetSnapshot(force: true);
+        PublishStatus();
+        var toStop = new List<(ILlamaServer Server, TaskCompletionSource? Stopping)>(2);
+        lock (_lock)
+        {
+            if (_disposed)
+            {
+                return;
+            }
+
+            foreach (var slot in (ReadOnlySpan<Slot>)[_chat, _embedding])
+            {
+                if (slot.Server is { } server && slot.InFlight == 0 && !Matches(slot, snapshot))
+                {
+                    toStop.Add((server, MarkStopping(server, slot.RunningModelPath)));
+                    slot.Server = null;
+                }
+            }
+        }
+
+        foreach (var (server, stopping) in toStop)
+        {
+            StartStop(server, stopping);
+        }
+    }
 
     public async ValueTask<IChatClient> GetChatClientAsync(CancellationToken cancellationToken)
     {
@@ -220,28 +340,97 @@ public sealed class LocalLlm : ILlm
     /// <summary>The options as last resolved, never refreshed (safe to call under <see cref="_lock"/>).</summary>
     private LocalLlmOptions LastOptions => Volatile.Read(ref _snapshot)?.Options ?? GetOptions();
 
-    /// <summary>The resolved options: reused for <see cref="OptionsRefreshInterval"/>, re-read from the provider after that or when forced.</summary>
-    private LocalLlmOptions GetOptions(bool force = false)
+    private LocalLlmOptions GetOptions(bool force = false) => GetSnapshot(force).Options;
+
+    /// <summary>
+    /// The resolved options plus the one file check they need (is the GPU build installed), reused for
+    /// <see cref="OptionsRefreshInterval"/>, re-read from the provider after that or when forced. Resolving here, once per
+    /// snapshot, keeps file system calls out of the sections that run under <see cref="_lock"/>.
+    /// </summary>
+    private OptionsSnapshot GetSnapshot(bool force = false)
     {
         var snapshot = Volatile.Read(ref _snapshot);
         var now = _time.GetTimestamp();
         if (!force && snapshot is not null && _time.GetElapsedTime(snapshot.At, now) < OptionsRefreshInterval)
         {
-            return snapshot.Options;
+            return snapshot;
         }
 
         var options = _optionsProvider() ?? throw new InvalidOperationException("The options provider returned null.");
-        Volatile.Write(ref _snapshot, new OptionsSnapshot(options, now));
-        return options;
+        var fresh = new OptionsSnapshot(options, now, options.Acceleration != AiAcceleration.Cpu && FileExists(options.AcceleratedServerPath));
+        Volatile.Write(ref _snapshot, fresh);
+
+        // Choosing another build (or going back to the CPU) forgets a failed GPU start: choosing the GPU again is the retry.
+        if (Volatile.Read(ref _accelerationFailure) is { } failure && failure.Requested != options.Acceleration)
+        {
+            Interlocked.CompareExchange(ref _accelerationFailure, null, failure);
+        }
+
+        return fresh;
     }
 
-    private static bool Matches(Slot slot, LocalLlmOptions options) =>
-        string.Equals(slot.RunningModelPath, ModelPathOf(options, slot), StringComparison.Ordinal)
-        && string.Equals(slot.RunningServerPath, options.LlamaServerPath, StringComparison.Ordinal);
+    private bool Matches(Slot slot, OptionsSnapshot snapshot) =>
+        string.Equals(slot.RunningModelPath, ModelPathOf(snapshot.Options, slot), StringComparison.Ordinal)
+        && string.Equals(slot.RunningServerPath, ServerPathFor(slot, snapshot, out _), StringComparison.Ordinal);
 
-    private LlamaServerOptions CreateServerOptions(Slot slot, LocalLlmOptions options)
+    /// <summary>
+    /// The recorded failure of the GPU build <paramref name="options"/> asks for with <paramref name="modelPath"/>, or <c>null</c>.
+    /// A failure belongs to the model it failed with: another model may fit the VRAM, so choosing one is a new attempt.
+    /// </summary>
+    private AccelerationFailure? FailureFor(LocalLlmOptions options, string? modelPath) =>
+        Volatile.Read(ref _accelerationFailure) is { } failure
+        && failure.Requested == options.Acceleration
+        && string.Equals(failure.ServerPath, options.AcceleratedServerPath, StringComparison.Ordinal)
+        && string.Equals(failure.ModelPath, modelPath, StringComparison.Ordinal)
+            ? failure
+            : null;
+
+    /// <summary>
+    /// The binary the slot's server runs from: the chosen GPU build when it is installed and has not failed in this
+    /// session (the chat server; the embedding one only with <see cref="LocalLlmOptions.AccelerateEmbeddings"/>), else the CPU build.
+    /// </summary>
+    private string? ServerPathFor(Slot slot, OptionsSnapshot snapshot, out bool accelerated)
     {
-        var serverPath = options.LlamaServerPath;
+        var options = snapshot.Options;
+        accelerated = snapshot.AcceleratedInstalled
+            && (!slot.IsEmbedding || options.AccelerateEmbeddings)
+            && FailureFor(options, ModelPathOf(options, slot)) is null;
+        return accelerated ? options.AcceleratedServerPath : options.LlamaServerPath;
+    }
+
+    private static IReadOnlyList<string> ArgumentsFor(Slot slot, LocalLlmOptions options, bool accelerated)
+    {
+        var extra = slot.IsEmbedding ? options.EmbeddingExtraArguments : options.ChatExtraArguments;
+        if (!accelerated)
+        {
+            return extra;
+        }
+
+        // --device pins the GPU: without it a build whose GPU backend finds no device would start a healthy CPU-only server
+        // ("no usable GPU found, --gpu-layers ignored") instead of failing. The GPU arguments come before the extra ones,
+        // so an explicit -ngl in the extra arguments still wins.
+        return
+        [
+            "--device", LocalLlmOptions.DeviceName(options.Acceleration),
+            .. slot.IsEmbedding ? options.AcceleratedEmbeddingArguments : options.AcceleratedChatArguments,
+            .. extra,
+        ];
+    }
+
+    private LlamaServerOptions CreateServerOptions(Slot slot, OptionsSnapshot snapshot, bool allowAcceleration, out bool accelerated)
+    {
+        var options = snapshot.Options;
+        string? serverPath;
+        if (allowAcceleration)
+        {
+            serverPath = ServerPathFor(slot, snapshot, out accelerated);
+        }
+        else
+        {
+            serverPath = options.LlamaServerPath;
+            accelerated = false;
+        }
+
         if (!FileExists(serverPath))
         {
             throw new FileNotFoundException("llama-server is not installed.", serverPath);
@@ -261,9 +450,86 @@ public sealed class LocalLlm : ILlm
             Threads = options.Threads,
             ContextSize = slot.IsEmbedding ? options.EmbeddingContextSize : options.ContextSize,
             Embedding = slot.IsEmbedding,
-            ExtraArguments = slot.IsEmbedding ? options.EmbeddingExtraArguments : options.ChatExtraArguments,
+            ExtraArguments = ArgumentsFor(slot, options, accelerated),
+            RequireGpu = accelerated,
             StartupTimeout = options.StartupTimeout,
         };
+    }
+
+    /// <summary>Remembers the failed GPU start of <paramref name="modelPath"/> (the CPU build serves from now on) and tells the listeners.</summary>
+    /// <returns>The record and what it replaced, for <see cref="UndoAccelerationFailure"/>.</returns>
+    private (AccelerationFailure Recorded, AccelerationFailure? Previous) RecordAccelerationFailure(LocalLlmOptions options, string? modelPath, Exception error)
+    {
+        var recorded = new AccelerationFailure(options.Acceleration, options.AcceleratedServerPath, modelPath, DescribeFailure(error));
+        var previous = Interlocked.Exchange(ref _accelerationFailure, recorded);
+        PublishStatus();
+        return (recorded, previous);
+    }
+
+    /// <summary>
+    /// The CPU build failed to start too, so the GPU was not the culprit (a broken model file, no memory at all): take the
+    /// failure back, unless something newer replaced it, and say so.
+    /// </summary>
+    private void UndoAccelerationFailure((AccelerationFailure Recorded, AccelerationFailure? Previous) record)
+    {
+        Interlocked.CompareExchange(ref _accelerationFailure, record.Previous, record.Recorded);
+        PublishStatus();
+    }
+
+    /// <summary>
+    /// One short line for the UI: the last line of the server output that looks like an error (<c>error</c>, <c>failed</c>,
+    /// <c>out of memory</c>, <c>ErrorOutOfDeviceMemory</c>, <c>no usable GPU</c>), else its last line, else the first line of the exception.
+    /// </summary>
+    internal static string DescribeFailure(Exception error)
+    {
+        var line = error is LlamaServerException { OutputTail.Length: > 0 } server ? PickLine(server.OutputTail) : null;
+        line ??= FirstLine(error is TimeoutException ? "llama-server did not become healthy in time." : error.Message);
+        line = line.Trim();
+        if (line.Length > 200)
+        {
+            line = line[..200] + "...";
+        }
+
+        return line.Length == 0 ? error.GetType().Name : line;
+    }
+
+    private static readonly string[] ErrorMarkers = ["error", "failed", "out of memory", "ErrorOutOfDeviceMemory", "no usable GPU"];
+
+    /// <summary>Scans the lines from the end without splitting the text.</summary>
+    private static string? PickLine(ReadOnlySpan<char> text)
+    {
+        ReadOnlySpan<char> lastNonEmpty = default;
+        var end = text.Length;
+        while (end > 0)
+        {
+            var start = text[..end].LastIndexOf('\n') + 1;
+            var line = text[start..end].Trim();
+            if (line.Length > 0)
+            {
+                if (lastNonEmpty.IsEmpty)
+                {
+                    lastNonEmpty = line;
+                }
+
+                foreach (var marker in ErrorMarkers)
+                {
+                    if (line.Contains(marker, StringComparison.OrdinalIgnoreCase))
+                    {
+                        return line.ToString();
+                    }
+                }
+            }
+
+            end = Math.Max(0, start - 1);
+        }
+
+        return lastNonEmpty.IsEmpty ? null : lastNonEmpty.ToString();
+    }
+
+    private static string FirstLine(string text)
+    {
+        var newline = text.IndexOf('\n');
+        return newline < 0 ? text : text[..newline];
     }
 
     private void ThrowIfUnavailable()
@@ -364,10 +630,11 @@ public sealed class LocalLlm : ILlm
         ThrowIfUnavailable();
 
         // A request is rare and slow next to resolving a few paths: always look at the current configuration.
-        var options = GetOptions(force: true);
+        var snapshot = GetSnapshot(force: true);
+        PublishStatus();
         lock (_lock)
         {
-            if (slot.Server is { HasExited: false } running && Matches(slot, options))
+            if (slot.Server is { HasExited: false } running && Matches(slot, snapshot))
             {
                 return running;
             }
@@ -378,14 +645,15 @@ public sealed class LocalLlm : ILlm
         {
             ThrowIfUnavailable();
 
-            options = GetOptions(force: true);
+            snapshot = GetSnapshot(force: true);
+            var options = snapshot.Options;
             ILlamaServer? dead = null;
             ILlamaServer? retiredIdle = null;
             TaskCompletionSource? retiredStopping = null;
             CancellationToken lifetime;
             lock (_lock)
             {
-                if (slot.Server is { HasExited: false } running && Matches(slot, options))
+                if (slot.Server is { HasExited: false } running && Matches(slot, snapshot))
                 {
                     return running;
                 }
@@ -433,7 +701,7 @@ public sealed class LocalLlm : ILlm
                 throw new OperationCanceledException("The model was unloaded while the previous one was stopping.", lifetime);
             }
 
-            var serverOptions = CreateServerOptions(slot, options);
+            var serverOptions = CreateServerOptions(slot, snapshot, allowAcceleration: true, out var accelerated);
             lock (_lock)
             {
                 slot.Loading = true;
@@ -443,7 +711,29 @@ public sealed class LocalLlm : ILlm
             try
             {
                 using var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, lifetime);
-                server = await _starter(serverOptions, linked.Token).ConfigureAwait(false);
+                try
+                {
+                    server = await _starter(serverOptions, linked.Token).ConfigureAwait(false);
+                }
+                catch (Exception ex) when (accelerated && ex is not OperationCanceledException)
+                {
+                    // The GPU build could not start (driver missing, out of VRAM, ...): the CPU build serves instead. Not while a
+                    // recording runs (no model may load then) and not when the load was cancelled.
+                    var record = RecordAccelerationFailure(options, ModelPathOf(options, slot), ex);
+                    ThrowIfUnavailable();
+                    linked.Token.ThrowIfCancellationRequested();
+                    serverOptions = CreateServerOptions(slot, snapshot, allowAcceleration: false, out _);
+                    try
+                    {
+                        server = await _starter(serverOptions, linked.Token).ConfigureAwait(false);
+                    }
+                    catch (Exception cpuError) when (cpuError is not OperationCanceledException)
+                    {
+                        // Not the GPU's fault after all: do not blame it for the rest of the session.
+                        UndoAccelerationFailure(record);
+                        throw;
+                    }
+                }
             }
             catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested && lifetime.IsCancellationRequested)
             {
@@ -726,7 +1016,9 @@ public sealed class LocalLlm : ILlm
         }
     }
 
-    private sealed record OptionsSnapshot(LocalLlmOptions Options, long At);
+    private sealed record OptionsSnapshot(LocalLlmOptions Options, long At, bool AcceleratedInstalled);
+
+    private sealed record AccelerationFailure(AiAcceleration Requested, string? ServerPath, string? ModelPath, string Reason);
 
     private readonly record struct Held(ILlamaServer Server, TaskCompletionSource? Stopping);
 

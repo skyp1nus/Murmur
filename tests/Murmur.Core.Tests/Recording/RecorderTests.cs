@@ -77,7 +77,7 @@ public sealed class RecorderTests : IDisposable
     }
 
     [Fact]
-    public async Task DefaultTitle_UsesTheStartTime()
+    public async Task DefaultTitle_IsANeutralEnglishUntitledWithTheStartTime()
     {
         var recorder = new Recorder(new SyntheticCapture(), _store, TimeProvider.System, RecorderSettings.Default);
 
@@ -85,8 +85,15 @@ public sealed class RecorderTests : IDisposable
         await recorder.StopAsync(Ct);
 
         Assert.Equal(Recorder.DefaultTitle(started.StartedAt), started.Title);
-        Assert.StartsWith("Запис ", started.Title, StringComparison.Ordinal);
-        Assert.Matches(@"^Запис \d{4}-\d{2}-\d{2} \d{2}:\d{2}$", started.Title);
+        Assert.Matches(@"^Untitled — [A-Z][a-z]{2} \d{1,2}, \d{2}:\d{2}$", started.Title);
+    }
+
+    [Fact]
+    public void DefaultTitle_FollowsTheCanvasFormat()
+    {
+        var at = new DateTimeOffset(2026, 10, 18, 1, 12, 0, TimeSpan.Zero);
+
+        Assert.Equal("Untitled — Oct 18, 01:12", Recorder.DefaultTitle(at));
     }
 
     [Fact]

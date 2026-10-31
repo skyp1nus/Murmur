@@ -22,7 +22,8 @@ namespace Murmur.App.Controls;
 /// <para>
 /// <b>Animation.</b> While <see cref="IsActive"/> is false the orb shows one static frame and requests no animation
 /// frames, so an idle window costs no CPU. While active it runs a 15 Hz timer (not the 60 Hz animation-frame loop, whose ticks
-/// alone cost CPU), and reads <see cref="LevelSource"/> once per update.
+/// alone cost CPU), and reads <see cref="LevelSource"/> once per update. While <see cref="Motion.ReduceMotionProperty"/> is on
+/// the breathing is decoration the user asked to do without: the orb shows its static frame and the timer is stopped.
 /// </para>
 /// <para>
 /// <b>Time.</b> Every update reads a single clock (<see cref="Clock"/>, the system clock unless a test replaces it). Each
@@ -61,6 +62,7 @@ public sealed class OrbControl : Panel
     private TimeProvider _clock = TimeProvider.System;
     private long _clockStart;
     private bool _primed;
+    private bool _easeInFromRest;
     private TimeSpan _lastFrame;
     private double _smoothed;
     private double _phaseSeconds;
@@ -177,15 +179,40 @@ public sealed class OrbControl : Panel
         base.OnPropertyChanged(change);
         if (change.Property == IsActiveProperty)
         {
+            _easeInFromRest = false;
             Restart();
             if (!IsActive)
             {
-                _smoothed = 0;
-                ApplyFrame(0, breath: 0, active: false);
+                HoldRest();
             }
 
             UpdateLoop();
         }
+        else if (change.Property == Motion.ReduceMotionProperty)
+        {
+            Restart();
+            if (ReduceMotion)
+            {
+                HoldRest();
+            }
+            else
+            {
+                // Motion is allowed again mid-recording: the pulse eases in from rest instead of snapping to the current level.
+                _easeInFromRest = IsActive;
+            }
+
+            UpdateLoop();
+        }
+    }
+
+    /// <summary>True while the system asks for less motion (inherited from the window): the orb holds its static frame.</summary>
+    private bool ReduceMotion => Motion.GetReduceMotion(this);
+
+    /// <summary>Shows the static frame and forgets the running animation.</summary>
+    private void HoldRest()
+    {
+        _smoothed = 0;
+        ApplyFrame(0, breath: 0, active: false);
     }
 
     /// <summary>Forgets the running animation: the next update starts again from the current level with the breath at rest.</summary>
@@ -193,7 +220,7 @@ public sealed class OrbControl : Panel
 
     private void UpdateLoop()
     {
-        var run = IsActive && ((Visual)this).IsAttachedToVisualTree();
+        var run = IsActive && !ReduceMotion && ((Visual)this).IsAttachedToVisualTree();
         if (run && !_timer.IsEnabled)
         {
             _timer.Start();
@@ -215,6 +242,11 @@ public sealed class OrbControl : Panel
     /// </summary>
     internal void Update(TimeSpan timestamp)
     {
+        if (ReduceMotion)
+        {
+            return;
+        }
+
         var elapsed = (timestamp - _lastFrame).TotalSeconds;
         if (_primed && elapsed < MinUpdateSeconds)
         {
@@ -230,7 +262,8 @@ public sealed class OrbControl : Panel
         {
             // A (re)start begins at the current level with the breath at rest, whatever happened before it.
             _primed = true;
-            _smoothed = target;
+            _smoothed = _easeInFromRest ? 0 : target;
+            _easeInFromRest = false;
             _phaseSeconds = 0;
         }
         else

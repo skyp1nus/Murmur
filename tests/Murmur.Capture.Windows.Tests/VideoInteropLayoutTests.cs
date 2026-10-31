@@ -34,6 +34,7 @@ public sealed unsafe class VideoInteropLayoutTests
         Assert.Equal(new Guid("B44392DA-499B-446B-A4CB-005FEAD0E6D5"), VideoConstants.ClsidMFMediaEngineClassFactory);
         Assert.Equal(new Guid("4D645ACE-26AA-4688-9BE1-DF3516990B93"), VideoConstants.IidIMFMediaEngineClassFactory);
         Assert.Equal(new Guid("98A1B0BB-03EB-4935-AE7C-93C1FA0E1C93"), VideoConstants.IidIMFMediaEngine);
+        Assert.Equal(new Guid("83015EAD-B1E6-40D0-A98A-37145FFE1AD1"), VideoConstants.IidIMFMediaEngineEx);
         Assert.Equal(new Guid("FEE7C112-E776-42B5-9BBF-0048524E2BD5"), VideoConstants.IidIMFMediaEngineNotify);
         Assert.Equal(new Guid("FC0E10D2-AB2A-4501-A951-06BB1075184C"), VideoConstants.IidIMFMediaError);
         Assert.Equal(new Guid("CACAF262-9370-4615-A13B-9F5539DA4C0A"), VideoConstants.ClsidWICImagingFactory);
@@ -73,6 +74,8 @@ public sealed unsafe class VideoInteropLayoutTests
         { "IMFMediaEngine::SetCurrentTime", 17 },
         { "IMFMediaEngine::GetDuration", 19 },
         { "IMFMediaEngine::IsPaused", 20 },
+        { "IMFMediaEngine::SetDefaultPlaybackRate", 22 },
+        { "IMFMediaEngine::SetPlaybackRate", 24 },
         { "IMFMediaEngine::IsEnded", 27 },
         { "IMFMediaEngine::SetAutoPlay", 29 },
         { "IMFMediaEngine::SetLoop", 31 },
@@ -84,6 +87,8 @@ public sealed unsafe class VideoInteropLayoutTests
         { "IMFMediaEngine::Shutdown", 42 },
         { "IMFMediaEngine::TransferVideoFrame", 43 },
         { "IMFMediaEngine::OnVideoStreamTick", 44 },
+        { "IMFMediaEngineEx::FrameStep", 51 },
+        { "IMFMediaEngineEx::SetCurrentTimeEx", 80 },
         { "IMFMediaError::GetErrorCode", 3 },
         { "IMFMediaError::GetExtendedErrorCode", 4 },
         { "IWICImagingFactory::CreateBitmap", 17 },
@@ -163,6 +168,8 @@ public sealed unsafe class VideoInteropLayoutTests
             case "IMFMediaEngine::SetCurrentTime": IMFMediaEngine.SetCurrentTime(s, 1.5); break;
             case "IMFMediaEngine::GetDuration": IMFMediaEngine.GetDuration(s); break;
             case "IMFMediaEngine::IsPaused": IMFMediaEngine.IsPaused(s); break;
+            case "IMFMediaEngine::SetDefaultPlaybackRate": IMFMediaEngine.SetDefaultPlaybackRate(s, 1.5); break;
+            case "IMFMediaEngine::SetPlaybackRate": IMFMediaEngine.SetPlaybackRate(s, 1.5); break;
             case "IMFMediaEngine::IsEnded": IMFMediaEngine.IsEnded(s); break;
             case "IMFMediaEngine::SetAutoPlay": IMFMediaEngine.SetAutoPlay(s, 0); break;
             case "IMFMediaEngine::SetLoop": IMFMediaEngine.SetLoop(s, 0); break;
@@ -174,6 +181,8 @@ public sealed unsafe class VideoInteropLayoutTests
             case "IMFMediaEngine::Shutdown": IMFMediaEngine.Shutdown(s); break;
             case "IMFMediaEngine::TransferVideoFrame": IMFMediaEngine.TransferVideoFrame(s, 0, &source, &rect, &border); break;
             case "IMFMediaEngine::OnVideoStreamTick": IMFMediaEngine.OnVideoStreamTick(s, &l); break;
+            case "IMFMediaEngineEx::FrameStep": IMFMediaEngineEx.FrameStep(s, 1); break;
+            case "IMFMediaEngineEx::SetCurrentTimeEx": IMFMediaEngineEx.SetCurrentTimeEx(s, 1.5, VideoConstants.SeekModeApproximate); break;
             case "IMFMediaError::GetErrorCode": IMFMediaError.GetErrorCode(s); break;
             case "IMFMediaError::GetExtendedErrorCode": IMFMediaError.GetExtendedErrorCode(s); break;
             case "IWICImagingFactory::CreateBitmap": IWICImagingFactory.CreateBitmap(s, 1, 1, &g, 0, &p); break;
@@ -253,6 +262,39 @@ public sealed unsafe class VideoInteropLayoutTests
     [UnmanagedCallersOnly] private static int S45(nint self) => Hit(45);
     [UnmanagedCallersOnly] private static int S46(nint self) => Hit(46);
     [UnmanagedCallersOnly] private static int S47(nint self) => Hit(47);
+    [UnmanagedCallersOnly] private static int S48(nint self) => Hit(48);
+    [UnmanagedCallersOnly] private static int S49(nint self) => Hit(49);
+    [UnmanagedCallersOnly] private static int S50(nint self) => Hit(50);
+    [UnmanagedCallersOnly] private static int S51(nint self) => Hit(51);
+    [UnmanagedCallersOnly] private static int S52(nint self) => Hit(52);
+    [UnmanagedCallersOnly] private static int S53(nint self) => Hit(53);
+    [UnmanagedCallersOnly] private static int S54(nint self) => Hit(54);
+    [UnmanagedCallersOnly] private static int S55(nint self) => Hit(55);
+    [UnmanagedCallersOnly] private static int S56(nint self) => Hit(56);
+    [UnmanagedCallersOnly] private static int S57(nint self) => Hit(57);
+    [UnmanagedCallersOnly] private static int S58(nint self) => Hit(58);
+    [UnmanagedCallersOnly] private static int S59(nint self) => Hit(59);
+    [UnmanagedCallersOnly] private static int S60(nint self) => Hit(60);
+    [UnmanagedCallersOnly] private static int S61(nint self) => Hit(61);
+    [UnmanagedCallersOnly] private static int S62(nint self) => Hit(62);
+    [UnmanagedCallersOnly] private static int S63(nint self) => Hit(63);
+    [UnmanagedCallersOnly] private static int S64(nint self) => Hit(64);
+    [UnmanagedCallersOnly] private static int S65(nint self) => Hit(65);
+    [UnmanagedCallersOnly] private static int S66(nint self) => Hit(66);
+    [UnmanagedCallersOnly] private static int S67(nint self) => Hit(67);
+    [UnmanagedCallersOnly] private static int S68(nint self) => Hit(68);
+    [UnmanagedCallersOnly] private static int S69(nint self) => Hit(69);
+    [UnmanagedCallersOnly] private static int S70(nint self) => Hit(70);
+    [UnmanagedCallersOnly] private static int S71(nint self) => Hit(71);
+    [UnmanagedCallersOnly] private static int S72(nint self) => Hit(72);
+    [UnmanagedCallersOnly] private static int S73(nint self) => Hit(73);
+    [UnmanagedCallersOnly] private static int S74(nint self) => Hit(74);
+    [UnmanagedCallersOnly] private static int S75(nint self) => Hit(75);
+    [UnmanagedCallersOnly] private static int S76(nint self) => Hit(76);
+    [UnmanagedCallersOnly] private static int S77(nint self) => Hit(77);
+    [UnmanagedCallersOnly] private static int S78(nint self) => Hit(78);
+    [UnmanagedCallersOnly] private static int S79(nint self) => Hit(79);
+    [UnmanagedCallersOnly] private static int S80(nint self) => Hit(80);
 
     private static delegate* unmanaged<nint, int>[] Stubs() =>
     [
@@ -262,6 +304,11 @@ public sealed unsafe class VideoInteropLayoutTests
         &S24, &S25, &S26, &S27, &S28, &S29, &S30, &S31,
         &S32, &S33, &S34, &S35, &S36, &S37, &S38, &S39,
         &S40, &S41, &S42, &S43, &S44, &S45, &S46, &S47,
+        &S48, &S49, &S50, &S51, &S52, &S53, &S54, &S55,
+        &S56, &S57, &S58, &S59, &S60, &S61, &S62, &S63,
+        &S64, &S65, &S66, &S67, &S68, &S69, &S70, &S71,
+        &S72, &S73, &S74, &S75, &S76, &S77, &S78, &S79,
+        &S80,
     ];
 
     private sealed class RecordingEvents : IMediaEngineEvents

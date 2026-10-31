@@ -124,6 +124,17 @@ internal sealed class FakeEngine : IPlaybackEngine
 
     public long Generation => Interlocked.Read(ref _generation);
 
+    /// <summary>The last speed handed to <see cref="SetSpeed"/>.</summary>
+    public double Speed { get; private set; } = 1;
+
+    public List<double> SpeedCalls { get; } = [];
+
+    public void SetSpeed(double speed)
+    {
+        Speed = speed;
+        SpeedCalls.Add(speed);
+    }
+
     public int Play()
     {
         Record("play");

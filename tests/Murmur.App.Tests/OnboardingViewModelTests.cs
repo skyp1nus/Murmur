@@ -1,4 +1,5 @@
 using Avalonia.Input;
+using Murmur.App.Localization;
 using Murmur.App.Services;
 using Murmur.App.Tests.Fakes;
 using Murmur.App.ViewModels;
@@ -10,8 +11,13 @@ using Murmur.Core.Settings;
 namespace Murmur.App.Tests;
 
 /// <summary>The onboarding without a window: when it shows, how the steps navigate and what each of them does with its services.</summary>
-public sealed class OnboardingViewModelTests
+public sealed class OnboardingViewModelTests : IDisposable
 {
+    // The texts asserted below are Ukrainian; English is the default language (D-039).
+    private readonly IDisposable _ukrainian = UiCulture.Override("uk");
+
+    public void Dispose() => _ukrainian.Dispose();
+
     // Start and finish -----------------------------------------------------------------------------------------------
 
     [Fact]
@@ -448,9 +454,9 @@ public sealed class OnboardingViewModelTests
         _ = microphone.StartAsync();
         _ = microphone.StartAsync();
         await rig.Onboarding.Audio.Settled;
-        await OnboardingRig.UntilAsync(() => rig.Devices.Sources.Count(s => s.Device.Kind == AudioDeviceKind.Microphone && !s.Disposed) <= 1);
+        await OnboardingRig.UntilAsync(() => rig.Devices.SourcesSnapshot().Count(s => s.Device.Kind == AudioDeviceKind.Microphone && !s.Disposed) <= 1);
 
-        Assert.Single(rig.Devices.Sources, s => s.Device.Kind == AudioDeviceKind.Microphone && !s.Disposed);
+        Assert.Single(rig.Devices.SourcesSnapshot(), s => s.Device.Kind == AudioDeviceKind.Microphone && !s.Disposed);
     }
 
     // The level meter feed --------------------------------------------------------------------------------------------
@@ -483,15 +489,28 @@ public sealed class OnboardingViewModelTests
             samples[i] = MathF.Sin(i * 0.1f) * 0.3f;
         }
 
-        meter.Write(samples);
-        var before = GC.GetAllocatedBytesForCurrentThread();
-        for (var i = 0; i < 1000; i++)
+        // Warm both paths up first. The steady state must be allocation-free: a pass that allocates nothing proves it,
+        // while one-time runtime work (tiered JIT promoting a method mid-loop) can land in any single pass.
+        var attempts = new List<long>();
+        for (var attempt = 0; attempt < 3; attempt++)
         {
             meter.Write(samples);
             meter.WriteSilence(480);
+            var before = GC.GetAllocatedBytesForCurrentThread();
+            for (var i = 0; i < 1000; i++)
+            {
+                meter.Write(samples);
+                meter.WriteSilence(480);
+            }
+
+            attempts.Add(GC.GetAllocatedBytesForCurrentThread() - before);
+            if (attempts[^1] == 0)
+            {
+                break;
+            }
         }
 
-        Assert.Equal(before, GC.GetAllocatedBytesForCurrentThread());
+        Assert.True(attempts[^1] == 0, $"bytes allocated per pass: {string.Join(", ", attempts)}");
         Assert.True(meter.Level > 0);
     }
 
@@ -1287,6 +1306,24 @@ public sealed class OnboardingViewModelTests
         await rig.Shell.Recording.AutoStopReport;
 
         Assert.Null(rig.Shell.Recording.Error);
+    }
+
+    [Fact]
+    public void Models_TheTransferText_WritesTheSharedUnitOnce()
+    {
+        Assert.Equal("0,31 / 0,67 ГБ", UiFormat.SizeProgress(310_000_000, 670_000_000));
+        Assert.Equal("50 МБ / 0,67 ГБ", UiFormat.SizeProgress(50_000_000, 670_000_000));
+    }
+
+    [Theory]
+    [InlineData("Gemma 4 26B A4B", "Gemma 4 26B")]
+    [InlineData("Gemma 4 E4B", "Gemma 4 E4B")]
+    [InlineData("Gemma 4 26B A4B (Q4_K_M)", "Gemma 4 26B A4B (Q4_K_M)")]
+    [InlineData("Alpha", "Alpha")]
+    [InlineData("Model AB", "Model AB")]
+    public void Models_TheAiCardName_DropsTheActiveParameterMarkerOnlyAtTheEnd(string catalogName, string expected)
+    {
+        Assert.Equal(expected, AiChoiceViewModel.WithoutActiveParameters(catalogName));
     }
 
     [Fact]

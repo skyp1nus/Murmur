@@ -128,15 +128,27 @@ $buildOk = $true
 if ($Build) {
     $expected = (Get-Content global.json -Raw | ConvertFrom-Json).sdk.version
     $actual = (dotnet --version).Trim()
-    if ($actual -ne $expected) {
-        Add-Result 'Build' 'FAIL' "SDK mismatch: dotnet --version is $actual, global.json pins $expected"
+
+    # global.json rolls forward (latestFeature, prereleases allowed): a newer SDK of the same major.minor is what dotnet itself
+    # picks, so it builds; only an older one or another major.minor is a mismatch. CI installs exactly the pinned SDK.
+    $sdkNote = ''
+    $pinned = $null; $installed = $null
+    $sdkOk = $actual -eq $expected
+    if (-not $sdkOk -and [System.Management.Automation.SemanticVersion]::TryParse($expected, [ref]$pinned) `
+            -and [System.Management.Automation.SemanticVersion]::TryParse($actual, [ref]$installed)) {
+        $sdkOk = $installed.Major -eq $pinned.Major -and $installed.Minor -eq $pinned.Minor -and $installed -ge $pinned
+        if ($sdkOk) { $sdkNote = " (global.json pins $expected and rolls forward to this SDK; CI builds with the pinned one)" }
+    }
+
+    if (-not $sdkOk) {
+        Add-Result 'Build' 'FAIL' "SDK mismatch: dotnet --version is $actual, global.json pins $expected (a newer SDK of the same major.minor is fine, an older or another one is not)"
         $buildOk = $false
     }
     else {
         $log = Join-Path $runDir 'build.log'
         $code = Invoke-Logged $log { dotnet build Murmur.sln -c Release }
         $warnings = @(Select-String -LiteralPath $log -Pattern ': warning ' -SimpleMatch:$false).Count
-        if ($code -eq 0) { Add-Result 'Build' 'PASS' "SDK $actual, 0 errors, $warnings warning line(s)" }
+        if ($code -eq 0) { Add-Result 'Build' 'PASS' "SDK $actual$sdkNote, 0 errors, $warnings warning line(s)" }
         else { Add-Result 'Build' 'FAIL' "dotnet build exit $code (see build.log)"; $buildOk = $false }
     }
 }
@@ -145,7 +157,8 @@ if ($Build) {
 if ($Test) {
     $log = Join-Path $runDir 'test.log'
     $trx = Join-Path $runDir 'test-results'
-    $noBuild = if ($Build -and $buildOk) { @('--no-build') } else { @() }
+    # @(...) keeps an array: `$x = if (...) { @('a') }` unrolls to the string 'a', and splatting a string passes its characters.
+    $noBuild = @(if ($Build -and $buildOk) { '--no-build' })
     $code = Invoke-Logged $log { dotnet test Murmur.sln -c Release @noBuild --report-xunit-trx --results-directory $trx }
     $text = Read-Text $log
     $totals = [regex]::Matches($text, 'total:\s*(\d+)\s+failed:\s*(\d+)\s+succeeded:\s*(\d+)\s+skipped:\s*(\d+)')
@@ -158,6 +171,14 @@ if ($Test) {
 }
 
 # --- Publish ---------------------------------------------------------------------------------------------------------
+# Native AOT links with MSVC, which it finds through vswhere (Visual Studio or the Build Tools with the C++ workload).
+$vswhere = Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio\Installer\vswhere.exe'
+if ($Publish -and $onWindows -and -not (Test-Path -LiteralPath $vswhere)) {
+    Add-Result 'Publish' 'FAIL' ("Native AOT needs the MSVC linker: install the Visual Studio Build Tools with the C++ workload " +
+        "(winget install Microsoft.VisualStudio.2022.BuildTools --override ""--quiet --wait --add Microsoft.VisualStudio.Workload.VCTools --includeRecommended""), " +
+        "or put the CI artifact murmur-win-x64 into artifacts/publish/win-x64 and run without -Publish")
+    $Publish = $false
+}
 if ($Publish -and (Require-Windows 'Publish')) {
     $log1 = Join-Path $runDir 'publish-desktop.log'
     $log2 = Join-Path $runDir 'publish-transcription.log'
@@ -359,15 +380,15 @@ function Invoke-Recording([string] $Step, [int] $Seconds, [bool] $WithScreen, [s
     $name = $Step.ToLowerInvariant() -replace '[^a-z0-9]+', '-'
     $perf = Join-Path $runDir "$name.json"
     $md = Join-Path $runDir "$name.md"
-    $screenArg = if ($WithScreen) { @('-Screen') } else { @() }
+    $screenArg = @(if ($WithScreen) { '-Screen' })
     $code = Invoke-Logged (Join-Path $runDir "$name.log") { pwsh -NoProfile -File scripts/run-autorecord.ps1 -Exe $murmurExe -Seconds $Seconds @screenArg -PerfOut $perf }
     if ($code -ne 0 -or -not (Test-Path -LiteralPath $perf)) {
         Add-Result $Step 'FAIL' "Murmur.exe --autorecord failed (exit $code, see $name.log)"
         return
     }
 
-    $toneArg = if ($Tone) { @('-ExpectTone') } else { @() }
-    $screenCheck = if ($WithScreen) { @('-ExpectScreen') } else { @() }
+    $toneArg = @(if ($Tone) { '-ExpectTone' })
+    $screenCheck = @(if ($WithScreen) { '-ExpectScreen' })
     $code = Invoke-Logged (Join-Path $runDir "$name-check.log") { pwsh -NoProfile -File scripts/check-recording.ps1 -PerfJson $perf @toneArg @screenCheck -Title $Step -MarkdownOut $md @CheckArgs }
     $json = Get-Content -LiteralPath $perf -Raw | ConvertFrom-Json
     $parts = @()

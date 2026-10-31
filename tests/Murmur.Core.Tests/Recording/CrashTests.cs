@@ -107,6 +107,89 @@ public sealed class CrashTests : IDisposable
         }
     }
 
+    /// <summary>
+    /// A crash while paused leaves a normal interrupted session: the files hold what was recorded before the pause (the
+    /// header was current, the data complete), nothing from the paused time, and recovery needs nothing extra.
+    /// </summary>
+    [Fact]
+    public async Task KilledWhilePaused_RecoversWhatWasRecordedBeforeThePause()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var helper = Path.Combine(AppContext.BaseDirectory, "Murmur.Core.CrashHelper.dll");
+        Assert.True(File.Exists(helper), $"{helper} is missing");
+
+        var start = new ProcessStartInfo(DotnetHost())
+        {
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            UseShellExecute = false,
+        };
+        start.ArgumentList.Add(helper);
+        start.ArgumentList.Add(_dir.Path);
+        start.ArgumentList.Add("1");
+        start.ArgumentList.Add("1.5");
+
+        using var process = Process.Start(start) ?? throw new InvalidOperationException("could not start the helper");
+        SessionId? sessionId = null;
+        var pausedAt = -1.0;
+        var elapsedAfterPause = 0.0;
+        var linesAfterPause = 0;
+
+        try
+        {
+            using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
+            timeout.CancelAfter(TimeSpan.FromSeconds(60));
+            while (true)
+            {
+                var line = await process.StandardOutput.ReadLineAsync(timeout.Token)
+                    ?? throw new InvalidOperationException("helper exited: " + await process.StandardError.ReadToEndAsync(ct));
+                if (line.StartsWith("SESSION ", StringComparison.Ordinal))
+                {
+                    sessionId = SessionId.Parse(line["SESSION ".Length..]);
+                }
+                else if (line.StartsWith("PAUSED ", StringComparison.Ordinal))
+                {
+                    pausedAt = double.Parse(line["PAUSED ".Length..], CultureInfo.InvariantCulture);
+                }
+                else if (line.StartsWith("ELAPSED ", StringComparison.Ordinal) && pausedAt >= 0)
+                {
+                    elapsedAfterPause = double.Parse(line["ELAPSED ".Length..], CultureInfo.InvariantCulture);
+
+                    // Three seconds of pause: longer than the flush interval, so headers and disk are current.
+                    if (++linesAfterPause >= 30)
+                    {
+                        break;
+                    }
+                }
+            }
+        }
+        finally
+        {
+            process.Kill(entireProcessTree: true);
+            await process.WaitForExitAsync(ct);
+        }
+
+        Assert.NotNull(sessionId);
+        Assert.Equal(pausedAt, elapsedAfterPause, 0.001); // the timeline stood still
+
+        var store = new InMemorySessionStore(_dir.Path);
+        store.Seed(new SessionRecord { Id = sessionId.Value, Title = "crash test", StartedAt = DateTimeOffset.Now, State = SessionState.Recording });
+        var files = store.GetFiles(sessionId.Value);
+
+        var recovered = Assert.Single(await new RecoveryService(store).RecoverAsync(ct));
+
+        Assert.Equal(SessionState.Interrupted, recovered.State);
+        Assert.True(recovered.HasMicrophone);
+        Assert.True(recovered.HasSystemAudio);
+        Assert.InRange(recovered.Duration.TotalSeconds, pausedAt - 0.1, pausedAt + 0.1);
+        foreach (var path in new[] { files.MicrophoneAudio, files.SystemAudio })
+        {
+            using var reader = WavReader.Open(path);
+            Assert.Equal(new FileInfo(path).Length, reader.Layout.DataOffset + reader.Layout.DeclaredDataBytes);
+            Assert.Equal(recovered.Duration.TotalSeconds, (double)reader.FrameCount / reader.Format.SampleRate, 0.05);
+        }
+    }
+
     private static string DotnetHost()
     {
         var host = Environment.GetEnvironmentVariable("DOTNET_HOST_PATH");

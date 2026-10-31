@@ -7,7 +7,19 @@ public interface ISessionStore
     /// <summary>Creates the session row and its folder.</summary>
     ValueTask<SessionRecord> CreateSessionAsync(string title, DateTimeOffset startedAt, CancellationToken cancellationToken);
 
+    /// <summary>
+    /// Writes every column of the row except the title (the title is the user's: <see cref="RenameSessionAsync"/> is the only way
+    /// to change it, so a writer holding an older copy of the record — the recorder, the transcription pipeline — can never put an
+    /// old title back). A session that does not exist throws <see cref="KeyNotFoundException"/>.
+    /// </summary>
     ValueTask UpdateSessionAsync(SessionRecord session, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Changes the title of a session and nothing else (<c>UPDATE sessions SET title = $title WHERE id = $id</c>), so it cannot
+    /// roll back the state, duration or warnings that another writer stored meanwhile. A session that does not exist throws
+    /// <see cref="KeyNotFoundException"/>.
+    /// </summary>
+    ValueTask RenameSessionAsync(SessionId id, string title, CancellationToken cancellationToken);
 
     ValueTask<SessionRecord?> GetSessionAsync(SessionId id, CancellationToken cancellationToken);
 
@@ -26,7 +38,16 @@ public interface ITranscriptStore
     ValueTask SaveTranscriptAsync(Transcript transcript, CancellationToken cancellationToken);
 
     ValueTask<Transcript?> GetTranscriptAsync(SessionId id, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// What a list row needs of the transcripts of <paramref name="sessions"/>: the language and the first segment's text, without the
+    /// words. One entry per session that has a transcript (the others are absent); order is not specified.
+    /// </summary>
+    ValueTask<IReadOnlyList<TranscriptSummary>> GetTranscriptSummariesAsync(IReadOnlyList<SessionId> sessions, CancellationToken cancellationToken);
 }
+
+/// <summary>The language the transcript was recognised in (<c>null</c> when unknown) and the text of its first segment (<c>null</c> when it has none).</summary>
+public sealed record TranscriptSummary(SessionId Session, string? Language, string? FirstLine);
 
 /// <summary>A piece of transcript text positioned on a session timeline.</summary>
 public sealed record TextChunk(SessionId Session, TimeSpan Start, TimeSpan End, string Text);
@@ -53,8 +74,8 @@ public interface ISearchIndex
     ValueTask<IReadOnlyList<SearchHit>> SearchVectorAsync(ReadOnlyMemory<float> embedding, SessionId? scope, int limit, CancellationToken cancellationToken);
 }
 
-/// <summary>Everything persisted: session metadata, transcripts, search index and session files.</summary>
-public interface IStorage : ISessionStore, ITranscriptStore, ISearchIndex
+/// <summary>Everything persisted: session metadata, transcripts, summaries, saved chats, search index and session files.</summary>
+public interface IStorage : ISessionStore, ITranscriptStore, ISearchIndex, ISummaryStore, IChatStore
 {
     /// <summary>Folder that contains the database and every session folder.</summary>
     string RootDirectory { get; }

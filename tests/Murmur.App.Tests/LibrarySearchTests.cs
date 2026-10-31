@@ -1,3 +1,4 @@
+using Murmur.App.Localization;
 using Murmur.App.Tests.Fakes;
 using Murmur.App.ViewModels;
 using Murmur.Core.Capture;
@@ -7,6 +8,9 @@ namespace Murmur.App.Tests;
 
 public sealed class LibrarySearchTests : IDisposable
 {
+    // The texts asserted below are Ukrainian; English is the default language (D-039).
+    private readonly IDisposable _ukrainian = UiCulture.Override("uk");
+
     private static readonly TimeSpan Debounce = LibraryViewModel.SearchDebounce;
 
     private readonly FakeSessionStore _store = new();
@@ -15,7 +19,11 @@ public sealed class LibrarySearchTests : IDisposable
     private readonly FakeSearchIndex _keyword = new();
     private readonly SessionFixture _fixture = new();
 
-    public void Dispose() => _fixture.Dispose();
+    public void Dispose()
+    {
+        _ukrainian.Dispose();
+        _fixture.Dispose();
+    }
 
     private static TimeSpan S(double seconds) => TimeSpan.FromSeconds(seconds);
 
@@ -321,10 +329,15 @@ public sealed class LibrarySearchTests : IDisposable
         Assert.Equal(1, _fixture.Player.Plays);
         Assert.Equal(PlaybackState.Playing, _fixture.Player.State);
 
-        session.BackCommand.Execute(null);
+        // The breadcrumb leads back to where the chip was clicked: the chat, not the library.
+        var crumb = Assert.IsType<BreadcrumbViewModel>(shell.TopBar.Leading);
+        Assert.Equal((Murmur.App.Resources.Strings.Common_AskAi, true), (crumb.Root, crumb.IsLink));
+        crumb.RootCommand!.Execute(null);
 
         Assert.Same(shell.LibraryChat, shell.CurrentPage);
         Assert.True(_fixture.Player.Disposed);
+        // On the chat page itself the top bar holds the scope pills (no breadcrumb).
+        Assert.Same(shell.LibraryChat!.ScopePills, shell.TopBar.Leading);
     }
 
     [Fact]

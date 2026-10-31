@@ -1,3 +1,4 @@
+using Murmur.App.Localization;
 using Murmur.App.Resources;
 using Murmur.App.Services;
 using Murmur.App.Tests.Fakes;
@@ -10,8 +11,13 @@ using Avalonia.Controls;
 
 namespace Murmur.App.Tests;
 
-public sealed class HotkeyCoordinatorTests
+public sealed class HotkeyCoordinatorTests : IDisposable
 {
+    // The texts asserted below are Ukrainian; English is the default language (D-039).
+    private readonly IDisposable _ukrainian = UiCulture.Override("uk");
+
+    public void Dispose() => _ukrainian.Dispose();
+
     private static readonly AppSettings Completed = new() { OnboardingCompleted = true };
 
     /// <summary>A coordinator over the onboarding rig; the UI thread is a queue the test drains, the background runs inline.</summary>
@@ -99,7 +105,7 @@ public sealed class HotkeyCoordinatorTests
     }
 
     [Fact]
-    public void Constructing_RegistersNothing_Start_RegistersTheThreeGesturesOffTheCallingThread()
+    public void Constructing_RegistersNothing_Start_RegistersTheGesturesOffTheCallingThread()
     {
         using var rig = new Rig();
         Assert.Empty(rig.Hotkeys.Calls);
@@ -116,6 +122,7 @@ public sealed class HotkeyCoordinatorTests
                 (HotkeyAction.ToggleRecording, "Ctrl+Shift+R"),
                 (HotkeyAction.ToggleScreen, "Ctrl+Shift+S"),
                 (HotkeyAction.ShowApp, "Ctrl+Shift+M"),
+                (HotkeyAction.TogglePause, "Ctrl+Shift+P"),
             ],
             rig.Hotkeys.Calls.Select(c => (c.Action, c.Gesture)).ToArray());
     }
@@ -127,7 +134,7 @@ public sealed class HotkeyCoordinatorTests
         rig.Start();
         rig.Start();
 
-        Assert.Equal(3, rig.Hotkeys.Calls.Count);
+        Assert.Equal(4, rig.Hotkeys.Calls.Count);
         Assert.Equal(1, rig.Hotkeys.SubscriberCount);
     }
 
@@ -138,7 +145,7 @@ public sealed class HotkeyCoordinatorTests
 
         rig.Start();
 
-        Assert.Equal([HotkeyAction.ToggleRecording, HotkeyAction.ShowApp], rig.Hotkeys.Calls.Select(c => c.Action).ToArray());
+        Assert.Equal([HotkeyAction.ToggleRecording, HotkeyAction.ShowApp, HotkeyAction.TogglePause], rig.Hotkeys.Calls.Select(c => c.Action).ToArray());
         Assert.Equal(HotkeyRegistration.Cleared, rig.Coordinator.RegistrationOf(HotkeyAction.ToggleScreen));
     }
 
@@ -220,9 +227,9 @@ public sealed class HotkeyCoordinatorTests
         var rows = rig.Rows.Rows;
         Assert.Equal("Зайнято іншою програмою", rows[0].RegistrationNote);
         Assert.True(rows[0].ShowRegistrationNote);
-        Assert.Equal(Strings.Hotkeys_Unsupported, rows[1].RegistrationNote);
-        Assert.Null(rows[2].RegistrationNote);
-        Assert.False(rows[2].ShowRegistrationNote);
+        Assert.Equal(Strings.Hotkeys_Unsupported, rows[2].RegistrationNote);
+        Assert.Null(rows[3].RegistrationNote);
+        Assert.False(rows[3].ShowRegistrationNote);
 
         // The next registration that works hides the note again.
         rig.Hotkeys.Results.Remove("Ctrl+Shift+R");
@@ -423,6 +430,65 @@ public sealed class HotkeyCoordinatorTests
     }
 
     [Fact]
+    public void TogglePause_PausesAndResumesTheRunningRecording_AndDoesNothingOtherwise()
+    {
+        using var rig = new Rig();
+        rig.Start();
+
+        rig.Hotkeys.PressFromAnotherThread(HotkeyAction.TogglePause); // nothing records yet
+        Assert.Equal(0, rig.Recorder.Pauses);
+        Assert.Equal(RecorderState.Idle, rig.Recorder.State);
+
+        rig.Hotkeys.PressFromAnotherThread(HotkeyAction.ToggleRecording);
+        rig.Hotkeys.PressFromAnotherThread(HotkeyAction.TogglePause);
+        Assert.Equal(RecorderState.Paused, rig.Recorder.State);
+        Assert.Equal(RecorderState.Paused, rig.Shell.Recording.State);
+        Assert.Equal(1, rig.Recorder.Pauses);
+
+        rig.Hotkeys.PressFromAnotherThread(HotkeyAction.TogglePause);
+        Assert.Equal(RecorderState.Recording, rig.Recorder.State);
+        Assert.Equal(1, rig.Recorder.Resumes);
+    }
+
+    [Fact]
+    public void TheRecordHotkey_StopsAPausedRecording()
+    {
+        using var rig = new Rig();
+        rig.Start();
+        rig.Hotkeys.PressFromAnotherThread(HotkeyAction.ToggleRecording);
+        rig.Hotkeys.PressFromAnotherThread(HotkeyAction.TogglePause);
+
+        rig.Hotkeys.PressFromAnotherThread(HotkeyAction.ToggleRecording);
+
+        Assert.Equal(1, rig.Recorder.Stops);
+        Assert.Equal(RecorderState.Idle, rig.Recorder.State);
+    }
+
+    [Fact]
+    public async Task ThePauseGesture_FollowsTheSettings_AndNoneMeansNoHotkey()
+    {
+        using var rig = new Rig(Completed with { PauseHotkey = "Ctrl+Alt+P" });
+        rig.Start();
+        Assert.Contains(rig.Hotkeys.Calls, c => c.Action == HotkeyAction.TogglePause && c.Gesture == "Ctrl+Alt+P");
+
+        await rig.SaveAsync(s => s with { PauseHotkey = null });
+
+        Assert.Equal(HotkeyRegistration.Cleared, rig.Coordinator.RegistrationOf(HotkeyAction.TogglePause));
+        Assert.Contains(rig.Hotkeys.Calls, c => c.Action == HotkeyAction.TogglePause && c.Gesture is null);
+    }
+
+    [Fact]
+    public void TogglePause_IsIgnoredDuringTheOnboarding()
+    {
+        using var rig = new Rig(new AppSettings());
+        rig.Start();
+
+        rig.Hotkeys.PressFromAnotherThread(HotkeyAction.TogglePause);
+
+        Assert.Equal(0, rig.Recorder.Pauses);
+    }
+
+    [Fact]
     public void ShowApp_RunsTheShowAction()
     {
         using var rig = new Rig();
@@ -599,9 +665,9 @@ public sealed class HotkeyCoordinatorTests
         rig.RunBackground();
 
         var released = rig.Hotkeys.Calls.Skip(before).ToArray();
-        Assert.Equal(3, released.Length);
+        Assert.Equal(4, released.Length);
         Assert.All(released, c => Assert.Null(c.Gesture));
-        Assert.Equal([HotkeyAction.ToggleRecording, HotkeyAction.ToggleScreen, HotkeyAction.ShowApp], released.Select(c => c.Action).Order().ToArray());
+        Assert.Equal([HotkeyAction.ToggleRecording, HotkeyAction.ToggleScreen, HotkeyAction.ShowApp, HotkeyAction.TogglePause], released.Select(c => c.Action).Order().ToArray());
 
         // The notes stay as they were, and no pass publishes anything meanwhile.
         Assert.Equal(HotkeyRegistration.Taken, rig.Coordinator.RegistrationOf(HotkeyAction.ToggleRecording));
@@ -614,7 +680,7 @@ public sealed class HotkeyCoordinatorTests
 
         var back = rig.Hotkeys.Calls.Skip(before).ToArray();
         Assert.Equal(
-            [("Ctrl+Shift+R", HotkeyAction.ToggleRecording), ("Ctrl+Shift+S", HotkeyAction.ToggleScreen), ("Ctrl+Shift+M", HotkeyAction.ShowApp)],
+            [("Ctrl+Shift+R", HotkeyAction.ToggleRecording), ("Ctrl+Shift+S", HotkeyAction.ToggleScreen), ("Ctrl+Shift+M", HotkeyAction.ShowApp), ("Ctrl+Shift+P", HotkeyAction.TogglePause)],
             back.Select(c => (c.Gesture!, c.Action)).OrderBy(c => c.Item2).ToArray());
         Assert.Null(rig.Rows.Rows[0].RegistrationNote);
     }

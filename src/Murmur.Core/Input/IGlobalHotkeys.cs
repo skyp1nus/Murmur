@@ -11,6 +11,9 @@ public enum HotkeyAction
 
     /// <summary>Bring the main window to the front (<c>AppSettings.ShowAppHotkey</c>).</summary>
     ShowApp,
+
+    /// <summary>Pause the running recording, or resume the paused one (<c>AppSettings.PauseHotkey</c>); does nothing when not recording.</summary>
+    TogglePause,
 }
 
 [Flags]

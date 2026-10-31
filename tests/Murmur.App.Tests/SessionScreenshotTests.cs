@@ -1,4 +1,5 @@
 using Avalonia.Headless;
+using Murmur.App.Localization;
 using Murmur.App.Tests.Fakes;
 using Murmur.App.ViewModels;
 using Murmur.Core.Processing;
@@ -6,7 +7,7 @@ using Murmur.Core.Sessions;
 
 namespace Murmur.App.Tests;
 
-/// <summary>Renders the phase 2 screens with Avalonia.Headless (Skia) into docs/screenshots.</summary>
+/// <summary>Renders the phase 2 screens with Avalonia.Headless (Skia) into artifacts/screenshots, or into the tracked docs/screenshots when MURMUR_UPDATE_SCREENSHOTS=1 (see <see cref="RepoPaths.ScreenshotsDirectory"/>).</summary>
 public sealed class SessionScreenshotTests
 {
     private static HeadlessUnitTestSession Session => UiHarness.Session;
@@ -69,6 +70,7 @@ public sealed class SessionScreenshotTests
     [Fact]
     public async Task Library_WithProcessingStates_WritesPng()
     {
+        using var uk = UiCulture.Override("en");
         var harness = new UiHarness();
         var running = Sessions.Make("Щотижневий стендап команди", UiHarness.Now.AddHours(-1), TimeSpan.FromMinutes(23) + TimeSpan.FromSeconds(41), state: SessionState.Transcribing);
         var queued = Sessions.Make("Інтервʼю з кандидатом", UiHarness.Now.AddHours(-3), TimeSpan.FromHours(1) + TimeSpan.FromMinutes(7), screen: true, state: SessionState.Recorded);
@@ -90,6 +92,7 @@ public sealed class SessionScreenshotTests
         await Session.Dispatch(
             () =>
             {
+                using var scope = UiCulture.Override("en");
                 var window = UiHarness.Show(shell);
                 UiHarness.Save(window, Path("phase2-library-processing.png"));
                 window.Close();
@@ -97,7 +100,7 @@ public sealed class SessionScreenshotTests
             TestContext.Current.CancellationToken);
 
         Assert.Equal(
-            ["Транскрибується 42 %", "У черзі", "Готово", "Помилка", "Перервано"],
+            ["Transcribing · 42%", "Queued", "Done", "Failed", "Interrupted"],
             shell.Library.Sessions.Select(s => s.StatusText));
         Assert.True(new FileInfo(Path("phase2-library-processing.png")).Length > 10_000, "Screenshot looks empty.");
     }

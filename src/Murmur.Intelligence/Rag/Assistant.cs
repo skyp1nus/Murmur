@@ -3,6 +3,7 @@ using System.Text;
 using Microsoft.Extensions.AI;
 using Murmur.Core.Intelligence;
 using Murmur.Core.Sessions;
+using ChatMessage = Microsoft.Extensions.AI.ChatMessage;
 
 namespace Murmur.Intelligence.Rag;
 
@@ -23,6 +24,7 @@ public sealed class Assistant : IAssistant
         + "4. Якщо відповіді в записах немає, прямо скажи, що в записах цього немає.\n"
         + "У транскриптах «Я» — це користувач, «Інші» — інші учасники розмови.";
 
+    // Model input, not UI text: the title in an excerpt header of the (Ukrainian) prompt. Citations carry no title; the App words "untitled" itself.
     private const string UntitledSession = "Без назви";
 
     private readonly ILlm _llm;

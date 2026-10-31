@@ -44,8 +44,8 @@ public sealed class RecorderScreenFaultTests : IDisposable
         Assert.True(recorder.IsScreenRecording);
         Assert.Equal(5, recorder.Stats.ScreenFaults);
         Assert.Equal(
-            [ScreenFaultTexts.PoolExhausted, ScreenFaultTexts.CpuReadback, ScreenFaultTexts.OtherNonFatal],
-            _warnings.Select(w => w.Message));
+            [RecorderWarningCode.ScreenFramesDropped, RecorderWarningCode.ScreenCpuFallback, RecorderWarningCode.ScreenOther],
+            _warnings.Select(w => w.Code));
         Assert.All(_warnings, w => Assert.False(w.ScreenStopped));
         Assert.All(_warnings, w => Assert.Equal("screen", w.Source));
         Assert.Equal([CaptureFaultKind.FramesDropped, CaptureFaultKind.CpuFallback, CaptureFaultKind.Other], _warnings.Select(w => w.Kind));
@@ -54,7 +54,7 @@ public sealed class RecorderScreenFaultTests : IDisposable
 
         Assert.Equal(SessionState.Recorded, finished.State);
         Assert.Equal(5, recorder.Stats.ScreenFaults);
-        Assert.Equal($"{ScreenFaultTexts.PoolExhausted} {ScreenFaultTexts.CpuReadback} {ScreenFaultTexts.OtherNonFatal}", finished.Error);
+        Assert.Equal($"{SessionNotes.ScreenFramesDropped}\n{SessionNotes.ScreenCpuFallback}\n{SessionNotes.ScreenOther}", finished.Error);
         Assert.Single(finished.ScreenSegments);
     }
 
@@ -71,15 +71,30 @@ public sealed class RecorderScreenFaultTests : IDisposable
 
         Assert.Equal(2, _warnings.Count);
         Assert.Equal(3, recorder.Stats.ScreenFaults);
-        Assert.Equal($"{ScreenFaultTexts.OtherNonFatal} {ScreenFaultTexts.PoolExhausted}", finished.Error);
+        Assert.Equal($"{SessionNotes.ScreenOther}\n{SessionNotes.ScreenFramesDropped}", finished.Error);
     }
 
     [Theory]
-    [InlineData(CaptureFaultKind.FramesDropped, ScreenFaultTexts.PoolExhausted)]
-    [InlineData(CaptureFaultKind.CpuFallback, ScreenFaultTexts.CpuReadback)]
-    [InlineData(CaptureFaultKind.Other, ScreenFaultTexts.OtherNonFatal)]
-    public void NonFatalFaults_GetTheirUkrainianText_ByKind(CaptureFaultKind kind, string expected) =>
-        Assert.Equal(expected, ScreenFaultTexts.Describe(kind));
+    [InlineData(CaptureFaultKind.FramesDropped, false, RecorderWarningCode.ScreenFramesDropped)]
+    [InlineData(CaptureFaultKind.CpuFallback, false, RecorderWarningCode.ScreenCpuFallback)]
+    [InlineData(CaptureFaultKind.Other, false, RecorderWarningCode.ScreenOther)]
+    [InlineData(CaptureFaultKind.Other, true, RecorderWarningCode.ScreenStopped)]
+    [InlineData(CaptureFaultKind.FramesDropped, true, RecorderWarningCode.ScreenStopped)]
+    public void ScreenFaults_GetTheirCode_ByKindAndSeverity(CaptureFaultKind kind, bool fatal, RecorderWarningCode expected) =>
+        Assert.Equal(expected, Recorder.ScreenWarningCode(Fault("detail", fatal: fatal, kind: kind)));
+
+    [Fact]
+    public async Task TheSessionStoresCodes_NeverSentences()
+    {
+        var (recorder, screen) = Create();
+        await recorder.StartAsync(new RecordingOptions(Screen: true), Ct);
+
+        await screen.RaiseFromOtherThreadAsync(Pool());
+        var finished = await recorder.StopAsync(Ct);
+
+        Assert.Equal(SessionNotes.ScreenFramesDropped, finished.Error);
+        Assert.Equal(SessionNotes.ScreenFramesDropped, Assert.Single(SessionNotes.Parse(finished.Error)).Code);
+    }
 
     [Fact]
     public async Task TheKind_NotTheMessage_DecidesTheText()
@@ -92,7 +107,7 @@ public sealed class RecorderScreenFaultTests : IDisposable
         await screen.RaiseFromOtherThreadAsync(Fault("anything", kind: CaptureFaultKind.CpuFallback));
         await recorder.StopAsync(Ct);
 
-        Assert.Equal([ScreenFaultTexts.OtherNonFatal, ScreenFaultTexts.CpuReadback], _warnings.Select(w => w.Message));
+        Assert.Equal([RecorderWarningCode.ScreenOther, RecorderWarningCode.ScreenCpuFallback], _warnings.Select(w => w.Code));
     }
 
     [Fact]
@@ -115,11 +130,11 @@ public sealed class RecorderScreenFaultTests : IDisposable
 
         var warning = Assert.Single(_warnings);
         Assert.True(warning.ScreenStopped);
-        Assert.Equal(ScreenFaultTexts.Stopped, warning.Message);
+        Assert.Equal(RecorderWarningCode.ScreenStopped, warning.Code);
         Assert.Single(finished.ScreenSegments);
         Assert.Equal(SessionState.Recorded, finished.State);
         Assert.True(finished.HasSystemAudio);
-        Assert.Equal(ScreenFaultTexts.Stopped, finished.Error);
+        Assert.Equal(SessionNotes.ScreenStopped, finished.Error);
         Assert.Equal(1, recorder.Stats.ScreenFaults);
 
         // The segment ends where the recorder stopped the screen (right after the fault), not at the final stop.
@@ -163,7 +178,7 @@ public sealed class RecorderScreenFaultTests : IDisposable
 
         await screen.RaiseFromOtherThreadAsync(Fault("device lost", fatal: true));
 
-        await WaitUntilAsync(() => _store.GetSessionAsync(session.Id, Ct).AsTask().GetAwaiter().GetResult()?.Error == ScreenFaultTexts.Stopped);
+        await WaitUntilAsync(() => _store.GetSessionAsync(session.Id, Ct).AsTask().GetAwaiter().GetResult()?.Error == SessionNotes.ScreenStopped);
         Assert.Equal(RecorderState.Recording, recorder.State);
         await recorder.StopAsync(Ct);
     }
@@ -214,7 +229,7 @@ public sealed class RecorderScreenFaultTests : IDisposable
         Assert.Equal(3, screen.StartTimestamps.Count);
         Assert.Equal(3, screen.StopTimestamps.Count);
         Assert.Equal(2, _warnings.Count(w => w.ScreenStopped));
-        Assert.Equal(ScreenFaultTexts.Stopped, finished.Error);
+        Assert.Equal(SessionNotes.ScreenStopped, finished.Error);
         Assert.Equal(2, recorder.Stats.ScreenFaults);
         Assert.All(finished.ScreenSegments, s => Assert.True(s.Duration >= TimeSpan.Zero));
     }
@@ -274,7 +289,7 @@ public sealed class RecorderScreenFaultTests : IDisposable
 
         Assert.Single(finished.ScreenSegments);
         Assert.Equal(2, recorder.Stats.ScreenFaults);
-        Assert.Equal($"{ScreenFaultTexts.PoolExhausted} {ScreenFaultTexts.Stopped}", finished.Error);
+        Assert.Equal($"{SessionNotes.ScreenFramesDropped}\n{SessionNotes.ScreenStopped}", finished.Error);
     }
 
     [Fact]
@@ -343,7 +358,7 @@ public sealed class RecorderScreenFaultTests : IDisposable
 
         // The same message is a new problem in a new recording.
         Assert.Equal(2, _warnings.Count);
-        Assert.Equal(ScreenFaultTexts.PoolExhausted, finished.Error);
+        Assert.Equal(SessionNotes.ScreenFramesDropped, finished.Error);
     }
 
     private (Recorder Recorder, FaultingScreenRecorder Screen) Create()

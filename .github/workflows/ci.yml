@@ -82,6 +82,16 @@ jobs:
           if-no-files-found: warn
           retention-days: 14
 
+      # The design-parity tests (tests/Murmur.App.Tests/Design) run with the tests above and write their report and images here.
+      - name: Upload design parity report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: design-parity
+          path: artifacts/design-parity
+          if-no-files-found: warn
+          retention-days: 14
+
       - name: Publish Native AOT (Murmur.Desktop, linux-x64)
         run: |
           mkdir -p artifacts/logs
@@ -143,6 +153,10 @@ jobs:
         run: |
           dotnet test Murmur.sln -c Release --no-build --report-xunit-trx --results-directory artifacts/test-results
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Player seek recovery
+        if: always()
+        run: if (Test-Path artifacts/test-results/player-recovery.txt) { Get-Content artifacts/test-results/player-recovery.txt }
 
       - name: Upload test results
         if: always()

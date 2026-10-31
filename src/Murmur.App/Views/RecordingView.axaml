@@ -4,75 +4,432 @@
              xmlns:res="using:Murmur.App.Resources"
              xmlns:controls="using:Murmur.App.Controls"
              xmlns:cap="using:Murmur.Core.Capture"
+             xmlns:collections="using:Avalonia.Collections"
              x:Class="Murmur.App.Views.RecordingView"
              x:DataType="vm:RecordingViewModel">
 
+  <!--
+    The Recording screen of the canvas (Recording.dc.html / RecordingDark.dc.html), in the page area below the top bar: a page
+    column of at most 1180 px with 32 px at the sides, the title, orb, timer and controls in the middle, the Tracks card, the
+    "Let people know" card and a note at the right (below the middle column when the window is narrow).
+    Colours, fonts, type, spacing and the orb's numbers are tokens; what sits below are the sizes of this screen's own components and
+    the geometry of single drawings.
+  -->
+
   <UserControl.Resources>
-    <!-- Size of the orb illustration (not a layout token). -->
-    <x:Double x:Key="Orb.Size">240</x:Double>
-    <x:Double x:Key="Recording.ColumnWidth">520</x:Double>
+    <ResourceDictionary>
+
+      <!-- Component sizes of the canvas and drawing geometry (the dashed chip, the glyph grid, the timer's shift): sizes of single
+           components and drawings, not tokens. -->
+      <x:Double x:Key="Rec.PageMaxWidth">1180</x:Double>
+      <x:Double x:Key="Rec.TitleMaxWidth">520</x:Double>
+      <x:Double x:Key="Rec.SideWidth">320</x:Double>
+      <x:Double x:Key="Rec.WrapBelow">872</x:Double>
+      <x:Double x:Key="Rec.ChipHeight">40</x:Double>
+      <x:Double x:Key="Rec.ButtonHeight">44</x:Double>
+      <x:Double x:Key="Rec.CopyHeight">36</x:Double>
+      <x:Double x:Key="Rec.Bars">36</x:Double>
+      <x:Double x:Key="Rec.Icon">16</x:Double>
+      <x:Double x:Key="Rec.SmallIcon">14</x:Double>
+      <!-- Rectangle radii are plain numbers, so the chip's radius cannot be the Radius.Pill CornerRadius (9999 would not clamp to a pill there). -->
+      <x:Double x:Key="Rec.ChipRadius">20</x:Double>
+      <Thickness x:Key="Rec.PagePadding">32,24,32,80</Thickness>
+      <Thickness x:Key="Rec.ColumnPadding">0,24</Thickness>
+      <Thickness x:Key="Rec.ChipPadding">17,0</Thickness>
+      <Thickness x:Key="Rec.PausePadding">20,0</Thickness>
+      <Thickness x:Key="Rec.StopPadding">21,0</Thickness>
+      <Thickness x:Key="Rec.CopyPadding">14,0</Thickness>
+      <Thickness x:Key="Rec.CardPadding">24,20</Thickness>
+      <Thickness x:Key="Rec.NotePadding">8,0</Thickness>
+      <x:Double x:Key="Rec.TitleHeight">36</x:Double>
+      <x:Double x:Key="Rec.IconGrid">24</x:Double>
+      <Thickness x:Key="Rec.DashInset">0.5</Thickness>
+      <!-- The dashed chip of the canvas: 1 px dashes, 3 px long and 3 px apart. -->
+      <collections:AvaloniaList x:TypeArguments="x:Double" x:Key="Rec.Dash">3,3</collections:AvaloniaList>
+      <!-- Moves the timer text up by 6 px (and keeps its box): Geist Mono sits lower in a 48 px line in Avalonia than in Chromium. -->
+      <Thickness x:Key="Rec.TimerShift">0,-6,0,6</Thickness>
+      <x:Double x:Key="Rec.PausedOrbOpacity">0.5</x:Double>
+
+      <!-- Filled glyphs of the buttons (24 x 24 grid, like the canvas SVGs). -->
+      <StreamGeometry x:Key="Rec.Pause">M7 5h2a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1z M15 5h2a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1h-2a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1z</StreamGeometry>
+      <StreamGeometry x:Key="Rec.Stop">M7 5h10a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2z</StreamGeometry>
+      <StreamGeometry x:Key="Rec.Resume">M8 5v14l11-7z</StreamGeometry>
+    </ResourceDictionary>
   </UserControl.Resources>
 
-  <Grid RowDefinitions="Auto,*">
+  <UserControl.Styles>
+    <!-- Type of the canvas. -->
+    <Style Selector="TextBlock.recLabel">
+      <Setter Property="FontFamily" Value="{StaticResource Font.Body}" />
+      <Setter Property="FontWeight" Value="{StaticResource FontWeight.Body}" />
+      <Setter Property="FontSize" Value="{StaticResource FontSize.Meta}" />
+      <Setter Property="LetterSpacing" Value="{StaticResource LetterSpacing.Meta}" />
+      <Setter Property="Foreground" Value="{DynamicResource Brush.Smoke}" />
+    </Style>
+    <Style Selector="TextBlock.recSmall">
+      <Setter Property="FontFamily" Value="{StaticResource Font.Body}" />
+      <Setter Property="FontWeight" Value="{StaticResource FontWeight.Body}" />
+      <Setter Property="FontSize" Value="{StaticResource FontSize.Small}" />
+      <Setter Property="LetterSpacing" Value="{StaticResource LetterSpacing.Small}" />
+      <Setter Property="Foreground" Value="{DynamicResource Brush.Smoke}" />
+    </Style>
+    <Style Selector="TextBlock.recMono">
+      <Setter Property="FontFamily" Value="{StaticResource Font.Mono}" />
+      <Setter Property="FontWeight" Value="{StaticResource FontWeight.Mono}" />
+      <Setter Property="FontSize" Value="{StaticResource FontSize.MonoSmall}" />
+      <Setter Property="LetterSpacing" Value="{StaticResource LetterSpacing.MonoSmall}" />
+      <Setter Property="Foreground" Value="{DynamicResource Brush.Smoke}" />
+    </Style>
+    <Style Selector="TextBlock.recTrackName">
+      <Setter Property="FontFamily" Value="{StaticResource Font.Body}" />
+      <Setter Property="FontWeight" Value="{StaticResource FontWeight.BodyMedium}" />
+      <Setter Property="FontSize" Value="{StaticResource FontSize.Meta}" />
+      <Setter Property="LetterSpacing" Value="{StaticResource LetterSpacing.Meta}" />
+      <Setter Property="Foreground" Value="{DynamicResource Brush.Ink}" />
+    </Style>
+    <Style Selector="TextBlock.recHeading">
+      <Setter Property="FontFamily" Value="{StaticResource Font.Body}" />
+      <Setter Property="FontWeight" Value="{StaticResource FontWeight.BodyMedium}" />
+      <Setter Property="FontSize" Value="{StaticResource FontSize.RowTitle}" />
+      <Setter Property="LetterSpacing" Value="{StaticResource LetterSpacing.RowTitle}" />
+      <Setter Property="Foreground" Value="{DynamicResource Brush.Ink}" />
+    </Style>
+    <Style Selector="TextBlock.recCardTitle">
+      <Setter Property="FontFamily" Value="{StaticResource Font.Body}" />
+      <Setter Property="FontWeight" Value="{StaticResource FontWeight.BodyMedium}" />
+      <Setter Property="FontSize" Value="{StaticResource FontSize.BodySm}" />
+      <Setter Property="LetterSpacing" Value="{StaticResource LetterSpacing.BodySm}" />
+      <Setter Property="Foreground" Value="{DynamicResource Brush.Ink}" />
+    </Style>
+    <Style Selector="TextBlock.recMessage">
+      <Setter Property="FontFamily" Value="{StaticResource Font.Body}" />
+      <Setter Property="FontWeight" Value="{StaticResource FontWeight.Body}" />
+      <Setter Property="FontSize" Value="{StaticResource FontSize.Message}" />
+      <Setter Property="LineHeight" Value="{StaticResource LineHeight.Message}" />
+      <Setter Property="LetterSpacing" Value="{StaticResource LetterSpacing.Message}" />
+      <Setter Property="Foreground" Value="{DynamicResource Brush.Smoke}" />
+      <Setter Property="TextWrapping" Value="Wrap" />
+    </Style>
+    <Style Selector="TextBlock.recNote">
+      <Setter Property="FontFamily" Value="{StaticResource Font.Body}" />
+      <Setter Property="FontWeight" Value="{StaticResource FontWeight.Body}" />
+      <Setter Property="FontSize" Value="{StaticResource FontSize.Note}" />
+      <Setter Property="LineHeight" Value="{StaticResource LineHeight.Note}" />
+      <Setter Property="LetterSpacing" Value="{StaticResource LetterSpacing.Note}" />
+      <Setter Property="Foreground" Value="{DynamicResource Brush.Smoke}" />
+      <Setter Property="TextWrapping" Value="Wrap" />
+    </Style>
 
-    <Button Grid.Row="0"
-            Classes="outline"
+    <!-- The title: display weight, centred, no box (the canvas input has no border or fill, not even when focused). -->
+    <Style Selector="TextBox.recTitle">
+      <Setter Property="FontFamily" Value="{StaticResource Font.Display}" />
+      <Setter Property="FontWeight" Value="{StaticResource FontWeight.Display}" />
+      <Setter Property="FontSize" Value="{StaticResource FontSize.HeadingSm}" />
+      <Setter Property="LineHeight" Value="{StaticResource LineHeight.HeadingSm}" />
+      <Setter Property="LetterSpacing" Value="{StaticResource LetterSpacing.HeadingSm}" />
+      <Setter Property="Foreground" Value="{DynamicResource Brush.Ink}" />
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="BorderThickness" Value="0" />
+      <Setter Property="Padding" Value="0" />
+      <Setter Property="MinHeight" Value="0" />
+      <Setter Property="Height" Value="{StaticResource Rec.TitleHeight}" />
+      <Setter Property="TextAlignment" Value="Center" />
+      <Setter Property="HorizontalContentAlignment" Value="Center" />
+      <Setter Property="VerticalContentAlignment" Value="Center" />
+      <Setter Property="(ScrollViewer.VerticalScrollBarVisibility)" Value="Disabled" />
+      <Setter Property="(ScrollViewer.HorizontalScrollBarVisibility)" Value="Disabled" />
+    </Style>
+    <Style Selector="TextBox.recTitle:pointerover /template/ Border#PART_BorderElement, TextBox.recTitle:focus /template/ Border#PART_BorderElement, TextBox.recTitle:focus-within /template/ Border#PART_BorderElement">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="BorderThickness" Value="0" />
+    </Style>
+
+    <!-- The page scrolls in a small window: its scroll bar keeps to the palette. -->
+    <Style Selector="ScrollBar RepeatButton">
+      <Setter Property="Foreground" Value="{DynamicResource Brush.Smoke}" />
+    </Style>
+
+    <!-- A paused recording: the orb rests, dimmed. -->
+    <Style Selector="controls|GlassOrbControl.paused">
+      <Setter Property="Opacity" Value="{StaticResource Rec.PausedOrbOpacity}" />
+    </Style>
+
+    <!-- The timer, Geist Mono at the display size; dimmed while paused. -->
+    <Style Selector="TextBlock.recTimer">
+      <Setter Property="FontFamily" Value="{StaticResource Font.Mono}" />
+      <Setter Property="FontWeight" Value="{StaticResource FontWeight.Display}" />
+      <Setter Property="FontSize" Value="{StaticResource FontSize.Timer}" />
+      <Setter Property="LineHeight" Value="{StaticResource LineHeight.Timer}" />
+      <Setter Property="LetterSpacing" Value="{StaticResource LetterSpacing.Timer}" />
+      <Setter Property="Foreground" Value="{DynamicResource Brush.Ink}" />
+    </Style>
+    <Style Selector="TextBlock.recTimer.paused">
+      <Setter Property="Foreground" Value="{DynamicResource Brush.Smoke}" />
+    </Style>
+
+    <!-- Source chips: a pill with a hairline when the source is on, a dashed one when it is off. -->
+    <Style Selector="ToggleButton.source">
+      <Setter Property="Height" Value="{StaticResource Rec.ChipHeight}" />
+      <Setter Property="Padding" Value="{StaticResource Rec.ChipPadding}" />
+      <Setter Property="FontFamily" Value="{StaticResource Font.Body}" />
+      <Setter Property="FontWeight" Value="{StaticResource FontWeight.BodyMedium}" />
+      <Setter Property="FontSize" Value="{StaticResource FontSize.Meta}" />
+      <Setter Property="Foreground" Value="{DynamicResource Brush.Ink}" />
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="BorderThickness" Value="0" />
+      <Setter Property="HorizontalContentAlignment" Value="Center" />
+      <Setter Property="VerticalContentAlignment" Value="Center" />
+      <Setter Property="Template">
+        <ControlTemplate>
+          <Panel>
+            <Border x:Name="PART_Solid"
+                    Background="{DynamicResource Brush.RecordingChip}"
+                    BorderBrush="{DynamicResource Brush.ButtonBorder}"
+                    BorderThickness="{StaticResource Hairline.Thickness}"
+                    CornerRadius="{StaticResource Radius.Pill}" />
+            <Rectangle x:Name="PART_Dashed"
+                       IsVisible="False"
+                       Margin="{StaticResource Rec.DashInset}"
+                       RadiusX="{StaticResource Rec.ChipRadius}"
+                       RadiusY="{StaticResource Rec.ChipRadius}"
+                       Stroke="{DynamicResource Brush.DashedBorder}"
+                       StrokeThickness="{StaticResource Hairline.Width}"
+                       StrokeDashArray="{StaticResource Rec.Dash}" />
+            <ContentPresenter x:Name="ChipContent"
+                              Padding="{TemplateBinding Padding}"
+                              Content="{TemplateBinding Content}"
+                              ContentTemplate="{TemplateBinding ContentTemplate}"
+                              HorizontalContentAlignment="{TemplateBinding HorizontalContentAlignment}"
+                              VerticalContentAlignment="{TemplateBinding VerticalContentAlignment}"
+                              TextElement.FontFamily="{TemplateBinding FontFamily}"
+                              TextElement.FontSize="{TemplateBinding FontSize}"
+                              TextElement.FontWeight="{TemplateBinding FontWeight}"
+                              TextElement.Foreground="{TemplateBinding Foreground}" />
+          </Panel>
+        </ControlTemplate>
+      </Setter>
+    </Style>
+    <Style Selector="ToggleButton.source:unchecked">
+      <Setter Property="Foreground" Value="{DynamicResource Brush.Smoke}" />
+    </Style>
+    <Style Selector="ToggleButton.source:unchecked /template/ Border#PART_Solid">
+      <Setter Property="IsVisible" Value="False" />
+    </Style>
+    <Style Selector="ToggleButton.source:unchecked /template/ Rectangle#PART_Dashed">
+      <Setter Property="IsVisible" Value="True" />
+    </Style>
+    <!-- Switched off by the state (a running recording cannot change its sources): the chip keeps the look of its state. -->
+    <Style Selector="ToggleButton.source:disabled">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="Foreground" Value="{DynamicResource Brush.Ink}" />
+    </Style>
+    <Style Selector="ToggleButton.source:disabled:unchecked">
+      <Setter Property="Foreground" Value="{DynamicResource Brush.Smoke}" />
+    </Style>
+    <Style Selector="ToggleButton.source:pointerover /template/ Border#PART_Solid">
+      <Setter Property="Background" Value="{DynamicResource Brush.FillHover}" />
+    </Style>
+    <Style Selector="ToggleButton.source:pressed /template/ Border#PART_Solid">
+      <Setter Property="Background" Value="{DynamicResource Brush.FillPressed}" />
+    </Style>
+
+    <!-- Pause, Stop and Copy: the app's outline and primary pills at the canvas's heights and paddings. -->
+    <Style Selector="Button.rec">
+      <Setter Property="FontSize" Value="{StaticResource FontSize.BodySm}" />
+      <Setter Property="Height" Value="{StaticResource Rec.ButtonHeight}" />
+      <Setter Property="Padding" Value="{StaticResource Rec.PausePadding}" />
+    </Style>
+    <Style Selector="Button.rec.stop">
+      <Setter Property="Padding" Value="{StaticResource Rec.StopPadding}" />
+    </Style>
+    <Style Selector="Button.rec.copy">
+      <Setter Property="FontSize" Value="{StaticResource FontSize.Meta}" />
+      <Setter Property="Height" Value="{StaticResource Rec.CopyHeight}" />
+      <Setter Property="Padding" Value="{StaticResource Rec.CopyPadding}" />
+    </Style>
+    <Style Selector="Button.outline.rec">
+      <Setter Property="Background" Value="{DynamicResource Brush.Canvas}" />
+    </Style>
+
+    <!-- Cards of the right column: Surface (Tracks) or a hairline (Let people know), both 20 px round, no shadow. -->
+    <Style Selector="Border.recSurface">
+      <Setter Property="Background" Value="{DynamicResource Brush.Surface}" />
+      <Setter Property="CornerRadius" Value="{StaticResource Radius.Card}" />
+      <Setter Property="Padding" Value="{StaticResource Inset.24}" />
+    </Style>
+    <Style Selector="Border.recOutline">
+      <Setter Property="BorderBrush" Value="{DynamicResource Brush.Hairline}" />
+      <Setter Property="BorderThickness" Value="{StaticResource Hairline.Thickness}" />
+      <Setter Property="CornerRadius" Value="{StaticResource Radius.Card}" />
+      <Setter Property="Padding" Value="{StaticResource Rec.CardPadding}" />
+    </Style>
+    <Style Selector="Border.recDivider">
+      <Setter Property="Height" Value="{StaticResource Hairline.Width}" />
+      <Setter Property="Background" Value="{DynamicResource Brush.Hairline}" />
+    </Style>
+  </UserControl.Styles>
+
+  <UserControl.DataTemplates>
+    <!-- One track of the Tracks card: icon and name, the level or state, the bars, the device. -->
+    <DataTemplate DataType="vm:RecordingTrackViewModel">
+      <StackPanel Spacing="{StaticResource Space.10}">
+        <Grid ColumnDefinitions="*,Auto">
+          <StackPanel Grid.Column="0"
+                      Orientation="Horizontal"
+                      Spacing="{StaticResource Space.8}"
+                      VerticalAlignment="Center"
+                      TextElement.Foreground="{DynamicResource Brush.Ink}">
+            <controls:IconControl Width="{StaticResource Rec.Icon}"
+                                  Height="{StaticResource Rec.Icon}"
+                                  IsVisible="{Binding IsMicrophone}"
+                                  Data="{StaticResource Icon.Microphone}" />
+            <controls:IconControl Width="{StaticResource Rec.Icon}"
+                                  Height="{StaticResource Rec.Icon}"
+                                  IsVisible="{Binding IsSystemAudio}"
+                                  Data="{StaticResource Icon.Speaker}" />
+            <TextBlock Classes="recTrackName"
+                       VerticalAlignment="Center"
+                       Text="{Binding Label}" />
+          </StackPanel>
+          <TextBlock Grid.Column="1"
+                     Classes="recMono"
+                     VerticalAlignment="Center"
+                     Text="{Binding LevelText}" />
+        </Grid>
+        <controls:LevelHistoryControl Height="{StaticResource Rec.Bars}"
+                                      History="{Binding History}"
+                                      IsIdle="{Binding IsIdle}"
+                                      PastBrush="{DynamicResource Brush.Ink}"
+                                      FutureBrush="{DynamicResource Brush.DashedBorder}" />
+        <TextBlock Classes="recSmall"
+                   TextWrapping="Wrap"
+                   Text="{Binding Detail}" />
+      </StackPanel>
+    </DataTemplate>
+  </UserControl.DataTemplates>
+
+  <ScrollViewer HorizontalScrollBarVisibility="Disabled"
+                VerticalScrollBarVisibility="Auto">
+    <Border MaxWidth="{StaticResource Rec.PageMaxWidth}"
+            Padding="{StaticResource Rec.PagePadding}"
+            HorizontalAlignment="Stretch"
+            VerticalAlignment="Top">
+    <StackPanel Spacing="{StaticResource Space.16}">
+    <!-- Only before a recording starts (the canvas has the breadcrumb of the top bar for this). -->
+    <Button Classes="outline"
             HorizontalAlignment="Left"
             Content="{x:Static res:Strings.Common_Back}"
-            Command="{Binding BackCommand}" />
+            Command="{Binding BackCommand}"
+            IsVisible="{Binding CanGoBack}" />
+    <controls:AsidePairPanel SideWidth="{StaticResource Rec.SideWidth}"
+                             WrapBelow="{StaticResource Rec.WrapBelow}"
+                             ColumnSpacing="{StaticResource Space.32}"
+                             RowSpacing="{StaticResource Space.32}">
 
-    <ScrollViewer Grid.Row="1"
-                  HorizontalScrollBarVisibility="Disabled"
-                  VerticalScrollBarVisibility="Auto">
-      <StackPanel HorizontalAlignment="Center"
-                  VerticalAlignment="Center"
-                  Width="{StaticResource Recording.ColumnWidth}"
-                  Spacing="{StaticResource Space.24}">
+      <!-- Middle column: title, orb, timer, sources, buttons. -->
+      <StackPanel Margin="{StaticResource Rec.ColumnPadding}"
+                  Spacing="{StaticResource Space.32}"
+                  HorizontalAlignment="Stretch">
 
-        <controls:OrbControl x:Name="Orb"
-                             HorizontalAlignment="Center"
-                             Width="{StaticResource Orb.Size}"
-                             Height="{StaticResource Orb.Size}"
-                             IsVisible="{Binding ShowOrb}"
-                             IsActive="{Binding OrbActive}" />
-
-        <TextBlock Classes="timer"
-                   HorizontalAlignment="Center"
-                   Text="{Binding TimerText}" />
-
-        <!-- Source pills: choose the sources before recording; only the screen stays live during it. -->
-        <StackPanel Orientation="Horizontal"
-                    HorizontalAlignment="Center"
-                    Spacing="{StaticResource Space.12}">
-          <ToggleButton Classes="pill"
-                        Content="{x:Static res:Strings.Common_Microphone}"
-                        IsEnabled="{Binding CanToggleMicrophone}"
-                        IsChecked="{Binding Microphone, Mode=TwoWay}" />
-          <ToggleButton Classes="pill"
-                        Content="{x:Static res:Strings.Recording_SystemAudio}"
-                        IsEnabled="{Binding CanToggleSystemAudio}"
-                        IsChecked="{Binding SystemAudio, Mode=TwoWay}" />
-          <ToggleButton Classes="pill"
-                        Content="{x:Static res:Strings.Common_Screen}"
-                        IsEnabled="{Binding CanToggleScreen}"
-                        IsChecked="{Binding Screen, Mode=TwoWay}" />
+        <StackPanel MaxWidth="{StaticResource Rec.TitleMaxWidth}"
+                    HorizontalAlignment="Stretch"
+                    Spacing="{StaticResource Space.8}">
+          <TextBlock Classes="recLabel"
+                     HorizontalAlignment="Center"
+                     Text="{x:Static res:Strings.Recording_TitleLabel}" />
+          <TextBox x:Name="TitleBox"
+                   Classes="recTitle"
+                   Text="{Binding Title, Mode=TwoWay}"
+                   AutomationProperties.Name="{x:Static res:Strings.Recording_TitleLabel}" />
         </StackPanel>
 
-        <TextBlock Classes="bodySm"
+        <controls:GlassOrbControl x:Name="Orb"
+                                  HorizontalAlignment="Center"
+                                  Width="{StaticResource Glass.Recording.Size}"
+                                  Height="{StaticResource Glass.Recording.Size}"
+                                  BodyFraction="{StaticResource Glass.Recording.Body}"
+                                  HaloBlur="{DynamicResource Glass.Recording.HaloBlur}"
+                                  HaloOpacity="{DynamicResource Glass.Recording.HaloOpacity}"
+                                  InnerGlowBlur="{StaticResource Glass.Recording.GlowBlur}"
+                                  InnerGlowOpacity="{DynamicResource Glass.Recording.Glow}"
+                                  Classes.paused="{Binding IsPaused}"
+                                  IsVisible="{Binding ShowOrb}"
+                                  IsActive="{Binding OrbActive}" />
+
+        <StackPanel Spacing="{StaticResource Space.8}">
+          <TextBlock Classes="recTimer"
+                     Classes.paused="{Binding IsPaused}"
+                     HorizontalAlignment="Center"
+                     Margin="{StaticResource Rec.TimerShift}"
+                     Text="{Binding TimerText}" />
+          <TextBlock Classes="recLabel"
+                     HorizontalAlignment="Center"
+                     TextAlignment="Center"
+                     IsVisible="{Binding IsRunning}"
+                     Text="{Binding TimerNote}" />
+        </StackPanel>
+
+        <!-- Source chips: choose the sources before recording; only the screen one stays live during it. -->
+        <StackPanel Orientation="Horizontal"
+                    HorizontalAlignment="Center"
+                    Spacing="{StaticResource Space.8}">
+          <ToggleButton Classes="source"
+                        IsEnabled="{Binding CanToggleMicrophone}"
+                        IsChecked="{Binding Microphone, Mode=TwoWay}">
+            <StackPanel Orientation="Horizontal"
+                        Spacing="{StaticResource Space.8}">
+              <controls:IconControl Width="{StaticResource Rec.Icon}"
+                                    Height="{StaticResource Rec.Icon}"
+                                    Data="{StaticResource Icon.Microphone}" />
+              <TextBlock VerticalAlignment="Center"
+                         Foreground="{Binding $parent[ToggleButton].Foreground}"
+                         Text="{x:Static res:Strings.Common_Microphone}" />
+            </StackPanel>
+          </ToggleButton>
+          <ToggleButton Classes="source"
+                        IsEnabled="{Binding CanToggleSystemAudio}"
+                        IsChecked="{Binding SystemAudio, Mode=TwoWay}">
+            <StackPanel Orientation="Horizontal"
+                        Spacing="{StaticResource Space.8}">
+              <controls:IconControl Width="{StaticResource Rec.Icon}"
+                                    Height="{StaticResource Rec.Icon}"
+                                    Data="{StaticResource Icon.Speaker}" />
+              <TextBlock VerticalAlignment="Center"
+                         Foreground="{Binding $parent[ToggleButton].Foreground}"
+                         Text="{x:Static res:Strings.Recording_SystemAudio}" />
+            </StackPanel>
+          </ToggleButton>
+          <ToggleButton Classes="source"
+                        IsEnabled="{Binding CanToggleScreen}"
+                        IsChecked="{Binding Screen, Mode=TwoWay}">
+            <StackPanel Orientation="Horizontal"
+                        Spacing="{StaticResource Space.8}">
+              <controls:IconControl Width="{StaticResource Rec.Icon}"
+                                    Height="{StaticResource Rec.Icon}"
+                                    Data="{StaticResource Icon.Screen}" />
+              <TextBlock VerticalAlignment="Center"
+                         Foreground="{Binding $parent[ToggleButton].Foreground}"
+                         Text="{Binding ScreenLabel}" />
+            </StackPanel>
+          </ToggleButton>
+        </StackPanel>
+
+        <TextBlock Classes="recLabel"
                    HorizontalAlignment="Center"
                    TextAlignment="Center"
                    TextWrapping="Wrap"
-                   Foreground="{DynamicResource Brush.Smoke}"
                    IsVisible="{Binding HasSourceHint}"
                    Text="{Binding SourceHint}" />
 
-        <!-- Devices -->
+        <!-- Devices: chosen before the recording starts; while it runs the Tracks card names them. -->
         <Grid ColumnDefinitions="*,*"
-              ColumnSpacing="{StaticResource Space.16}">
+              ColumnSpacing="{StaticResource Space.16}"
+              MaxWidth="{StaticResource Rec.TitleMaxWidth}"
+              HorizontalAlignment="Stretch"
+              IsVisible="{Binding IsSetup}">
           <StackPanel Grid.Column="0"
                       Spacing="{StaticResource Space.4}">
-            <TextBlock Classes="bodySm"
-                       Foreground="{DynamicResource Brush.Smoke}"
+            <TextBlock Classes="recLabel"
                        Text="{x:Static res:Strings.Common_Microphone}" />
             <ComboBox ItemsSource="{Binding MicrophoneDevices}"
                       SelectedItem="{Binding SelectedMicrophone, Mode=TwoWay}"
@@ -87,8 +444,7 @@
           </StackPanel>
           <StackPanel Grid.Column="1"
                       Spacing="{StaticResource Space.4}">
-            <TextBlock Classes="bodySm"
-                       Foreground="{DynamicResource Brush.Smoke}"
+            <TextBlock Classes="recLabel"
                        Text="{x:Static res:Strings.Recording_SystemOutput}" />
             <ComboBox ItemsSource="{Binding SystemDevices}"
                       SelectedItem="{Binding SelectedSystemDevice, Mode=TwoWay}"
@@ -103,13 +459,55 @@
           </StackPanel>
         </Grid>
 
-        <Button Classes="primary"
-                HorizontalAlignment="Center"
-                Content="{Binding StartStopLabel}"
-                Command="{Binding StartStopCommand}" />
+        <StackPanel Orientation="Horizontal"
+                    HorizontalAlignment="Center"
+                    Spacing="{StaticResource Space.10}">
+          <Button Classes="outline rec"
+                  Command="{Binding PauseResumeCommand}"
+                  IsVisible="{Binding IsRunning}">
+            <StackPanel Orientation="Horizontal"
+                        Spacing="{StaticResource Space.8}">
+              <Viewbox Width="{StaticResource Rec.Icon}"
+                       Height="{StaticResource Rec.Icon}">
+                <Canvas Width="{StaticResource Rec.IconGrid}"
+                        Height="{StaticResource Rec.IconGrid}">
+                  <Path Data="{StaticResource Rec.Pause}"
+                        Fill="{DynamicResource Brush.Ink}"
+                        IsVisible="{Binding !IsPaused}" />
+                  <Path Data="{StaticResource Rec.Resume}"
+                        Fill="{DynamicResource Brush.Ink}"
+                        IsVisible="{Binding IsPaused}" />
+                </Canvas>
+              </Viewbox>
+              <TextBlock VerticalAlignment="Center"
+                         Foreground="{Binding $parent[Button].Foreground}"
+                         Text="{Binding PauseLabel}" />
+            </StackPanel>
+          </Button>
+          <Button x:Name="StartStopButton"
+                  Classes="primary rec stop"
+                  Command="{Binding StartStopCommand}">
+            <StackPanel Orientation="Horizontal"
+                        Spacing="{StaticResource Space.8}">
+              <Viewbox Width="{StaticResource Rec.SmallIcon}"
+                       Height="{StaticResource Rec.SmallIcon}"
+                       IsVisible="{Binding IsRunning}">
+                <Canvas Width="{StaticResource Rec.IconGrid}"
+                        Height="{StaticResource Rec.IconGrid}">
+                  <Path Data="{StaticResource Rec.Stop}"
+                        Fill="{DynamicResource Brush.Canvas}" />
+                </Canvas>
+              </Viewbox>
+              <TextBlock VerticalAlignment="Center"
+                         Foreground="{Binding $parent[Button].Foreground}"
+                         Text="{Binding StartStopLabel}" />
+            </StackPanel>
+          </Button>
+        </StackPanel>
 
         <!-- Inline notice: a problem that did not stop the recording (e.g. the screen stopped, the audio goes on). -->
         <Border Classes="card"
+                MaxWidth="{StaticResource Rec.TitleMaxWidth}"
                 Padding="{StaticResource Inset.16}"
                 IsVisible="{Binding HasNotice}">
           <TextBlock Classes="bodySm"
@@ -119,20 +517,47 @@
 
         <!-- Inline error -->
         <Border Classes="card"
+                MaxWidth="{StaticResource Rec.TitleMaxWidth}"
                 Padding="{StaticResource Inset.16}"
                 IsVisible="{Binding HasError}">
           <TextBlock Classes="bodySm"
                      TextWrapping="Wrap"
                      Text="{Binding Error}" />
         </Border>
-
-        <TextBlock Classes="bodySm"
-                   HorizontalAlignment="Center"
-                   TextAlignment="Center"
-                   TextWrapping="Wrap"
-                   Foreground="{DynamicResource Brush.Smoke}"
-                   Text="{x:Static res:Strings.Recording_Notice}" />
       </StackPanel>
-    </ScrollViewer>
-  </Grid>
+
+      <!-- Right column: the tracks, the message for the other people, the note. -->
+      <StackPanel Spacing="{StaticResource Space.16}">
+        <Border Classes="recSurface"
+                IsVisible="{Binding IsRunning}">
+          <StackPanel Spacing="{StaticResource Space.20}">
+            <TextBlock Classes="recHeading"
+                       Text="{x:Static res:Strings.Recording_Tracks}" />
+            <ContentControl Content="{Binding MicrophoneTrack}" />
+            <Border Classes="recDivider" />
+            <ContentControl Content="{Binding SystemTrack}" />
+          </StackPanel>
+        </Border>
+
+        <Border Classes="recOutline">
+          <StackPanel Spacing="{StaticResource Space.12}">
+            <TextBlock Classes="recCardTitle"
+                       Text="{x:Static res:Strings.Recording_LetPeopleKnow}" />
+            <TextBlock Classes="recMessage"
+                       Text="{x:Static res:Strings.Recording_Notice}" />
+            <Button Classes="outline rec copy"
+                    HorizontalAlignment="Left"
+                    Command="{Binding CopyMessageCommand}"
+                    Content="{Binding CopyLabel}" />
+          </StackPanel>
+        </Border>
+
+        <TextBlock Classes="recNote"
+                   Margin="{StaticResource Rec.NotePadding}"
+                   Text="{x:Static res:Strings.Recording_AfterStop}" />
+      </StackPanel>
+    </controls:AsidePairPanel>
+    </StackPanel>
+    </Border>
+  </ScrollViewer>
 </UserControl>

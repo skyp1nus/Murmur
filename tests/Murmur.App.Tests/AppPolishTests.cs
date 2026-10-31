@@ -382,7 +382,9 @@ public sealed class AppPolishTests
 
         shell.OnWindowClosed();
 
-        Assert.Equal(before - 1, store.SubscriberCount);
+        // The Settings screen's own handler, and the shell's (the record-hotkey hint) go with the window.
+        Assert.True(before >= 2);
+        Assert.Equal(0, store.SubscriberCount);
     }
 
     // 3. Devices ------------------------------------------------------------------------------------------------------
@@ -474,7 +476,7 @@ public sealed class AppPolishTests
         var hotkeys = rig.Vm.Hotkeys;
         var appearance = rig.Vm.Appearance;
         var record = hotkeys.Rows[0];
-        var toggle = hotkeys.Rows[1];
+        var toggle = hotkeys.Rows[2];
         record.Error = "taken by another app";
         hotkeys.Error = "section error";
         appearance.Error = "could not save the theme";
@@ -488,7 +490,7 @@ public sealed class AppPolishTests
         Assert.Equal("could not save the theme", appearance.Error);
         Assert.True(toggle.IsCapturing);
         Assert.Same(toggle, hotkeys.Capturing);
-        Assert.Equal("Ctrl+Alt+K", hotkeys.Rows[2].Gesture);
+        Assert.Equal("Ctrl+Alt+K", hotkeys.Rows[3].Gesture);
     }
 
     [Fact]
@@ -570,7 +572,7 @@ public sealed class AppPolishTests
     [Fact]
     public void About_TheVersionIsABuildTimeConstant_WithoutARevisionSuffix()
     {
-        Assert.Equal("0.4.0", BuildInfo.Version);
+        Assert.Equal("0.4.1", BuildInfo.Version);
         Assert.DoesNotContain('+', BuildInfo.Version);
         Assert.Equal(BuildInfo.Version, new AboutViewModel().Version);
         Assert.Equal("9.9", new AboutViewModel("9.9").Version);

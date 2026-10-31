@@ -9,7 +9,7 @@ using Murmur.Core.Sessions;
 
 namespace Murmur.App.Tests;
 
-/// <summary>Renders the phase 3 screens (AI chat, library search) with Avalonia.Headless (Skia) into docs/screenshots.</summary>
+/// <summary>Renders the phase 3 screens (AI chat, library search) with Avalonia.Headless (Skia) into artifacts/screenshots, or into the tracked docs/screenshots when MURMUR_UPDATE_SCREENSHOTS=1 (see <see cref="RepoPaths.ScreenshotsDirectory"/>).</summary>
 public sealed class Phase3ScreenshotTests
 {
     private static HeadlessUnitTestSession Session => UiHarness.Session;
@@ -77,8 +77,8 @@ public sealed class Phase3ScreenshotTests
                 UiHarness.Save(window, Path("phase3-chat.png"));
                 var visible = window.GetVisualDescendants().OfType<TextBlock>().Where(t => t.IsEffectivelyVisible).Select(t => t.Text).ToArray();
                 var chipLabels = window.GetVisualDescendants().OfType<Button>()
-                    .Where(b => b.Classes.Contains("chip") && b.IsEffectivelyVisible && b.FindAncestorOfType<ChatView>() is not null)
-                    .Select(b => b.Content as string)
+                    .Where(b => b.Classes.Contains("chatChip") && b.IsEffectivelyVisible && b.FindAncestorOfType<ConversationView>() is not null)
+                    .Select(b => b.GetVisualDescendants().OfType<TextBlock>().First().Text)
                     .ToArray();
                 window.Close();
                 return (visible, chipLabels);
@@ -124,17 +124,22 @@ public sealed class Phase3ScreenshotTests
             () =>
             {
                 var window = UiHarness.Show(shell);
+
+                // The page is one virtualised list: a tall window puts the hero, the filters and the four hits all on screen.
+                window.Height = 1500;
+                UiHarness.Pump(4);
                 library.SearchText = "реліз";
                 harness.Time.Advance(LibraryViewModel.SearchDebounce);
                 PumpUntil(library.SearchTask);
                 UiHarness.Pump(6);
                 UiHarness.Save(window, Path("phase3-library-search.png"));
-                var list = window.GetVisualDescendants().OfType<ListBox>().Single(l => l.Name == "SearchResultList");
-                var chips = window.GetVisualDescendants().OfType<Border>()
-                    .Where(b => b.Classes.Contains("chip") && b.IsEffectivelyVisible)
-                    .Select(b => ((TextBlock)b.Child!).Text)
+                var rows = window.GetVisualDescendants().OfType<Button>().Count(b => b.Classes.Contains("libraryRow") && b.DataContext is SearchResultViewModel);
+                var chips = window.GetVisualDescendants().OfType<Button>()
+                    .Where(b => b.Classes.Contains("libraryRow") && b.DataContext is SearchResultViewModel)
+                    .SelectMany(b => b.GetVisualDescendants().OfType<TextBlock>().Where(t => t.Classes.Contains("monoMeta") && t.IsEffectivelyVisible))
+                    .Select(t => t.Text!)
                     .ToArray();
-                var result = (list.ItemCount, chips);
+                var result = (rows, chips);
                 window.Close();
                 return result;
             },

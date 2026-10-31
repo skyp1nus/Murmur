@@ -4,7 +4,7 @@ name: tags
 
 on:
   push:
-    branches: [master]
+    branches: [main]
     paths: ['.github/phase-tags.txt']
   workflow_dispatch:
 

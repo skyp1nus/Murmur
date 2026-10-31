@@ -75,6 +75,69 @@ public sealed class ClockAudioPlayerTests : IDisposable
     }
 
     [Fact]
+    public async Task Speed_ScalesThePosition_AndKeepsItWhenChangedWhilePlaying()
+    {
+        using var player = await OpenAsync(TimeSpan.FromSeconds(100));
+        Assert.True(player.CanChangeSpeed);
+        Assert.Equal(1, player.Speed);
+
+        player.SetSpeed(2);
+        player.Play();
+        _time.Advance(TimeSpan.FromSeconds(5));
+        Assert.Equal(TimeSpan.FromSeconds(10), player.Position);
+
+        player.SetSpeed(0.5);
+        Assert.Equal(TimeSpan.FromSeconds(10), player.Position);
+        _time.Advance(TimeSpan.FromSeconds(10));
+        Assert.Equal(TimeSpan.FromSeconds(15), player.Position);
+    }
+
+    [Fact]
+    public async Task Speed_EndsThePlaybackAtTheScaledTime_AndIsClamped()
+    {
+        using var player = await OpenAsync(TimeSpan.FromSeconds(10));
+        player.SetSpeed(100);
+        Assert.Equal(4, player.Speed);
+        player.SetSpeed(2);
+        player.Play();
+
+        _time.Advance(TimeSpan.FromSeconds(4.9));
+        Assert.Equal(PlaybackState.Playing, player.State);
+        _time.Advance(TimeSpan.FromSeconds(0.2));
+
+        Assert.Equal(PlaybackState.Ended, player.State);
+        Assert.Equal(TimeSpan.FromSeconds(10), player.Position);
+    }
+
+    [Fact]
+    public async Task MutedTracks_AreRemembered_AndTracksOutOfRangeAreRefused()
+    {
+        using var player = await OpenAsync(TimeSpan.FromSeconds(10), TimeSpan.FromSeconds(10));
+        Assert.True(player.CanMuteTracks);
+
+        player.SetTrackMuted(1, true);
+
+        Assert.False(player.IsTrackMuted(0));
+        Assert.True(player.IsTrackMuted(1));
+        Assert.Throws<ArgumentOutOfRangeException>(() => player.SetTrackMuted(-1, true));
+        Assert.Throws<ArgumentOutOfRangeException>(() => player.SetTrackMuted(IAudioPlayerControls.MaxTracks, true));
+        Assert.Throws<ArgumentOutOfRangeException>(() => player.IsTrackMuted(2));
+        player.SetTrackMuted(1, false);
+        Assert.False(player.IsTrackMuted(1));
+    }
+
+    [Fact]
+    public async Task TheMuteSetBeforeOpening_IsKept()
+    {
+        using var player = new ClockAudioPlayer(_time);
+        player.SetTrackMuted(0, true);
+
+        await player.OpenAsync([TestWav.Silence(_dir.File("a.wav"), TimeSpan.FromSeconds(1))], CancellationToken.None);
+
+        Assert.True(player.IsTrackMuted(0));
+    }
+
+    [Fact]
     public async Task RepeatedCalls_AreNoOpsWithoutEvents()
     {
         using var player = await OpenAsync(TimeSpan.FromSeconds(10));

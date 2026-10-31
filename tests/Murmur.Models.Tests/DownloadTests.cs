@@ -63,6 +63,7 @@ public sealed class DownloadTests
         Assert.Equal(150_000, before.BytesDone);
         Assert.Equal(content, await File.ReadAllBytesAsync(Target(h, "gguf/model.gguf"), TestContext.Current.CancellationToken));
         Assert.Contains(h.Server.Requests, r => r.Range == "bytes=150000-");
+        await Harness.ServedSettledAsync(route, content.Length - 150_000);
         Assert.Equal(content.Length - 150_000, route.BytesServed);
     }
 
@@ -81,6 +82,7 @@ public sealed class DownloadTests
         await manager.InstallAsync("m", TestContext.Current.CancellationToken);
 
         Assert.Equal(content, await File.ReadAllBytesAsync(Target(h, "gguf/model.gguf"), TestContext.Current.CancellationToken));
+        await Harness.ServedSettledAsync(route, content.Length);
         Assert.Equal(content.Length, route.BytesServed); // the whole body, from byte 0
     }
 

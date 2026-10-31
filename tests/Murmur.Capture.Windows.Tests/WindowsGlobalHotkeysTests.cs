@@ -103,6 +103,38 @@ public sealed class WindowsGlobalHotkeysTests
 
     [Fact]
     [Trait("Category", "Windows")]
+    public void TogglePause_RegistersLikeTheOtherActions_AndRaisesItsOwnAction()
+    {
+        Assert.SkipUnless(OperatingSystem.IsWindows(), WindowsOnly);
+        using var hotkeys = new WindowsGlobalHotkeys();
+        var gesture = Gesture.Next();
+        var pressedActions = new List<HotkeyAction>();
+        using var pressed = new ManualResetEventSlim(false);
+        hotkeys.Pressed += action =>
+        {
+            lock (pressedActions)
+            {
+                pressedActions.Add(action);
+            }
+
+            pressed.Set();
+        };
+
+        Assert.Equal(HotkeyRegistration.Registered, hotkeys.Register(HotkeyAction.TogglePause, gesture));
+        Assert.Equal(HotkeyRegistration.Taken, hotkeys.Register(HotkeyAction.ShowApp, gesture));
+
+        PressOrSkip(gesture, pressed);
+
+        lock (pressedActions)
+        {
+            Assert.Equal([HotkeyAction.TogglePause], pressedActions);
+        }
+
+        Assert.Equal(HotkeyRegistration.Cleared, hotkeys.Register(HotkeyAction.TogglePause, null));
+    }
+
+    [Fact]
+    [Trait("Category", "Windows")]
     public void SameGesture_FromAnotherInstance_IsTaken_WithWin32Error1409()
     {
         Assert.SkipUnless(OperatingSystem.IsWindows(), WindowsOnly);
@@ -237,10 +269,12 @@ public sealed class WindowsGlobalHotkeysTests
     {
         Assert.SkipUnless(OperatingSystem.IsWindows(), WindowsOnly);
         using var hotkeys = new WindowsGlobalHotkeys();
-        var gestures = new[] { Gesture.Next(), Gesture.Next(), Gesture.Next() };
-        var results = new HotkeyRegistration[3, 20];
+        // One gesture per action, sized from the enum: an action added later (TogglePause) is covered too.
+        var actions = Enum.GetValues<HotkeyAction>();
+        var gestures = actions.Select(_ => Gesture.Next()).ToArray();
+        var results = new HotkeyRegistration[actions.Length, 20];
 
-        var tasks = Enum.GetValues<HotkeyAction>().Select(action => Task.Run(() =>
+        var tasks = actions.Select(action => Task.Run(() =>
         {
             for (var i = 0; i < 20; i++)
             {

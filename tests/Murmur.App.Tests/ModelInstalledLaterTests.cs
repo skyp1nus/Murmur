@@ -1,3 +1,4 @@
+using Murmur.App.Localization;
 using Murmur.App.Tests.Fakes;
 using Murmur.App.ViewModels;
 using Murmur.Core.Processing;
@@ -9,8 +10,13 @@ namespace Murmur.App.Tests;
 /// A model installed in the Settings while the app runs must be noticed: nothing in the screens keeps "not installed"
 /// from an earlier check.
 /// </summary>
-public sealed class ModelInstalledLaterTests
+public sealed class ModelInstalledLaterTests : IDisposable
 {
+    // The texts asserted below are Ukrainian; English is the default language (D-039).
+    private readonly IDisposable _ukrainian = UiCulture.Override("uk");
+
+    public void Dispose() => _ukrainian.Dispose();
+
     [Fact]
     public async Task Library_AMissingModelBadgeDoesNotOutliveTheInstall()
     {

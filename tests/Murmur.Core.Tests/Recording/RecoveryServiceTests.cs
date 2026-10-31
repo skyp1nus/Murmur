@@ -64,7 +64,7 @@ public sealed class RecoveryServiceTests : IDisposable
 
         Assert.Equal(session.Id, recovered.Id);
         Assert.Equal(SessionState.Failed, recovered.State);
-        Assert.NotNull(recovered.Error);
+        Assert.Equal(SessionNotes.RecoveryLost, recovered.Error);
     }
 
     [Fact]

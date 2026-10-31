@@ -21,6 +21,8 @@
     <Compile Include="..\..\src\Murmur.Capture.Windows\Screen\FrameTiming.cs" Link="Linked\FrameTiming.cs" />
     <Compile Include="..\..\src\Murmur.Capture.Windows\Screen\KeyFrameSchedule.cs" Link="Linked\KeyFrameSchedule.cs" />
     <Compile Include="..\..\src\Murmur.Capture.Windows\Screen\EncoderGeometry.cs" Link="Linked\EncoderGeometry.cs" />
+    <!-- The WSOLA time stretcher of the Windows player (pure C#, the render-callback hot path at speeds other than 1). -->
+    <Compile Include="..\..\src\Murmur.Capture.Windows\Playback\WsolaStretcher.cs" Link="Linked\WsolaStretcher.cs" />
   </ItemGroup>
 
 </Project>

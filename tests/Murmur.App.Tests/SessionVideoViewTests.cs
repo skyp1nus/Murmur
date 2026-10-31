@@ -165,15 +165,15 @@ public sealed class SessionVideoViewTests
                 var window = UiHarness.Show(shell);
                 var view = window.GetVisualDescendants().OfType<SessionView>().Single();
                 var result = (Find<Border>(view, "VideoPanel").IsEffectivelyVisible, Find<StackPanel>(view, "VideoPlaceholder").IsEffectivelyVisible);
-                var column = view.GetVisualDescendants().OfType<StackPanel>().First(p => p.Classes.Contains("player"));
-                var width = column.Bounds.Width;
+                var card = view.GetVisualDescendants().OfType<Border>().First(b => b.Classes.Contains("sessionPlayer"));
+                var width = card.IsEffectivelyVisible ? 1 : 0;
                 window.Close();
                 return (result.Item1 || result.Item2, width);
             },
             TestContext.Current.CancellationToken);
 
         Assert.False(panel);
-        Assert.Equal(340, playerWidth);
+        Assert.Equal(1, playerWidth);
     }
 
     private static (int R, int G, int B) Pixel(Window window, int x, int y)

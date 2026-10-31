@@ -1,3 +1,4 @@
+using Murmur.App.Localization;
 using Murmur.App.Tests.Fakes;
 using Murmur.App.ViewModels;
 using Murmur.Core.Capture;
@@ -9,9 +10,16 @@ namespace Murmur.App.Tests;
 
 public sealed class SessionViewModelTests : IDisposable
 {
+    // The texts asserted below are Ukrainian; English is the default language (D-039).
+    private readonly IDisposable _ukrainian = UiCulture.Override("uk");
+
     private readonly SessionFixture _fixture = new();
 
-    public void Dispose() => _fixture.Dispose();
+    public void Dispose()
+    {
+        _ukrainian.Dispose();
+        _fixture.Dispose();
+    }
 
     private static TimeSpan S(double seconds) => TimeSpan.FromSeconds(seconds);
 
@@ -54,7 +62,7 @@ public sealed class SessionViewModelTests : IDisposable
         Assert.Equal([_fixture.Files.MicrophoneAudio, _fixture.Files.SystemAudio], tracks);
         Assert.True(vm.CanPlay);
         Assert.Equal(S(125), vm.Duration);
-        Assert.Equal("00:02:05", vm.DurationText);
+        Assert.Equal("02:05", vm.DurationText);
         Assert.Null(vm.PlayerError);
     }
 
@@ -158,7 +166,7 @@ public sealed class SessionViewModelTests : IDisposable
         _fixture.Player.Position = S(75);
         vm.Tick();
 
-        Assert.Equal("00:01:15", vm.PositionText);
+        Assert.Equal("01:15", vm.PositionText);
         Assert.Equal(75.0 / 3600, vm.PositionFraction, 6);
     }
 
@@ -589,7 +597,7 @@ public sealed class SessionViewModelTests : IDisposable
         var vm = _fixture.Create();
         await vm.LoadAsync();
 
-        _fixture.Processing.Raise(new SessionProcessingStatus(_fixture.Record.Id, SessionProcessingStage.ModelMissing, 0, SessionProcessor.AsrNotInstalledMessage));
+        _fixture.Processing.Raise(new SessionProcessingStatus(_fixture.Record.Id, SessionProcessingStage.ModelMissing, 0, SessionProcessor.AsrNotInstalledCode));
 
         Assert.Equal(TranscriptStatus.AsrMissing, vm.Status);
     }

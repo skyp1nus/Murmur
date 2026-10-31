@@ -3,6 +3,8 @@ using Microsoft.Extensions.AI;
 using Murmur.Core.Intelligence;
 using Murmur.Core.Sessions;
 using Murmur.Core.Transcription;
+using ChatMessage = Microsoft.Extensions.AI.ChatMessage;
+using ChatMessage_ = Murmur.Core.Intelligence.ChatMessage;
 
 namespace Murmur.Intelligence.Tests.Fakes;
 
@@ -50,6 +52,12 @@ internal sealed class FakeStorage : IStorage
     public ValueTask<Transcript?> GetTranscriptAsync(SessionId id, CancellationToken cancellationToken) =>
         ValueTask.FromResult(Transcripts.GetValueOrDefault(id));
 
+    public ValueTask<IReadOnlyList<TranscriptSummary>> GetTranscriptSummariesAsync(IReadOnlyList<SessionId> sessions, CancellationToken cancellationToken) =>
+        ValueTask.FromResult<IReadOnlyList<TranscriptSummary>>(
+        [
+            .. sessions.Where(Transcripts.ContainsKey).Select(id => new TranscriptSummary(id, Transcripts[id].Language, Transcripts[id].Segments.Count > 0 ? Transcripts[id].Segments[0].Text : null)),
+        ]);
+
     public ValueTask<SessionRecord?> GetSessionAsync(SessionId id, CancellationToken cancellationToken)
     {
         SessionLookups++;
@@ -62,11 +70,31 @@ internal sealed class FakeStorage : IStorage
 
     public ValueTask UpdateSessionAsync(SessionRecord session, CancellationToken cancellationToken) => throw new NotSupportedException();
 
+    public ValueTask RenameSessionAsync(SessionId id, string title, CancellationToken cancellationToken) => throw new NotSupportedException();
+
     public ValueTask<IReadOnlyList<SessionRecord>> ListSessionsAsync(SessionQuery query, CancellationToken cancellationToken) => throw new NotSupportedException();
 
     public ValueTask DeleteSessionAsync(SessionId id, CancellationToken cancellationToken) => throw new NotSupportedException();
 
     public SessionFiles GetFiles(SessionId id) => throw new NotSupportedException();
+
+    public ValueTask<IReadOnlyList<ChatThread>> ListThreadsAsync(int limit, CancellationToken cancellationToken) => throw new NotSupportedException();
+
+    public ValueTask<ChatThread> CreateThreadAsync(string title, SessionId? scope, CancellationToken cancellationToken) => throw new NotSupportedException();
+
+    public ValueTask<IReadOnlyList<ChatMessage_>> GetMessagesAsync(ChatThreadId thread, CancellationToken cancellationToken) => throw new NotSupportedException();
+
+    public ValueTask AppendMessageAsync(ChatMessage_ message, CancellationToken cancellationToken) => throw new NotSupportedException();
+
+    public ValueTask RenameThreadAsync(ChatThreadId thread, string title, CancellationToken cancellationToken) => throw new NotSupportedException();
+
+    public ValueTask DeleteThreadAsync(ChatThreadId thread, CancellationToken cancellationToken) => throw new NotSupportedException();
+
+    public ValueTask<SessionSummary?> GetSummaryAsync(SessionId session, CancellationToken cancellationToken) => throw new NotSupportedException();
+
+    public ValueTask SaveSummaryAsync(SessionSummary summary, CancellationToken cancellationToken) => throw new NotSupportedException();
+
+    public ValueTask DeleteSummaryAsync(SessionId session, CancellationToken cancellationToken) => throw new NotSupportedException();
 }
 
 /// <summary>Embeds "…{n}" style inputs deterministically and records every batch.</summary>

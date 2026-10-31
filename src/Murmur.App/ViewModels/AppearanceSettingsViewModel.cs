@@ -1,6 +1,7 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Murmur.App.Localization;
+using Murmur.App.Resources;
 using Murmur.Core.Settings;
 
 namespace Murmur.App.ViewModels;
@@ -14,18 +15,24 @@ public sealed partial class AppearanceSettingsViewModel : ObservableObject
     private readonly SettingsWriter _writer;
     private bool _loading;
 
-    internal AppearanceSettingsViewModel(SettingsWriter writer)
+    private readonly Func<bool>? _recordingActive;
+
+    internal AppearanceSettingsViewModel(SettingsWriter writer, Func<bool>? recordingActive = null)
     {
         _writer = writer;
+        _recordingActive = recordingActive;
         Refresh();
     }
+
+    /// <summary>The only transcription language of the MVP: Parakeet detects it by itself (the same choice as the onboarding's).</summary>
+    public IReadOnlyList<string> TranscriptionLanguages { get; } = [Strings.Onb4_Auto];
 
     [ObservableProperty]
     public partial ThemePreference Theme { get; set; }
 
-    /// <summary><c>uk</c> or <c>en</c>.</summary>
+    /// <summary><c>en</c> or <c>uk</c>.</summary>
     [ObservableProperty]
-    public partial string Language { get; set; } = UiCulture.Ukrainian;
+    public partial string Language { get; set; } = UiCulture.English;
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HasError))]
@@ -33,7 +40,19 @@ public sealed partial class AppearanceSettingsViewModel : ObservableObject
 
     /// <summary>The introduction was reset in this visit: it appears on the next start.</summary>
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(OnboardingOpensNow))]
     public partial bool OnboardingReset { get; set; }
+
+    /// <summary>
+    /// The introduction was reset while a recording runs: it does not interrupt the recording and opens the next time Murmur starts,
+    /// which the note under the button says.
+    /// </summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(OnboardingOpensNow))]
+    public partial bool OnboardingDeferred { get; private set; }
+
+    /// <summary>The introduction was reset and opens at once (no recording is running).</summary>
+    public bool OnboardingOpensNow => OnboardingReset && !OnboardingDeferred;
 
     public bool HasError => Error is not null;
 
@@ -82,6 +101,7 @@ public sealed partial class AppearanceSettingsViewModel : ObservableObject
             Theme = settings.Theme;
             Language = UiCulture.Normalize(settings.Language);
             OnboardingReset = !settings.OnboardingCompleted;
+            OnboardingDeferred = OnboardingDeferred && OnboardingReset;
             Error = null;
         }
         finally
@@ -100,6 +120,7 @@ public sealed partial class AppearanceSettingsViewModel : ObservableObject
             Theme = settings.Theme;
             Language = UiCulture.Normalize(settings.Language);
             OnboardingReset = !settings.OnboardingCompleted;
+            OnboardingDeferred = OnboardingDeferred && OnboardingReset;
         }
         finally
         {
@@ -110,6 +131,8 @@ public sealed partial class AppearanceSettingsViewModel : ObservableObject
     [RelayCommand]
     private void RestartOnboarding()
     {
+        // The shell does not interrupt a recording with the introduction: it waits for the next start, and the note says so.
+        OnboardingDeferred = _recordingActive?.Invoke() == true;
         OnboardingReset = true;
         LastSave = SaveAsync(s => s with { OnboardingCompleted = false });
     }

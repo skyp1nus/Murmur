@@ -19,6 +19,12 @@ public sealed partial class SqliteStorage
         return Run(() => UpdateSession(session), cancellationToken);
     }
 
+    public ValueTask RenameSessionAsync(SessionId id, string title, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(title);
+        return Run(() => RenameSession(id, title), cancellationToken);
+    }
+
     public ValueTask<SessionRecord?> GetSessionAsync(SessionId id, CancellationToken cancellationToken) =>
         Run(() => GetSession(id), cancellationToken);
 
@@ -96,10 +102,9 @@ public sealed partial class SqliteStorage
         using var connection = OpenConnection();
         using var command = connection.CreateCommand();
         command.CommandText =
-            "UPDATE sessions SET title = $title, started_at = $started, duration_ms = $duration, state = $state, " +
+            "UPDATE sessions SET started_at = $started, duration_ms = $duration, state = $state, " +
             "has_mic = $mic, has_system = $system, screen_segments = $segments, error = $error WHERE id = $id";
         command.Parameters.AddWithValue("$id", session.Id.ToString());
-        command.Parameters.AddWithValue("$title", session.Title);
         command.Parameters.AddWithValue("$started", session.StartedAt.ToUnixTimeMilliseconds());
         command.Parameters.AddWithValue("$duration", (long)session.Duration.TotalMilliseconds);
         command.Parameters.AddWithValue("$state", (int)session.State);
@@ -110,6 +115,19 @@ public sealed partial class SqliteStorage
         if (command.ExecuteNonQuery() == 0)
         {
             throw new KeyNotFoundException($"Session {session.Id} does not exist.");
+        }
+    }
+
+    private void RenameSession(SessionId id, string title)
+    {
+        using var connection = OpenConnection();
+        using var command = connection.CreateCommand();
+        command.CommandText = "UPDATE sessions SET title = $title WHERE id = $id";
+        command.Parameters.AddWithValue("$id", id.ToString());
+        command.Parameters.AddWithValue("$title", title);
+        if (command.ExecuteNonQuery() == 0)
+        {
+            throw new KeyNotFoundException($"Session {id} does not exist.");
         }
     }
 

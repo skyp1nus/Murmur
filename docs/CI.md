@@ -11,7 +11,7 @@
 | `ci.yml`, джоб `bench` | ніколи | Run workflow, `bench` = true |
 | `asr.yml`, `ai-eval.yml`, `perf-record.yml` | ніколи | Run workflow |
 | `models.yml` | PR, якому додали мітку `ci:models` (по запуску на кожне додавання) | Run workflow |
-| `tags.yml` | push у `master`, що змінює `.github/phase-tags.txt` | Run workflow |
+| `tags.yml` | push у `main`, що змінює `.github/phase-tags.txt` | Run workflow |
 
 ### Локально: `scripts/verify-local.ps1`
 
@@ -89,7 +89,7 @@ UNVERIFIED-ON-ACTIONS: workflow не запускався на GitHub Actions (Y
 Через CLI:
 
 ```powershell
-gh run list --workflow ci --branch master --limit 5
+gh run list --workflow ci --branch main --limit 5
 gh run download <run-id> --name murmur-win-x64 --dir murmur-win-x64
 .\murmur-win-x64\Murmur.exe
 ```
