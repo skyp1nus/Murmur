@@ -29,7 +29,14 @@
 
 ## Далі
 
-Код фази готовий, CI зелений, тестер пройшов (`docs/REPORTS/phase41-tester.md`). Звіт і чекліст для власника — `docs/REPORTS/phase41.md`. Лишилась перевірка власника на ПК.
+Код фази готовий, CI зелений, тестер пройшов (`docs/REPORTS/phase41-tester.md`). Звіт і чекліст для власника — `docs/REPORTS/phase41.md`.
+
+Перевірка на ПК власника (2026-10-31, `62ee958`) знайшла дві регресії; кожна задача — в окремому issue й окремому чаті:
+- [#15](https://github.com/skyp1nus/Murmur/issues/15) — старт 404–416 мс (бюджет 400, у фазі 4 було 371); перше розслідування — гілка `perf/startup-41`;
+- [#16](https://github.com/skyp1nus/Murmur/issues/16) — ріст пам'яті під час запису (аудіо 1,3 МБ/хв, з екраном 8,7 МБ/хв); перше розслідування — гілка `perf/recording-memory-41`;
+- [#17](https://github.com/skyp1nus/Murmur/issues/17) — ручна перевірка на ПК перед злиттям PR #14.
+
+Windows-перевірки робить власник локально (`pwsh scripts/verify-local.ps1`, без `-Tone`); GitHub Actions для Windows не запускати (мітки `ci:windows` / `ci:models` з PR #14 знято).
 
 ## Як продовжити у VS Code (Claude Code)
 
