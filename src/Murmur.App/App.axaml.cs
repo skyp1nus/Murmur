@@ -123,7 +123,9 @@ public partial class App : Application
             }
             else
             {
-                window.Opened += (_, _) => _ = shell.InitializeAsync();
+                // Crash recovery and the library load wait for the first frame: their continuations run on the UI thread and would
+                // otherwise sit between the window opening and that frame (the start-up budget).
+                FirstFrame.Run(window, () => _ = shell.InitializeAsync());
             }
 
             desktop.MainWindow = window;
