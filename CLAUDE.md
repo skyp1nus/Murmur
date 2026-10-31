@@ -5,7 +5,7 @@
 ## Головні документи
 - `docs/PLAN.md` — цілі, стек, архітектура, бюджети, фази з критеріями. Джерело правди.
 - `docs/design/` — макети та `tokens.json`.
-- `docs/BACKLOG.md` — ідеї поза поточною фазою.
+- `docs/BACKLOG.md` — як ведуться ідеї: GitHub Issues (мітка `idea`) і GitHub Project.
 - `.claude/agents/` — команда субагентів; `.claude/commands/phase.md` — цикл фази.
 
 ## Стек
