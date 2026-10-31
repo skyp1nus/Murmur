@@ -35,7 +35,7 @@ internal sealed class MotionFollower : IDisposable
         ArgumentNullException.ThrowIfNull(preference);
         Motion.SetReduceMotion(window, preference.ReduceMotion);
         MotionFollower? follower = null;
-        window.Opened += (_, _) => window.RequestAnimationFrame(_ =>
+        FirstFrame.Run(window, () =>
         {
             if (follower is null && window.IsVisible)
             {

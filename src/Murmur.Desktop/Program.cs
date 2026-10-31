@@ -8,6 +8,9 @@ internal static class Program
     [STAThread]
     public static int Main(string[] args)
     {
+        // Overlaps the Avalonia setup; see StartupWarmUp.
+        _ = StartupWarmUp.Begin();
+
         if (!AutoRecordOptions.TryParse(args, out _, out var error) && error.Length > 0)
         {
             Console.Error.WriteLine(error);
