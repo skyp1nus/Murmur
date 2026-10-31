@@ -5,7 +5,7 @@ name: models
 # the real hosts. It also prints the size and SHA-256 of every file so the catalog can pin them later.
 
 # On demand only: the downloads are large and the hosts are external. Run it from the Actions tab once this file is on
-# master, or add the label `ci:models` to a pull request (a dispatch cannot start a workflow that master does not have
+# main, or add the label `ci:models` to a pull request (a dispatch cannot start a workflow that main does not have
 # yet); remove and re-add the label to run it again.
 on:
   workflow_dispatch:
