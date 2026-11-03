@@ -606,9 +606,13 @@ jobs:
     timeout-minutes: 2
     permissions:
       contents: read
+      pull-requests: read
     steps:
       - name: Base policy (into dev; into main only from dev)
         env:
+          GH_TOKEN: ${{ github.token }}
+          EVENT: ${{ github.event_name }}
+          PR: ${{ github.event.pull_request.number }}
           BASE: ${{ needs.base.outputs.base }}
           HEAD: ${{ github.head_ref || github.ref_name }}
           HEAD_REPO: ${{ github.event.pull_request.head.repo.full_name || github.repository }}
@@ -623,6 +627,15 @@ jobs:
             "") echo "::notice::No open PR for $HEAD, so the base policy was not checked." ;;
             *) echo "::error::Base '$BASE' is not dev or main. Stacked PRs are outside the standard: merge dev into the branch and retarget the PR to dev."; exit 1 ;;
           esac
+          # A pull_request run keeps the base from its event. If the PR was retargeted mid-run, this run is stale and
+          # fails itself (the retarget run decides). A failed REST call fails closed.
+          if [ "$EVENT" = pull_request ]; then
+            current=$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR" --jq .base.ref) || { echo "::error::Could not read the current PR base."; exit 1; }
+            if [ "$current" != "$BASE" ]; then
+              echo "::error::Base changed during the run ($BASE -> $current); the retarget run decides."
+              exit 1
+            fi
+          fi
       - name: Every job succeeded
         env:
           NEEDS: ${{ toJSON(needs) }}
