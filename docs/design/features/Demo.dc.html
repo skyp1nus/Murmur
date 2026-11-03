@@ -1,0 +1,1925 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Murmur — clickable demo</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&amp;family=Geist+Mono:wght@300;400&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+*{box-sizing:border-box}
+button,input,select,textarea{font-family:inherit;font-size:inherit;color:inherit}
+button{cursor:pointer}
+.t-light{--bg:#fdfcfc;--surface:#f5f3f1;--line:#ebe8e4;--border:#e5e5e5;--mline:#d6d1cb;--ink:#000000;--ink2:#44403b;--smoke:#777169;--ash:#a59f97;--btn:#000000;--btnfg:#ffffff;--btnhover:#262422;--hover:#f5f3f1;--hover2:#ebe8e4;--chip:#f5f3f1;--chiphover:#ebe8e4;--field:#fdfcfc;--plate:#ebe8e4;--trackoff:#ebe8e4;--knobon:#fdfcfc;--knoboff:#fdfcfc;--disbg:#ebe8e4;--disfg:#a59f97;color-scheme:light}
+.t-dark{--bg:#141312;--surface:#1e1c1a;--line:#2b2825;--border:#33302c;--mline:#45413c;--ink:#f5f3f1;--ink2:#d6d1cb;--smoke:#a59f97;--ash:#6f6a63;--btn:#f5f3f1;--btnfg:#141312;--btnhover:#e3dfda;--hover:#1e1c1a;--hover2:#2b2825;--chip:#2b2825;--chiphover:#33302c;--field:#1e1c1a;--plate:#2b2825;--trackoff:#2b2825;--knobon:#141312;--knoboff:#d6d1cb;--disbg:#2b2825;--disfg:#6f6a63;color-scheme:dark}
+.orb{background:radial-gradient(circle at 32% 26%,#fff1e8 0%,rgba(255,241,232,0) 30%),radial-gradient(circle at 74% 70%,#0447ff 0%,rgba(4,71,255,0) 58%),radial-gradient(circle at 20% 80%,#ff4704 0%,rgba(255,71,4,0) 55%),radial-gradient(circle at 72% 20%,#f4a6c8 0%,rgba(244,166,200,0) 50%),#d8c8f0}
+.breathe{animation:breathe 3.2s ease-in-out infinite}
+.halo{animation:halo 3.2s ease-in-out infinite}
+.react{animation:voice 1.3s ease-in-out infinite}
+.rest{animation:none}
+.lv{animation:lv .7s ease-in-out infinite alternate;transform-origin:center}
+.dots span{animation:blink 1.2s infinite both}
+.dots span:nth-child(2){animation-delay:.2s}
+.dots span:nth-child(3){animation-delay:.4s}
+.toast{animation:toastIn .25s ease-out}
+.spin{animation:spin 9s linear infinite}
+.ping{animation:ping 3s ease-out infinite}
+.still{animation:none}
+.gone{display:none}
+.drop:hover{border-color:var(--ink)!important;background:var(--surface)}
+.pop{animation:pop .18s ease-out}
+.fade{animation:fade .2s ease-out}
+@keyframes spin{to{transform:rotate(360deg)}}
+@keyframes ping{0%{transform:scale(1);opacity:.55}60%{transform:scale(1.9);opacity:0}100%{transform:scale(1.9);opacity:0}}
+@keyframes pop{0%{opacity:0;transform:translateX(8px)}100%{opacity:1;transform:none}}
+@keyframes fade{0%{opacity:0}100%{opacity:1}}
+.lcw{text-decoration:underline dotted;text-underline-offset:4px;text-decoration-thickness:2px}
+.k{font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;padding:1px 6px;border-radius:5px;background:var(--surface);color:var(--ink);margin-right:3px}
+.soft:disabled{opacity:.45;cursor:not-allowed}
+@keyframes breathe{0%,100%{transform:scale(1)}50%{transform:scale(1.05)}}
+@keyframes halo{0%,100%{transform:scale(1);opacity:.35}50%{transform:scale(1.15);opacity:.12}}
+@keyframes voice{0%{transform:scale(1)}18%{transform:scale(1.07)}32%{transform:scale(1.02)}55%{transform:scale(1.09)}75%{transform:scale(1.01)}100%{transform:scale(1)}}
+@keyframes lv{0%{transform:scaleY(.25)}100%{transform:scaleY(1)}}
+@keyframes blink{0%,80%,100%{opacity:.25}40%{opacity:1}}
+@keyframes toastIn{0%{opacity:0;transform:translate(-50%,8px)}100%{opacity:1;transform:translate(-50%,0)}}
+.nav{background:transparent;color:var(--ink2)}
+.nav:hover{background:var(--hover);color:var(--ink)}
+.nav.on{background:var(--surface);color:var(--ink);font-weight:500}
+.soft:hover{background:var(--hover)!important}
+.ghost:hover{background:var(--hover2)!important}
+.primary:hover{background:var(--btnhover)!important}
+.primary:disabled{background:var(--disbg)!important;color:var(--disfg)!important;cursor:not-allowed}
+.chip:hover{background:var(--chiphover)!important}
+.rowbtn:hover{background:var(--hover)!important}
+.seg:hover{background:var(--hover)}
+.knob{transition:transform .18s ease}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+input::placeholder,textarea::placeholder{color:var(--smoke)}
+:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
+@media (max-width:760px){.shell{flex-direction:column}.side{width:auto!important;border-right:0!important;border-bottom:1px solid var(--line)}.app{height:auto!important;min-height:100vh}.mainpane{overflow:visible!important}}
+@media (prefers-reduced-motion: reduce){.breathe,.halo,.react,.lv,.spin,.ping{animation:none}}
+</style>
+</helmet>
+<div class="app {{themeClass}}" data-name="Demo / App" style="height: 100vh; background: var(--bg); color: var(--ink); font-family: Inter, ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif; font-size: 13px; letter-spacing: 0.01em; position: relative; overflow: hidden; display: flex; flex-direction: column">
+
+<sc-if value="{{inOnb}}" hint-placeholder-val="{{ true }}">
+<div data-name="Demo / Onboarding" style="flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; padding: 20px 32px 24px">
+  <header data-name="Demo / Onboarding / Top bar" style="height: 32px; display: grid; grid-template-columns: 1fr auto 1fr; align-items: center">
+    <div style="display: flex; align-items: center; gap: 8px">
+      <span class="orb" aria-hidden="true" style="width: 18px; height: 18px; border-radius: 9999px"></span>
+      <span style="font-size: 13px; font-weight: 600; letter-spacing: -0.01em">Murmur</span>
+    </div>
+    <div data-name="Onboarding / Step indicator" role="group" aria-label="{{onbAria}}" style="display: flex; align-items: center; gap: 14px">
+      <span style="font-family: 'Geist Mono', ui-monospace, monospace; font-size: 12px; color: var(--smoke)">{{onbLabel}}</span>
+      <div aria-hidden="true" style="display: flex; gap: 6px">
+        <sc-for list="{{onbSegs}}" as="g" hint-placeholder-count="5">
+          <span style="width: 32px; height: 3px; border-radius: 9999px; background: {{g.c}}"></span>
+        </sc-for>
+      </div>
+    </div>
+    <div style="display: flex; justify-content: flex-end">
+      <button type="button" onClick="{{toggleTheme}}" class="soft" aria-label="Switch theme" style="width: 28px; height: 28px; border-radius: 9999px; border: 1px solid var(--border); background: transparent; color: var(--ink); display: flex; align-items: center; justify-content: center">
+        <sc-if value="{{isLight}}" hint-placeholder-val="{{ true }}"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z"/></svg></sc-if>
+        <sc-if value="{{isDark}}" hint-placeholder-val="{{ false }}"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg></sc-if>
+      </button>
+    </div>
+  </header>
+
+  <main style="flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 24px 0">
+
+    <sc-if value="{{onb1}}" hint-placeholder-val="{{ true }}">
+      <div data-name="Onboarding / 1 Welcome" style="display: flex; flex-direction: column; align-items: center; gap: 28px; text-align: center">
+        <div style="position: relative; width: 200px; height: 200px; display: flex; align-items: center; justify-content: center">
+          <div class="orb halo" aria-hidden="true" style="position: absolute; inset: 0; border-radius: 9999px; filter: blur(22px)"></div>
+          <div class="orb breathe" role="img" aria-label="Recording orb" style="position: relative; width: 152px; height: 152px; border-radius: 9999px; box-shadow: inset 0 0 40px rgba(255,255,255,0.3)"></div>
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 14px; align-items: center">
+          <h1 style="margin: 0; font-size: 32px; font-weight: 300; line-height: 1.08; letter-spacing: -0.02em">Record and transcribe your meetings.</h1>
+          <p style="margin: 0; font-size: 14px; line-height: 1.5; color: var(--smoke)">Everything stays on your computer.</p>
+        </div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{onb2}}" hint-placeholder-val="{{ false }}">
+      <div data-name="Onboarding / 2 Audio" style="width: 700px; max-width: 100%; display: flex; flex-direction: column; gap: 24px">
+        <div style="display: flex; flex-direction: column; gap: 12px; align-items: center; text-align: center">
+          <h1 style="margin: 0; font-size: 30px; font-weight: 300; line-height: 1.1; letter-spacing: -0.02em">Let’s check your sound.</h1>
+          <p style="margin: 0; font-size: 14px; line-height: 1.5; color: var(--smoke)">Your voice and the other side of the call are recorded as separate tracks.</p>
+        </div>
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(320px, 100%), 1fr)); gap: 12px">
+          <section data-name="Onboarding / Device card – Microphone" style="border: 1px solid var(--line); border-radius: 16px; padding: 16px; display: flex; flex-direction: column; gap: 12px">
+            <div style="display: flex; align-items: center; justify-content: space-between">
+              <div style="display: flex; align-items: center; gap: 10px">
+                <span style="width: 28px; height: 28px; border-radius: 10px; background: var(--surface); display: flex; align-items: center; justify-content: center"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg></span>
+                <h2 style="margin: 0; font-size: 14px; font-weight: 500">Microphone</h2>
+              </div>
+              <span style="font-size: 12px; color: var(--smoke)">Track “You”</span>
+            </div>
+            <div style="display: flex; flex-direction: column; gap: 6px">
+              <label for="onb-mic" style="font-size: 12px; color: var(--smoke)">Input device</label>
+              <select id="onb-mic" style="height: 32px; padding: 0 12px; border-radius: 4px; border: 1px solid var(--line); background: var(--field); color: var(--ink); font-size: 13px"><option>Microphone (USB Audio Device)</option><option>Headset Microphone (Bluetooth)</option><option>Microphone Array (Realtek Audio)</option></select>
+            </div>
+            <sc-if value="{{micAllowed}}" hint-placeholder-val="{{ false }}">
+              <div aria-hidden="true" style="height: 28px; display: flex; align-items: center; gap: 3px">
+                <sc-for list="{{barsA}}" as="b" hint-placeholder-count="36"><span class="lv" style="flex: 1; height: {{b.h}}px; border-radius: 9999px; background: var(--ink); animation-delay: {{b.d}}s"></span></sc-for>
+              </div>
+            </sc-if>
+            <sc-if value="{{micNotAllowed}}" hint-placeholder-val="{{ true }}">
+              <div aria-hidden="true" style="height: 28px; display: flex; align-items: center; gap: 3px">
+                <sc-for list="{{idle}}" as="b" hint-placeholder-count="36"><span style="flex: 1; height: 3px; border-radius: 9999px; background: var(--line)"></span></sc-for>
+              </div>
+            </sc-if>
+          </section>
+          <section data-name="Onboarding / Device card – System audio" style="border: 1px solid var(--line); border-radius: 16px; padding: 16px; display: flex; flex-direction: column; gap: 12px">
+            <div style="display: flex; align-items: center; justify-content: space-between">
+              <div style="display: flex; align-items: center; gap: 10px">
+                <span style="width: 28px; height: 28px; border-radius: 10px; background: var(--surface); display: flex; align-items: center; justify-content: center"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 9v6h4l5 4V5L8 9z"/><path d="M16.5 8.5a5 5 0 0 1 0 7"/></svg></span>
+                <h2 style="margin: 0; font-size: 14px; font-weight: 500">System audio</h2>
+              </div>
+              <span style="font-size: 12px; color: var(--smoke)">Track “Others”</span>
+            </div>
+            <div style="display: flex; flex-direction: column; gap: 6px">
+              <label for="onb-sys" style="font-size: 12px; color: var(--smoke)">Output device</label>
+              <select id="onb-sys" style="height: 32px; padding: 0 12px; border-radius: 4px; border: 1px solid var(--line); background: var(--field); color: var(--ink); font-size: 13px"><option>Speakers (Realtek Audio)</option><option>Headphones (Bluetooth)</option></select>
+            </div>
+            <div aria-hidden="true" style="height: 28px; display: flex; align-items: center; gap: 3px">
+              <sc-for list="{{barsB}}" as="b" hint-placeholder-count="36"><span class="lv" style="flex: 1; height: {{b.h}}px; border-radius: 9999px; background: var(--ink); animation-delay: {{b.d}}s"></span></sc-for>
+            </div>
+          </section>
+        </div>
+        <sc-if value="{{micNotAllowed}}" hint-placeholder-val="{{ true }}">
+          <section data-name="Onboarding / Permission banner – needed" style="background: var(--surface); border-radius: 16px; padding: 14px 16px; display: flex; align-items: center; gap: 12px; flex-wrap: wrap">
+            <span style="width: 32px; height: 32px; flex: none; border-radius: 9999px; background: var(--bg); display: flex; align-items: center; justify-content: center"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg></span>
+            <div style="flex: 1 1 240px; display: flex; flex-direction: column; gap: 2px">
+              <div style="font-size: 13px; font-weight: 500">Murmur needs access to your microphone</div>
+              <div style="font-size: 12px; color: var(--smoke)">Windows will ask once. Audio is processed on this PC only.</div>
+            </div>
+            <button type="button" onClick="{{allowMic}}" class="primary" style="height: 32px; padding: 0 14px; border-radius: 9999px; border: 0; background: var(--btn); color: var(--btnfg); font-weight: 500">Allow microphone</button>
+          </section>
+        </sc-if>
+        <sc-if value="{{micAllowed}}" hint-placeholder-val="{{ false }}">
+          <section data-name="Onboarding / Permission banner – granted" style="background: var(--surface); border-radius: 16px; padding: 14px 16px; display: flex; align-items: center; gap: 12px">
+            <span style="width: 32px; height: 32px; flex: none; border-radius: 9999px; background: var(--btn); color: var(--btnfg); display: flex; align-items: center; justify-content: center"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12l5 5L20 7"/></svg></span>
+            <div style="flex: 1; display: flex; flex-direction: column; gap: 2px">
+              <div style="font-size: 13px; font-weight: 500">Microphone allowed</div>
+              <div style="font-size: 12px; color: var(--smoke)">Say a few words — the meter should move.</div>
+            </div>
+          </section>
+        </sc-if>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{onb3}}" hint-placeholder-val="{{ false }}">
+      <div data-name="Onboarding / 3 Models" style="width: 640px; max-width: 100%; display: flex; flex-direction: column; gap: 20px">
+        <div style="display: flex; flex-direction: column; gap: 12px; align-items: center; text-align: center">
+          <h1 style="margin: 0; font-size: 30px; font-weight: 300; line-height: 1.1; letter-spacing: -0.02em">Download the brains.</h1>
+          <p style="margin: 0; font-size: 14px; line-height: 1.5; color: var(--smoke)">Models run on your PC. Pick what fits your hardware.</p>
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 14px">
+          <section data-name="Onboarding / Model card – Parakeet" style="border: 1px solid var(--line); border-radius: 16px; padding: 14px 16px; display: flex; flex-direction: column; gap: 14px">
+            <div style="display: flex; align-items: center; justify-content: space-between; gap: 12px">
+              <div style="display: flex; flex-direction: column; gap: 3px">
+                <div style="display: flex; align-items: center; gap: 8px"><span style="font-size: 13px; font-weight: 500">Transcription · Parakeet v3</span><span style="font-size: 11px; font-weight: 500; padding: 2px 8px; border-radius: 9999px; border: 1px solid var(--border); color: var(--ink2)">Required</span></div>
+                <span style="font-size: 12px; color: var(--smoke)">Speech to text · 25 European languages</span>
+              </div>
+              <div style="display: flex; align-items: center; gap: 12px">
+                <span style="font-family: 'Geist Mono', ui-monospace, monospace; font-size: 12px; color: var(--ink2)">0.67 GB</span>
+                <sc-if value="{{parakeetDone}}" hint-placeholder-val="{{ false }}"><span style="height: 28px; padding: 0 10px; border-radius: 9999px; background: var(--surface); display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 500"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12l5 5L20 7"/></svg>Ready</span></sc-if>
+              </div>
+            </div>
+            <div role="progressbar" aria-label="Parakeet download" aria-valuemin="0" aria-valuemax="100" aria-valuenow="{{parakeetPct}}" style="height: 4px; border-radius: 9999px; background: var(--line); overflow: hidden"><div style="width: {{parakeetW}}; height: 100%; border-radius: 9999px; background: var(--ink); transition: width .4s"></div></div>
+            <sc-if value="{{parakeetBusy}}" hint-placeholder-val="{{ true }}">
+              <div style="display: flex; justify-content: space-between; font-size: 12px; color: var(--smoke)"><span>Downloading…</span><span style="font-family: 'Geist Mono', ui-monospace, monospace">{{parakeetLabel}}</span></div>
+            </sc-if>
+          </section>
+          <div style="display: flex; align-items: baseline; justify-content: space-between; padding: 6px 4px 0">
+            <span style="font-size: 12px; font-weight: 500">AI assistant</span>
+            <span style="font-size: 12px; color: var(--smoke)">Search, chat and summaries</span>
+          </div>
+          <div role="radiogroup" aria-label="AI model" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(300px, 100%), 1fr)); gap: 14px">
+            <sc-for list="{{aiCards}}" as="m" hint-placeholder-count="2">
+              <button type="button" role="radio" aria-checked="{{m.on}}" onClick="{{m.pick}}" class="soft" style="text-align: left; border-radius: 16px; padding: 14px 16px; background: var(--bg); border: {{m.border}}; color: var(--ink); display: flex; gap: 14px; align-items: flex-start">
+                <span aria-hidden="true" style="width: 18px; height: 18px; flex: none; margin-top: 2px; border-radius: 9999px; border: {{m.ring}}; display: flex; align-items: center; justify-content: center"><sc-if value="{{m.on}}" hint-placeholder-val="{{ false }}"><span style="width: 8px; height: 8px; border-radius: 9999px; background: var(--ink)"></span></sc-if></span>
+                <span style="flex: 1; display: flex; flex-direction: column; gap: 4px"><span style="font-size: 13px; font-weight: 500">{{m.name}}</span><span style="font-size: 12px; color: var(--smoke)">{{m.desc}}</span></span>
+                <span style="font-family: 'Geist Mono', ui-monospace, monospace; font-size: 12px; color: var(--ink2)">{{m.size}}</span>
+              </button>
+            </sc-for>
+          </div>
+          <div style="display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap">
+            <button type="button" role="radio" aria-checked="{{aiSkip.on}}" onClick="{{aiSkip.pick}}" class="soft" style="height: 32px; padding: 0 14px; margin-left: -14px; border-radius: 9999px; border: 0; background: transparent; color: var(--ink); display: flex; align-items: center; gap: 10px; font-weight: 500">
+              <span aria-hidden="true" style="width: 18px; height: 18px; border-radius: 9999px; border: {{aiSkip.ring}}; display: flex; align-items: center; justify-content: center"><sc-if value="{{aiSkip.on}}" hint-placeholder-val="{{ false }}"><span style="width: 8px; height: 8px; border-radius: 9999px; background: var(--ink)"></span></sc-if></span>
+              Skip AI for now
+            </button>
+            <span style="font-size: 12px; color: var(--smoke)">Downloads continue in the background.</span>
+          </div>
+        </div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{onb4}}" hint-placeholder-val="{{ false }}">
+      <div data-name="Onboarding / 4 Preferences" style="width: 600px; max-width: 100%; display: flex; flex-direction: column; gap: 20px">
+        <div style="display: flex; flex-direction: column; gap: 12px; align-items: center; text-align: center">
+          <h1 style="margin: 0; font-size: 30px; font-weight: 300; line-height: 1.1; letter-spacing: -0.02em">Make it yours.</h1>
+          <p style="margin: 0; font-size: 14px; line-height: 1.5; color: var(--smoke)">You can change any of this later in Settings.</p>
+        </div>
+        <section style="border: 1px solid var(--line); border-radius: 16px; overflow: hidden">
+          <div style="display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 14px 16px; flex-wrap: wrap">
+            <div style="display: flex; flex-direction: column; gap: 3px"><label for="onb-lang" style="font-size: 13px; font-weight: 500">Transcription language</label><span style="font-size: 12px; color: var(--smoke)">Detected per recording</span></div>
+            <select id="onb-lang" value="{{lang}}" onChange="{{onLang}}" style="width: 260px; height: 32px; padding: 0 12px; border-radius: 4px; border: 1px solid var(--line); background: var(--field); color: var(--ink); font-size: 13px"><option>Auto-detect</option><option>English</option><option>Ukrainian</option><option>Polish</option><option>German</option></select>
+          </div>
+          <div style="display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 14px 16px; border-top: 1px solid var(--line); flex-wrap: wrap">
+            <div style="display: flex; flex-direction: column; gap: 3px; min-width: 0"><span style="font-size: 13px; font-weight: 500">Recordings folder</span><span style="font-family: 'Geist Mono', ui-monospace, monospace; font-size: 12px; color: var(--ink2)">C:\Users\[USER]\Murmur</span></div>
+            <div style="display: flex; align-items: center; gap: 12px"><span style="font-family: 'Geist Mono', ui-monospace, monospace; font-size: 12px; color: var(--smoke)">[N] GB free</span><button type="button" onClick="{{noPicker}}" class="soft" style="height: 28px; padding: 0 12px; border-radius: 9999px; border: 1px solid var(--border); background: var(--bg); color: var(--ink); font-size: 12px; font-weight: 500">Change</button></div>
+          </div>
+          <div style="display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 14px 16px; border-top: 1px solid var(--line); flex-wrap: wrap">
+            <div style="display: flex; flex-direction: column; gap: 3px"><span id="onb-hk" style="font-size: 13px; font-weight: 500">Start / stop hotkey</span><span style="font-size: 12px; color: var(--smoke)">Click the field, then press a new shortcut</span></div>
+            <button type="button" aria-labelledby="onb-hk" onClick="{{startCapture}}" onKeyDown="{{onHotkey}}" onBlur="{{stopCapture}}" style="width: 260px; height: 32px; padding: 0 8px; border-radius: 4px; border: {{hkBorder}}; background: var(--field); color: var(--ink); display: flex; align-items: center; gap: 6px">
+              <sc-if value="{{capturing}}" hint-placeholder-val="{{ false }}"><span style="padding: 0 4px; font-size: 13px; color: var(--smoke)">Press a new shortcut…</span></sc-if>
+              <sc-if value="{{notCapturing}}" hint-placeholder-val="{{ true }}">
+                <sc-for list="{{hkKeys}}" as="k" hint-placeholder-count="3"><sc-if value="{{k.sep}}" hint-placeholder-val="{{ false }}"><span aria-hidden="true" style="font-family: 'Geist Mono', ui-monospace, monospace; font-size: 12px; color: var(--smoke)">+</span></sc-if><kbd style="font-family: 'Geist Mono', ui-monospace, monospace; font-size: 12px; padding: 3px 8px; border-radius: 6px; background: var(--surface); color: var(--ink)">{{k.k}}</kbd></sc-for>
+              </sc-if>
+            </button>
+          </div>
+          <div style="display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 14px 16px; border-top: 1px solid var(--line)">
+            <div style="display: flex; flex-direction: column; gap: 3px"><span id="onb-scr" style="font-size: 13px; font-weight: 500">Record screen by default</span><span style="font-size: 12px; color: var(--smoke)">You can still switch it on for any single recording</span></div>
+            <button type="button" role="switch" aria-checked="{{togScr.on}}" aria-labelledby="onb-scr" onClick="{{toggleScreenDefault}}" style="width: 36px; height: 20px; flex: none; padding: 3px; border-radius: 9999px; border: 0; background: {{togScr.bg}}; display: flex; align-items: center"><span class="knob" style="width: 14px; height: 14px; border-radius: 9999px; background: {{togScr.knob}}; box-shadow: rgba(0,0,0,0.2) 0 1px 2px; transform: {{togScr.x}}"></span></button>
+          </div>
+        </section>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{onb5}}" hint-placeholder-val="{{ false }}">
+      <div data-name="Onboarding / 5 First recording" style="width: 540px; max-width: 100%; display: flex; flex-direction: column; align-items: center; gap: 20px">
+        <div style="display: flex; flex-direction: column; gap: 12px; align-items: center; text-align: center">
+          <h1 style="margin: 0; font-size: 30px; font-weight: 300; line-height: 1.1; letter-spacing: -0.02em">Try it: say something.</h1>
+          <p style="margin: 0; font-size: 14px; line-height: 1.5; color: var(--smoke)">Speak for a few seconds — we’ll transcribe it right here, offline.</p>
+        </div>
+        <div style="position: relative; width: 120px; height: 120px; display: flex; align-items: center; justify-content: center">
+          <div class="orb {{onbOrb}}" aria-hidden="true" style="position: absolute; inset: 0; border-radius: 9999px; filter: blur(20px); opacity: 0.35"></div>
+          <div class="orb {{onbOrb}}" role="img" aria-label="Voice level" style="position: relative; width: 96px; height: 96px; border-radius: 9999px; box-shadow: inset 0 0 20px rgba(255,255,255,0.3)"></div>
+        </div>
+        <div role="timer" aria-live="polite" style="height: 28px; padding: 0 14px; border-radius: 9999px; background: var(--surface); display: flex; align-items: center; gap: 10px"><span style="font-size: 12px; color: var(--ink2)">{{onbStatus}}</span><span style="font-family: 'Geist Mono', ui-monospace, monospace; font-size: 12px">{{onbClock}}</span></div>
+        <sc-if value="{{onbDone}}" hint-placeholder-val="{{ false }}">
+          <section data-name="Onboarding / Transcript card" style="width: 100%; border: 1px solid var(--line); border-radius: 16px; padding: 12px 16px; display: flex; gap: 14px; align-items: flex-start">
+            <span aria-hidden="true" style="width: 28px; height: 28px; flex: none; border-radius: 9999px; background: var(--btn); color: var(--btnfg); display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 500">Y</span>
+            <div style="flex: 1; display: flex; flex-direction: column; gap: 6px">
+              <div style="display: flex; align-items: center; gap: 10px"><span style="font-size: 12px; font-weight: 500">You</span><span style="height: 22px; padding: 0 8px; border-radius: 9999px; background: var(--chip); display: flex; align-items: center; font-family: 'Geist Mono', ui-monospace, monospace; font-size: 12px">00:03</span></div>
+              <p style="margin: 0; font-size: 14px; line-height: 1.55">Hi, this is my first recording with Murmur. Let’s see how well it understands me.</p>
+            </div>
+            <button type="button" onClick="{{onbRetry}}" class="soft" style="height: 28px; padding: 0 12px; border-radius: 9999px; border: 0; background: transparent; color: var(--ink); font-size: 12px; font-weight: 500">Try again</button>
+          </section>
+        </sc-if>
+        <sc-if value="{{onbListening}}" hint-placeholder-val="{{ true }}">
+          <section style="width: 100%; height: 72px; border: 1px dashed var(--mline); border-radius: 16px; display: flex; align-items: center; justify-content: center; font-size: 13px; color: var(--smoke)">Your words will appear here.</section>
+        </sc-if>
+        <p style="margin: 0; display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--smoke)"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/></svg>Always tell people when you’re recording a meeting.</p>
+      </div>
+    </sc-if>
+  </main>
+
+  <footer data-name="Demo / Onboarding / Bottom bar" style="height: 40px; display: flex; align-items: center; justify-content: space-between">
+    <div style="display: flex; gap: 4px">
+      <sc-if value="{{onbShowBack}}" hint-placeholder-val="{{ false }}">
+        <button type="button" onClick="{{onbBack}}" class="soft" style="height: 32px; padding: 0 12px; border-radius: 9999px; border: 0; background: transparent; color: var(--ink); display: flex; align-items: center; gap: 6px; font-weight: 500"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg>Back</button>
+      </sc-if>
+      <sc-if value="{{onbShowSkip}}" hint-placeholder-val="{{ true }}">
+        <button type="button" onClick="{{onbSkip}}" class="soft" style="height: 32px; padding: 0 12px; border-radius: 9999px; border: 0; background: transparent; color: var(--smoke); font-weight: 500">{{onbSkipLabel}}</button>
+      </sc-if>
+    </div>
+    <button type="button" onClick="{{onbNext}}" disabled="{{onbNextDisabled}}" class="primary" style="height: 32px; padding: 0 16px; border-radius: 9999px; border: 0; background: var(--btn); color: var(--btnfg); font-weight: 500">{{onbNextLabel}}</button>
+  </footer>
+</div>
+</sc-if>
+
+<sc-if value="{{inApp}}" hint-placeholder-val="{{ false }}">
+<div class="shell" style="flex: 1; min-height: 0; display: flex">
+
+  <nav class="side" aria-label="Main navigation" data-name="Demo / Sidebar" style="width: 200px; flex: none; padding: 16px 12px; border-right: 1px solid var(--line); display: flex; flex-direction: column; gap: 16px; overflow-y: auto">
+    <div style="display: flex; align-items: center; gap: 10px; padding: 4px 10px">
+      <span class="orb" aria-hidden="true" style="width: 20px; height: 20px; border-radius: 9999px"></span>
+      <span style="font-size: 15px; font-weight: 600; letter-spacing: -0.01em">Murmur</span>
+    </div>
+    <sc-if value="{{noRec}}" hint-placeholder-val="{{ true }}">
+      <button type="button" onClick="{{startRec}}" class="primary" style="height: 36px; border-radius: 9999px; border: 0; background: var(--btn); color: var(--btnfg); display: flex; align-items: center; justify-content: center; gap: 10px; font-weight: 500"><span aria-hidden="true" style="width: 8px; height: 8px; border-radius: 9999px; background: var(--btnfg)"></span>New recording</button>
+    </sc-if>
+    <sc-if value="{{hasRec}}" hint-placeholder-val="{{ false }}">
+      <button type="button" onClick="{{goRecording}}" class="soft" style="height: 36px; border-radius: 9999px; border: 1px solid var(--border); background: var(--surface); color: var(--ink); display: flex; align-items: center; justify-content: center; gap: 10px; font-weight: 500"><span class="orb {{recDotClass}}" aria-hidden="true" style="width: 10px; height: 10px; border-radius: 9999px"></span>{{recPillLabel}}<span style="font-family: 'Geist Mono', ui-monospace, monospace; font-size: 12px; font-weight: 400">{{recClock}}</span></button>
+    </sc-if>
+    <div style="display: flex; flex-direction: column; gap: 2px">
+      <button type="button" onClick="{{goLibrary}}" class="nav {{navLib}}" style="height: 32px; padding: 0 12px; border-radius: 9999px; border: 0; display: flex; align-items: center; gap: 10px; text-align: left"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 5h16M4 12h16M4 19h10"/></svg>Library</button>
+      <button type="button" onClick="{{goChat}}" class="nav {{navChat}}" style="height: 32px; padding: 0 12px; border-radius: 9999px; border: 0; display: flex; align-items: center; gap: 10px; text-align: left"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z"/><path d="M19 16v4M17 18h4"/></svg>Ask AI</button>
+      <button type="button" onClick="{{goSettings}}" class="nav {{navSet}}" style="height: 32px; padding: 0 12px; border-radius: 9999px; border: 0; display: flex; align-items: center; gap: 10px; text-align: left"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/></svg>Settings</button>
+    </div>
+    <div style="display: flex; flex-direction: column; gap: 2px">
+      <div style="padding: 0 12px 6px; font-size: 12px; color: var(--smoke)">Recent</div>
+      <sc-for list="{{recent}}" as="r" hint-placeholder-count="3">
+        <button type="button" onClick="{{r.open}}" class="nav {{r.cls}}" style="height: 28px; padding: 0 12px; border-radius: 9999px; border: 0; text-align: left; font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">{{r.title}}</button>
+      </sc-for>
+    </div>
+    <div style="margin-top: auto; display: flex; flex-direction: column; gap: 12px">
+      <button type="button" onClick="{{toggleTheme}}" class="nav" style="height: 32px; padding: 0 12px; border-radius: 9999px; border: 0; display: flex; align-items: center; gap: 10px; text-align: left">
+        <sc-if value="{{isLight}}" hint-placeholder-val="{{ true }}"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z"/></svg></sc-if>
+        <sc-if value="{{isDark}}" hint-placeholder-val="{{ false }}"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg></sc-if>
+        {{themeToggleLabel}}
+      </button>
+      <div style="padding: 14px 16px; border-radius: 16px; background: var(--surface); display: flex; flex-direction: column; gap: 6px">
+        <div style="display: flex; align-items: center; gap: 8px; font-size: 12px; font-weight: 500"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l8 3v6c0 4.5-3.4 8.3-8 9-4.6-.7-8-4.5-8-9V6z"/></svg>Fully offline</div>
+        <div style="font-size: 12px; color: var(--smoke); line-height: 1.5">Recordings and models stay on this PC</div>
+      </div>
+    </div>
+  </nav>
+
+  <div style="flex: 1; min-width: 0; display: flex; flex-direction: column; position: relative">
+  <main class="mainpane" ref="{{setMain}}" style="flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column">
+    <header data-name="Demo / Header" style="min-height: 48px; padding: 6px 24px; display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; position: sticky; top: 0; z-index: 2; background: var(--bg)">
+      <div style="display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--smoke); min-width: 0">
+        <sc-if value="{{hasParent}}" hint-placeholder-val="{{ false }}">
+          <button type="button" onClick="{{goLibrary}}" class="soft" style="height: 28px; padding: 0 10px; margin-left: -10px; border-radius: 9999px; border: 0; background: transparent; color: var(--smoke)">Library</button>
+          <span aria-hidden="true">/</span>
+        </sc-if>
+        <span style="color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis">{{crumb}}</span>
+      </div>
+      <div style="display: flex; align-items: center; gap: 8px">
+        <sc-if value="{{isLibrary}}" hint-placeholder-val="{{ true }}">
+          <span style="font-size: 12px; color: var(--smoke)">Record</span>
+          <kbd style="font-family: 'Geist Mono', ui-monospace, monospace; font-size: 12px; padding: 3px 8px; border-radius: 6px; background: var(--surface); color: var(--ink2)">{{hotkey}}</kbd>
+        </sc-if>
+        <sc-if value="{{isSession}}" hint-placeholder-val="{{ false }}">
+          <button type="button" onClick="{{exportRec}}" class="soft" style="height: 28px; padding: 0 14px; border-radius: 9999px; border: 1px solid var(--border); background: var(--bg); color: var(--ink); display: flex; align-items: center; gap: 8px; font-size: 12px; font-weight: 500"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v11M7 10l5 5 5-5M5 20h14"/></svg>Export</button>
+        </sc-if>
+        <sc-if value="{{isChat}}" hint-placeholder-val="{{ false }}">
+          <span style="display: flex; align-items: center; gap: 8px; height: 26px; padding: 0 12px; border-radius: 9999px; background: var(--surface); font-size: 12px; color: var(--ink2)"><span class="orb" aria-hidden="true" style="width: 10px; height: 10px; border-radius: 9999px"></span>{{modelChip}}</span>
+          <button type="button" onClick="{{newChat}}" class="soft" style="height: 28px; padding: 0 14px; border-radius: 9999px; border: 1px solid var(--border); background: var(--bg); color: var(--ink); display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 500"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>New chat</button>
+        </sc-if>
+      </div>
+    </header>
+
+    <sc-if value="{{isLibrary}}" hint-placeholder-val="{{ true }}">
+    <div data-name="Demo / Library" style="width: 100%; max-width: 960px; margin: 0 auto; padding: 16px 24px 32px; display: flex; flex-direction: column; gap: 28px">
+      <section style="display: flex; flex-direction: column; gap: 16px">
+        <h1 style="margin: 0; font-size: 24px; font-weight: 300; line-height: 1.17; letter-spacing: -0.02em">What are we recording today?</h1>
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(320px, 100%), 1fr)); gap: 12px">
+          <div data-name="Library / New recording card" style="background: var(--surface); border-radius: 20px; padding: 20px; display: flex; gap: 20px; align-items: center; flex-wrap: wrap">
+            <button type="button" onClick="{{startRec}}" aria-label="Start recording" class="orb" style="width: 88px; height: 88px; flex: none; border: 0; border-radius: 9999px; display: flex; align-items: center; justify-content: center; padding: 0">
+              <span style="width: 32px; height: 32px; border-radius: 9999px; background: #fdfcfc; display: flex; align-items: center; justify-content: center"><span style="width: 10px; height: 10px; border-radius: 9999px; background: #000"></span></span>
+            </button>
+            <div style="flex: 1 1 240px; display: flex; flex-direction: column; gap: 12px">
+              <div style="display: flex; flex-direction: column; gap: 6px">
+                <h2 style="margin: 0; font-size: 18px; font-weight: 300; letter-spacing: -0.02em">New recording</h2>
+                <p style="margin: 0; font-size: 13px; line-height: 1.5; color: var(--smoke)">Mic and system audio are recorded as separate tracks. Transcription starts as soon as you stop.</p>
+              </div>
+              <div role="group" aria-label="Sources" style="display: flex; gap: 8px; flex-wrap: wrap">
+                <button type="button" aria-pressed="{{pMic.on}}" onClick="{{toggleMic}}" style="height: 28px; padding: 0 14px; border-radius: 9999px; border: {{pMic.bd}}; background: {{pMic.bg}}; color: {{pMic.fg}}; display: flex; align-items: center; gap: 8px; font-size: 12px; font-weight: 500"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg>Microphone</button>
+                <button type="button" aria-pressed="{{pSys.on}}" onClick="{{toggleSys}}" style="height: 28px; padding: 0 14px; border-radius: 9999px; border: {{pSys.bd}}; background: {{pSys.bg}}; color: {{pSys.fg}}; display: flex; align-items: center; gap: 8px; font-size: 12px; font-weight: 500"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 9v6h4l5 4V5L8 9z"/><path d="M16.5 8.5a5 5 0 0 1 0 7"/></svg>System audio</button>
+                <button type="button" aria-pressed="{{pScr.on}}" onClick="{{toggleScr}}" style="height: 28px; padding: 0 14px; border-radius: 9999px; border: {{pScr.bd}}; background: {{pScr.bg}}; color: {{pScr.fg}}; display: flex; align-items: center; gap: 8px; font-size: 12px; font-weight: 500"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/></svg>Screen</button>
+              </div>
+              <div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap">
+                <button type="button" onClick="{{startRec}}" class="primary" style="height: 32px; padding: 0 14px; border-radius: 9999px; border: 0; background: var(--btn); color: var(--btnfg); font-weight: 500">{{startLabel}}</button>
+                <button type="button" onClick="{{openImport}}" class="soft" data-name="Library / Import files" style="height: 32px; padding: 0 14px; border-radius: 9999px; border: 1px solid var(--border); background: var(--bg); color: var(--ink); display: flex; align-items: center; gap: 8px; font-weight: 500"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 15V4M7 9l5-5 5 5M5 20h14"/></svg>Import files</button>
+                <span style="font-family: 'Geist Mono', ui-monospace, monospace; font-size: 12px; color: var(--smoke)">{{hotkey}}</span>
+              </div>
+            </div>
+          </div>
+
+          <div data-name="Library / Ask card" style="background: var(--surface); border-radius: 20px; padding: 20px; display: flex; flex-direction: column; gap: 14px; justify-content: space-between">
+            <div style="display: flex; flex-direction: column; gap: 6px">
+              <h2 style="margin: 0; font-size: 18px; font-weight: 300; letter-spacing: -0.02em">Ask your library</h2>
+              <p style="margin: 0; font-size: 13px; line-height: 1.5; color: var(--smoke)">Searches every transcript and answers with timestamps. The model runs locally.</p>
+            </div>
+            <div style="display: flex; align-items: center; gap: 8px; height: 40px; padding: 0 6px 0 20px; border-radius: 9999px; background: var(--bg); border: 1px solid var(--border)">
+              <label for="ask" class="sr">Question for your library</label>
+              <input id="ask" type="text" value="{{askDraft}}" onChange="{{onAskDraft}}" onKeyDown="{{onAskKey}}" placeholder="What did we decide about PDF export?" style="flex: 1; min-width: 0; border: 0; outline: none; background: transparent; font-size: 13px; color: var(--ink)">
+              <button type="button" onClick="{{sendAsk}}" aria-label="Send" class="primary" style="width: 32px; height: 32px; flex: none; border-radius: 9999px; border: 0; background: var(--btn); color: var(--btnfg); display: flex; align-items: center; justify-content: center"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5M6 11l6-6 6 6"/></svg></button>
+            </div>
+            <div style="display: flex; gap: 8px; flex-wrap: wrap">
+              <sc-for list="{{askChips}}" as="c" hint-placeholder-count="3">
+                <button type="button" onClick="{{c.go}}" class="ghost" style="height: 28px; padding: 0 12px; border-radius: 9999px; border: 1px solid var(--border); background: transparent; color: var(--ink2); font-size: 12px">{{c.label}}</button>
+              </sc-for>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section style="display: flex; flex-direction: column; gap: 14px">
+        <div style="display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap">
+          <h2 style="margin: 0; font-size: 18px; font-weight: 300; letter-spacing: -0.02em">Recordings</h2>
+          <div style="flex: 0 1 300px; display: flex; align-items: center; gap: 10px; height: 32px; padding: 0 12px; border-radius: 9999px; border: 1px solid var(--border); background: var(--bg); color: var(--smoke)">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg>
+            <label for="q" class="sr">Search recordings</label>
+            <input id="q" type="search" value="{{query}}" onChange="{{onQuery}}" placeholder="Search titles and text" style="flex: 1; min-width: 0; border: 0; outline: none; background: transparent; font-size: 13px; color: var(--ink)">
+          </div>
+        </div>
+        <div role="group" aria-label="Filter recordings" style="display: flex; gap: 6px; flex-wrap: wrap">
+          <sc-for list="{{filters}}" as="f" hint-placeholder-count="4">
+            <button type="button" aria-pressed="{{f.on}}" onClick="{{f.pick}}" class="soft" style="height: 28px; padding: 0 14px; border-radius: 9999px; border: {{f.bd}}; background: {{f.bg}}; color: {{f.fg}}; display: flex; align-items: center; gap: 8px; font-size: 12px; font-weight: {{f.fw}}"><sc-if value="{{f.on}}" hint-placeholder-val="{{ false }}"><span aria-hidden="true" style="width: 6px; height: 6px; border-radius: 9999px; background: var(--ink)"></span></sc-if>{{f.label}}</button>
+          </sc-for>
+        </div>
+
+        <sc-for list="{{groups}}" as="grp" hint-placeholder-count="2">
+          <div style="display: flex; flex-direction: column; gap: 10px">
+            <div style="font-size: 12px; color: var(--smoke)">{{grp.label}}</div>
+            <div style="border: 1px solid var(--line); border-radius: 16px; overflow: hidden">
+              <sc-for list="{{grp.items}}" as="row" hint-placeholder-count="2">
+                <button type="button" onClick="{{row.open}}" class="rowbtn" style="width: 100%; text-align: left; border: 0; border-top: {{row.bt}}; background: transparent; color: var(--ink); display: flex; align-items: center; gap: 12px; padding: 16px 20px">
+                  <span style="width: 32px; height: 32px; flex: none; border-radius: 8px; background: var(--plate); display: flex; align-items: center; justify-content: center">
+                    <sc-if value="{{row.isScreen}}" hint-placeholder-val="{{ false }}"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/></svg></sc-if>
+                    <sc-if value="{{row.isMic}}" hint-placeholder-val="{{ false }}"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg></sc-if>
+                    <sc-if value="{{row.isSys}}" hint-placeholder-val="{{ true }}"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 9v6h4l5 4V5L8 9z"/><path d="M16.5 8.5a5 5 0 0 1 0 7"/></svg></sc-if>
+                    <sc-if value="{{row.isFile}}" hint-placeholder-val="{{ false }}"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/><path d="M12 11v6M9 14l3 3 3-3"/></svg></sc-if>
+                  </span>
+                  <span style="flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px">
+                    <span style="font-size: 13px; font-weight: 500">{{row.title}}</span>
+                    <span style="font-size: 12px; color: var(--smoke)">{{row.meta}}</span>
+                    <sc-if value="{{row.isReady}}" hint-placeholder-val="{{ true }}"><span style="display: block; font-size: 12px; color: var(--smoke); white-space: nowrap; overflow: hidden; text-overflow: ellipsis">{{row.snippet}}</span></sc-if>
+                    <sc-if value="{{row.isTrans}}" hint-placeholder-val="{{ false }}"><span style="display: flex; align-items: center; gap: 10px; margin-top: 4px"><span aria-hidden="true" style="display: block; width: 160px; height: 4px; border-radius: 9999px; background: var(--line); overflow: hidden"><span style="display: block; width: {{row.pct}}; height: 100%; border-radius: 9999px; background: var(--ink); transition: width .4s"></span></span><span style="font-size: 12px; color: var(--ink2)">{{row.pctLabel}}</span></span></sc-if>
+                  </span>
+                  <span style="font-family: 'Geist Mono', ui-monospace, monospace; font-size: 12px; color: var(--ink2)">{{row.dur}}</span>
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--ash)" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>
+                </button>
+              </sc-for>
+            </div>
+          </div>
+        </sc-for>
+        <sc-if value="{{noResults}}" hint-placeholder-val="{{ false }}">
+          <div style="border: 1px dashed var(--mline); border-radius: 16px; padding: 24px; display: flex; flex-direction: column; align-items: center; gap: 12px; text-align: center">
+            <span style="font-size: 13px">{{noResultsText}}</span>
+            <button type="button" onClick="{{clearSearch}}" class="soft" style="height: 28px; padding: 0 14px; border-radius: 9999px; border: 1px solid var(--border); background: var(--bg); color: var(--ink); font-size: 12px; font-weight: 500">Clear search</button>
+          </div>
+        </sc-if>
+      </section>
+    </div>
+    </sc-if>
+
+    <sc-if value="{{isRecording}}" hint-placeholder-val="{{ false }}">
+    <div data-name="Demo / Recording" style="width: 100%; max-width: 960px; margin: 0 auto; padding: 12px 24px 32px; display: flex; gap: 20px; flex-wrap: wrap; align-items: flex-start">
+      <section aria-label="Recording" style="flex: 999 1 400px; min-width: 0; display: flex; flex-direction: column; align-items: center; gap: 20px; padding: 16px 0">
+        <div style="width: 100%; max-width: 520px; display: flex; flex-direction: column; align-items: center; gap: 8px">
+          <label for="rec-title" style="font-size: 12px; color: var(--smoke)">Title</label>
+          <input id="rec-title" type="text" value="{{recTitle}}" onChange="{{onRecTitle}}" placeholder="Untitled recording" style="width: 100%; border: 0; outline: none; background: transparent; text-align: center; font-size: 22px; font-weight: 300; letter-spacing: -0.02em; line-height: 1.2; color: var(--ink)">
+        </div>
+        <div style="position: relative; width: 200px; height: 200px; display: flex; align-items: center; justify-content: center">
+          <div class="orb {{recHaloClass}}" aria-hidden="true" style="position: absolute; inset: 0; border-radius: 9999px; filter: blur(20px); opacity: {{recHaloOp}}"></div>
+          <div class="orb {{recOrbClass}}" role="img" aria-label="Audio level" style="position: relative; width: 160px; height: 160px; border-radius: 9999px; box-shadow: inset 0 0 28px rgba(255,255,255,0.3); filter: {{recOrbFilter}}"></div>
+        </div>
+        <div style="display: flex; flex-direction: column; align-items: center; gap: 6px">
+          <div role="timer" style="font-family: 'Geist Mono', ui-monospace, monospace; font-size: 44px; font-weight: 300; letter-spacing: -0.02em; line-height: 1">{{recClockLong}}</div>
+          <div style="font-size: 12px; color: var(--smoke)">{{recStatus}}</div>
+        </div>
+        <div role="group" aria-label="Recording sources" style="display: flex; gap: 8px; flex-wrap: wrap; justify-content: center">
+          <button type="button" aria-pressed="{{pMic.on}}" onClick="{{toggleMic}}" style="height: 32px; padding: 0 12px; border-radius: 9999px; border: {{pMic.bd}}; background: {{pMic.bg}}; color: {{pMic.fg}}; display: flex; align-items: center; gap: 8px; font-size: 12px; font-weight: 500"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg>Microphone</button>
+          <button type="button" aria-pressed="{{pSys.on}}" onClick="{{toggleSys}}" style="height: 32px; padding: 0 12px; border-radius: 9999px; border: {{pSys.bd}}; background: {{pSys.bg}}; color: {{pSys.fg}}; display: flex; align-items: center; gap: 8px; font-size: 12px; font-weight: 500"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 9v6h4l5 4V5L8 9z"/><path d="M16.5 8.5a5 5 0 0 1 0 7"/></svg>System audio</button>
+          <button type="button" aria-pressed="{{pScr.on}}" onClick="{{toggleScr}}" style="height: 32px; padding: 0 12px; border-radius: 9999px; border: {{pScr.bd}}; background: {{pScr.bg}}; color: {{pScr.fg}}; display: flex; align-items: center; gap: 8px; font-size: 12px; font-weight: 500"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/></svg>{{scrLabel}}</button>
+        </div>
+        <div style="display: flex; gap: 10px; flex-wrap: wrap; justify-content: center">
+          <button type="button" onClick="{{discardRec}}" class="soft" style="height: 32px; padding: 0 14px; border-radius: 9999px; border: 0; background: transparent; color: var(--smoke); font-weight: 500">Discard</button>
+          <button type="button" onClick="{{markNow}}" class="soft" style="height: 32px; padding: 0 14px; border-radius: 9999px; border: 1px solid var(--border); background: var(--bg); color: var(--ink); display: flex; align-items: center; gap: 8px; font-weight: 500"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 4h12v17l-6-4-6 4z"/></svg>Mark</button>
+          <button type="button" onClick="{{togglePause}}" class="soft" style="height: 32px; padding: 0 14px; border-radius: 9999px; border: 1px solid var(--border); background: var(--bg); color: var(--ink); display: flex; align-items: center; gap: 8px; font-weight: 500">
+            <sc-if value="{{recPaused}}" hint-placeholder-val="{{ false }}"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg></sc-if>
+            <sc-if value="{{recRunning}}" hint-placeholder-val="{{ true }}"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/></svg></sc-if>
+            {{pauseLabel}}
+          </button>
+          <button type="button" onClick="{{stopRec}}" class="primary" style="height: 32px; padding: 0 16px; border-radius: 9999px; border: 0; background: var(--btn); color: var(--btnfg); display: flex; align-items: center; gap: 8px; font-weight: 500"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="5" y="5" width="14" height="14" rx="2"/></svg>Stop and transcribe</button>
+        </div>
+      </section>
+      <aside aria-label="Tracks" style="flex: 1 1 260px; display: flex; flex-direction: column; gap: 12px">
+        <div style="background: var(--surface); border-radius: 16px; padding: 16px; display: flex; flex-direction: column; gap: 14px">
+          <div style="font-size: 13px; font-weight: 500">Tracks</div>
+          <div style="display: flex; flex-direction: column; gap: 10px">
+            <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px"><span style="font-size: 12px; font-weight: 500">You · microphone</span><span style="font-family: 'Geist Mono', ui-monospace, monospace; font-size: 12px; color: var(--smoke)">{{micDb}}</span></div>
+            <sc-if value="{{micLive}}" hint-placeholder-val="{{ true }}"><div aria-hidden="true" style="height: 28px; display: flex; align-items: center; gap: 3px"><sc-for list="{{barsA}}" as="b" hint-placeholder-count="36"><span class="lv" style="flex: 1; height: {{b.h}}px; border-radius: 9999px; background: var(--ink); animation-delay: {{b.d}}s"></span></sc-for></div></sc-if>
+            <sc-if value="{{micIdle}}" hint-placeholder-val="{{ false }}"><div aria-hidden="true" style="height: 28px; display: flex; align-items: center; gap: 3px"><sc-for list="{{idle}}" as="b" hint-placeholder-count="36"><span style="flex: 1; height: 3px; border-radius: 9999px; background: var(--mline)"></span></sc-for></div></sc-if>
+            <span style="font-size: 12px; color: var(--smoke)">Microphone (USB Audio Device)</span>
+          </div>
+          <div style="height: 1px; background: var(--line)"></div>
+          <div style="display: flex; flex-direction: column; gap: 10px">
+            <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px"><span style="font-size: 12px; font-weight: 500">Others · system audio</span><span style="font-family: 'Geist Mono', ui-monospace, monospace; font-size: 12px; color: var(--smoke)">{{sysDb}}</span></div>
+            <sc-if value="{{sysLive}}" hint-placeholder-val="{{ true }}"><div aria-hidden="true" style="height: 28px; display: flex; align-items: center; gap: 3px"><sc-for list="{{barsB}}" as="b" hint-placeholder-count="36"><span class="lv" style="flex: 1; height: {{b.h}}px; border-radius: 9999px; background: var(--ink); animation-delay: {{b.d}}s"></span></sc-for></div></sc-if>
+            <sc-if value="{{sysIdle}}" hint-placeholder-val="{{ false }}"><div aria-hidden="true" style="height: 28px; display: flex; align-items: center; gap: 3px"><sc-for list="{{idle}}" as="b" hint-placeholder-count="36"><span style="flex: 1; height: 3px; border-radius: 9999px; background: var(--mline)"></span></sc-for></div></sc-if>
+            <span style="font-size: 12px; color: var(--smoke)">Speakers (Realtek Audio) · loopback</span>
+          </div>
+        </div>
+        <div style="border: 1px solid var(--line); border-radius: 16px; padding: 14px 16px; display: flex; flex-direction: column; gap: 12px">
+          <div style="font-size: 13px; font-weight: 500">Let people know</div>
+          <p style="margin: 0; font-size: 12px; line-height: 1.55; color: var(--smoke)">Tell everyone on the call that the meeting is being recorded, or send a short note in the chat.</p>
+          <button type="button" onClick="{{copyConsent}}" class="soft" style="align-self: flex-start; height: 28px; padding: 0 14px; border-radius: 9999px; border: 1px solid var(--border); background: var(--bg); color: var(--ink); font-size: 12px; font-weight: 500">Copy message</button>
+        </div>
+        <p style="margin: 0; padding: 0 8px; font-size: 12px; line-height: 1.6; color: var(--smoke)">After you stop, Parakeet transcribes the recording in the background. It shows up in your library when it’s ready.</p>
+      </aside>
+    </div>
+    </sc-if>
+
+    <sc-if value="{{isSession}}" hint-placeholder-val="{{ false }}">
+    <div data-name="Demo / Recording details" ref="{{setSess}}" tabIndex="0" onKeyDown="{{sessKey}}" onKeyUp="{{sessKeyUp}}" aria-label="Recording details" style="width: 100%; max-width: 1100px; margin: 0 auto; padding: 4px 24px 24px; display: flex; flex-direction: column; gap: 16px; outline: none">
+      <div style="display: flex; flex-direction: column; gap: 8px">
+        <h1 style="margin: 0; font-size: 22px; font-weight: 300; line-height: 1.13; letter-spacing: -0.02em">{{cr.title}}</h1>
+        <div style="font-size: 12px; color: var(--smoke)">{{cr.metaLine}}</div>
+      </div>
+      <div style="display: flex; gap: 16px; flex-wrap: wrap; align-items: flex-start">
+        <section aria-label="Player" style="flex: 1 1 360px; min-width: 0; display: flex; flex-direction: column; gap: 12px">
+          <sc-if value="{{cr.isScreen}}" hint-placeholder-val="{{ true }}">
+            <div style="position: relative; aspect-ratio: 16 / 9; border-radius: 16px; background: var(--surface); display: flex; align-items: center; justify-content: center">
+              <div style="display: flex; flex-direction: column; align-items: center; gap: 10px; color: var(--smoke)"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/></svg><span style="font-size: 12px">[Screen recording frame]</span></div>
+              <span style="position: absolute; left: 16px; bottom: 16px; padding: 4px 10px; border-radius: 9999px; background: var(--bg); font-family: 'Geist Mono', ui-monospace, monospace; font-size: 12px">{{curClock}}</span>
+            </div>
+          </sc-if>
+          <sc-if value="{{cr.isAudio}}" hint-placeholder-val="{{ false }}">
+            <div style="border-radius: 16px; background: var(--surface); padding: 18px; display: flex; align-items: center; gap: 14px">
+              <span class="orb {{playOrb}}" aria-hidden="true" style="width: 48px; height: 48px; flex: none; border-radius: 9999px"></span>
+              <div style="display: flex; flex-direction: column; gap: 4px"><span style="font-size: 13px; font-weight: 500">Audio only</span><span style="font-size: 12px; color: var(--smoke)">{{cr.sources}}</span></div>
+            </div>
+          </sc-if>
+          <sc-if value="{{hasChapters}}" hint-placeholder-val="{{ true }}">
+            <div data-name="Session / Chapters" style="display: flex; flex-direction: column; gap: 8px">
+              <div style="display: flex; align-items: baseline; gap: 8px"><span style="font-size: 12px; font-weight: 500">Chapters</span><span style="font-size: 12px; color: var(--smoke)">by Gemma</span></div>
+              <div style="display: flex; gap: 4px">
+                <sc-for list="{{chapters}}" as="ch" hint-placeholder-count="4">
+                  <button type="button" onClick="{{ch.seek}}" aria-current="{{ch.on}}" style="flex: {{ch.flex}}; min-width: 0; height: 40px; padding: 0 10px; border: 0; border-radius: 10px; background: {{ch.bg}}; color: {{ch.fg}}; text-align: left; display: flex; flex-direction: column; justify-content: center; gap: 2px"><span style="font-size: 12px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">{{ch.title}}</span><span style="font-family: 'Geist Mono', ui-monospace, monospace; font-size: 11px; color: {{ch.sub}}">{{ch.clock}}</span></button>
+                </sc-for>
+              </div>
+            </div>
+          </sc-if>
+          <div style="border: 1px solid var(--line); border-radius: 16px; padding: 16px; display: flex; flex-direction: column; gap: 14px">
+            <sc-if value="{{hasMarks}}" hint-placeholder-val="{{ false }}">
+              <div aria-hidden="true" style="position: relative; height: 16px">
+                <sc-for list="{{marks}}" as="mk" hint-placeholder-count="2"><span style="position: absolute; left: {{mk.left}}; top: 0; transform: translateX(-50%); color: var(--ink)"><svg width="12" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M6 3h12v18l-6-4-6 4z"/></svg></span></sc-for>
+              </div>
+            </sc-if>
+            <button type="button" onClick="{{seekWave}}" aria-label="Seek in recording" style="position: relative; height: 42px; padding: 0; border: 0; background: transparent; display: flex; align-items: center; gap: 2px; cursor: pointer">
+              <sc-for list="{{wave}}" as="b" hint-placeholder-count="96"><span style="flex: 1; height: {{b.h}}px; border-radius: 9999px; background: {{b.c}}; pointer-events: none"></span></sc-for>
+              <span aria-hidden="true" style="position: absolute; left: {{playhead}}; top: -4px; bottom: -4px; width: 2px; border-radius: 2px; background: var(--ink); pointer-events: none"></span>
+            </button>
+            <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap">
+              <button type="button" onClick="{{togglePlay}}" aria-label="{{playLabel}}" class="primary" style="width: 32px; height: 32px; border-radius: 9999px; border: 0; background: var(--btn); color: var(--btnfg); display: flex; align-items: center; justify-content: center">
+                <sc-if value="{{playing}}" hint-placeholder-val="{{ false }}"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/></svg></sc-if>
+                <sc-if value="{{paused}}" hint-placeholder-val="{{ true }}"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg></sc-if>
+              </button>
+              <button type="button" onClick="{{back10}}" aria-label="Back 10 seconds" class="soft" style="height: 28px; padding: 0 12px; border-radius: 9999px; border: 1px solid var(--border); background: var(--bg); color: var(--ink); font-family: 'Geist Mono', ui-monospace, monospace; font-size: 12px">−10s</button>
+              <span style="font-family: 'Geist Mono', ui-monospace, monospace; font-size: 12px">{{curClock}} <span style="color: var(--smoke)">/ {{cr.durClock}}</span></span>
+              <div style="margin-left: auto; display: flex; gap: 6px; flex-wrap: wrap">
+                <button type="button" aria-pressed="{{tYou.on}}" onClick="{{tYou.toggle}}" style="height: 28px; padding: 0 12px; border-radius: 9999px; border: {{tYou.bd}}; background: {{tYou.bg}}; color: {{tYou.fg}}; font-size: 12px; font-weight: 500">You</button>
+                <button type="button" aria-pressed="{{tOth.on}}" onClick="{{tOth.toggle}}" style="height: 28px; padding: 0 12px; border-radius: 9999px; border: {{tOth.bd}}; background: {{tOth.bg}}; color: {{tOth.fg}}; font-size: 12px; font-weight: 500">Others</button>
+                <button type="button" onClick="{{cycleSpeed}}" aria-label="Playback speed" class="soft" style="height: 28px; padding: 0 12px; border-radius: 9999px; border: 1px solid var(--border); background: var(--bg); color: var(--ink); font-family: 'Geist Mono', ui-monospace, monospace; font-size: 12px">{{speedLabel}}</button>
+              </div>
+            </div>
+          </div>
+          <sc-if value="{{hasMarks}}" hint-placeholder-val="{{ false }}">
+            <div data-name="Session / Bookmarks" style="background: var(--surface); border-radius: 16px; padding: 16px 18px; display: flex; flex-direction: column; gap: 2px">
+              <div style="display: flex; align-items: center; justify-content: space-between; padding-bottom: 6px"><span style="font-size: 12px; font-weight: 500">Bookmarks</span><span style="font-size: 12px; color: var(--smoke)">Press M to add</span></div>
+              <sc-for list="{{marks}}" as="mk" hint-placeholder-count="2">
+                <button type="button" onClick="{{mk.seek}}" class="ghost" style="height: 28px; padding: 0 8px; margin: 0 -8px; border: 0; border-radius: 8px; background: transparent; color: var(--ink); display: flex; align-items: center; gap: 10px; text-align: left; font-size: 13px"><svg width="12" height="13" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M6 3h12v18l-6-4-6 4z"/></svg><span style="font-family: 'Geist Mono', ui-monospace, monospace; font-size: 12px; color: var(--ink2)">{{mk.clock}}</span><span style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis">{{mk.note}}</span></button>
+              </sc-for>
+            </div>
+          </sc-if>
+          <div data-name="Session / Shortcuts" style="display: flex; flex-wrap: wrap; gap: 8px 16px; font-size: 12px; color: var(--smoke)">
+            <span><span class="k">Space</span>play / pause</span>
+            <span><span class="k">J</span><span class="k">L</span>−5 s / +5 s</span>
+            <span><span class="k">↑</span><span class="k">↓</span>previous / next line</span>
+            <span><span class="k">M</span>bookmark</span>
+            <span><span class="k">F</span>follow along</span>
+          </div>
+        </section>
+
+        <section aria-label="Recording text" style="flex: 1 1 380px; min-width: 0; display: flex; flex-direction: column; gap: 12px">
+          <div role="tablist" aria-label="View" style="display: flex; gap: 6px; flex-wrap: wrap">
+            <button type="button" role="tab" aria-selected="{{tabT}}" onClick="{{showT}}" class="ghost" style="height: 28px; padding: 0 14px; border-radius: 9999px; border: 1px solid var(--border); background: var(--bg); color: var(--ink); display: flex; align-items: center; gap: 8px; font-size: 12px; font-weight: 500"><sc-if value="{{tabT}}" hint-placeholder-val="{{ true }}"><span aria-hidden="true" style="width: 6px; height: 6px; border-radius: 9999px; background: var(--ink)"></span></sc-if>Transcript</button>
+            <button type="button" role="tab" aria-selected="{{tabS}}" onClick="{{showS}}" class="ghost" style="height: 28px; padding: 0 14px; border-radius: 9999px; border: 1px solid var(--border); background: var(--bg); color: var(--ink); display: flex; align-items: center; gap: 8px; font-size: 12px; font-weight: 500"><sc-if value="{{tabS}}" hint-placeholder-val="{{ false }}"><span aria-hidden="true" style="width: 6px; height: 6px; border-radius: 9999px; background: var(--ink)"></span></sc-if>Summary</button>
+            <button type="button" onClick="{{askThis}}" class="ghost" style="height: 28px; padding: 0 14px; border-radius: 9999px; border: 1px solid var(--border); background: var(--bg); color: var(--ink); display: flex; align-items: center; gap: 8px; font-size: 12px; font-weight: 500"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z"/></svg>Ask AI</button>
+          </div>
+
+          <sc-if value="{{tabT}}" hint-placeholder-val="{{ true }}">
+            <div style="display: flex; flex-direction: column; gap: 12px">
+              <div data-name="Session / Speakers" style="display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap">
+                <div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap">
+                  <span style="font-size: 12px; font-weight: 500; margin-right: 4px">Speakers</span>
+                  <sc-for list="{{speakers}}" as="sp" hint-placeholder-count="2">
+                    <button type="button" onClick="{{sp.rename}}" aria-label="{{sp.aria}}" class="soft" style="height: 28px; padding: 0 12px 0 4px; border-radius: 9999px; border: {{sp.bd}}; background: var(--bg); color: var(--ink); display: flex; align-items: center; gap: 8px; font-size: 12px"><span aria-hidden="true" style="width: 24px; height: 24px; border-radius: 9999px; background: {{sp.avBg}}; color: {{sp.avFg}}; display: flex; align-items: center; justify-content: center; font-size: 11px">{{sp.initial}}</span>{{sp.name}}<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="var(--smoke)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg></button>
+                  </sc-for>
+                </div>
+                <button type="button" role="switch" aria-checked="{{follow}}" onClick="{{toggleFollow}}" style="border: 0; background: transparent; padding: 0; display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--ink2)">Follow along<span aria-hidden="true" style="width: 30px; height: 18px; padding: 3px; border-radius: 9999px; background: {{followTrack}}; display: flex; align-items: center"><span class="knob" style="width: 12px; height: 12px; border-radius: 9999px; background: {{followKnob}}; transform: {{followX}}"></span></span></button>
+              </div>
+              <sc-if value="{{renaming}}" hint-placeholder-val="{{ false }}">
+                <div class="fade" data-name="Session / Rename speaker" style="padding: 14px; border-radius: 16px; border: 1px solid var(--line); background: var(--bg); display: flex; align-items: center; gap: 10px; flex-wrap: wrap">
+                  <label for="rn" style="font-size: 12px; color: var(--smoke)">{{renameLabel}}</label>
+                  <input id="rn" ref="{{setRn}}" type="text" value="{{renameDraft}}" onChange="{{onRename}}" onKeyDown="{{onRenameKey}}" placeholder="Name" style="flex: 1 1 180px; height: 28px; padding: 0 12px; border-radius: 4px; border: 1.5px solid var(--ink); background: var(--field); color: var(--ink); font-size: 13px; outline: none">
+                  <button type="button" onClick="{{cancelRename}}" class="soft" style="height: 28px; padding: 0 14px; border-radius: 9999px; border: 1px solid var(--border); background: var(--bg); color: var(--ink); font-size: 12px; font-weight: 500">Cancel</button>
+                  <button type="button" onClick="{{applyRename}}" class="primary" style="height: 28px; padding: 0 14px; border-radius: 9999px; border: 0; background: var(--btn); color: var(--btnfg); font-size: 12px; font-weight: 500">Rename</button>
+                  <span style="flex-basis: 100%; font-size: 12px; color: var(--smoke)">{{renameHint}}</span>
+                </div>
+              </sc-if>
+              <div style="display: flex; align-items: center; gap: 10px; height: 32px; padding: 0 12px; border-radius: 9999px; border: 1px solid var(--border); color: var(--smoke)">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg>
+                <label for="tq" class="sr">Search transcript</label>
+                <input id="tq" type="search" value="{{tq}}" onChange="{{onTq}}" placeholder="Search transcript" style="flex: 1; min-width: 0; border: 0; outline: none; background: transparent; font-size: 13px; color: var(--ink)">
+                <sc-if value="{{hasTq}}" hint-placeholder-val="{{ false }}"><span style="font-size: 12px; color: var(--smoke); white-space: nowrap">{{tqCount}}</span></sc-if>
+              </div>
+              <div style="display: flex; flex-direction: column; gap: 2px">
+                <sc-for list="{{items}}" as="g" hint-placeholder-count="5">
+                  <sc-if value="{{g.isMark}}" hint-placeholder-val="{{ false }}">
+                    <button type="button" onClick="{{g.seek}}" class="ghost" style="margin: 2px 14px; padding: 7px 14px; border-radius: 9999px; border: 1px dashed var(--mline); background: transparent; color: var(--ink); display: flex; align-items: center; gap: 10px; font-size: 12px; text-align: left"><svg width="12" height="13" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M6 3h12v18l-6-4-6 4z"/></svg><span style="font-family: 'Geist Mono', ui-monospace, monospace; font-size: 12px; color: var(--ink2)">{{g.clock}}</span>{{g.note}}</button>
+                  </sc-if>
+                  <sc-if value="{{g.isSeg}}" hint-placeholder-val="{{ true }}">
+                    <div class="seg" data-active="{{g.activeAttr}}" style="display: flex; gap: 14px; padding: 12px 14px; border-radius: 16px; background: {{g.bg}}; opacity: {{g.op}}">
+                      <span aria-hidden="true" style="width: 28px; height: 28px; flex: none; border-radius: 9999px; background: {{g.avBg}}; color: {{g.avFg}}; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 500">{{g.initial}}</span>
+                      <div style="flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px">
+                        <div style="display: flex; gap: 10px; align-items: baseline"><span style="font-size: 12px; font-weight: 500">{{g.sp}}</span><button type="button" onClick="{{g.seek}}" aria-label="{{g.seekLabel}}" style="border: 0; background: transparent; padding: 0; font-family: 'Geist Mono', ui-monospace, monospace; font-size: 12px; color: {{g.tc}}">{{g.clock}}</button></div>
+                        <sc-if value="{{g.isPlain}}" hint-placeholder-val="{{ true }}">
+                          <button type="button" onClick="{{g.seek}}" style="border: 0; background: transparent; padding: 0; text-align: left; font-size: 13px; line-height: 1.6; color: {{g.txc}}">{{g.text}}</button>
+                        </sc-if>
+                        <sc-if value="{{g.isKaraoke}}" hint-placeholder-val="{{ false }}">
+                          <button type="button" onClick="{{g.seek}}" style="border: 0; background: transparent; padding: 0; text-align: left; font-size: 13px; line-height: 1.6; color: var(--smoke)"><span style="color: var(--ink)">{{g.kPre}}</span><span style="background: var(--btn); color: var(--btnfg); border-radius: 4px; padding: 0 3px">{{g.kWord}}</span>{{g.kPost}}</button>
+                        </sc-if>
+                        <sc-if value="{{g.isLc}}" hint-placeholder-val="{{ false }}">
+                          <p style="margin: 0; font-size: 13px; line-height: 1.6; color: {{g.txc}}">{{g.lPre}}<button type="button" onClick="{{g.openLc}}" aria-expanded="{{g.lcOpen}}" title="Low confidence — click to fix" class="lcw" style="border: 0; background: transparent; padding: 0; font: inherit; color: var(--ink)">{{g.lWord}}</button>{{g.lPost}}</p>
+                          <sc-if value="{{g.lcOpen}}" hint-placeholder-val="{{ false }}">
+                            <div class="fade" style="align-self: flex-start; display: flex; align-items: center; gap: 6px; padding: 5px; border-radius: 9999px; border: 1px solid var(--line); background: var(--bg); box-shadow: rgba(0,0,0,0.1) 0 6px 18px">
+                              <span style="padding: 0 8px; font-size: 12px; color: var(--smoke)">Did you mean</span>
+                              <sc-for list="{{g.opts}}" as="op" hint-placeholder-count="2"><button type="button" onClick="{{op.pick}}" style="height: 28px; padding: 0 12px; border-radius: 9999px; border: {{op.bd}}; background: {{op.bg}}; color: {{op.fg}}; font-size: 12px">{{op.label}}</button></sc-for>
+                            </div>
+                          </sc-if>
+                        </sc-if>
+                      </div>
+                    </div>
+                  </sc-if>
+                </sc-for>
+                <sc-if value="{{noSegs}}" hint-placeholder-val="{{ false }}"><div style="padding: 16px; text-align: center; font-size: 13px; color: var(--smoke)">No lines match “{{tq}}”.</div></sc-if>
+              </div>
+            </div>
+          </sc-if>
+
+          <sc-if value="{{tabS}}" hint-placeholder-val="{{ false }}">
+            <div style="display: flex; flex-direction: column; gap: 12px">
+              <div style="background: var(--surface); border-radius: 16px; padding: 16px; display: flex; flex-direction: column; gap: 10px">
+                <div style="font-size: 12px; color: var(--smoke)">Overview</div>
+                <p style="margin: 0; font-size: 14px; line-height: 1.6">{{cr.summary}}</p>
+              </div>
+              <sc-if value="{{hasDecisions}}" hint-placeholder-val="{{ true }}">
+                <div style="border: 1px solid var(--line); border-radius: 16px; padding: 16px; display: flex; flex-direction: column; gap: 14px">
+                  <div style="font-size: 12px; color: var(--smoke)">Decisions</div>
+                  <sc-for list="{{decisions}}" as="d" hint-placeholder-count="2">
+                    <div style="display: flex; gap: 12px; align-items: baseline; justify-content: space-between"><span style="font-size: 13px; line-height: 1.5">{{d.text}}</span><button type="button" onClick="{{d.seek}}" class="chip" style="flex: none; height: 24px; padding: 0 8px; border-radius: 9999px; border: 0; background: var(--chip); color: var(--ink); font-family: 'Geist Mono', ui-monospace, monospace; font-size: 12px">{{d.clock}}</button></div>
+                  </sc-for>
+                </div>
+              </sc-if>
+              <sc-if value="{{hasActions}}" hint-placeholder-val="{{ true }}">
+                <div style="border: 1px solid var(--line); border-radius: 16px; padding: 16px; display: flex; flex-direction: column; gap: 14px">
+                  <div style="font-size: 12px; color: var(--smoke)">Action items</div>
+                  <sc-for list="{{actions}}" as="a" hint-placeholder-count="2">
+                    <div style="display: flex; gap: 12px; align-items: center">
+                      <input type="checkbox" id="{{a.key}}" checked="{{a.checked}}" onChange="{{a.toggle}}" style="width: 18px; height: 18px; accent-color: var(--ink)">
+                      <label for="{{a.key}}" style="flex: 1; font-size: 13px; text-decoration: {{a.deco}}; color: {{a.color}}">{{a.text}}</label>
+                      <button type="button" onClick="{{a.seek}}" class="chip" style="height: 24px; padding: 0 8px; border-radius: 9999px; border: 0; background: var(--chip); color: var(--ink); font-family: 'Geist Mono', ui-monospace, monospace; font-size: 12px">{{a.clock}}</button>
+                    </div>
+                  </sc-for>
+                </div>
+              </sc-if>
+              <div style="font-size: 12px; color: var(--smoke)">Generated locally · {{modelChip}}</div>
+            </div>
+          </sc-if>
+        </section>
+      </div>
+    </div>
+    </sc-if>
+
+    <sc-if value="{{isChat}}" hint-placeholder-val="{{ false }}">
+    <div data-name="Demo / Ask AI" style="flex: 1; width: 100%; max-width: 720px; margin: 0 auto; padding: 4px 24px 0; display: flex; flex-direction: column; gap: 20px">
+      <div role="group" aria-label="Search scope" style="display: flex; gap: 6px; flex-wrap: wrap">
+        <sc-for list="{{scopes}}" as="sc" hint-placeholder-count="2">
+          <button type="button" aria-pressed="{{sc.on}}" onClick="{{sc.pick}}" class="ghost" style="height: 28px; padding: 0 14px; border-radius: 9999px; border: 1px solid var(--border); background: var(--bg); color: var(--ink); display: flex; align-items: center; gap: 8px; font-size: 12px; font-weight: 500; max-width: 100%"><sc-if value="{{sc.on}}" hint-placeholder-val="{{ false }}"><span aria-hidden="true" style="width: 6px; height: 6px; border-radius: 9999px; background: var(--ink)"></span></sc-if><span style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis">{{sc.label}}</span></button>
+        </sc-for>
+      </div>
+
+      <sc-if value="{{chatEmpty}}" hint-placeholder-val="{{ true }}">
+        <div style="flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; text-align: center; padding: 40px 0">
+          <span class="orb breathe" aria-hidden="true" style="width: 64px; height: 64px; border-radius: 9999px"></span>
+          <h1 style="margin: 0; font-size: 24px; font-weight: 300; letter-spacing: -0.02em">Ask anything about your recordings.</h1>
+          <p style="margin: 0; font-size: 13px; color: var(--smoke)">Answers come with timestamps — click one to jump to that moment.</p>
+          <div style="display: flex; gap: 8px; flex-wrap: wrap; justify-content: center">
+            <sc-for list="{{suggestions}}" as="c" hint-placeholder-count="4">
+              <button type="button" onClick="{{c.go}}" class="ghost" style="height: 28px; padding: 0 14px; border-radius: 9999px; border: 1px solid var(--border); background: transparent; color: var(--ink2); font-size: 12px">{{c.label}}</button>
+            </sc-for>
+          </div>
+        </div>
+      </sc-if>
+
+      <sc-for list="{{msgs}}" as="m" hint-placeholder-count="2">
+        <sc-if value="{{m.isUser}}" hint-placeholder-val="{{ true }}">
+          <div style="align-self: flex-end; max-width: 80%; padding: 10px 14px; border-radius: 16px; background: var(--surface); font-size: 13px; line-height: 1.55; white-space: pre-line">{{m.text}}</div>
+        </sc-if>
+        <sc-if value="{{m.isAi}}" hint-placeholder-val="{{ false }}">
+          <article style="display: flex; flex-direction: column; gap: 14px">
+            <div style="display: flex; align-items: center; gap: 10px"><span class="orb" aria-hidden="true" style="width: 24px; height: 24px; border-radius: 9999px"></span><span style="font-size: 12px; font-weight: 500">Murmur</span></div>
+            <sc-if value="{{m.pending}}" hint-placeholder-val="{{ false }}">
+              <div class="dots" role="status" aria-label="Thinking" style="display: flex; gap: 5px; padding: 8px 0"><span style="width: 7px; height: 7px; border-radius: 9999px; background: var(--smoke)"></span><span style="width: 7px; height: 7px; border-radius: 9999px; background: var(--smoke)"></span><span style="width: 7px; height: 7px; border-radius: 9999px; background: var(--smoke)"></span></div>
+            </sc-if>
+            <sc-if value="{{m.ready}}" hint-placeholder-val="{{ true }}">
+              <p style="margin: 0; font-size: 14px; line-height: 1.65; white-space: pre-line">{{m.text}}</p>
+              <sc-if value="{{m.hasRefs}}" hint-placeholder-val="{{ true }}">
+                <div style="display: flex; flex-direction: column; gap: 8px">
+                  <div style="font-size: 12px; color: var(--smoke)">Sources</div>
+                  <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(220px, 100%), 1fr)); gap: 8px">
+                    <sc-for list="{{m.refs}}" as="rf" hint-placeholder-count="2">
+                      <button type="button" onClick="{{rf.open}}" class="rowbtn" style="text-align: left; border: 1px solid var(--line); border-radius: 16px; padding: 14px 16px; background: transparent; color: var(--ink); display: flex; flex-direction: column; gap: 6px">
+                        <span style="display: flex; justify-content: space-between; gap: 8px; width: 100%"><span style="font-size: 12px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">{{rf.label}}</span><span style="display: flex; align-items: center; gap: 4px; font-family: 'Geist Mono', ui-monospace, monospace; font-size: 12px; color: var(--smoke)"><svg width="9" height="9" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>{{rf.clock}}</span></span>
+                        <span style="font-size: 12px; line-height: 1.5; color: var(--smoke)">“{{rf.quote}}”</span>
+                      </button>
+                    </sc-for>
+                  </div>
+                </div>
+              </sc-if>
+            </sc-if>
+          </article>
+        </sc-if>
+      </sc-for>
+
+      <div style="position: sticky; bottom: 0; margin-top: auto; padding: 16px 0 24px; background: var(--bg); display: flex; flex-direction: column; gap: 8px">
+        <div style="display: flex; align-items: flex-end; gap: 8px; padding: 10px 10px 10px 20px; border-radius: 20px; background: var(--field); border: 1px solid var(--border)">
+          <label for="msg" class="sr">Question</label>
+          <textarea id="msg" rows="2" value="{{chatDraft}}" onChange="{{onChatDraft}}" onKeyDown="{{onChatKey}}" placeholder="Ask about any recording… (Enter to send)" style="flex: 1; min-width: 0; border: 0; outline: none; resize: none; background: transparent; font-size: 13px; line-height: 1.5; color: var(--ink); padding: 6px 0"></textarea>
+          <button type="button" onClick="{{sendDraft}}" disabled="{{sendDisabled}}" aria-label="Send" class="primary" style="width: 32px; height: 32px; flex: none; border-radius: 9999px; border: 0; background: var(--btn); color: var(--btnfg); display: flex; align-items: center; justify-content: center"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5M6 11l6-6 6 6"/></svg></button>
+        </div>
+        <div style="text-align: center; font-size: 12px; color: var(--smoke)">Answers are based only on your transcripts. Check them against the timestamps.</div>
+      </div>
+    </div>
+    </sc-if>
+
+    <sc-if value="{{isSettings}}" hint-placeholder-val="{{ false }}">
+    <div data-name="Demo / Settings" style="width: 100%; max-width: 880px; margin: 0 auto; padding: 4px 24px 32px; display: flex; flex-direction: column; gap: 28px">
+      <h1 style="margin: 0; font-size: 24px; font-weight: 300; line-height: 1.17; letter-spacing: -0.02em">Settings</h1>
+
+      <section style="display: flex; gap: 14px 28px; flex-wrap: wrap">
+        <div style="flex: 1 1 220px; display: flex; flex-direction: column; gap: 6px"><h2 style="margin: 0; font-size: 18px; font-weight: 500">Appearance</h2><p style="margin: 0; font-size: 12px; line-height: 1.55; color: var(--smoke)">Warm light or warm dark.</p></div>
+        <div style="flex: 999 1 400px; min-width: 0; display: flex; align-items: center">
+          <div role="radiogroup" aria-label="Theme" style="display: flex; gap: 4px; padding: 4px; border-radius: 9999px; border: 1px solid var(--line); background: var(--bg)">
+            <sc-for list="{{themeOpts}}" as="o" hint-placeholder-count="2"><button type="button" role="radio" aria-checked="{{o.on}}" onClick="{{o.pick}}" style="height: 28px; padding: 0 14px; border-radius: 9999px; border: 0; background: {{o.bg}}; color: {{o.fg}}; font-size: 12px; font-weight: 500">{{o.label}}</button></sc-for>
+          </div>
+        </div>
+      </section>
+      <div style="height: 1px; background: var(--line)"></div>
+
+      <section style="display: flex; gap: 14px 28px; flex-wrap: wrap">
+        <div style="flex: 1 1 220px; display: flex; flex-direction: column; gap: 6px"><h2 style="margin: 0; font-size: 18px; font-weight: 500">Models</h2><p style="margin: 0; font-size: 12px; line-height: 1.55; color: var(--smoke)">Everything runs locally. Models load only when needed and unload when they’re done.</p></div>
+        <div style="flex: 999 1 400px; min-width: 0; display: flex; flex-direction: column; gap: 12px">
+          <div style="border: 1px solid var(--line); border-radius: 16px; overflow: hidden">
+            <div style="display: flex; align-items: center; gap: 12px; padding: 12px 16px; flex-wrap: wrap">
+              <div style="flex: 1 1 220px; display: flex; flex-direction: column; gap: 3px"><span style="font-size: 13px; font-weight: 500">Parakeet TDT v3 · int8</span><span style="font-size: 12px; color: var(--smoke)">Transcription · 25 European languages · CPU</span></div>
+              <span style="font-family: 'Geist Mono', ui-monospace, monospace; font-size: 12px; color: var(--smoke)">0.67 GB</span>
+              <span style="height: 26px; padding: 0 12px; border-radius: 9999px; background: var(--surface); display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 500"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12l5 5L20 7"/></svg>Installed</span>
+            </div>
+            <sc-for list="{{models}}" as="md" hint-placeholder-count="2">
+              <div style="display: flex; align-items: center; gap: 12px; padding: 12px 16px; border-top: 1px solid var(--line); flex-wrap: wrap">
+                <div style="flex: 1 1 220px; display: flex; flex-direction: column; gap: 6px">
+                  <span style="font-size: 13px; font-weight: 500">{{md.name}}</span>
+                  <span style="font-size: 12px; color: var(--smoke)">{{md.desc}}</span>
+                  <sc-if value="{{md.isDl}}" hint-placeholder-val="{{ false }}"><span style="display: flex; align-items: center; gap: 10px; margin-top: 2px"><span aria-hidden="true" style="display: block; flex: 0 1 220px; height: 4px; border-radius: 9999px; background: var(--line); overflow: hidden"><span style="display: block; width: {{md.w}}; height: 100%; border-radius: 9999px; background: var(--ink); transition: width .4s"></span></span><span style="font-family: 'Geist Mono', ui-monospace, monospace; font-size: 12px; color: var(--ink2)">{{md.pctLabel}}</span></span></sc-if>
+                </div>
+                <span style="font-family: 'Geist Mono', ui-monospace, monospace; font-size: 12px; color: var(--smoke)">{{md.size}}</span>
+                <sc-if value="{{md.isNone}}" hint-placeholder-val="{{ false }}"><button type="button" onClick="{{md.download}}" class="soft" style="height: 28px; padding: 0 14px; border-radius: 9999px; border: 1px solid var(--border); background: var(--bg); color: var(--ink); display: flex; align-items: center; gap: 8px; font-size: 12px; font-weight: 500"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v11M7 10l5 5 5-5M5 20h14"/></svg>Download</button></sc-if>
+                <sc-if value="{{md.isDl}}" hint-placeholder-val="{{ false }}"><button type="button" onClick="{{md.cancel}}" class="soft" style="height: 28px; padding: 0 14px; border-radius: 9999px; border: 1px solid var(--border); background: var(--bg); color: var(--ink); font-size: 12px; font-weight: 500">Cancel</button></sc-if>
+                <sc-if value="{{md.isInst}}" hint-placeholder-val="{{ true }}"><span style="display: flex; align-items: center; gap: 6px"><span style="height: 26px; padding: 0 12px; border-radius: 9999px; background: var(--surface); display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 500"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12l5 5L20 7"/></svg>Installed</span><button type="button" onClick="{{md.remove}}" class="soft" style="height: 26px; padding: 0 10px; border-radius: 9999px; border: 0; background: transparent; color: var(--smoke); font-size: 12px">Remove</button></span></sc-if>
+              </div>
+            </sc-for>
+          </div>
+          <div style="background: var(--surface); border-radius: 16px; padding: 12px 16px; display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap">
+            <div style="display: flex; flex-direction: column; gap: 3px"><span style="font-size: 13px; font-weight: 500">Acceleration</span><span style="font-size: 12px; color: var(--smoke)">A GPU speeds up Gemma; Parakeet runs well on CPU too</span></div>
+            <div role="radiogroup" aria-label="Acceleration" style="display: flex; gap: 4px; padding: 4px; border-radius: 9999px; background: var(--bg); border: 1px solid var(--line)">
+              <sc-for list="{{accels}}" as="o" hint-placeholder-count="3"><button type="button" role="radio" aria-checked="{{o.on}}" onClick="{{o.pick}}" style="height: 28px; padding: 0 14px; border-radius: 9999px; border: 0; background: {{o.bg}}; color: {{o.fg}}; font-size: 12px; font-weight: 500">{{o.label}}</button></sc-for>
+            </div>
+          </div>
+        </div>
+      </section>
+      <div style="height: 1px; background: var(--line)"></div>
+
+      <section style="display: flex; gap: 14px 28px; flex-wrap: wrap">
+        <div style="flex: 1 1 220px; display: flex; flex-direction: column; gap: 6px"><h2 style="margin: 0; font-size: 18px; font-weight: 500">Recording</h2><p style="margin: 0; font-size: 12px; line-height: 1.55; color: var(--smoke)">The microphone becomes the “You” track, system audio becomes “Others”.</p></div>
+        <div style="flex: 999 1 400px; min-width: 0; display: flex; flex-direction: column; gap: 12px">
+          <div style="display: flex; flex-direction: column; gap: 6px"><label for="set-mic" style="font-size: 12px; font-weight: 500">Microphone</label><select id="set-mic" style="height: 32px; padding: 0 12px; border-radius: 4px; border: 1px solid var(--line); background: var(--field); color: var(--ink); font-size: 13px"><option>Microphone (USB Audio Device)</option><option>Headset Microphone (Bluetooth)</option><option>Microphone Array (Realtek Audio)</option></select></div>
+          <div style="display: flex; flex-direction: column; gap: 6px"><label for="set-sys" style="font-size: 12px; font-weight: 500">System audio</label><select id="set-sys" style="height: 32px; padding: 0 12px; border-radius: 4px; border: 1px solid var(--line); background: var(--field); color: var(--ink); font-size: 13px"><option>Speakers (Realtek Audio) · loopback</option><option>Headphones (Bluetooth) · loopback</option></select></div>
+          <div style="display: flex; flex-direction: column; gap: 6px"><label for="set-lang" style="font-size: 12px; font-weight: 500">Transcription language</label><select id="set-lang" value="{{lang}}" onChange="{{onLang}}" style="height: 32px; padding: 0 12px; border-radius: 4px; border: 1px solid var(--line); background: var(--field); color: var(--ink); font-size: 13px"><option>Auto-detect</option><option>English</option><option>Ukrainian</option><option>Polish</option><option>German</option></select></div>
+          <div style="border: 1px solid var(--line); border-radius: 16px; overflow: hidden">
+            <div style="display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 14px; flex-wrap: wrap">
+              <div style="display: flex; flex-direction: column; gap: 3px"><span id="set-call" style="font-size: 13px; font-weight: 500">Detect calls</span><span style="font-size: 12px; color: var(--smoke)">Offer to record when a Teams, Zoom or Meet call starts</span></div>
+              <div style="display: flex; align-items: center; gap: 10px">
+                <button type="button" onClick="{{testCall}}" class="soft" style="height: 28px; padding: 0 12px; border-radius: 9999px; border: 1px solid var(--border); background: var(--bg); color: var(--ink); font-size: 12px; font-weight: 500">Try it</button>
+                <button type="button" role="switch" aria-checked="{{togCall.on}}" aria-labelledby="set-call" onClick="{{toggleDetect}}" style="width: 36px; height: 20px; flex: none; padding: 3px; border-radius: 9999px; border: 0; background: {{togCall.bg}}; display: flex; align-items: center"><span class="knob" style="width: 14px; height: 14px; border-radius: 9999px; background: {{togCall.knob}}; box-shadow: rgba(0,0,0,0.2) 0 1px 2px; transform: {{togCall.x}}"></span></button>
+              </div>
+            </div>
+            <div style="display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 14px; border-top: 1px solid var(--line)">
+              <div style="display: flex; flex-direction: column; gap: 3px"><span id="set-scr" style="font-size: 13px; font-weight: 500">Record screen by default</span><span style="font-size: 12px; color: var(--smoke)">Applies to the next new recording</span></div>
+              <button type="button" role="switch" aria-checked="{{togScr.on}}" aria-labelledby="set-scr" onClick="{{toggleScreenDefault}}" style="width: 36px; height: 20px; flex: none; padding: 3px; border-radius: 9999px; border: 0; background: {{togScr.bg}}; display: flex; align-items: center"><span class="knob" style="width: 14px; height: 14px; border-radius: 9999px; background: {{togScr.knob}}; box-shadow: rgba(0,0,0,0.2) 0 1px 2px; transform: {{togScr.x}}"></span></button>
+            </div>
+            <div style="display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 14px; border-top: 1px solid var(--line); flex-wrap: wrap">
+              <div style="display: flex; flex-direction: column; gap: 3px"><span id="set-hk" style="font-size: 13px; font-weight: 500">Start / stop hotkey</span><span style="font-size: 12px; color: var(--smoke)">Click, then press a shortcut with Ctrl, Alt or Shift</span></div>
+              <button type="button" aria-labelledby="set-hk" onClick="{{startCapture}}" onKeyDown="{{onHotkey}}" onBlur="{{stopCapture}}" style="width: 260px; height: 32px; padding: 0 8px; border-radius: 4px; border: {{hkBorder}}; background: var(--field); color: var(--ink); display: flex; align-items: center; gap: 6px">
+                <sc-if value="{{capturing}}" hint-placeholder-val="{{ false }}"><span style="padding: 0 4px; font-size: 13px; color: var(--smoke)">Press a new shortcut…</span></sc-if>
+                <sc-if value="{{notCapturing}}" hint-placeholder-val="{{ true }}"><sc-for list="{{hkKeys}}" as="k" hint-placeholder-count="3"><sc-if value="{{k.sep}}" hint-placeholder-val="{{ false }}"><span aria-hidden="true" style="font-family: 'Geist Mono', ui-monospace, monospace; font-size: 12px; color: var(--smoke)">+</span></sc-if><kbd style="font-family: 'Geist Mono', ui-monospace, monospace; font-size: 12px; padding: 3px 8px; border-radius: 6px; background: var(--surface); color: var(--ink)">{{k.k}}</kbd></sc-for></sc-if>
+              </button>
+            </div>
+          </div>
+        </div>
+      </section>
+      <div style="height: 1px; background: var(--line)"></div>
+
+      <section style="display: flex; gap: 14px 28px; flex-wrap: wrap">
+        <div style="flex: 1 1 220px; display: flex; flex-direction: column; gap: 6px"><h2 style="margin: 0; font-size: 18px; font-weight: 500">Storage</h2><p style="margin: 0; font-size: 12px; line-height: 1.55; color: var(--smoke)">Audio, video and the search index live in one folder.</p></div>
+        <div style="flex: 999 1 400px; min-width: 0; display: flex; align-items: center; gap: 12px; flex-wrap: wrap">
+          <div style="flex: 1 1 260px; min-width: 0; height: 32px; padding: 0 12px; border-radius: 4px; border: 1px solid var(--line); background: var(--field); display: flex; align-items: center; gap: 10px"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--smoke)" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg><span style="font-family: 'Geist Mono', ui-monospace, monospace; font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">C:\Users\[USER]\Murmur</span></div>
+          <button type="button" onClick="{{noPicker}}" class="soft" style="height: 32px; padding: 0 12px; border-radius: 9999px; border: 1px solid var(--border); background: var(--bg); color: var(--ink); font-size: 12px; font-weight: 500">Change</button>
+        </div>
+      </section>
+      <div style="height: 1px; background: var(--line)"></div>
+
+      <section style="display: flex; gap: 14px 28px; flex-wrap: wrap">
+        <div style="flex: 1 1 220px; display: flex; flex-direction: column; gap: 6px"><h2 style="margin: 0; font-size: 18px; font-weight: 500">About</h2><p style="margin: 0; font-size: 12px; line-height: 1.55; color: var(--smoke)">Free, no accounts, no cloud.</p></div>
+        <div style="flex: 999 1 400px; min-width: 0; background: var(--surface); border-radius: 16px; padding: 16px; display: flex; gap: 14px; align-items: flex-start; flex-wrap: wrap">
+          <span class="orb" aria-hidden="true" style="width: 40px; height: 40px; flex: none; border-radius: 9999px"></span>
+          <div style="flex: 1 1 260px; display: flex; flex-direction: column; gap: 10px">
+            <div style="display: flex; align-items: baseline; gap: 10px"><span style="font-size: 17px; font-weight: 300; letter-spacing: -0.02em">Murmur</span><span style="font-family: 'Geist Mono', ui-monospace, monospace; font-size: 12px; color: var(--smoke)">[VERSION]</span></div>
+            <div style="font-size: 12px; line-height: 1.6; color: var(--ink2); white-space: pre-line">Project license — [LICENSE]
+Parakeet TDT v3 — NVIDIA, CC-BY-4.0
+Gemma 4 and EmbeddingGemma — Google, Apache 2.0</div>
+            <button type="button" onClick="{{replayOnb}}" class="soft" style="align-self: flex-start; height: 28px; padding: 0 14px; border-radius: 9999px; border: 1px solid var(--border); background: var(--bg); color: var(--ink); font-size: 12px; font-weight: 500">Replay onboarding</button>
+          </div>
+        </div>
+      </section>
+    </div>
+    </sc-if>
+  </main>
+  <footer data-name="Demo / Status bar" style="height: 28px; flex: none; padding: 0 12px; border-top: 1px solid var(--line); background: var(--bg); display: flex; align-items: center; gap: 4px; font-size: 12px; color: var(--ink2)">
+    <sc-if value="{{hasRec}}" hint-placeholder-val="{{ false }}">
+      <button type="button" onClick="{{goRecording}}" class="soft" style="height: 24px; padding: 0 8px; border-radius: 6px; border: 0; background: transparent; color: var(--ink); display: flex; align-items: center; gap: 7px; font-size: 12px"><span class="orb {{dotSpin}}" aria-hidden="true" style="width: 9px; height: 9px; border-radius: 9999px; filter: {{dotFilter}}"></span>{{recPillLabel}}<span style="font-family: 'Geist Mono', ui-monospace, monospace">{{recClock}}</span></button>
+    </sc-if>
+    <button type="button" onClick="{{toggleAct}}" aria-expanded="{{actOpen}}" class="soft" style="height: 24px; padding: 0 8px; border-radius: 6px; border: 0; background: {{actBtnBg}}; color: var(--ink2); display: flex; align-items: center; gap: 6px; font-size: 12px">{{actSummary}}<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 15l6-6 6 6"/></svg></button>
+    <span style="margin-left: auto; display: flex; align-items: center; gap: 6px; color: var(--smoke)"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>All local</span>
+  </footer>
+  <sc-if value="{{actOpen}}" hint-placeholder-val="{{ false }}">
+    <div role="dialog" aria-label="Activity" class="fade" data-name="Demo / Activity popover" style="position: absolute; left: 10px; bottom: 34px; z-index: 5; width: 320px; padding: 8px; border-radius: 18px; background: var(--bg); border: 1px solid var(--line); box-shadow: rgba(0,0,0,0.14) 0 16px 40px; display: flex; flex-direction: column">
+      <div style="padding: 8px 10px 6px; display: flex; align-items: baseline; justify-content: space-between"><span style="font-size: 13px; font-weight: 500">Activity</span><span style="font-size: 12px; color: var(--smoke)">All on this PC</span></div>
+      <sc-for list="{{jobs}}" as="j" hint-placeholder-count="2">
+        <div style="display: flex; align-items: center; gap: 12px; padding: 10px">
+          <span aria-hidden="true" style="width: 24px; flex: none; display: flex; justify-content: center; color: var(--ink)">
+            <sc-if value="{{j.isRec}}" hint-placeholder-val="{{ false }}"><span class="orb {{dotSpin}}" style="display: block; width: 14px; height: 14px; border-radius: 9999px; filter: {{dotFilter}}"></span></sc-if>
+            <sc-if value="{{j.isTr}}" hint-placeholder-val="{{ true }}"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h16M4 12h10M4 18h13"/></svg></sc-if>
+            <sc-if value="{{j.isQ}}" hint-placeholder-val="{{ false }}"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--smoke)" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8"/><path d="M12 8v4l3 2"/></svg></sc-if>
+            <sc-if value="{{j.isDl}}" hint-placeholder-val="{{ false }}"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v11M7 10l5 5 5-5M5 20h14"/></svg></sc-if>
+          </span>
+          <span style="flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6px">
+            <span style="font-size: 12px; color: {{j.fg}}; white-space: nowrap; overflow: hidden; text-overflow: ellipsis"><span style="font-weight: {{j.fw}}">{{j.kind}}</span> · {{j.title}}</span>
+            <sc-if value="{{j.hasBar}}" hint-placeholder-val="{{ true }}"><span aria-hidden="true" style="display: block; height: 3px; border-radius: 9999px; background: var(--line); overflow: hidden"><span style="display: block; width: {{j.w}}; height: 100%; background: var(--ink); transition: width .4s"></span></span></sc-if>
+          </span>
+          <span style="font-family: 'Geist Mono', ui-monospace, monospace; font-size: 12px; color: var(--ink2)">{{j.meta}}</span>
+        </div>
+      </sc-for>
+      <sc-if value="{{noJobs}}" hint-placeholder-val="{{ false }}"><div style="padding: 12px 10px 14px; font-size: 12px; color: var(--smoke)">Nothing running. Everything is up to date.</div></sc-if>
+    </div>
+  </sc-if>
+  </div>
+</div>
+
+<sc-if value="{{showDot}}" hint-placeholder-val="{{ false }}">
+  <div data-name="Demo / Floating recorder" style="position: absolute; right: 20px; top: 38%; z-index: 9; display: flex; flex-direction: row-reverse; align-items: center; gap: 8px">
+    <button type="button" onClick="{{toggleDot}}" aria-label="{{dotAria}}" aria-expanded="{{dotOpen}}" style="position: relative; width: 44px; height: 44px; flex: none; padding: 0; border: 1px solid var(--line); border-radius: 9999px; background: var(--bg); box-shadow: rgba(0,0,0,0.22) 0 8px 22px; display: flex; align-items: center; justify-content: center">
+      <span class="orb {{dotPing}}" aria-hidden="true" style="position: absolute; width: 28px; height: 28px; border-radius: 9999px; filter: blur(1px)"></span>
+      <span class="orb {{dotSpin}}" aria-hidden="true" style="position: relative; width: 28px; height: 28px; border-radius: 9999px; filter: {{dotFilter}}"></span>
+    </button>
+    <sc-if value="{{dotOpen}}" hint-placeholder-val="{{ false }}">
+      <div class="pop" data-name="Demo / Floating recorder – controls" style="height: 40px; padding: 0 4px; border-radius: 9999px; border: 1px solid var(--line); background: var(--bg); box-shadow: rgba(0,0,0,0.22) 0 8px 22px; display: flex; align-items: center; gap: 2px">
+        <button type="button" onClick="{{markNow}}" aria-label="Mark moment" title="Mark moment" class="soft" style="width: 32px; height: 32px; border-radius: 9999px; border: 0; background: transparent; color: var(--ink); display: flex; align-items: center; justify-content: center"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 4h12v17l-6-4-6 4z"/></svg></button>
+        <button type="button" onClick="{{togglePause}}" aria-label="{{pauseLabel}}" title="{{pauseLabel}}" class="soft" style="width: 32px; height: 32px; border-radius: 9999px; border: 0; background: transparent; color: var(--ink); display: flex; align-items: center; justify-content: center">
+          <sc-if value="{{recPaused}}" hint-placeholder-val="{{ false }}"><svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg></sc-if>
+          <sc-if value="{{recRunning}}" hint-placeholder-val="{{ true }}"><svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/></svg></sc-if>
+        </button>
+        <button type="button" onClick="{{stopRec}}" aria-label="Stop and transcribe" title="Stop and transcribe" class="primary" style="width: 32px; height: 32px; border-radius: 9999px; border: 0; background: var(--btn); color: var(--btnfg); display: flex; align-items: center; justify-content: center"><svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="5" y="5" width="14" height="14" rx="2"/></svg></button>
+        <button type="button" onClick="{{goRecording}}" aria-label="Open recording" title="Open recording" class="soft" style="width: 32px; height: 32px; border-radius: 9999px; border: 0; background: transparent; color: var(--smoke); display: flex; align-items: center; justify-content: center"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 4h6v6M20 4l-8 8M10 20H4v-6"/></svg></button>
+      </div>
+    </sc-if>
+    <sc-if value="{{hasMarkFlash}}" hint-placeholder-val="{{ false }}">
+      <span class="pop" role="status" style="position: absolute; right: 0; top: 52px; white-space: nowrap; height: 26px; padding: 0 12px; border-radius: 9999px; border: 1px solid var(--line); background: var(--bg); color: var(--ink); box-shadow: rgba(0,0,0,0.18) 0 6px 16px; display: flex; align-items: center; gap: 6px; font-size: 12px"><svg width="11" height="12" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M6 3h12v18l-6-4-6 4z"/></svg>{{markFlashText}}</span>
+    </sc-if>
+  </div>
+</sc-if>
+
+<sc-if value="{{callToast}}" hint-placeholder-val="{{ false }}">
+  <div role="alertdialog" aria-label="Call detected" class="pop" data-name="Demo / Call detected" style="position: absolute; right: 20px; bottom: 40px; z-index: 11; width: 320px; padding: 14px; border-radius: 16px; background: var(--bg); border: 1px solid var(--line); box-shadow: rgba(0,0,0,0.2) 0 16px 40px; display: flex; flex-direction: column; gap: 12px">
+    <div style="display: flex; align-items: flex-start; gap: 12px">
+      <span class="orb" aria-hidden="true" style="width: 28px; height: 28px; flex: none; border-radius: 9999px"></span>
+      <div style="flex: 1; display: flex; flex-direction: column; gap: 2px"><span style="font-size: 13px; font-weight: 500">Call detected</span><span style="font-size: 12px; color: var(--smoke)">Microsoft Teams is playing call audio.</span></div>
+      <button type="button" onClick="{{dismissCall}}" aria-label="Dismiss" class="soft" style="width: 26px; height: 26px; border-radius: 9999px; border: 0; background: transparent; color: var(--smoke); display: flex; align-items: center; justify-content: center"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+    </div>
+    <div style="display: flex; gap: 8px">
+      <button type="button" onClick="{{recordCall}}" class="primary" style="flex: 1; height: 28px; border-radius: 9999px; border: 0; background: var(--btn); color: var(--btnfg); font-size: 12px; font-weight: 500">Record</button>
+      <button type="button" onClick="{{dismissCall}}" class="soft" style="height: 28px; padding: 0 14px; border-radius: 9999px; border: 1px solid var(--border); background: var(--bg); color: var(--ink); font-size: 12px; font-weight: 500">Not now</button>
+    </div>
+    <label style="display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--ink2)"><input type="checkbox" checked="{{alwaysRec}}" onChange="{{toggleAlways}}" style="width: 14px; height: 14px; accent-color: var(--ink)">Always record calls from this app</label>
+  </div>
+</sc-if>
+
+<sc-if value="{{exportOpen}}" hint-placeholder-val="{{ false }}">
+  <div data-name="Demo / Export" style="position: absolute; inset: 0; z-index: 20; display: flex; align-items: center; justify-content: center; padding: 24px">
+    <button type="button" tabIndex="-1" aria-label="Close export" onClick="{{ex.close}}" style="position: absolute; inset: 0; border: 0; padding: 0; background: rgba(20,19,18,0.36); cursor: default"></button>
+    <div role="dialog" aria-label="Export recording" onKeyDown="{{ex.key}}" class="fade" style="position: relative; width: 840px; max-width: 100%; height: 540px; max-height: 100%; border-radius: 20px; background: var(--bg); border: 1px solid var(--line); box-shadow: rgba(0,0,0,0.3) 0 24px 64px; display: flex; flex-direction: column; overflow: hidden">
+      <header style="height: 52px; flex: none; padding: 0 14px 0 20px; display: flex; align-items: center; justify-content: space-between; gap: 12px; border-bottom: 1px solid var(--line)">
+        <div style="display: flex; align-items: baseline; gap: 10px; min-width: 0"><span style="font-size: 17px; font-weight: 300; letter-spacing: -0.02em">Export</span><span style="font-size: 13px; color: var(--smoke); white-space: nowrap; overflow: hidden; text-overflow: ellipsis">{{ex.title}}</span></div>
+        <button type="button" onClick="{{ex.close}}" aria-label="Close" class="soft" style="width: 28px; height: 28px; border-radius: 9999px; border: 0; background: transparent; color: var(--ink); display: flex; align-items: center; justify-content: center"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+      </header>
+      <div style="flex: 1; min-height: 0; display: flex">
+        <div data-name="Export / Options" style="width: 300px; flex: none; padding: 16px 20px; border-right: 1px solid var(--line); display: flex; flex-direction: column; gap: 22px; overflow-y: auto">
+          <div style="display: flex; flex-direction: column; gap: 10px">
+            <span style="font-size: 12px; font-weight: 500">Format</span>
+            <div role="radiogroup" aria-label="Format" style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px">
+              <sc-for list="{{ex.formats}}" as="f" hint-placeholder-count="4">
+                <button type="button" role="radio" aria-checked="{{f.on}}" onClick="{{f.pick}}" class="soft" style="height: 48px; padding: 0 14px; border-radius: 14px; border: {{f.bd}}; background: var(--bg); color: var(--ink); text-align: left; display: flex; flex-direction: column; justify-content: center; gap: 2px"><span style="font-size: 13px; font-weight: 500">{{f.label}}</span><span style="font-family: 'Geist Mono', ui-monospace, monospace; font-size: 12px; color: var(--smoke)">{{f.ext}}</span></button>
+              </sc-for>
+            </div>
+          </div>
+          <div style="display: flex; flex-direction: column; gap: 2px">
+            <span style="font-size: 12px; font-weight: 500; margin-bottom: 6px">Include</span>
+            <sc-for list="{{ex.includes}}" as="o" hint-placeholder-count="4">
+              <button type="button" role="checkbox" aria-checked="{{o.on}}" disabled="{{o.disabled}}" onClick="{{o.toggle}}" class="soft" style="height: 38px; padding: 0 8px; margin: 0 -8px; border-radius: 10px; border: 0; background: transparent; color: var(--ink); display: flex; align-items: center; gap: 12px; opacity: {{o.op}}; text-align: left">
+                <span aria-hidden="true" style="width: 18px; height: 18px; flex: none; border-radius: 5px; border: {{o.bd}}; background: {{o.bg}}; color: var(--btnfg); display: flex; align-items: center; justify-content: center"><sc-if value="{{o.on}}" hint-placeholder-val="{{ true }}"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l5 5L20 7"/></svg></sc-if></span>
+                <span style="font-size: 13px">{{o.label}}</span>
+              </button>
+            </sc-for>
+            <sc-if value="{{ex.isSrt}}" hint-placeholder-val="{{ false }}"><span style="font-size: 12px; color: var(--smoke); padding-top: 4px">Subtitles carry only the spoken lines.</span></sc-if>
+          </div>
+          <div style="display: flex; flex-direction: column; gap: 6px">
+            <span style="font-size: 12px; font-weight: 500; margin-bottom: 4px">Range</span>
+            <sc-for list="{{ex.ranges}}" as="r" hint-placeholder-count="2">
+              <button type="button" role="radio" aria-checked="{{r.on}}" onClick="{{r.pick}}" class="soft" style="height: 38px; padding: 0 8px; margin: 0 -8px; border-radius: 10px; border: 0; background: transparent; color: var(--ink); display: flex; align-items: center; gap: 12px; text-align: left">
+                <span aria-hidden="true" style="width: 18px; height: 18px; flex: none; border-radius: 9999px; border: {{r.ring}}; display: flex; align-items: center; justify-content: center"><sc-if value="{{r.on}}" hint-placeholder-val="{{ false }}"><span style="width: 8px; height: 8px; border-radius: 9999px; background: var(--ink)"></span></sc-if></span>
+                <span style="font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">{{r.label}}</span>
+                <span style="margin-left: auto; font-family: 'Geist Mono', ui-monospace, monospace; font-size: 12px; color: var(--smoke)">{{r.span}}</span>
+              </button>
+            </sc-for>
+          </div>
+        </div>
+        <div data-name="Export / Preview" style="flex: 1; min-width: 0; padding: 16px 20px; display: flex; flex-direction: column; gap: 12px">
+          <div style="display: flex; align-items: center; justify-content: space-between; gap: 12px"><span style="font-size: 12px; font-weight: 500">Preview</span><span style="font-family: 'Geist Mono', ui-monospace, monospace; font-size: 12px; color: var(--smoke); white-space: nowrap; overflow: hidden; text-overflow: ellipsis">{{ex.fileName}}</span></div>
+          <pre style="flex: 1; min-height: 0; margin: 0; padding: 14px 16px; border-radius: 16px; background: var(--surface); overflow: auto; white-space: pre-wrap; word-break: break-word; font-family: {{ex.font}}; font-size: {{ex.size}}; line-height: 1.65; color: var(--ink)">{{ex.preview}}</pre>
+        </div>
+      </div>
+      <footer style="height: 56px; flex: none; padding: 0 14px 0 20px; border-top: 1px solid var(--line); display: flex; align-items: center; gap: 10px">
+        <span role="status" style="font-size: 12px; color: var(--ink2)">{{ex.status}}</span>
+        <button type="button" onClick="{{ex.copy}}" disabled="{{ex.copyDisabled}}" class="soft" style="margin-left: auto; height: 32px; padding: 0 14px; border-radius: 9999px; border: 1px solid var(--border); background: var(--bg); color: var(--ink); display: flex; align-items: center; gap: 8px; font-weight: 500"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"/></svg>Copy</button>
+        <button type="button" onClick="{{ex.save}}" class="primary" style="height: 32px; padding: 0 16px; border-radius: 9999px; border: 0; background: var(--btn); color: var(--btnfg); font-weight: 500">{{ex.saveLabel}}</button>
+      </footer>
+    </div>
+  </div>
+</sc-if>
+
+<sc-if value="{{importOpen}}" hint-placeholder-val="{{ false }}">
+  <div data-name="Demo / Import" style="position: absolute; inset: 0; z-index: 20; display: flex; align-items: center; justify-content: center; padding: 24px">
+    <button type="button" tabIndex="-1" aria-label="Close import" onClick="{{im.close}}" style="position: absolute; inset: 0; border: 0; padding: 0; background: rgba(20,19,18,0.36); cursor: default"></button>
+    <div role="dialog" aria-label="Import recordings" onKeyDown="{{im.key}}" class="fade" style="position: relative; width: 520px; max-width: 100%; max-height: 100%; border-radius: 20px; background: var(--bg); border: 1px solid var(--line); box-shadow: rgba(0,0,0,0.3) 0 24px 64px; display: flex; flex-direction: column; overflow: hidden">
+      <header style="height: 52px; flex: none; padding: 0 14px 0 20px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--line)">
+        <span style="font-size: 17px; font-weight: 300; letter-spacing: -0.02em">Import recordings</span>
+        <button type="button" onClick="{{im.close}}" aria-label="Close" class="soft" style="width: 28px; height: 28px; border-radius: 9999px; border: 0; background: transparent; color: var(--ink); display: flex; align-items: center; justify-content: center"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+      </header>
+      <div style="flex: 1; min-height: 0; overflow-y: auto; padding: 16px 20px; display: flex; flex-direction: column; gap: 14px">
+        <label data-name="Import / Drop zone" class="drop" style="position: relative; border: 1.5px dashed var(--mline); border-radius: 16px; padding: 20px 16px; display: flex; flex-direction: column; align-items: center; gap: 8px; text-align: center; cursor: pointer">
+          <span aria-hidden="true" style="width: 32px; height: 32px; border-radius: 9999px; background: var(--surface); color: var(--ink); display: flex; align-items: center; justify-content: center; margin-bottom: 4px"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 15V4M7 9l5-5 5 5M5 20h14"/></svg></span>
+          <span style="font-size: 13px; font-weight: 500">Drop audio or video files here</span>
+          <span style="font-size: 12px; color: var(--smoke)">or <span style="color: var(--ink); text-decoration: underline; text-underline-offset: 3px">browse this PC</span></span>
+          <span style="font-family: 'Geist Mono', ui-monospace, monospace; font-size: 11px; color: var(--ash); margin-top: 4px">MP3 · WAV · M4A · FLAC · OGG · MP4 · MKV · MOV · WEBM</span>
+          <input type="file" multiple accept="audio/*,video/*,.mkv,.flac,.opus,.m4a" onChange="{{im.pick}}" class="sr">
+        </label>
+        <sc-if value="{{im.hasSuggest}}" hint-placeholder-val="{{ true }}">
+          <div data-name="Import / Recent in Downloads" style="display: flex; flex-direction: column">
+            <div style="display: flex; align-items: baseline; justify-content: space-between; padding-bottom: 4px"><span style="font-size: 12px; font-weight: 500">Recent in Downloads</span><span style="font-size: 12px; color: var(--smoke)">Audio and video only</span></div>
+            <sc-for list="{{im.suggest}}" as="sg" hint-placeholder-count="2">
+              <div style="display: flex; align-items: center; gap: 12px; padding: 8px 0">
+                <span aria-hidden="true" style="width: 28px; height: 28px; flex: none; border-radius: 8px; background: var(--plate); color: var(--ink); display: flex; align-items: center; justify-content: center">
+                  <sc-if value="{{sg.isVideo}}" hint-placeholder-val="{{ true }}"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="6" width="13" height="12" rx="2"/><path d="M16 10l5-3v10l-5-3z"/></svg></sc-if>
+                  <sc-if value="{{sg.isAudio}}" hint-placeholder-val="{{ false }}"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 10v4M8 7v10M12 4v16M16 8v8M20 11v2"/></svg></sc-if>
+                </span>
+                <span style="flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px"><span style="font-size: 12px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">{{sg.name}}</span><span style="font-size: 12px; color: var(--smoke)">{{sg.meta}}</span></span>
+                <button type="button" onClick="{{sg.add}}" aria-label="{{sg.aria}}" class="soft" style="height: 26px; padding: 0 12px; border-radius: 9999px; border: 1px solid var(--border); background: var(--bg); color: var(--ink); font-size: 12px; font-weight: 500">Add</button>
+              </div>
+            </sc-for>
+          </div>
+        </sc-if>
+        <sc-if value="{{im.hasFiles}}" hint-placeholder-val="{{ false }}">
+          <div data-name="Import / Queue" style="display: flex; flex-direction: column; gap: 8px">
+            <span style="font-size: 12px; font-weight: 500">{{im.queueLabel}}</span>
+            <div style="border: 1px solid var(--line); border-radius: 16px; overflow: hidden">
+              <sc-for list="{{im.files}}" as="f" hint-placeholder-count="2">
+                <div style="display: flex; align-items: center; gap: 12px; padding: 10px 10px 10px 14px; border-top: {{f.bt}}">
+                  <span aria-hidden="true" style="width: 28px; height: 28px; flex: none; border-radius: 8px; background: var(--plate); color: var(--ink); opacity: {{f.op}}; display: flex; align-items: center; justify-content: center">
+                    <sc-if value="{{f.isVideo}}" hint-placeholder-val="{{ true }}"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="6" width="13" height="12" rx="2"/><path d="M16 10l5-3v10l-5-3z"/></svg></sc-if>
+                    <sc-if value="{{f.isAudio}}" hint-placeholder-val="{{ false }}"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 10v4M8 7v10M12 4v16M16 8v8M20 11v2"/></svg></sc-if>
+                    <sc-if value="{{f.isBad}}" hint-placeholder-val="{{ false }}"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/></svg></sc-if>
+                  </span>
+                  <span style="flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; opacity: {{f.op}}"><span style="font-size: 12px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">{{f.name}}</span><span style="font-size: 12px; color: {{f.metaColor}}">{{f.meta}}</span></span>
+                  <button type="button" onClick="{{f.remove}}" aria-label="{{f.aria}}" class="soft" style="width: 26px; height: 26px; flex: none; border-radius: 9999px; border: 0; background: transparent; color: var(--smoke); display: flex; align-items: center; justify-content: center"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+                </div>
+              </sc-for>
+            </div>
+          </div>
+          <div data-name="Import / Options" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px">
+            <div style="display: flex; flex-direction: column; gap: 8px">
+              <label for="im-lang" style="font-size: 12px; font-weight: 500">Spoken language</label>
+              <select id="im-lang" value="{{im.lang}}" onChange="{{im.onLang}}" style="height: 32px; padding: 0 12px; border-radius: 4px; border: 1px solid var(--border); background: var(--field); color: var(--ink); font-size: 13px"><option>Auto-detect</option><option>English</option><option>Ukrainian</option><option>Polish</option><option>German</option><option>Spanish</option></select>
+            </div>
+            <div style="display: flex; flex-direction: column; gap: 8px">
+              <span id="im-keep" style="font-size: 12px; font-weight: 500">Original file</span>
+              <div role="radiogroup" aria-labelledby="im-keep" style="height: 32px; padding: 3px; border-radius: 9999px; background: var(--surface); display: flex; gap: 2px">
+                <sc-for list="{{im.keep}}" as="k" hint-placeholder-count="2"><button type="button" role="radio" aria-checked="{{k.on}}" onClick="{{k.pick}}" style="flex: 1; height: 28px; padding: 0 12px; border-radius: 9999px; border: 0; background: {{k.bg}}; color: {{k.fg}}; font-size: 12px; font-weight: 500">{{k.label}}</button></sc-for>
+              </div>
+            </div>
+          </div>
+          <span style="font-size: 12px; line-height: 1.5; color: var(--smoke)">{{im.note}}</span>
+        </sc-if>
+      </div>
+      <footer style="height: 56px; flex: none; padding: 0 14px 0 20px; border-top: 1px solid var(--line); display: flex; align-items: center; gap: 10px">
+        <span style="display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--ink2)"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>Transcribed on this PC</span>
+        <button type="button" onClick="{{im.close}}" class="soft" style="margin-left: auto; height: 32px; padding: 0 14px; border-radius: 9999px; border: 1px solid var(--border); background: var(--bg); color: var(--ink); font-weight: 500">Cancel</button>
+        <button type="button" onClick="{{im.go}}" disabled="{{im.ctaDisabled}}" class="primary" style="height: 32px; padding: 0 16px; border-radius: 9999px; border: 0; background: var(--btn); color: var(--btnfg); font-weight: 500">{{im.cta}}</button>
+      </footer>
+    </div>
+  </div>
+</sc-if>
+</sc-if>
+
+<sc-if value="{{hasToast}}" hint-placeholder-val="{{ false }}">
+  <div role="status" class="toast" style="position: absolute; left: 50%; bottom: 44px; transform: translateX(-50%); z-index: 30; padding: 9px 16px; border-radius: 9999px; background: var(--btn); color: var(--btnfg); font-size: 13px; font-weight: 500; box-shadow: rgba(0,0,0,0.14) 0 8px 24px; white-space: nowrap">{{toast}}</div>
+</sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["light","dark"],"default":"light"},"startScreen":{"editor":"enum","options":["onboarding","app"],"default":"onboarding"},"$preview":{"width":1100,"height":720}}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.state = {
+      theme: props.theme === 'dark' ? 'dark' : 'light',
+      onb: props.startScreen === 'app' ? 0 : 1,
+      micAllowed: false, aiChoice: 'e4b', parakeetPct: 0, onbCount: 10, lang: 'Auto-detect',
+      screen: 'library',
+      recs: this.seed(),
+      query: '', filter: 'all',
+      recMic: true, recSys: true, recScreen: false, screenDefault: false,
+      rec: null, recTitle: '',
+      curId: 'demo', cur: 741, playing: false, speed: 1, tab: 'transcript', tq: '', checked: {}, mutedYou: false, mutedOthers: false,
+      chat: [], chatDraft: '', scope: 'all', askDraft: '', thinking: false,
+      accel: 'CPU', dl: { e4b: 'installed', g26: 'none' }, pct: { e4b: 100, g26: 0 },
+      hotkey: 'Ctrl + Shift + R', capturing: false,
+      toast: null, toastTicks: 0,
+      follow: true, names: {}, renaming: null, renameDraft: '', lcOpen: null,
+      marks: { demo: [{ t: 760, note: 'Client asks about PDF export' }, { t: 795, note: 'Demo date agreed' }] },
+      dotOpen: false, flash: null, flashTicks: 0,
+      detectCalls: true, alwaysRec: false, callToast: false, callShown: false,
+      actOpen: false,
+      exportOpen: false, exFmt: 'md', exInc: { summary: true, actions: true, times: true, speakers: true }, exRange: 'all', exStatus: '',
+      importOpen: false, imFiles: [], imLang: 'Auto-detect', imKeep: 'copy',
+      imSuggest: [
+        { name: 'Zoom_Meeting_2026-10-30.mp4', size: 412000000, dur: 2710, when: 'Yesterday' },
+        { name: 'voice-memo-1029.m4a', size: 6200000, dur: 388, when: '2 days ago' },
+        { name: 'podcast-ep42.mp3', size: 58000000, dur: 3620, when: 'Last week' }
+      ]
+    };
+    this.fid = 0;
+    this.k = 0;
+    this.appK = 0;
+    this.lastActive = -1;
+    this.timer = null;
+    this.reply = null;
+    this.mainEl = null;
+    this.sessEl = null;
+    this.rnEl = null;
+    this.setMain = (el) => { this.mainEl = el; };
+    this.setSess = (el) => { this.sessEl = el; };
+    this.setRn = (el) => { this.rnEl = el; };
+  }
+
+  seed() {
+    var list = [
+      { id: 'demo', title: 'Client demo — Q4 roadmap', short: 'Client demo', group: 'Today', time: '10:30', lang: 'English', kind: 'screen', sources: 'Mic, system audio, screen', dur: 2832, status: 'ready', progress: 100,
+        snippet: '…PDF export moves to next sprint: first we finish meeting summaries and action items.',
+        segments: [
+          { sp: 'You', t: 712, text: 'Okay, a quick run through the roadmap. Recording and Parakit transcription are stable, and we’re finishing library search now.', lc: { w: 'Parakit', alts: ['Parakeet', 'Paraket'] } },
+          { sp: 'Others', t: 728, text: 'Does search only match exact words, or can I ask in my own words?' },
+          { sp: 'You', t: 741, text: 'Both: full-text plus semantic. Answers come back with timestamps, so one click takes you to the exact moment.' },
+          { sp: 'Others', t: 760, text: 'Great. What about PDF export? We need it for our reports.' },
+          { sp: 'You', t: 772, text: 'PDF export moves to next sprint — first we finish meeting summaries and action items.' },
+          { sp: 'Others', t: 795, text: 'Okay, then let’s lock in the demo for next week.' },
+          { sp: 'You', t: 804, text: 'Deal. I’ll send the invite today.' }
+        ],
+        summary: 'Walked the client through the roadmap: recording and transcription are ready, library search is in progress. PDF export moved to next sprint; the demo is set for next week.',
+        decisions: [{ text: 'PDF export — next sprint, after summaries and action items', t: 772 }, { text: 'Demo — next week', t: 795 }],
+        actions: [{ id: 'a1', text: 'Send the demo invite', t: 804 }, { id: 'a2', text: 'Add PDF export to the sprint plan', t: 772 }] },
+      { id: 'voice', title: 'Voice note', short: 'Voice note', group: 'Today', time: '09:05', lang: 'English', kind: 'mic', sources: 'Mic', dur: 198, status: 'ready', progress: 100,
+        snippet: 'Idea: draw the waveform from cached peaks instead of computing it on every open.',
+        segments: [
+          { sp: 'You', t: 4, text: 'Idea: draw the waveform from cached peaks instead of computing it on every open.' },
+          { sp: 'You', t: 61, text: 'Also: unload Gemma right after the summary is done, not when the app closes.' }
+        ],
+        summary: 'Two performance ideas for the player and the AI worker.',
+        decisions: [], actions: [{ id: 'a1', text: 'Cache waveform peaks on import', t: 4 }] },
+      { id: 'sync', title: 'Weekly team sync', short: 'Team sync', group: 'Today', time: '08:00', lang: 'English', kind: 'system', sources: 'Mic, system audio', dur: 3520, status: 'transcribing', progress: 64,
+        snippet: 'Main blocker this week is the AOT build for the capture module.',
+        segments: [
+          { sp: 'Others', t: 125, text: 'Main blocker this week is the AOT build for the capture module.' },
+          { sp: 'You', t: 410, text: 'I’ll split the WASAPI interop into its own project so trimming stops complaining.' },
+          { sp: 'Others', t: 1860, text: 'The budget for the GPU test machine is approved — I’ll order it on Monday.' }
+        ],
+        summary: 'AOT build issues in the capture module; the GPU test machine budget is approved.',
+        decisions: [{ text: 'Split the WASAPI interop into its own project', t: 410 }],
+        actions: [{ id: 'a1', text: 'Order the GPU test machine on Monday', t: 1860 }] },
+      { id: 'interview', title: 'Interview — Senior .NET', short: 'Interview', group: 'Yesterday', time: '16:00', lang: 'English', kind: 'system', sources: 'Mic, system audio', dur: 3735, status: 'ready', progress: 100,
+        snippet: '…I’d start with a lock-free ring buffer and keep the capture callback allocation-free.',
+        segments: [
+          { sp: 'You', t: 300, text: 'How would you keep the audio capture callback fast?' },
+          { sp: 'Others', t: 318, text: 'I’d start with a lock-free wing buffer and keep the capture callback allocation-free.', lc: { w: 'wing', alts: ['ring', 'swing'] } },
+          { sp: 'You', t: 905, text: 'What about the UI thread during long transcriptions?' },
+          { sp: 'Others', t: 922, text: 'Run the model in a separate worker process, so a crash never takes down the recording.' }
+        ],
+        summary: 'The candidate covered real-time audio capture and isolating model crashes in a worker process.',
+        decisions: [], actions: [] },
+      { id: 'qa', title: 'QA team sync', short: 'QA sync', group: 'Yesterday', time: '11:00', lang: 'English', kind: 'screen', sources: 'Mic, system audio, screen', dur: 2049, status: 'ready', progress: 100,
+        snippet: '…we’ll leave Windows 11 ARM testing for later and do x64 first.',
+        segments: [
+          { sp: 'Others', t: 240, text: 'We’ll leave Windows 11 ARM testing for later and do x64 first.' },
+          { sp: 'You', t: 610, text: 'Agreed. Can you add the 1080p30 CPU budget check to the test plan?' },
+          { sp: 'Others', t: 640, text: 'Yes — under 8% CPU with screen recording on. I’ll add it.' }
+        ],
+        summary: 'Windows 11 ARM testing is postponed; a CPU budget check for screen recording goes into the test plan.',
+        decisions: [{ text: 'Test x64 first, ARM later', t: 240 }],
+        actions: [{ id: 'a1', text: 'Add the 1080p30 CPU budget check to the test plan', t: 640 }] },
+      { id: 'retro', title: 'Sprint retro', short: 'Sprint retro', group: 'This week', time: 'Mon, 14:00', lang: 'English', kind: 'system', sources: 'Mic, system audio', dur: 2487, status: 'ready', progress: 100,
+        snippet: '…what went well: the AOT build in CI no longer breaks after dependency updates.',
+        segments: [
+          { sp: 'Others', t: 300, text: 'What went well: the AOT build in CI no longer breaks after dependency updates.' },
+          { sp: 'You', t: 1865, text: 'For PDF export, let’s show the report template to the designer first.' },
+          { sp: 'Others', t: 1900, text: 'I’ll share the template draft by Thursday.' }
+        ],
+        summary: 'CI is stable again after the AOT fixes. The report template gets a design review before PDF export work starts.',
+        decisions: [{ text: 'Review the report template with the designer first', t: 1865 }],
+        actions: [{ id: 'a1', text: 'Share the template draft by Thursday', t: 1900 }] }
+    ];
+    var ch = {
+      demo: [{ title: 'Roadmap status', t: 712 }, { title: 'Library search', t: 728 }, { title: 'PDF export', t: 760 }, { title: 'Next steps', t: 795 }],
+      sync: [{ title: 'Blockers', t: 125 }, { title: 'Capture module', t: 410 }, { title: 'GPU budget', t: 1860 }],
+      interview: [{ title: 'Audio capture', t: 300 }, { title: 'Worker process', t: 905 }],
+      qa: [{ title: 'Test scope', t: 240 }, { title: 'CPU budget', t: 610 }],
+      retro: [{ title: 'What went well', t: 300 }, { title: 'PDF export', t: 1865 }]
+    };
+    return list.map((r) => Object.assign({}, r, { chapters: ch[r.id] || [] }));
+  }
+
+  componentDidMount() { this.timer = setInterval(() => this.tick(), 250); }
+  componentWillUnmount() { if (this.timer) clearInterval(this.timer); if (this.reply) clearTimeout(this.reply); }
+  componentDidUpdate(pp, ps) {
+    if (pp.theme !== this.props.theme && this.props.theme) this.setState({ theme: this.props.theme });
+    if (pp.startScreen !== this.props.startScreen && this.props.startScreen) this.setState({ onb: this.props.startScreen === 'app' ? 0 : 1 });
+    var s = this.state;
+    if (this.mainEl) {
+      if (ps.screen !== s.screen) this.mainEl.scrollTop = 0;
+      else if (s.screen === 'chat' && ps.chat !== s.chat) this.mainEl.scrollTop = this.mainEl.scrollHeight;
+    }
+    if (s.screen === 'session' && (ps.screen !== 'session' || ps.curId !== s.curId) && this.sessEl) { try { this.sessEl.focus({ preventScroll: true }); } catch (err) {} }
+    if (s.renaming && ps.renaming !== s.renaming && this.rnEl) { try { this.rnEl.focus(); } catch (err) {} }
+    if (s.screen === 'session' && s.follow && s.playing && this.mainEl) {
+      var a = this.activeIdx();
+      if (a !== this.lastActive) {
+        this.lastActive = a;
+        var el = this.mainEl.querySelector('[data-active="true"]');
+        if (el && el.scrollIntoView) { try { el.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); } catch (err) {} }
+      }
+    }
+  }
+
+  pad(n) { return n < 10 ? '0' + n : '' + n; }
+  clock(sec) {
+    sec = Math.max(0, Math.floor(sec));
+    var h = Math.floor(sec / 3600), m = Math.floor((sec % 3600) / 60), s = sec % 60;
+    return h > 0 ? h + ':' + this.pad(m) + ':' + this.pad(s) : this.pad(m) + ':' + this.pad(s);
+  }
+  find(id) { var r = this.state.recs.filter((x) => x.id === id)[0]; return r || this.state.recs[0]; }
+  toastMsg(text) { this.setState({ toast: text, toastTicks: 12 }); }
+  activeIdx() { var s = this.state, r = this.find(s.curId), a = -1; r.segments.forEach((g, i) => { if (g.t <= s.cur) a = i; }); return a; }
+  spName(recId, sp) { return this.state.names[recId + '|' + sp] || sp; }
+  srtTime(t) { t = Math.max(0, Math.floor(t)); return this.pad(Math.floor(t / 3600)) + ':' + this.pad(Math.floor((t % 3600) / 60)) + ':' + this.pad(t % 60) + ',000'; }
+
+  tick() {
+    var s = this.state, n = {};
+    this.k++;
+    var sec = this.k % 4 === 0;
+    if (s.playing) {
+      var r = this.find(s.curId);
+      var nc = s.cur + 0.25 * s.speed;
+      if (nc >= r.dur) { nc = r.dur; n.playing = false; }
+      n.cur = nc;
+    }
+    if (s.toast) { if (s.toastTicks <= 1) { n.toast = null; n.toastTicks = 0; } else n.toastTicks = s.toastTicks - 1; }
+    if (s.flash) { if (s.flashTicks <= 1) { n.flash = null; n.flashTicks = 0; } else n.flashTicks = s.flashTicks - 1; }
+    if (sec) {
+      if (s.rec && !s.rec.paused) n.rec = Object.assign({}, s.rec, { seconds: s.rec.seconds + 1 });
+      if (s.onb === 0 && s.detectCalls && !s.callShown && !s.rec && s.screen === 'library') {
+        this.appK++;
+        if (this.appK >= 7) { n.callToast = true; n.callShown = true; }
+      }
+      if (s.recs.some((x) => x.status === 'transcribing')) {
+        var done = null, act = -1;
+        s.recs.forEach((x, i) => { if (x.status === 'transcribing') act = i; });
+        n.recs = s.recs.map((x, i) => {
+          if (i !== act) return x;
+          var p = x.progress + 9;
+          if (p >= 100) { done = x.title; return Object.assign({}, x, { status: 'ready', progress: 100 }); }
+          return Object.assign({}, x, { progress: p });
+        });
+        if (done) { n.toast = '“' + done + '” is ready'; n.toastTicks = 12; }
+      }
+      if (s.onb >= 3 && s.parakeetPct < 100) n.parakeetPct = Math.min(100, s.parakeetPct + 12);
+      if (s.onb === 5 && s.onbCount > 0) n.onbCount = s.onbCount - 1;
+      var dl = null, pc = null;
+      ['e4b', 'g26'].forEach((id) => {
+        if (s.dl[id] === 'downloading') {
+          dl = dl || Object.assign({}, s.dl); pc = pc || Object.assign({}, s.pct);
+          var q = s.pct[id] + 8;
+          if (q >= 100) { dl[id] = 'installed'; pc[id] = 100; n.toast = (id === 'e4b' ? 'Gemma 4 E4B' : 'Gemma 4 26B') + ' installed'; n.toastTicks = 12; }
+          else pc[id] = q;
+        }
+      });
+      if (dl) { n.dl = dl; n.pct = pc; }
+    }
+    if (Object.keys(n).length) this.setState(n);
+  }
+
+  /* ---------- actions ---------- */
+  go(screen) { this.setState({ screen: screen, capturing: false, dotOpen: false, actOpen: false }); }
+  openRec(id, t) {
+    var r = this.find(id);
+    if (r.status !== 'ready') { this.toastMsg('Still transcribing — almost there'); return; }
+    var start = (t !== undefined && t !== null) ? t : (r.segments[0] ? r.segments[0].t : 0);
+    this.lastActive = -1;
+    this.setState({ screen: 'session', curId: id, cur: start, playing: false, tab: 'transcript', tq: '', renaming: null, lcOpen: null, exportOpen: false, actOpen: false });
+  }
+  startRec(fromCall, auto) {
+    var s = this.state;
+    if (s.rec) { this.go('recording'); return; }
+    if (fromCall) {
+      this.setState({ rec: { seconds: 0, paused: false, marks: [] }, recTitle: 'Microsoft Teams call', recMic: true, recSys: true, callToast: false, dotOpen: false,
+        toast: auto ? 'Teams call detected — recording automatically' : (s.alwaysRec ? 'Recording. Teams calls will now record automatically' : 'Recording the call — click the orb for controls'), toastTicks: 16 });
+      return;
+    }
+    if (!s.recMic && !s.recSys) { this.toastMsg('Turn on the microphone or system audio first'); return; }
+    this.setState({ rec: { seconds: 0, paused: false, marks: [] }, recTitle: '', screen: 'recording', callToast: false });
+  }
+  markNow() {
+    var s = this.state;
+    if (!s.rec) return;
+    var t = s.rec.seconds;
+    var o = { rec: Object.assign({}, s.rec, { marks: (s.rec.marks || []).concat([{ t: t, note: 'Marked moment' }]) }) };
+    if (s.screen === 'recording') { o.toast = 'Marked ' + this.clock(t); o.toastTicks = 8; }
+    else { o.flash = 'Marked ' + this.clock(t); o.flashTicks = 9; }
+    this.setState(o);
+  }
+  togglePlay() {
+    var st = this.state, r = this.find(st.curId);
+    if (!st.playing && st.cur >= r.dur) this.setState({ cur: 0, playing: true });
+    else this.setState({ playing: !st.playing });
+  }
+  addMark(recId, t, note) {
+    var m = Object.assign({}, this.state.marks);
+    var l = (m[recId] || []).concat([{ t: t, note: note }]);
+    l.sort((a, b) => a.t - b.t);
+    m[recId] = l;
+    return m;
+  }
+  sessKey(e) {
+    var tg = e.target && e.target.tagName;
+    if (tg === 'INPUT' || tg === 'TEXTAREA' || tg === 'SELECT') return;
+    if (e.ctrlKey || e.metaKey || e.altKey) return;
+    var s = this.state, r = this.find(s.curId), k = e.key;
+    var kl = k && k.length === 1 ? k.toLowerCase() : k;
+    if (k === ' ' || k === 'Spacebar') { e.preventDefault(); this.togglePlay(); return; }
+    if (kl === 'j') { e.preventDefault(); this.setState({ cur: Math.max(0, s.cur - 5) }); return; }
+    if (kl === 'l') { e.preventDefault(); this.setState({ cur: Math.min(r.dur, s.cur + 5) }); return; }
+    if (k === 'ArrowUp' || k === 'ArrowDown') {
+      e.preventDefault();
+      var a = this.activeIdx(), sg = r.segments;
+      var ni = k === 'ArrowDown' ? Math.min(sg.length - 1, a + 1) : Math.max(0, a - 1);
+      if (sg[ni]) this.setState({ cur: sg[ni].t, tab: 'transcript' });
+      return;
+    }
+    if (kl === 'm') { e.preventDefault(); var t = Math.floor(s.cur); this.setState({ marks: this.addMark(r.id, t, 'Bookmark'), toast: 'Bookmark added at ' + this.clock(t), toastTicks: 10 }); return; }
+    if (kl === 'f') { e.preventDefault(); this.setState({ follow: !s.follow, toast: s.follow ? 'Follow along off' : 'Follow along on', toastTicks: 8 }); return; }
+    if (k === 'Escape' && (s.renaming || s.lcOpen)) this.setState({ renaming: null, lcOpen: null });
+  }
+  sessKeyUp(e) {
+    var tg = e.target && e.target.tagName;
+    if (tg === 'INPUT' || tg === 'TEXTAREA' || tg === 'SELECT') return;
+    if (e.key === ' ' || e.key === 'Spacebar') e.preventDefault();
+  }
+  startRename(sp) {
+    var s = this.state, cur = s.names[s.curId + '|' + sp];
+    this.setState({ renaming: sp, renameDraft: cur || '', lcOpen: null });
+  }
+  applyRename() {
+    var s = this.state;
+    if (!s.renaming) return;
+    var v = (s.renameDraft || '').trim();
+    var nm = Object.assign({}, s.names), key = s.curId + '|' + s.renaming;
+    if (v && v !== s.renaming) nm[key] = v; else delete nm[key];
+    this.setState({ names: nm, renaming: null, renameDraft: '', toast: (v && v !== s.renaming) ? 'Renamed to ' + v + ' in this recording' : 'Speaker name reset', toastTicks: 10 });
+  }
+  fixWord(idx, alt) {
+    var s = this.state, id = s.curId;
+    var recs = s.recs.map((r) => {
+      if (r.id !== id) return r;
+      return Object.assign({}, r, { segments: r.segments.map((g, i) => {
+        if (i !== idx || !g.lc) return g;
+        return Object.assign({}, g, { text: alt ? g.text.replace(g.lc.w, alt) : g.text, lc: null });
+      }) });
+    });
+    this.setState({ recs: recs, lcOpen: null, toast: alt ? 'Fixed. “' + alt + '” added to your vocabulary' : 'Kept as transcribed', toastTicks: 10 });
+  }
+  fileKind(name) {
+    var ext = (name.split('.').pop() || '').toLowerCase();
+    if (['mp3', 'wav', 'm4a', 'flac', 'ogg', 'opus', 'aac', 'wma'].indexOf(ext) >= 0) return 'audio';
+    if (['mp4', 'mkv', 'mov', 'webm', 'avi', 'wmv'].indexOf(ext) >= 0) return 'video';
+    return null;
+  }
+  fmtSize(b) {
+    if (b >= 1e9) return (b / 1e9).toFixed(2) + ' GB';
+    if (b >= 1e6) return Math.round(b / 1e6) + ' MB';
+    return Math.max(1, Math.round(b / 1e3)) + ' KB';
+  }
+  imAdd(arr, fromDl) {
+    var s = this.state, self = this;
+    var have = s.imFiles.map((f) => f.name);
+    var add = arr.filter((f) => have.indexOf(f.name) < 0).map((f) => Object.assign({}, f, { id: 'q' + (++self.fid), kind: self.fileKind(f.name), fromDl: !!fromDl }));
+    if (!add.length) { if (arr.length) this.toastMsg('Already in the list'); return; }
+    var o = { imFiles: s.imFiles.concat(add) };
+    if (fromDl) o.imSuggest = s.imSuggest.filter((g) => !arr.some((a) => a.name === g.name));
+    this.setState(o);
+  }
+  imRemove(id) {
+    var s = this.state, f = s.imFiles.filter((x) => x.id === id)[0];
+    if (!f) return;
+    var o = { imFiles: s.imFiles.filter((x) => x.id !== id) };
+    if (f.fromDl) o.imSuggest = s.imSuggest.concat([{ name: f.name, size: f.size, dur: f.dur, when: f.when }]);
+    this.setState(o);
+  }
+  doImport() {
+    var s = this.state, self = this, d = new Date();
+    var ok = s.imFiles.filter((f) => f.kind);
+    if (!ok.length) return;
+    var made = ok.map((f, i) => {
+      var base = f.name.replace(/\.[^.]+$/, '').replace(/[_]+/g, ' ');
+      var ext = (f.name.split('.').pop() || '').toUpperCase();
+      var dur = f.dur || Math.max(30, Math.min(4 * 3600, Math.round(f.size / (f.kind === 'video' ? 300000 : 16000))));
+      var line = 'Imported from ' + f.name + '. In the real app the transcript appears here when Parakeet is done.';
+      return { id: 'f' + d.getTime() + '-' + i, title: base, short: base, group: 'Today', time: self.pad(d.getHours()) + ':' + self.pad(d.getMinutes()),
+        lang: s.imLang === 'Auto-detect' ? 'English' : s.imLang, kind: 'file', media: f.kind, sources: 'Imported ' + ext + ' · ' + f.kind,
+        dur: dur, status: 'transcribing', progress: 0, snippet: line, segments: [{ sp: 'Others', t: 1, text: line }],
+        summary: 'Imported file — the summary is generated after transcription.', decisions: [], actions: [], chapters: [] };
+    });
+    var bad = s.imFiles.length - ok.length;
+    this.setState({ recs: made.slice().reverse().concat(s.recs), importOpen: false, imFiles: [], screen: 'library', query: '', filter: 'all',
+      toast: 'Imported ' + ok.length + (ok.length === 1 ? ' file' : ' files') + ' — transcription queued' + (bad ? ' · ' + bad + ' skipped' : ''), toastTicks: 14 });
+  }
+  exChapter() {
+    var s = this.state, r = this.find(s.curId), chs = r.chapters || [];
+    if (!chs.length) return null;
+    var ci = 0;
+    chs.forEach((c, i) => { if (c.t <= s.cur) ci = i; });
+    var c = chs[ci], nx = chs[ci + 1];
+    var end = nx ? nx.t : r.dur;
+    return { title: c.title, from: c.t, to: nx ? nx.t : r.dur + 1, span: this.clock(c.t) + ' – ' + this.clock(end) };
+  }
+  exBuild() {
+    var s = this.state, self = this, r = this.find(s.curId), inc = s.exInc;
+    var chap = s.exRange === 'ch' ? this.exChapter() : null;
+    var segs = chap ? r.segments.filter((g) => g.t >= chap.from && g.t < chap.to) : r.segments;
+    var nm = (sp) => self.spName(r.id, sp);
+    if (s.exFmt === 'srt') {
+      return segs.map((g, i) => {
+        var end = i + 1 < segs.length ? segs[i + 1].t : g.t + 8;
+        return (i + 1) + '\n' + self.srtTime(g.t) + ' --> ' + self.srtTime(end) + '\n' + (inc.speakers ? nm(g.sp) + ': ' : '') + g.text;
+      }).join('\n\n');
+    }
+    var md = s.exFmt === 'md', docx = s.exFmt === 'docx';
+    var h = (t) => md ? '## ' + t : (docx ? t : t.toUpperCase());
+    var out = [];
+    out.push(md ? '# ' + r.title : r.title);
+    out.push(r.group + ', ' + r.time + ' · ' + this.clock(r.dur) + ' · ' + r.lang + (chap ? ' · Chapter: ' + chap.title : ''));
+    if (inc.summary) { out.push(''); out.push(h('Summary')); out.push(r.summary); }
+    if (inc.actions && r.actions.length) {
+      out.push(''); out.push(h('Action items'));
+      r.actions.forEach((a) => out.push((md ? '- [ ] ' : '• ') + a.text + (inc.times ? ' (' + self.clock(a.t) + ')' : '')));
+    }
+    out.push(''); out.push(h('Transcript'));
+    segs.forEach((g) => {
+      var head = [];
+      if (inc.speakers) head.push(md ? '**' + nm(g.sp) + '**' : nm(g.sp));
+      if (inc.times) head.push(self.clock(g.t));
+      if (md || docx) { out.push(''); if (head.length) out.push(head.join(' · ')); out.push(g.text); }
+      else out.push((inc.times ? '[' + self.clock(g.t) + '] ' : '') + (inc.speakers ? nm(g.sp) + ': ' : '') + g.text);
+    });
+    return out.join('\n');
+  }
+  stopRec() {
+    var s = this.state;
+    if (!s.rec) return;
+    var d = new Date();
+    var title = (s.recTitle || '').trim() || 'Untitled recording';
+    var kind = s.recScreen ? 'screen' : (s.recSys ? 'system' : 'mic');
+    var src = [s.recMic ? 'mic' : null, s.recSys ? 'system audio' : null, s.recScreen ? 'screen' : null].filter(Boolean).join(', ');
+    src = src.charAt(0).toUpperCase() + src.slice(1);
+    var dur = Math.max(3, s.rec.seconds);
+    var line = 'Testing Murmur — this recording was made in the clickable demo.';
+    var r = { id: 'r' + d.getTime(), title: title, short: title, group: 'Today', time: this.pad(d.getHours()) + ':' + this.pad(d.getMinutes()), lang: 'English', kind: kind, sources: src, dur: dur, status: 'transcribing', progress: 0,
+      snippet: line, segments: [{ sp: s.recMic ? 'You' : 'Others', t: 1, text: line }], summary: 'A short test recording made in the clickable demo.', decisions: [], actions: [], chapters: [] };
+    var mk = Object.assign({}, s.marks), rm = s.rec.marks || [];
+    if (rm.length) mk[r.id] = rm.map((m) => ({ t: Math.min(m.t, dur), note: m.note }));
+    this.setState({ recs: [r].concat(s.recs), rec: null, marks: mk, dotOpen: false, flash: null, screen: 'library', query: '', filter: 'all', recScreen: s.screenDefault,
+      toast: 'Transcribing “' + title + '” in the background' + (rm.length ? ' · ' + rm.length + (rm.length === 1 ? ' bookmark' : ' bookmarks') : '…'), toastTicks: 12 });
+  }
+  toggleSrc(key) {
+    var s = this.state, next = !s[key];
+    if (!next && key !== 'recScreen') {
+      var other = key === 'recMic' ? s.recSys : s.recMic;
+      if (!other) { this.toastMsg('At least one audio source has to stay on'); return; }
+    }
+    var o = {}; o[key] = next; this.setState(o);
+  }
+  isStop(w) {
+    return ['what', 'when', 'where', 'which', 'with', 'that', 'this', 'about', 'have', 'from', 'there', 'their', 'they', 'does', 'anyone', 'someone', 'mentioned', 'mention', 'said', 'talk', 'talked', 'tell', 'could', 'would', 'should', 'your', 'recordings', 'recording', 'decide', 'decided', 'were', 'will', 'into'].indexOf(w) >= 0;
+  }
+  answer(q) {
+    var s = this.state, ql = q.toLowerCase();
+    if (s.dl.e4b !== 'installed' && s.dl.g26 !== 'installed') return { text: 'No AI model is installed yet. Download Gemma in Settings → Models to ask questions about your recordings.', refs: [] };
+    var pool = (s.scope === 'one' ? s.recs.filter((r) => r.id === s.curId) : s.recs).filter((r) => r.status === 'ready');
+    var ref = (r, t, quote) => ({ recId: r.id, t: t, label: r.short || r.title, quote: quote });
+    if (ql.indexOf('pdf') >= 0 && pool.some((r) => r.id === 'demo')) {
+      var dm = this.find('demo'), rt = this.find('retro');
+      var refs = [ref(dm, dm.segments[4].t, dm.segments[4].text), ref(dm, dm.segments[3].t, dm.segments[3].text)];
+      if (pool.some((r) => r.id === 'retro')) refs.push(ref(rt, rt.segments[1].t, rt.segments[1].text));
+      return { text: 'PDF export was moved to next sprint — meeting summaries and action items come first. The client needs PDFs for their reports, and in the retro the team agreed to show the report template to the designer first.', refs: refs };
+    }
+    if (ql.indexOf('action') >= 0 || ql.indexOf('to-do') >= 0 || ql.indexOf('todo') >= 0) {
+      var ar = [];
+      pool.forEach((r) => r.actions.forEach((a) => ar.push(ref(r, a.t, a.text))));
+      if (!ar.length) return { text: 'I didn’t find any action items.', refs: [] };
+      return { text: 'Here are the action items I found:\n' + ar.map((x) => '• ' + x.quote).join('\n'), refs: ar };
+    }
+    if (ql.indexOf('yesterday') >= 0) {
+      var ys = pool.filter((r) => r.group === 'Yesterday');
+      if (!ys.length) return { text: 'Nothing from yesterday in ' + (s.scope === 'one' ? 'this recording' : 'your library') + '.', refs: [] };
+      return { text: ys.map((r) => r.title + ' — ' + r.summary).join('\n\n'), refs: ys.map((r) => ref(r, r.segments[0].t, r.segments[0].text)) };
+    }
+    var words = ql.replace(/[^a-z0-9\s]/g, ' ').split(/\s+/).filter((w) => w.length > 3 && !this.isStop(w));
+    var hits = [];
+    pool.forEach((r) => r.segments.forEach((g) => {
+      var tl = g.text.toLowerCase(), sc = 0;
+      words.forEach((w) => { if (tl.indexOf(w) >= 0 || tl.indexOf(w.replace(/s$/, '')) >= 0) sc++; });
+      if (sc > 0) hits.push({ sc: sc, r: r, g: g });
+    }));
+    hits.sort((a, b) => b.sc - a.sc);
+    hits = hits.slice(0, 3);
+    if (!hits.length) return { text: 'I couldn’t find anything about that in ' + (s.scope === 'one' ? 'this recording' : 'your transcripts') + '. Try different words.', refs: [] };
+    return { text: 'Here’s what your recordings say:\n' + hits.map((h) => '• ' + h.g.text).join('\n'), refs: hits.map((h) => ref(h.r, h.g.t, h.g.text)) };
+  }
+  send(text, scope) {
+    var q = (text || '').trim();
+    if (!q || this.state.thinking) return;
+    var msgs = this.state.chat.concat([{ role: 'user', text: q }, { role: 'ai', pending: true }]);
+    var upd = { chat: msgs, chatDraft: '', askDraft: '', thinking: true, screen: 'chat' };
+    if (scope) upd.scope = scope;
+    this.setState(upd);
+    if (this.reply) clearTimeout(this.reply);
+    this.reply = setTimeout(() => {
+      var a = this.answer(q);
+      var c = this.state.chat.slice();
+      c[c.length - 1] = { role: 'ai', text: a.text, refs: a.refs };
+      this.setState({ chat: c, thinking: false });
+    }, 900);
+  }
+  onHotkey(e) {
+    if (!this.state.capturing) return;
+    var k = e.key;
+    if (k === 'Escape') { e.preventDefault(); this.setState({ capturing: false }); return; }
+    if (k === 'Tab') { this.setState({ capturing: false }); return; }
+    if (['Control', 'Shift', 'Alt', 'Meta'].indexOf(k) >= 0) { e.preventDefault(); return; }
+    var mods = [];
+    if (e.ctrlKey) mods.push('Ctrl');
+    if (e.altKey) mods.push('Alt');
+    if (e.shiftKey) mods.push('Shift');
+    e.preventDefault();
+    if (!mods.length) { this.toastMsg('Add Ctrl, Alt or Shift'); return; }
+    var key = k.length === 1 ? k.toUpperCase() : k;
+    var hk = mods.concat([key]).join(' + ');
+    this.setState({ hotkey: hk, capturing: false, toast: 'Shortcut set to ' + hk, toastTicks: 12 });
+  }
+  finishOnb() {
+    var s = this.state;
+    var dl = { e4b: 'none', g26: 'none' }, pct = { e4b: 0, g26: 0 };
+    if (s.aiChoice === 'e4b') { dl.e4b = 'installed'; pct.e4b = 100; }
+    if (s.aiChoice === '26b') { dl.g26 = 'installed'; pct.g26 = 100; }
+    this.setState({ onb: 0, screen: 'library', dl: dl, pct: pct, recScreen: s.screenDefault, capturing: false, toast: 'Welcome to Murmur', toastTicks: 12 });
+  }
+  onbTo(step) {
+    var o = { onb: step, capturing: false };
+    if (step === 5) o.onbCount = 10;
+    this.setState(o);
+  }
+
+  /* ---------- view helpers ---------- */
+  pill(on) { return on ? { on: true, bd: '1px solid var(--border)', bg: 'var(--field)', fg: 'var(--ink)' } : { on: false, bd: '1px dashed var(--mline)', bg: 'transparent', fg: 'var(--smoke)' }; }
+  segOpt(on) { return on ? { bg: 'var(--btn)', fg: 'var(--btnfg)' } : { bg: 'transparent', fg: 'var(--ink2)' }; }
+  bars(seed, n) {
+    var out = [];
+    for (var i = 0; i < n; i++) {
+      var v = Math.abs(Math.sin(i * 0.8 + seed) * 0.6 + Math.sin(i * 2.1 + seed * 3) * 0.4);
+      out.push({ h: Math.max(3, Math.round(v * 22)), d: ((i * 37) % 70) / 100 });
+    }
+    return out;
+  }
+
+  renderVals() {
+    var s = this.state, self = this;
+    var idle = []; for (var i = 0; i < 36; i++) idle.push({ i: i });
+
+    /* onboarding */
+    var onbSegs = [1, 2, 3, 4, 5].map((n) => ({ c: n <= s.onb ? 'var(--ink)' : 'var(--line)' }));
+    var aiList = [
+      { id: 'e4b', name: 'Gemma 4 E4B', desc: 'Recommended for your PC', size: '[X.X] GB' },
+      { id: '26b', name: 'Gemma 4 26B', desc: 'Best quality, needs GPU', size: '[XX] GB' }
+    ];
+    var aiCards = aiList.map((m) => {
+      var on = s.aiChoice === m.id;
+      return { name: m.name, desc: m.desc, size: m.size, on: on, border: on ? '1.5px solid var(--ink)' : '1px solid var(--line)', ring: on ? '1.5px solid var(--ink)' : '1.5px solid var(--mline)', pick: () => self.setState({ aiChoice: m.id }) };
+    });
+    var skipOn = s.aiChoice === 'skip';
+    var onbNextLabel = s.onb === 1 ? 'Get started' : (s.onb === 5 ? 'Open Murmur' : 'Continue');
+
+    /* recording */
+    var rec = s.rec;
+    var recSec = rec ? rec.seconds : 0;
+    var hh = Math.floor(recSec / 3600), mm = Math.floor((recSec % 3600) / 60), ss = recSec % 60;
+    var recPaused = !!(rec && rec.paused);
+
+    /* library */
+    var q = s.query.trim().toLowerCase();
+    var list = s.recs.filter((r) => {
+      var okQ = !q || (r.title + ' ' + r.snippet + ' ' + r.segments.map((g) => g.text).join(' ')).toLowerCase().indexOf(q) >= 0;
+      var okF = s.filter === 'all' || (s.filter === 'today' && r.group === 'Today') || (s.filter === 'week' && r.group !== 'Earlier') || (s.filter === 'screen' && r.kind === 'screen') || (s.filter === 'imported' && r.kind === 'file');
+      return okQ && okF;
+    });
+    var actTr = null;
+    s.recs.forEach((r) => { if (r.status === 'transcribing') actTr = r.id; });
+    var groups = ['Today', 'Yesterday', 'This week'].map((g) => {
+      var items = list.filter((r) => r.group === g).map((r, idx) => ({
+        title: r.title, meta: r.time + ' · ' + r.lang + ' · ' + r.sources, snippet: r.snippet, dur: self.clock(r.dur),
+        isReady: r.status === 'ready', isTrans: r.status === 'transcribing', pct: r.progress + '%', pctLabel: r.id === actTr ? 'Transcribing · ' + r.progress + '%' : 'Queued',
+        isScreen: r.kind === 'screen', isMic: r.kind === 'mic', isSys: r.kind === 'system', isFile: r.kind === 'file',
+        bt: idx === 0 ? '0' : '1px solid var(--line)', open: () => self.openRec(r.id)
+      }));
+      return { label: g, items: items };
+    }).filter((g) => g.items.length);
+    var filterDefs = [['all', 'All'], ['today', 'Today'], ['week', 'This week'], ['screen', 'With screen'], ['imported', 'Imported']];
+    var filters = filterDefs.map((f) => {
+      var on = s.filter === f[0];
+      return { label: f[1], on: on, bd: on ? '1px solid var(--border)' : '1px solid transparent', bg: on ? 'var(--field)' : 'transparent', fg: on ? 'var(--ink)' : 'var(--ink2)', fw: on ? '500' : '400', pick: () => self.setState({ filter: f[0] }) };
+    });
+
+    /* session */
+    var cr = this.find(s.curId);
+    var activeIdx = -1;
+    cr.segments.forEach((g, idx) => { if (g.t <= s.cur) activeIdx = idx; });
+    var tq = s.tq.trim().toLowerCase();
+    var segs = cr.segments.map((g, idx) => {
+      var you = g.sp === 'You';
+      var on = idx === activeIdx;
+      var name = self.spName(cr.id, g.sp);
+      var words = g.text.split(' ');
+      var nx = cr.segments[idx + 1];
+      var span = Math.min(nx ? nx.t - g.t : 10, words.length * 0.42 + 0.8);
+      var prog = (s.cur - g.t) / span;
+      var isK = on && s.follow && s.playing && prog >= 0 && prog < 1;
+      var wi = Math.max(0, Math.min(words.length - 1, Math.floor(prog * words.length)));
+      var lcKey = cr.id + '|' + idx;
+      var lp = g.lc ? g.text.indexOf(g.lc.w) : -1;
+      var isLc = !isK && lp >= 0;
+      var lcOpen = isLc && s.lcOpen === lcKey;
+      return {
+        isMark: false, isSeg: true, t: g.t,
+        sp: name, initial: name.charAt(0).toUpperCase(), clock: self.clock(g.t), text: g.text,
+        seekLabel: 'Play from ' + self.clock(g.t), activeAttr: on ? 'true' : 'false',
+        bg: on ? 'var(--surface)' : 'transparent', tc: on ? 'var(--ink)' : 'var(--smoke)', txc: on ? 'var(--ink)' : 'var(--ink2)',
+        avBg: you ? 'var(--btn)' : 'var(--plate)', avFg: you ? 'var(--btnfg)' : 'var(--ink)',
+        op: ((you && s.mutedYou) || (!you && s.mutedOthers)) ? '0.4' : '1',
+        show: !tq || g.text.toLowerCase().indexOf(tq) >= 0,
+        isKaraoke: isK, isLc: isLc, isPlain: !isK && !isLc,
+        kPre: isK ? words.slice(0, wi).join(' ') + (wi > 0 ? ' ' : '') : '', kWord: isK ? words[wi] : '', kPost: isK ? (wi < words.length - 1 ? ' ' : '') + words.slice(wi + 1).join(' ') : '',
+        lPre: isLc ? g.text.slice(0, lp) : '', lWord: isLc ? g.lc.w : '', lPost: isLc ? g.text.slice(lp + g.lc.w.length) : '',
+        lcOpen: lcOpen,
+        openLc: () => self.setState({ lcOpen: self.state.lcOpen === lcKey ? null : lcKey, renaming: null }),
+        opts: lcOpen ? g.lc.alts.map((a, ai) => ({ label: a, pick: () => self.fixWord(idx, a), bd: ai === 0 ? '0' : '1px solid var(--border)', bg: ai === 0 ? 'var(--btn)' : 'var(--bg)', fg: ai === 0 ? 'var(--btnfg)' : 'var(--ink)' }))
+          .concat([{ label: 'Keep “' + g.lc.w + '”', pick: () => self.fixWord(idx, null), bd: '1px solid var(--border)', bg: 'var(--bg)', fg: 'var(--ink2)' }]) : [],
+        note: '',
+        seek: () => self.setState({ cur: g.t })
+      };
+    }).filter((g) => g.show);
+    var mlist = s.marks[cr.id] || [];
+    var marks = mlist.map((m) => ({ left: (cr.dur ? Math.min(100, (m.t / cr.dur) * 100) : 0).toFixed(2) + '%', clock: self.clock(m.t), note: m.note, seek: () => self.setState({ cur: m.t, tab: 'transcript' }) }));
+    var items = segs.slice();
+    if (!tq) mlist.forEach((m) => items.push({ isMark: true, isSeg: false, isPlain: false, isKaraoke: false, isLc: false, lcOpen: false, opts: [], activeAttr: 'false', t: m.t, clock: self.clock(m.t), note: m.note, seek: () => self.setState({ cur: m.t }) }));
+    items.sort((a, b) => (a.t !== b.t ? a.t - b.t : (b.isMark ? 1 : 0) - (a.isMark ? 1 : 0)));
+    var spList = [];
+    cr.segments.forEach((g) => { if (spList.indexOf(g.sp) < 0) spList.push(g.sp); });
+    var speakers = spList.map((sp) => {
+      var name = self.spName(cr.id, sp), you = sp === 'You';
+      return { name: name, initial: name.charAt(0).toUpperCase(), aria: 'Rename ' + name, bd: s.renaming === sp ? '1.5px solid var(--ink)' : '1px solid var(--border)',
+        avBg: you ? 'var(--btn)' : 'var(--plate)', avFg: you ? 'var(--btnfg)' : 'var(--ink)', rename: () => self.startRename(sp) };
+    });
+    var renName = s.renaming ? self.spName(cr.id, s.renaming) : '';
+    var renCount = s.renaming ? cr.segments.filter((g) => g.sp === s.renaming).length : 0;
+    var chs = cr.chapters || [];
+    var chIdx = 0;
+    chs.forEach((c, i) => { if (c.t <= s.cur) chIdx = i; });
+    var chapters = chs.map((c, i) => {
+      var on = i === chIdx;
+      return { title: c.title, clock: self.clock(c.t), flex: '1 1 0', on: on ? 'true' : 'false', bg: on ? 'var(--btn)' : 'var(--surface)', fg: on ? 'var(--btnfg)' : 'var(--ink)', sub: on ? 'var(--btnfg)' : 'var(--smoke)', seek: () => self.setState({ cur: c.t, tab: 'transcript' }) };
+    });
+
+    /* export */
+    var fmts = [['md', 'Markdown', '.md'], ['txt', 'Plain text', '.txt'], ['srt', 'Subtitles', '.srt'], ['docx', 'Word', '.docx']];
+    var exExt = fmts.filter((f) => f[0] === s.exFmt)[0][2];
+    var exSrt = s.exFmt === 'srt';
+    var exChap = this.exChapter();
+    var exSlug = cr.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'recording';
+    var ex = {
+      title: cr.title,
+      close: () => self.setState({ exportOpen: false }),
+      key: (e) => { if (e.key === 'Escape') { e.preventDefault(); self.setState({ exportOpen: false }); } },
+      formats: fmts.map((f) => { var on = s.exFmt === f[0]; return { label: f[1], ext: f[2], on: on, bd: on ? '1.5px solid var(--ink)' : '1px solid var(--line)', pick: () => self.setState({ exFmt: f[0], exStatus: '' }) }; }),
+      includes: [['summary', 'Summary', exSrt], ['actions', 'Action items', exSrt], ['times', 'Timestamps', exSrt], ['speakers', 'Speaker names', false]].map((o) => {
+        var on = o[2] ? o[0] === 'times' : !!s.exInc[o[0]];
+        return { label: o[1], on: on, disabled: o[2], op: o[2] ? '0.45' : '1', bd: on ? '1.5px solid var(--ink)' : '1.5px solid var(--mline)', bg: on ? 'var(--ink)' : 'transparent',
+          toggle: () => { if (o[2]) return; var inc = Object.assign({}, self.state.exInc); inc[o[0]] = !inc[o[0]]; self.setState({ exInc: inc, exStatus: '' }); } };
+      }),
+      isSrt: exSrt,
+      ranges: [{ id: 'all', label: 'Whole recording', span: '00:00 – ' + this.clock(cr.dur) }].concat(exChap ? [{ id: 'ch', label: 'Chapter: ' + exChap.title, span: exChap.span }] : []).map((r) => {
+        var on = s.exRange === r.id || (r.id === 'all' && !exChap);
+        return { label: r.label, span: r.span, on: on, ring: on ? '1.5px solid var(--ink)' : '1.5px solid var(--mline)', pick: () => self.setState({ exRange: r.id, exStatus: '' }) };
+      }),
+      fileName: exSlug + exExt,
+      preview: s.exportOpen ? this.exBuild() : '',
+      font: s.exFmt === 'docx' ? "Inter, ui-sans-serif, system-ui, sans-serif" : "'Geist Mono', ui-monospace, monospace",
+      size: s.exFmt === 'docx' ? '14px' : '12.5px',
+      status: s.exStatus,
+      copyDisabled: s.exFmt === 'docx',
+      copy: () => { try { navigator.clipboard.writeText(self.exBuild()); } catch (err) {} self.setState({ exStatus: 'Copied to clipboard' }); },
+      saveLabel: 'Save ' + exExt,
+      save: () => self.setState({ exportOpen: false, toast: 'Saved ' + exSlug + exExt + ' to Documents\\Murmur (demo)', toastTicks: 12 })
+    };
+    var frac = cr.dur ? Math.min(1, s.cur / cr.dur) : 0;
+    var hash = 0; for (var c = 0; c < cr.id.length; c++) hash += cr.id.charCodeAt(c);
+    var wave = [];
+    for (var w = 0; w < 96; w++) {
+      var v = Math.abs(Math.sin(w * 0.37 + hash) * 0.55 + Math.sin(w * 1.7 + hash * 0.3) * 0.3 + Math.sin(w * 0.11) * 0.15);
+      wave.push({ h: Math.max(3, Math.round(v * 38)), c: (w + 0.5) / 96 <= frac ? 'var(--ink)' : 'var(--mline)' });
+    }
+    var trk = (on, key) => Object.assign(self.pill(on), { toggle: () => { var o = {}; o[key] = !self.state[key]; self.setState(o); } });
+
+    /* chat */
+    var msgs = s.chat.map((m) => {
+      var refs = (m.refs || []).map((rf) => ({ label: rf.label, clock: self.clock(rf.t), quote: rf.quote, open: () => self.openRec(rf.recId, rf.t) }));
+      return { isUser: m.role === 'user', isAi: m.role === 'ai', pending: !!m.pending, ready: m.role === 'ai' && !m.pending, text: m.text || '', refs: refs, hasRefs: refs.length > 0 };
+    });
+    var modelChip = s.dl.e4b === 'installed' ? 'Gemma 4 E4B · local' : (s.dl.g26 === 'installed' ? 'Gemma 4 26B · local' : 'No AI model');
+    var chipSend = (label) => ({ label: label, go: () => self.send(label, 'all') });
+
+    /* settings */
+    var modelDefs = [
+      { id: 'e4b', name: 'Gemma 4 E4B', desc: 'AI chat, summaries, action items · recommended', size: '[X.X] GB' },
+      { id: 'g26', name: 'Gemma 4 26B A4B', desc: 'Best quality · needs a GPU', size: '[XX] GB' }
+    ];
+
+    /* activity */
+    var job = (o) => Object.assign({ isRec: false, isTr: false, isQ: false, isDl: false, hasBar: false, w: '0%', meta: '', fg: 'var(--ink)', fw: '500' }, o);
+    var jobs = [];
+    if (rec) jobs.push(job({ isRec: true, kind: recPaused ? 'Paused' : 'Recording', title: (s.recTitle || '').trim() || 'Untitled recording', meta: this.clock(recSec) }));
+    var trs = s.recs.filter((r) => r.status === 'transcribing');
+    var trAct = trs.filter((r) => r.id === actTr)[0];
+    if (trAct) {
+      jobs.push(job({ isTr: true, kind: 'Transcribing', title: trAct.title, meta: trAct.progress + '%', hasBar: true, w: trAct.progress + '%' }));
+      jobs.push(job({ isQ: true, kind: 'Index + summary', title: 'after transcription', fg: 'var(--ink2)', fw: '400' }));
+    }
+    trs.filter((r) => r.id !== actTr).reverse().forEach((r) => jobs.push(job({ isQ: true, kind: 'Queued', title: r.title, fg: 'var(--ink2)', fw: '400' })));
+    var dls = modelDefs.filter((m) => s.dl[m.id] === 'downloading');
+    dls.forEach((m) => jobs.push(job({ isDl: true, kind: 'Downloading', title: m.name, meta: s.pct[m.id] + '%', hasBar: true, w: s.pct[m.id] + '%' })));
+    var actParts = [];
+    if (trAct) actParts.push('Transcribing ' + trAct.progress + '%' + (trs.length > 1 ? ' · ' + (trs.length - 1) + ' queued' : ''));
+
+    /* import */
+    var imOk = s.imFiles.filter((f) => f.kind);
+    var im = {
+      close: () => self.setState({ importOpen: false }),
+      key: (e) => { if (e.key === 'Escape') { e.preventDefault(); self.setState({ importOpen: false }); } },
+      pick: (e) => {
+        var fl = e.target.files, arr = [];
+        for (var fi = 0; fi < (fl ? fl.length : 0); fi++) arr.push({ name: fl[fi].name, size: fl[fi].size });
+        try { e.target.value = ''; } catch (err) {}
+        self.imAdd(arr, false);
+      },
+      hasSuggest: s.imSuggest.length > 0,
+      suggest: s.imSuggest.map((g) => { var k = self.fileKind(g.name); return { name: g.name, meta: self.fmtSize(g.size) + ' · ' + g.when, isVideo: k === 'video', isAudio: k === 'audio', aria: 'Add ' + g.name, add: () => self.imAdd([g], true) }; }),
+      hasFiles: s.imFiles.length > 0,
+      queueLabel: imOk.length + (imOk.length === 1 ? ' file' : ' files') + ' to import',
+      files: s.imFiles.map((f, i) => ({
+        name: f.name, isVideo: f.kind === 'video', isAudio: f.kind === 'audio', isBad: !f.kind,
+        meta: f.kind ? (f.kind === 'video' ? 'Video' : 'Audio') + ' · ' + self.fmtSize(f.size) + (f.dur ? ' · ' + self.clock(f.dur) : '') : 'Not supported — pick an audio or video file',
+        metaColor: f.kind ? 'var(--smoke)' : 'var(--ink2)', op: f.kind ? '1' : '0.55', bt: i === 0 ? '0' : '1px solid var(--line)',
+        aria: 'Remove ' + f.name, remove: () => self.imRemove(f.id)
+      })),
+      lang: s.imLang, onLang: (e) => self.setState({ imLang: e.target.value }),
+      keep: [['copy', 'Copy to library'], ['link', 'Leave in place']].map((k) => Object.assign({ label: k[1], on: s.imKeep === k[0], pick: () => self.setState({ imKeep: k[0] }) }, self.segOpt(s.imKeep === k[0]))),
+      note: (s.imKeep === 'copy' ? 'A copy goes to your Murmur folder, so moving the original won’t break playback.' : 'Murmur links to the file where it is. Moving or deleting it breaks playback.') + (imOk.some((f) => f.kind === 'video') ? ' Video stays playable next to the transcript; only the audio track is transcribed.' : ''),
+      cta: imOk.length ? 'Import ' + imOk.length + (imOk.length === 1 ? ' file' : ' files') : 'Import',
+      ctaDisabled: imOk.length === 0,
+      go: () => self.doImport()
+    };
+    if (dls.length) actParts.push('Downloading ' + s.pct[dls[0].id] + '%');
+    var models = modelDefs.map((m) => {
+      var st = s.dl[m.id], p = s.pct[m.id];
+      var setDl = (state, pctv) => { var d = Object.assign({}, self.state.dl), pc = Object.assign({}, self.state.pct); d[m.id] = state; pc[m.id] = pctv; self.setState({ dl: d, pct: pc }); };
+      return { name: m.name, desc: m.desc, size: m.size, isNone: st === 'none', isDl: st === 'downloading', isInst: st === 'installed', w: p + '%', pctLabel: p + '%',
+        download: () => setDl('downloading', 0), cancel: () => setDl('none', 0), remove: () => { setDl('none', 0); self.toastMsg(m.name + ' removed'); } };
+    });
+
+    return {
+      themeClass: s.theme === 'dark' ? 't-dark' : 't-light',
+      isLight: s.theme !== 'dark', isDark: s.theme === 'dark',
+      themeToggleLabel: s.theme === 'dark' ? 'Light theme' : 'Dark theme',
+      toggleTheme: () => self.setState({ theme: self.state.theme === 'dark' ? 'light' : 'dark' }),
+      themeOpts: [['light', 'Light'], ['dark', 'Dark']].map((o) => Object.assign({ label: o[1], on: s.theme === o[0], pick: () => self.setState({ theme: o[0] }) }, self.segOpt(s.theme === o[0]))),
+      hasToast: !!s.toast, toast: s.toast || '',
+      inOnb: s.onb > 0, inApp: s.onb === 0,
+      idle: idle, barsA: this.bars(0.7, 36), barsB: this.bars(3.2, 36),
+
+      onb1: s.onb === 1, onb2: s.onb === 2, onb3: s.onb === 3, onb4: s.onb === 4, onb5: s.onb === 5,
+      onbLabel: s.onb + ' / 5', onbAria: 'Step ' + s.onb + ' of 5', onbSegs: onbSegs,
+      onbShowBack: s.onb > 1, onbShowSkip: s.onb !== 2,
+      onbSkipLabel: s.onb === 1 ? 'Skip setup' : 'Skip',
+      onbNextLabel: onbNextLabel, onbNextDisabled: s.onb === 2 && !s.micAllowed,
+      onbNext: () => { var st = self.state; if (st.onb === 2 && !st.micAllowed) return; if (st.onb === 5) self.finishOnb(); else self.onbTo(st.onb + 1); },
+      onbBack: () => self.onbTo(Math.max(1, self.state.onb - 1)),
+      onbSkip: () => { var st = self.state; if (st.onb === 1 || st.onb === 5) self.finishOnb(); else self.onbTo(st.onb + 1); },
+      micAllowed: s.micAllowed, micNotAllowed: !s.micAllowed,
+      allowMic: () => self.setState({ micAllowed: true, toast: 'Microphone access granted', toastTicks: 10 }),
+      parakeetDone: s.parakeetPct >= 100, parakeetBusy: s.parakeetPct < 100, parakeetPct: s.parakeetPct, parakeetW: s.parakeetPct + '%',
+      parakeetLabel: (s.parakeetPct * 0.0067).toFixed(2) + ' / 0.67 GB',
+      aiCards: aiCards,
+      aiSkip: { on: skipOn, ring: skipOn ? '1.5px solid var(--ink)' : '1.5px solid var(--mline)', pick: () => self.setState({ aiChoice: 'skip' }) },
+      lang: s.lang, onLang: (e) => self.setState({ lang: e.target.value }),
+      noPicker: () => self.toastMsg('The folder picker opens in the real app'),
+      onbOrb: s.onbCount > 0 ? 'react' : 'rest', onbDone: s.onbCount === 0, onbListening: s.onbCount > 0,
+      onbStatus: s.onbCount > 0 ? 'Listening' : 'Done', onbClock: '00:' + this.pad(s.onbCount),
+      onbRetry: () => self.setState({ onbCount: 10 }),
+
+      capturing: s.capturing, notCapturing: !s.capturing,
+      hkBorder: s.capturing ? '1.5px solid var(--ink)' : '1px solid var(--line)',
+      hkKeys: s.hotkey.split(' + ').map((k, idx) => ({ k: k, sep: idx > 0 })),
+      hotkey: s.hotkey.replace(/ \+ /g, ' '),
+      startCapture: () => self.setState({ capturing: true }),
+      stopCapture: () => { if (self.state.capturing) self.setState({ capturing: false }); },
+      onHotkey: (e) => self.onHotkey(e),
+      togScr: { on: s.screenDefault, bg: s.screenDefault ? 'var(--btn)' : 'var(--trackoff)', knob: s.screenDefault ? 'var(--knobon)' : 'var(--knoboff)', x: s.screenDefault ? 'translateX(16px)' : 'translateX(0px)' },
+      toggleScreenDefault: () => { var v = !self.state.screenDefault; var o = { screenDefault: v }; if (!self.state.rec) o.recScreen = v; self.setState(o); },
+
+      /* shell */
+      isLibrary: s.screen === 'library', isRecording: s.screen === 'recording', isSession: s.screen === 'session', isChat: s.screen === 'chat', isSettings: s.screen === 'settings',
+      navLib: (s.screen === 'library' || s.screen === 'session' || s.screen === 'recording') ? 'on' : '',
+      navChat: s.screen === 'chat' ? 'on' : '', navSet: s.screen === 'settings' ? 'on' : '',
+      goLibrary: () => self.go('library'), goChat: () => self.go('chat'), goSettings: () => self.go('settings'), goRecording: () => self.go('recording'),
+      setMain: this.setMain,
+      hasParent: s.screen === 'session' || s.screen === 'recording',
+      crumb: s.screen === 'library' ? 'Library' : s.screen === 'recording' ? 'New recording' : s.screen === 'session' ? cr.title : s.screen === 'chat' ? 'Ask AI' : 'Settings',
+      recent: s.recs.filter((r) => r.status === 'ready').slice(0, 3).map((r) => ({ title: r.title, cls: (s.screen === 'session' && s.curId === r.id) ? 'on' : '', open: () => self.openRec(r.id) })),
+      noRec: !rec, hasRec: !!rec,
+      recPillLabel: recPaused ? 'Paused' : 'Recording', recDotClass: recPaused ? 'still' : 'spin',
+
+      /* floating recorder + call detection */
+      showDot: s.onb === 0 && !!rec && s.screen !== 'recording',
+      dotOpen: s.dotOpen, toggleDot: () => self.setState({ dotOpen: !self.state.dotOpen }),
+      dotSpin: recPaused ? 'still' : 'spin', dotPing: recPaused ? 'gone' : 'ping', dotFilter: recPaused ? 'grayscale(0.85)' : 'none',
+      dotAria: (recPaused ? 'Recording paused' : 'Recording') + ' — show controls',
+      markNow: () => self.markNow(),
+      hasMarkFlash: !!s.flash, markFlashText: s.flash || '',
+      callToast: s.callToast && s.onb === 0 && !rec,
+      recordCall: () => self.startRec(true, false),
+      dismissCall: () => self.setState({ callToast: false }),
+      alwaysRec: s.alwaysRec, toggleAlways: () => self.setState({ alwaysRec: !self.state.alwaysRec }),
+      togCall: { on: s.detectCalls, bg: s.detectCalls ? 'var(--btn)' : 'var(--trackoff)', knob: s.detectCalls ? 'var(--knobon)' : 'var(--knoboff)', x: s.detectCalls ? 'translateX(16px)' : 'translateX(0px)' },
+      toggleDetect: () => self.setState({ detectCalls: !self.state.detectCalls, callToast: false }),
+      testCall: () => {
+        var st = self.state;
+        if (st.rec) { self.toastMsg('Already recording'); return; }
+        if (!st.detectCalls) { self.toastMsg('Turn on Detect calls first'); return; }
+        if (st.alwaysRec) { self.startRec(true, true); return; }
+        self.setState({ callToast: true, callShown: true });
+      },
+
+      /* activity */
+      jobs: jobs, noJobs: jobs.length === 0, actOpen: s.actOpen,
+      toggleAct: () => self.setState({ actOpen: !self.state.actOpen }),
+      actSummary: actParts.length ? actParts.join(' · ') : 'Up to date',
+      actBtnBg: s.actOpen ? 'var(--line)' : 'transparent',
+      recClock: this.clock(recSec),
+      startRec: () => self.startRec(), startLabel: rec ? 'Back to recording' : 'Start recording',
+
+      /* library */
+      pMic: this.pill(s.recMic), pSys: this.pill(s.recSys), pScr: this.pill(s.recScreen),
+      toggleMic: () => self.toggleSrc('recMic'), toggleSys: () => self.toggleSrc('recSys'), toggleScr: () => self.toggleSrc('recScreen'),
+      askDraft: s.askDraft, onAskDraft: (e) => self.setState({ askDraft: e.target.value }),
+      onAskKey: (e) => { if (e.key === 'Enter') { e.preventDefault(); self.send(self.state.askDraft, 'all'); } },
+      sendAsk: () => self.send(self.state.askDraft, 'all'),
+      askChips: ['My action items', 'Who mentioned the budget?', 'Summarize yesterday'].map(chipSend),
+      query: s.query, onQuery: (e) => self.setState({ query: e.target.value }),
+      filters: filters, groups: groups, noResults: groups.length === 0,
+      noResultsText: q ? 'No recordings match “' + s.query.trim() + '”.' : 'No recordings for this filter.',
+      clearSearch: () => self.setState({ query: '', filter: 'all' }),
+
+      /* recording */
+      recTitle: s.recTitle, onRecTitle: (e) => self.setState({ recTitle: e.target.value }),
+      recClockLong: this.pad(hh) + ':' + this.pad(mm) + ':' + this.pad(ss),
+      recStatus: recPaused ? 'Paused — nothing is being captured' : 'Recording · auto-saved to disk every few seconds',
+      recOrbClass: recPaused ? 'rest' : 'breathe', recHaloClass: recPaused ? 'rest' : 'halo',
+      recHaloOp: recPaused ? '0.12' : '0.35', recOrbFilter: recPaused ? 'grayscale(0.85)' : 'none',
+      scrLabel: s.recScreen ? 'Screen · 1080p' : 'Screen off',
+      recPaused: recPaused, recRunning: !recPaused, pauseLabel: recPaused ? 'Resume' : 'Pause',
+      togglePause: () => { var r = self.state.rec; if (r) self.setState({ rec: Object.assign({}, r, { paused: !r.paused }) }); },
+      stopRec: () => self.stopRec(),
+      discardRec: () => self.setState({ rec: null, dotOpen: false, flash: null, screen: 'library', recScreen: self.state.screenDefault, toast: 'Recording discarded', toastTicks: 10 }),
+      micLive: s.recMic && !recPaused, micIdle: !(s.recMic && !recPaused), sysLive: s.recSys && !recPaused, sysIdle: !(s.recSys && !recPaused),
+      micDb: s.recMic ? (recPaused ? 'paused' : '−18 dB') : 'off', sysDb: s.recSys ? (recPaused ? 'paused' : '−24 dB') : 'off',
+      copyConsent: () => { try { navigator.clipboard.writeText('Heads up: I’m recording this meeting with Murmur for my notes. It stays on my computer.'); } catch (err) {} self.toastMsg('Message copied'); },
+
+      /* session */
+      cr: { title: cr.title, metaLine: cr.group + ', ' + cr.time + ' · ' + this.clock(cr.dur) + ' · ' + cr.lang + ' · Parakeet TDT v3', isScreen: cr.kind === 'screen', isAudio: cr.kind !== 'screen', sources: cr.sources, durClock: this.clock(cr.dur), summary: cr.summary },
+      wave: wave, playhead: (frac * 100).toFixed(2) + '%',
+      seekWave: (e) => { var el = e.currentTarget; var rc = el.getBoundingClientRect(); var f = Math.min(1, Math.max(0, (e.clientX - rc.left) / rc.width)); self.setState({ cur: f * self.find(self.state.curId).dur }); },
+      playing: s.playing, paused: !s.playing, playLabel: s.playing ? 'Pause' : 'Play', playOrb: s.playing ? 'breathe' : 'rest',
+      togglePlay: () => self.togglePlay(),
+      back10: () => self.setState({ cur: Math.max(0, self.state.cur - 10) }),
+      curClock: this.clock(s.cur),
+      speedLabel: s.speed + '×', cycleSpeed: () => self.setState({ speed: self.state.speed === 1 ? 1.5 : (self.state.speed === 1.5 ? 2 : 1) }),
+      tYou: trk(!s.mutedYou, 'mutedYou'), tOth: trk(!s.mutedOthers, 'mutedOthers'),
+      tabT: s.tab === 'transcript', tabS: s.tab === 'summary',
+      showT: () => self.setState({ tab: 'transcript' }), showS: () => self.setState({ tab: 'summary' }),
+      askThis: () => self.setState({ scope: 'one', screen: 'chat' }),
+      exportRec: () => self.setState({ exportOpen: true, exStatus: '', exRange: 'all', renaming: null, lcOpen: null }),
+      exportOpen: s.exportOpen && s.onb === 0, ex: ex,
+      importOpen: s.importOpen && s.onb === 0, im: im,
+      openImport: () => self.setState({ importOpen: true, dotOpen: false, actOpen: false, callToast: false }),
+      tq: s.tq, onTq: (e) => self.setState({ tq: e.target.value }), hasTq: !!tq,
+      tqCount: segs.length + (segs.length === 1 ? ' match' : ' matches'),
+      segs: segs, items: items, noSegs: segs.length === 0,
+      sessKey: (e) => self.sessKey(e), sessKeyUp: (e) => self.sessKeyUp(e), setSess: this.setSess, setRn: this.setRn,
+      hasChapters: chapters.length > 0, chapters: chapters,
+      hasMarks: marks.length > 0, marks: marks,
+      speakers: speakers,
+      follow: s.follow, toggleFollow: () => self.setState({ follow: !self.state.follow }),
+      followTrack: s.follow ? 'var(--btn)' : 'var(--trackoff)', followKnob: s.follow ? 'var(--knobon)' : 'var(--knoboff)', followX: s.follow ? 'translateX(12px)' : 'translateX(0px)',
+      renaming: !!s.renaming, renameDraft: s.renameDraft,
+      onRename: (e) => self.setState({ renameDraft: e.target.value }),
+      onRenameKey: (e) => { if (e.key === 'Enter') { e.preventDefault(); self.applyRename(); } else if (e.key === 'Escape') { e.preventDefault(); self.setState({ renaming: null }); } },
+      cancelRename: () => self.setState({ renaming: null, renameDraft: '' }),
+      applyRename: () => self.applyRename(),
+      renameLabel: 'Rename “' + renName + '”',
+      renameHint: 'Updates all ' + renCount + (renCount === 1 ? ' line' : ' lines') + ' in this recording and in exports.',
+      hasDecisions: cr.decisions.length > 0, hasActions: cr.actions.length > 0,
+      decisions: cr.decisions.map((d) => ({ text: d.text, clock: self.clock(d.t), seek: () => self.setState({ cur: d.t, tab: 'transcript' }) })),
+      actions: cr.actions.map((a) => {
+        var key = cr.id + '-' + a.id, on = !!s.checked[key];
+        return { key: 'ai-' + key, text: a.text, clock: self.clock(a.t), checked: on, deco: on ? 'line-through' : 'none', color: on ? 'var(--smoke)' : 'var(--ink)',
+          toggle: () => { var ch = Object.assign({}, self.state.checked); ch[key] = !ch[key]; self.setState({ checked: ch }); },
+          seek: () => self.setState({ cur: a.t, tab: 'transcript' }) };
+      }),
+
+      /* chat */
+      modelChip: modelChip,
+      scopes: [{ id: 'all', label: 'Whole library' }, { id: 'one', label: 'This recording: ' + cr.short }].map((o) => ({ label: o.label, on: s.scope === o.id, pick: () => self.setState({ scope: o.id }) })),
+      chatEmpty: s.chat.length === 0, msgs: msgs,
+      suggestions: ['What did we decide about PDF export?', 'My action items', 'Who mentioned the budget?', 'Summarize yesterday'].map((l) => ({ label: l, go: () => self.send(l) })),
+      chatDraft: s.chatDraft, onChatDraft: (e) => self.setState({ chatDraft: e.target.value }),
+      onChatKey: (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); self.send(self.state.chatDraft); } },
+      sendDraft: () => self.send(self.state.chatDraft), sendDisabled: !s.chatDraft.trim() || s.thinking,
+      newChat: () => { if (self.reply) clearTimeout(self.reply); self.setState({ chat: [], thinking: false, chatDraft: '' }); },
+
+      /* settings */
+      models: models,
+      accels: ['CPU', 'DirectML', 'CUDA'].map((k) => Object.assign({ label: k, on: s.accel === k, pick: () => self.setState({ accel: k }) }, self.segOpt(s.accel === k))),
+      replayOnb: () => self.setState({ onb: 1, micAllowed: false, parakeetPct: 0, onbCount: 10, aiChoice: 'e4b' })
+    };
+  }
+}
+</script>
+</body>
+</html>

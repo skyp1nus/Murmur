@@ -1,0 +1,146 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Idea 3 — Tasks across meetings</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&amp;family=Geist+Mono:wght@300;400&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+*{box-sizing:border-box}
+button{font-family:inherit;cursor:pointer}
+.orb{background:radial-gradient(circle at 32% 26%,#fff1e8 0%,rgba(255,241,232,0) 30%),radial-gradient(circle at 74% 70%,#0447ff 0%,rgba(4,71,255,0) 58%),radial-gradient(circle at 20% 80%,#ff4704 0%,rgba(255,71,4,0) 55%),radial-gradient(circle at 72% 20%,#f4a6c8 0%,rgba(244,166,200,0) 50%),#d8c8f0}
+.mono{font-family:'Geist Mono',ui-monospace,monospace}
+.row:hover{background:#f5f3f1}
+.soft:hover{background:#f5f3f1!important}
+.chip:hover{background:#ebe8e4!important}
+</style>
+</helmet>
+<div data-name="Idea 3 / Tasks" style="width: 1100px; height: 720px; overflow: hidden; background: #fdfcfc; font-family: Inter, ui-sans-serif, system-ui, 'Segoe UI', sans-serif; font-size: 13px; letter-spacing: 0.01em; color: #000; display: flex">
+
+  <nav aria-label="Main navigation" data-name="Context / Sidebar" style="width: 200px; flex: none; padding: 14px 12px; border-right: 1px solid #ebe8e4; display: flex; flex-direction: column; gap: 16px">
+    <div style="display: flex; align-items: center; gap: 8px; padding: 4px 8px"><span class="orb" aria-hidden="true" style="width: 18px; height: 18px; border-radius: 9999px"></span><span style="font-size: 15px; font-weight: 600; letter-spacing: -0.01em">Murmur</span></div>
+    <div style="height: 32px; border-radius: 9999px; background: #000; color: #fff; display: flex; align-items: center; justify-content: center; gap: 8px; font-weight: 500"><span style="width: 7px; height: 7px; border-radius: 9999px; background: #fff"></span>New recording</div>
+    <div style="display: flex; flex-direction: column; gap: 2px; color: #44403b">
+      <div style="height: 32px; padding: 0 10px; display: flex; align-items: center; gap: 8px"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 5h16M4 12h16M4 19h10"/></svg>Library</div>
+      <div data-name="Idea 3 / Nav item – Tasks (new)" aria-current="page" style="height: 32px; padding: 0 10px; border-radius: 9999px; background: #f5f3f1; color: #000; font-weight: 500; display: flex; align-items: center; gap: 8px"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6h11M9 12h11M9 18h11"/><path d="M3.5 6l1.2 1.2L7 5M3.5 12l1.2 1.2L7 11M3.5 18l1.2 1.2L7 17"/></svg>Tasks<span class="mono" style="margin-left: auto; min-width: 20px; height: 18px; padding: 0 5px; border-radius: 9999px; background: #000; color: #fff; font-size: 11px; font-weight: 400; display: flex; align-items: center; justify-content: center">{{openCount}}</span></div>
+      <div style="height: 32px; padding: 0 10px; display: flex; align-items: center; gap: 8px"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z"/><path d="M19 16v4M17 18h4"/></svg>Ask AI</div>
+      <div style="height: 32px; padding: 0 10px; display: flex; align-items: center; gap: 8px"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/></svg>Settings</div>
+    </div>
+  </nav>
+
+  <main style="flex: 1; min-width: 0; overflow-y: auto; display: flex; flex-direction: column">
+    <header style="height: 48px; flex: none; padding: 0 24px; display: flex; align-items: center; justify-content: space-between; gap: 12px">
+      <span style="font-size: 13px; color: #44403b">Tasks</span>
+      <div style="display: flex; align-items: center; gap: 10px">
+        <span role="status" style="font-size: 12px; color: #777169">{{status}}</span>
+        <button type="button" onClick="{{copyMd}}" class="soft" style="height: 32px; padding: 0 12px; border-radius: 9999px; border: 1px solid #e5e5e5; background: #fdfcfc; color: #000; display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 500"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"/></svg>Copy as Markdown</button>
+      </div>
+    </header>
+
+    <div style="width: 100%; max-width: 800px; margin: 0 auto; padding: 8px 24px 40px; display: flex; flex-direction: column; gap: 20px">
+      <div style="display: flex; flex-direction: column; gap: 4px">
+        <h1 style="margin: 0; font-size: 24px; font-weight: 300; line-height: 1.2; letter-spacing: -0.02em">Tasks</h1>
+        <p style="margin: 0; font-size: 13px; color: #777169">Action items Murmur found in your meetings — each one linked to the moment it was said.</p>
+      </div>
+
+      <div style="display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap">
+        <div role="radiogroup" aria-label="Status" style="display: flex; gap: 2px; padding: 3px; border-radius: 9999px; border: 1px solid #ebe8e4">
+          <sc-for list="{{tabs}}" as="t" hint-placeholder-count="2">
+            <button type="button" role="radio" aria-checked="{{t.on}}" onClick="{{t.pick}}" style="height: 26px; padding: 0 12px; border-radius: 9999px; border: 0; background: {{t.bg}}; color: {{t.fg}}; font-size: 12px; font-weight: 500">{{t.label}}</button>
+          </sc-for>
+        </div>
+        <button type="button" aria-pressed="{{mine}}" onClick="{{toggleMine}}" style="height: 28px; padding: 0 12px; border-radius: 9999px; border: {{mineBd}}; background: #fdfcfc; color: {{mineFg}}; display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 500"><sc-if value="{{mine}}" hint-placeholder-val="{{ false }}"><span aria-hidden="true" style="width: 6px; height: 6px; border-radius: 9999px; background: #000"></span></sc-if>Only mine</button>
+      </div>
+
+      <sc-for list="{{groups}}" as="g" hint-placeholder-count="3">
+        <section style="display: flex; flex-direction: column; gap: 8px">
+          <div style="display: flex; align-items: baseline; justify-content: space-between; gap: 10px">
+            <div style="display: flex; align-items: baseline; gap: 8px"><span style="font-size: 13px; font-weight: 500">{{g.rec}}</span><span style="font-size: 12px; color: #777169">{{g.meta}}</span></div>
+            <span style="font-size: 12px; color: #777169">Open recording →</span>
+          </div>
+          <div style="border: 1px solid #ebe8e4; border-radius: 16px; overflow: hidden">
+            <sc-for list="{{g.items}}" as="it" hint-placeholder-count="2">
+              <div class="row" data-name="Idea 3 / Task row" style="min-height: 40px; display: flex; align-items: center; gap: 12px; padding: 8px 14px; border-top: {{it.bt}}">
+                <button type="button" role="checkbox" aria-checked="{{it.done}}" aria-label="{{it.aria}}" onClick="{{it.toggle}}" style="width: 18px; height: 18px; flex: none; padding: 0; border-radius: 9999px; border: {{it.ckBd}}; background: {{it.ckBg}}; color: #fff; display: flex; align-items: center; justify-content: center">
+                  <sc-if value="{{it.done}}" hint-placeholder-val="{{ false }}"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12l5 5L20 7"/></svg></sc-if>
+                </button>
+                <span style="flex: 1; min-width: 0; font-size: 13px; text-decoration: {{it.deco}}; color: {{it.color}}">{{it.text}}</span>
+                <span style="height: 22px; padding: 0 8px; border-radius: 9999px; border: 1px solid #e5e5e5; display: flex; align-items: center; font-size: 11px; color: #44403b">{{it.owner}}</span>
+                <span class="chip mono" style="height: 22px; padding: 0 8px; border-radius: 9999px; background: #f5f3f1; display: flex; align-items: center; gap: 4px; font-size: 11px"><svg width="7" height="7" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>{{it.t}}</span>
+              </div>
+            </sc-for>
+          </div>
+        </section>
+      </sc-for>
+
+      <sc-if value="{{empty}}" hint-placeholder-val="{{ false }}">
+        <div style="border: 1px dashed #d6d1cb; border-radius: 16px; padding: 32px; text-align: center; color: #777169">{{emptyText}}</div>
+      </sc-if>
+    </div>
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1100,"height":720}}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.state = {
+      tab: 'open', mine: false, status: '',
+      tasks: [
+        { id: 1, rec: 'Client demo — Q4 roadmap', meta: 'Today, 10:30', text: 'Send the demo invite', owner: 'You', t: '13:24', done: false },
+        { id: 2, rec: 'Client demo — Q4 roadmap', meta: 'Today, 10:30', text: 'Add PDF export to the sprint plan', owner: 'You', t: '12:52', done: false },
+        { id: 3, rec: 'Weekly team sync', meta: 'Today, 08:00', text: 'Split the WASAPI interop into its own project', owner: 'You', t: '06:50', done: false },
+        { id: 4, rec: 'Weekly team sync', meta: 'Today, 08:00', text: 'Order the GPU test machine on Monday', owner: 'Others', t: '31:00', done: false },
+        { id: 5, rec: 'QA team sync', meta: 'Yesterday, 11:00', text: 'Add the 1080p30 CPU budget check to the test plan', owner: 'Others', t: '10:40', done: false },
+        { id: 6, rec: 'Sprint retro', meta: 'Mon, 14:00', text: 'Review the report template with the designer', owner: 'You', t: '31:05', done: true },
+        { id: 7, rec: 'Sprint retro', meta: 'Mon, 14:00', text: 'Share the template draft by Thursday', owner: 'Others', t: '31:40', done: true }
+      ]
+    };
+  }
+  renderVals() {
+    var self = this, s = this.state;
+    var visible = s.tasks.filter((t) => (s.tab === 'open' ? !t.done : t.done) && (!s.mine || t.owner === 'You'));
+    var order = [];
+    visible.forEach((t) => { if (order.indexOf(t.rec) < 0) order.push(t.rec); });
+    var groups = order.map((rec) => {
+      var items = visible.filter((t) => t.rec === rec);
+      return {
+        rec: rec, meta: items[0].meta,
+        items: items.map((t, i) => ({
+          text: t.text, owner: t.owner, t: t.t, done: t.done,
+          aria: (t.done ? 'Mark as not done: ' : 'Mark as done: ') + t.text,
+          bt: i === 0 ? '0' : '1px solid #ebe8e4',
+          ckBd: t.done ? '1.5px solid #000' : '1.5px solid #d6d1cb', ckBg: t.done ? '#000' : 'transparent',
+          deco: t.done ? 'line-through' : 'none', color: t.done ? '#777169' : '#000',
+          toggle: () => self.setState({ tasks: self.state.tasks.map((x) => x.id === t.id ? Object.assign({}, x, { done: !x.done }) : x), status: t.done ? 'Moved back to open' : 'Marked as done' })
+        }))
+      };
+    });
+    var openN = s.tasks.filter((t) => !t.done).length, doneN = s.tasks.length - openN;
+    var seg = (id, label) => ({ label: label, on: s.tab === id, bg: s.tab === id ? '#000' : 'transparent', fg: s.tab === id ? '#fff' : '#44403b', pick: () => self.setState({ tab: id, status: '' }) });
+    return {
+      openCount: openN,
+      tabs: [seg('open', 'Open · ' + openN), seg('done', 'Done · ' + doneN)],
+      mine: s.mine, mineBd: s.mine ? '1px solid #000' : '1px solid #e5e5e5', mineFg: s.mine ? '#000' : '#44403b',
+      toggleMine: () => self.setState({ mine: !self.state.mine }),
+      groups: groups, empty: groups.length === 0,
+      emptyText: s.tab === 'open' ? 'Nothing open — nice.' : 'No finished tasks yet.',
+      status: s.status,
+      copyMd: () => {
+        var open = self.state.tasks.filter((t) => !t.done);
+        var md = open.map((t) => '- [ ] ' + t.text + ' — ' + t.owner + ' (' + t.rec + ', ' + t.t + ')').join('\n');
+        try { navigator.clipboard.writeText(md); } catch (err) {}
+        self.setState({ status: 'Copied ' + open.length + ' open tasks' });
+      }
+    };
+  }
+}
+</script>
+</body>
+</html>
