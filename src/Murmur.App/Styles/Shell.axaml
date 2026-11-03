@@ -6,7 +6,7 @@
     Styles of the shell and the Library as drawn on the canvas (Main*.dc.html): the sidebar, the top bar, the New recording and Ask
     your library cards, the filter chips and the day cards of rows. Like Controls.axaml this file holds no literal colours, fonts,
     radii or spacing of its own: colours are token brushes (DynamicResource), spacing and radii come from the token scale, and the
-    few sizes the canvas uses that the scale lacks (13 / 15 / 17 px text, the 10 and 16 px radii) are named component resources.
+    few sizes the canvas uses that the scale lacks are named component resources (Size.* / Margin.*), all at the real window size 1100 x 720.
   -->
 
   <Styles.Resources>
@@ -23,7 +23,7 @@
           <!-- The question box has the subtle shadow on the light page and a hairline on the dark one. -->
           <StaticResource x:Key="Shell.AskShadow" ResourceKey="Shadow.Subtle" />
           <Thickness x:Key="Shell.AskBorder">0</Thickness>
-          <Thickness x:Key="Shell.AskInset">20,0,6,0</Thickness>
+          <Thickness x:Key="Shell.AskInset">14,0,4,0</Thickness>
           <!-- The calendar of "Pick dates": token brushes in place of Fluent's accent and greys. -->
           <StaticResource x:Key="CalendarViewBackground" ResourceKey="Brush.Canvas" />
           <StaticResource x:Key="CalendarViewBorderBrush" ResourceKey="Brush.Canvas" />
@@ -52,7 +52,7 @@
           <StaticResource x:Key="Brush.OrbDot" ResourceKey="Brush.Canvas" />
           <BoxShadows x:Key="Shell.AskShadow">0 0 0 0 Transparent</BoxShadows>
           <Thickness x:Key="Shell.AskBorder">1</Thickness>
-          <Thickness x:Key="Shell.AskInset">19,0,5,0</Thickness>
+          <Thickness x:Key="Shell.AskInset">14,0,4,0</Thickness>
           <!-- The calendar of "Pick dates": token brushes in place of Fluent's accent and greys. -->
           <StaticResource x:Key="CalendarViewBackground" ResourceKey="Brush.Canvas" />
           <StaticResource x:Key="CalendarViewBorderBrush" ResourceKey="Brush.Canvas" />
@@ -82,43 +82,46 @@
       <Thickness x:Key="Border.RowLast">1,1,1,1</Thickness>
 
       <!-- Component sizes. -->
-      <x:Double x:Key="Size.SidebarFrame">241</x:Double>
-      <x:Double x:Key="Size.SidebarButton">44</x:Double>
-      <x:Double x:Key="Size.WordmarkOrb">22</x:Double>
+      <x:Double x:Key="Size.SidebarFrame">200</x:Double>
+      <x:Double x:Key="Size.SidebarButton">36</x:Double>
+      <x:Double x:Key="Size.WordmarkOrb">20</x:Double>
       <x:Double x:Key="Size.PillOrb">10</x:Double>
-      <x:Double x:Key="Size.OfflineIcon">16</x:Double>
-      <x:Double x:Key="Size.TopBar">60</x:Double>
-      <x:Double x:Key="Size.HeroOrb">132</x:Double>
-      <x:Double x:Key="Size.HeroPlate">48</x:Double>
-      <x:Double x:Key="Size.HeroDot">14</x:Double>
-      <x:Double x:Key="Size.CardMinWidth">420</x:Double>
-      <x:Double x:Key="Size.Toggle">36</x:Double>
-      <x:Double x:Key="Size.ToggleIcon">16</x:Double>
-      <x:Double x:Key="Size.ToggleRadius">18</x:Double>
-      <x:Double x:Key="Size.StartButton">44</x:Double>
-      <x:Double x:Key="Size.AskBox">52</x:Double>
-      <x:Double x:Key="Size.AskSend">40</x:Double>
-      <x:Double x:Key="Size.Suggestion">32</x:Double>
-      <x:Double x:Key="Size.SearchBox">40</x:Double>
-      <x:Double x:Key="Size.SearchBoxWidth">360</x:Double>
-      <x:Double x:Key="Size.SearchIcon">16</x:Double>
-      <x:Double x:Key="Size.FilterChip">34</x:Double>
-      <x:Double x:Key="Size.FilterIcon">15</x:Double>
-      <x:Double x:Key="Size.ChipDot">6</x:Double>
-      <x:Double x:Key="Size.RowTile">40</x:Double>
-      <x:Double x:Key="Size.RowBar">160</x:Double>
-      <x:Double x:Key="Size.RowChevron">16</x:Double>
-      <x:Double x:Key="Size.LibraryPage">1080</x:Double>
-      <Thickness x:Key="Margin.NavTitle">12,0,12,6</Thickness>
-      <Thickness x:Key="Margin.LibraryEnd">0,0,0,96</Thickness>
-      <Thickness x:Key="Margin.DashedOutline">-14,0</Thickness>
-      <Thickness x:Key="Margin.SidebarList">0,24,0,0</Thickness>
-      <Thickness x:Key="Margin.AskBox">0,20</Thickness>
-      <Thickness x:Key="Margin.RowBar">0,4,0,0</Thickness>
-      <Thickness x:Key="Margin.HeroTop">0,32,0,0</Thickness>
-      <Thickness x:Key="Margin.RecordingsTop">0,56,0,0</Thickness>
-      <Thickness x:Key="Margin.FiltersTop">0,20,0,0</Thickness>
-      <Thickness x:Key="Margin.GroupTop">0,20,0,10</Thickness>
+      <x:Double x:Key="Size.OfflineIcon">14</x:Double>
+      <x:Double x:Key="Size.NewDot">7</x:Double>
+      <x:Double x:Key="Size.TopBar">48</x:Double>
+      <x:Double x:Key="Size.HeroOrb">88</x:Double>
+      <x:Double x:Key="Size.HeroPlate">32</x:Double>
+      <x:Double x:Key="Size.HeroDot">10</x:Double>
+      <x:Double x:Key="Size.CardMinWidth">340</x:Double>
+      <x:Double x:Key="Size.Toggle">28</x:Double>
+      <x:Double x:Key="Size.ToggleIcon">14</x:Double>
+      <x:Double x:Key="Size.ToggleRadius">14</x:Double>
+      <x:Double x:Key="Size.StartButton">32</x:Double>
+      <x:Double x:Key="Size.AskBox">36</x:Double>
+      <x:Double x:Key="Size.AskSend">28</x:Double>
+      <x:Double x:Key="Size.Suggestion">28</x:Double>
+      <x:Double x:Key="Size.SearchBox">32</x:Double>
+      <x:Double x:Key="Size.SearchBoxWidth">280</x:Double>
+      <x:Double x:Key="Size.SearchIcon">14</x:Double>
+      <x:Double x:Key="Size.FilterChip">28</x:Double>
+      <x:Double x:Key="Size.FilterIcon">13</x:Double>
+      <x:Double x:Key="Size.ChipDot">5</x:Double>
+      <x:Double x:Key="Size.RowTile">32</x:Double>
+      <x:Double x:Key="Size.RowBar">120</x:Double>
+      <x:Double x:Key="Size.RowChevron">14</x:Double>
+      <x:Double x:Key="Size.LibraryPage">960</x:Double>
+      <!-- The canvas lets a long title run into the right padding of its pill (no ellipsis there), so only the left padding is set. -->
+      <Thickness x:Key="Margin.NavSub">10,0,0,0</Thickness>
+      <Thickness x:Key="Margin.NavTitle">10,0,10,4</Thickness>
+      <Thickness x:Key="Margin.LibraryEnd">0,0,0,32</Thickness>
+      <Thickness x:Key="Margin.DashedOutline">-10,0</Thickness>
+      <Thickness x:Key="Margin.SidebarList">0,16,0,0</Thickness>
+      <Thickness x:Key="Margin.AskBox">0,14</Thickness>
+      <Thickness x:Key="Margin.RowBar">0,3,0,0</Thickness>
+      <Thickness x:Key="Margin.HeroTop">0,16,0,0</Thickness>
+      <Thickness x:Key="Margin.RecordingsTop">0,28,0,0</Thickness>
+      <Thickness x:Key="Margin.FiltersTop">0,12,0,0</Thickness>
+      <Thickness x:Key="Margin.GroupTop">0,12,0,8</Thickness>
 
       <!-- Line icons of the canvas (24 x 24 grid), drawn by controls:IconControl. -->
       <StreamGeometry x:Key="Icon.Mic">M9 6a3 3 0 0 1 6 0v5a3 3 0 0 1-6 0z M5 11a7 7 0 0 0 14 0M12 18v3</StreamGeometry>
@@ -147,6 +150,11 @@
     <Setter Property="FontFamily" Value="{StaticResource Font.Body}" />
     <Setter Property="FontSize" Value="{StaticResource FontSize.Small}" />
     <Setter Property="LetterSpacing" Value="{StaticResource LetterSpacing.Small}" />
+  </Style>
+  <Style Selector="TextBlock.t11">
+    <Setter Property="FontFamily" Value="{StaticResource Font.Body}" />
+    <Setter Property="FontSize" Value="{StaticResource FontSize.Tag}" />
+    <Setter Property="LetterSpacing" Value="{StaticResource LetterSpacing.Tag}" />
   </Style>
   <Style Selector="TextBlock.t13">
     <Setter Property="FontFamily" Value="{StaticResource Font.Body}" />
@@ -180,6 +188,7 @@
     <Setter Property="FontFamily" Value="{StaticResource Font.Body}" />
     <Setter Property="FontSize" Value="{StaticResource FontSize.Wordmark}" />
     <Setter Property="LetterSpacing" Value="{StaticResource LetterSpacing.Wordmark}" />
+    <Setter Property="LineHeight" Value="{StaticResource LineHeight.Wordmark}" />
     <Setter Property="FontWeight" Value="SemiBold" />
   </Style>
   <Style Selector="TextBlock.cardTitle">
@@ -214,6 +223,15 @@
     <Setter Property="Foreground" Value="{DynamicResource Brush.Smoke}" />
     <Setter Property="TextWrapping" Value="Wrap" />
   </Style>
+  <!-- The 11 px note of the offline panel: Smoke, the canvas's 1.45 line, wraps. -->
+  <Style Selector="TextBlock.note11">
+    <Setter Property="FontFamily" Value="{StaticResource Font.Body}" />
+    <Setter Property="FontSize" Value="{StaticResource FontSize.MicroNote}" />
+    <Setter Property="LineHeight" Value="{StaticResource LineHeight.MicroNote}" />
+    <Setter Property="LetterSpacing" Value="{StaticResource LetterSpacing.MicroNote}" />
+    <Setter Property="Foreground" Value="{DynamicResource Brush.Smoke}" />
+    <Setter Property="TextWrapping" Value="Wrap" />
+  </Style>
   <Style Selector="TextBlock.monoMeta">
     <Setter Property="FontFamily" Value="{StaticResource Font.Mono}" />
     <Setter Property="FontWeight" Value="{StaticResource FontWeight.Mono}" />
@@ -239,7 +257,7 @@
     <Setter Property="HorizontalContentAlignment" Value="Center" />
     <Setter Property="VerticalContentAlignment" Value="Center" />
     <Setter Property="FontFamily" Value="{StaticResource Font.Body}" />
-    <Setter Property="FontSize" Value="{StaticResource FontSize.BodySm}" />
+    <Setter Property="FontSize" Value="{StaticResource FontSize.Meta}" />
     <Setter Property="FontWeight" Value="{StaticResource FontWeight.BodyMedium}" />
     <Setter Property="Background" Value="{DynamicResource Brush.Ink}" />
     <Setter Property="Foreground" Value="{DynamicResource Brush.Canvas}" />
@@ -267,20 +285,21 @@
     <Setter Property="Foreground" Value="{DynamicResource Brush.Ink}" />
   </Style>
 
-  <!-- Context list: 36 px pills, 13 px text. -->
+  <!-- Context list: 28 px pills, 12 px text. -->
   <Style Selector="Button.nav.sub">
-    <Setter Property="FontSize" Value="{StaticResource FontSize.Meta}" />
+    <Setter Property="FontSize" Value="{StaticResource FontSize.Small}" />
+    <Setter Property="Padding" Value="{StaticResource Margin.NavSub}" />
   </Style>
   <Style Selector="Button.nav.sub TextBlock">
-    <Setter Property="LetterSpacing" Value="{StaticResource LetterSpacing.Meta}" />
+    <Setter Property="LetterSpacing" Value="{StaticResource LetterSpacing.Small}" />
   </Style>
   <Style Selector="Button.nav TextBlock.navText">
-    <Setter Property="LetterSpacing" Value="{StaticResource LetterSpacing.BodySm}" />
+    <Setter Property="LetterSpacing" Value="{StaticResource LetterSpacing.Meta}" />
   </Style>
 
   <Style Selector="Border.offline">
     <Setter Property="Background" Value="{DynamicResource Brush.Surface}" />
-    <Setter Property="CornerRadius" Value="{StaticResource Radius.Note}" />
+    <Setter Property="CornerRadius" Value="{StaticResource Radius.Panel}" />
     <Setter Property="Padding" Value="{StaticResource Inset.Offline}" />
   </Style>
 
@@ -291,7 +310,7 @@
   </Style>
   <Style Selector="Border.keyCap">
     <Setter Property="Background" Value="{DynamicResource Brush.Surface}" />
-    <Setter Property="CornerRadius" Value="{StaticResource Radius.Key}" />
+    <Setter Property="CornerRadius" Value="{StaticResource Radius.Kbd}" />
     <Setter Property="Padding" Value="{StaticResource Inset.Key}" />
   </Style>
   <Style Selector="Border.keyCap > TextBlock">
@@ -335,7 +354,7 @@
   <Style Selector="Border.heroCard">
     <Setter Property="Background" Value="{DynamicResource Brush.Surface}" />
     <Setter Property="CornerRadius" Value="{StaticResource Radius.CardLarge}" />
-    <Setter Property="Padding" Value="{StaticResource Inset.32}" />
+    <Setter Property="Padding" Value="{StaticResource Inset.CardHero}" />
   </Style>
 
   <!-- Source switches: a Canvas pill with a hairline while on, a dashed (here: dash-colour) outline and Smoke text while off. -->
@@ -345,7 +364,7 @@
     <Setter Property="Padding" Value="{StaticResource Inset.Toggle}" />
     <Setter Property="CornerRadius" Value="{StaticResource Radius.Pill}" />
     <Setter Property="FontFamily" Value="{StaticResource Font.Body}" />
-    <Setter Property="FontSize" Value="{StaticResource FontSize.Meta}" />
+    <Setter Property="FontSize" Value="{StaticResource FontSize.Small}" />
     <Setter Property="FontWeight" Value="{StaticResource FontWeight.BodyMedium}" />
     <Setter Property="HorizontalContentAlignment" Value="Center" />
     <Setter Property="VerticalContentAlignment" Value="Center" />
@@ -393,7 +412,7 @@
     <Setter Property="HorizontalContentAlignment" Value="Center" />
     <Setter Property="VerticalContentAlignment" Value="Center" />
     <Setter Property="FontFamily" Value="{StaticResource Font.Body}" />
-    <Setter Property="FontSize" Value="{StaticResource FontSize.BodySm}" />
+    <Setter Property="FontSize" Value="{StaticResource FontSize.Meta}" />
     <Setter Property="FontWeight" Value="{StaticResource FontWeight.BodyMedium}" />
     <Setter Property="Background" Value="{DynamicResource Brush.Ink}" />
     <Setter Property="Foreground" Value="{DynamicResource Brush.Canvas}" />
@@ -457,8 +476,7 @@
     <Setter Property="BorderThickness" Value="0" />
   </Style>
   <Style Selector="TextBox.bare.ask">
-    <Setter Property="FontSize" Value="{StaticResource FontSize.RowTitle}" />
-    <Setter Property="LetterSpacing" Value="{StaticResource LetterSpacing.RowTitle}" />
+    <Setter Property="FontSize" Value="{StaticResource FontSize.Meta}" />
   </Style>
 
   <Style Selector="Border.searchBox">
@@ -477,7 +495,7 @@
     <Setter Property="Padding" Value="{StaticResource Inset.Suggestion}" />
     <Setter Property="CornerRadius" Value="{StaticResource Radius.Pill}" />
     <Setter Property="FontFamily" Value="{StaticResource Font.Body}" />
-    <Setter Property="FontSize" Value="{StaticResource FontSize.Meta}" />
+    <Setter Property="FontSize" Value="{StaticResource FontSize.Small}" />
     <Setter Property="HorizontalContentAlignment" Value="Center" />
     <Setter Property="VerticalContentAlignment" Value="Center" />
     <Setter Property="Background" Value="Transparent" />
@@ -498,10 +516,10 @@
   <Style Selector="Button.filter">
     <Setter Property="Height" Value="{StaticResource Size.FilterChip}" />
     <Setter Property="MinHeight" Value="0" />
-    <Setter Property="Padding" Value="{StaticResource Inset.Toggle}" />
+    <Setter Property="Padding" Value="{StaticResource Inset.Filter}" />
     <Setter Property="CornerRadius" Value="{StaticResource Radius.Pill}" />
     <Setter Property="FontFamily" Value="{StaticResource Font.Body}" />
-    <Setter Property="FontSize" Value="{StaticResource FontSize.Meta}" />
+    <Setter Property="FontSize" Value="{StaticResource FontSize.Small}" />
     <Setter Property="FontWeight" Value="{StaticResource FontWeight.Body}" />
     <Setter Property="HorizontalContentAlignment" Value="Center" />
     <Setter Property="VerticalContentAlignment" Value="Center" />

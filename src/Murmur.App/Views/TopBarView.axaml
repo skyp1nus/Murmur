@@ -4,7 +4,7 @@
              x:Class="Murmur.App.Views.TopBarView"
              x:DataType="vm:TopBarViewModel">
 
-  <!-- The 60 px bar of every main screen: the breadcrumb (or the screen's own header) on the left, the hotkey hint (or the screen's buttons) on the right. -->
+  <!-- The 48 px bar of every main screen: the breadcrumb (or the screen's own header) on the left, the hotkey hint (or the screen's buttons) on the right. -->
   <Border Classes="topBar">
     <DockPanel LastChildFill="False">
       <ContentControl DockPanel.Dock="Right"

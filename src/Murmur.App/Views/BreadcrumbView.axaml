@@ -10,17 +10,17 @@
     <Button Classes="crumbLink"
             IsVisible="{Binding IsLink}"
             Command="{Binding RootCommand}">
-      <TextBlock Classes="t14"
+      <TextBlock Classes="t13"
                  Foreground="{Binding $parent[ContentPresenter].Foreground}"
                  Text="{Binding Root}" />
     </Button>
-    <TextBlock Classes="t14 graphite"
+    <TextBlock Classes="t13 graphite"
                IsVisible="{Binding IsPlain}"
                Text="{Binding Root}" />
-    <TextBlock Classes="t14 muted"
+    <TextBlock Classes="t13 muted"
                IsVisible="{Binding HasCurrent}"
                Text="/" />
-    <TextBlock Classes="t14"
+    <TextBlock Classes="t13"
                IsVisible="{Binding HasCurrent}"
                TextTrimming="CharacterEllipsis"
                Text="{Binding Current}" />

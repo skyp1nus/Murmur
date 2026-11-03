@@ -35,18 +35,18 @@
         <StackPanel DataContext="{Binding Library}"
                     x:DataType="vm:LibraryViewModel"
                     Margin="{StaticResource Margin.HeroTop}"
-                    Spacing="{StaticResource Space.24}">
+                    Spacing="{StaticResource Space.16}">
           <TextBlock Classes="pageTitle"
                      TextWrapping="Wrap"
                      Text="{x:Static res:Strings.Library_Heading}" />
 
           <controls:AutoFitPanel MinColumnWidth="{StaticResource Size.CardMinWidth}"
-                                 Spacing="{StaticResource Space.16}">
+                                 Spacing="{StaticResource Space.12}">
 
             <!-- New recording -->
             <Border Classes="heroCard">
               <Grid ColumnDefinitions="Auto,*"
-                    ColumnSpacing="{StaticResource Space.28}">
+                    ColumnSpacing="{StaticResource Space.20}">
                 <Panel Grid.Column="0"
                        Width="{StaticResource Size.HeroOrb}"
                        Height="{StaticResource Size.HeroOrb}"
@@ -65,25 +65,25 @@
 
                 <StackPanel Grid.Column="1"
                             VerticalAlignment="Center"
-                            Spacing="{StaticResource Space.16}">
-                  <StackPanel Spacing="{StaticResource Space.6}">
+                            Spacing="{StaticResource Space.12}">
+                  <StackPanel Spacing="{StaticResource Space.4}">
                     <TextBlock Classes="cardTitle"
                                Text="{x:Static res:Strings.Library_NewRecording}" />
-                    <TextBlock Classes="paragraph"
+                    <TextBlock Classes="note12"
                                Text="{x:Static res:Strings.Library_RecordingCardText}" />
                   </StackPanel>
 
-                  <WrapPanel ItemSpacing="{StaticResource Space.8}"
-                             LineSpacing="{StaticResource Space.8}">
+                  <WrapPanel ItemSpacing="{StaticResource Space.6}"
+                             LineSpacing="{StaticResource Space.6}">
                     <ToggleButton Classes="source"
                                   IsChecked="{Binding Microphone, Mode=TwoWay}"
                                   IsEnabled="{Binding MicrophoneAvailable}">
                       <StackPanel Orientation="Horizontal"
-                                  Spacing="{StaticResource Space.8}">
+                                  Spacing="{StaticResource Space.6}">
                         <controls:IconControl Width="{StaticResource Size.ToggleIcon}"
                                               Height="{StaticResource Size.ToggleIcon}"
                                               Data="{StaticResource Icon.Mic}" />
-                        <TextBlock Classes="t13 plain"
+                        <TextBlock Classes="t12 plain"
                                    Foreground="{Binding $parent[ContentPresenter].Foreground}"
                                    Text="{x:Static res:Strings.Common_Microphone}" />
                       </StackPanel>
@@ -92,11 +92,11 @@
                                   IsChecked="{Binding SystemAudio, Mode=TwoWay}"
                                   IsEnabled="{Binding SystemAudioAvailable}">
                       <StackPanel Orientation="Horizontal"
-                                  Spacing="{StaticResource Space.8}">
+                                  Spacing="{StaticResource Space.6}">
                         <controls:IconControl Width="{StaticResource Size.ToggleIcon}"
                                               Height="{StaticResource Size.ToggleIcon}"
                                               Data="{StaticResource Icon.Speaker}" />
-                        <TextBlock Classes="t13 plain"
+                        <TextBlock Classes="t12 plain"
                                    Foreground="{Binding $parent[ContentPresenter].Foreground}"
                                    Text="{x:Static res:Strings.Recording_SystemAudio}" />
                       </StackPanel>
@@ -110,11 +110,11 @@
                                    IsVisible="{Binding !$parent[ToggleButton].IsChecked}" />
                         <StackPanel Orientation="Horizontal"
                                     VerticalAlignment="Center"
-                                    Spacing="{StaticResource Space.8}">
+                                    Spacing="{StaticResource Space.6}">
                           <controls:IconControl Width="{StaticResource Size.ToggleIcon}"
                                                 Height="{StaticResource Size.ToggleIcon}"
                                                 Data="{StaticResource Icon.Screen}" />
-                          <TextBlock Classes="t13 plain"
+                          <TextBlock Classes="t12 plain"
                                      Foreground="{Binding $parent[ContentPresenter].Foreground}"
                                      Text="{x:Static res:Strings.Common_Screen}" />
                         </StackPanel>
@@ -123,7 +123,7 @@
                   </WrapPanel>
 
                   <StackPanel Orientation="Horizontal"
-                              Spacing="{StaticResource Space.12}">
+                              Spacing="{StaticResource Space.10}">
                     <Button Classes="start"
                             Command="{Binding StartRecordingCommand}"
                             Content="{x:Static res:Strings.Recording_Start}" />
@@ -141,10 +141,10 @@
                     IsVisible="{Binding CanAskAll}">
               <Grid RowDefinitions="Auto,*,Auto,*,Auto">
                 <StackPanel Grid.Row="0"
-                            Spacing="{StaticResource Space.6}">
+                            Spacing="{StaticResource Space.4}">
                   <TextBlock Classes="cardTitle"
                              Text="{x:Static res:Strings.Library_AskAll}" />
-                  <TextBlock Classes="paragraph"
+                  <TextBlock Classes="note12"
                              Text="{x:Static res:Strings.Library_AskCardText}" />
                 </StackPanel>
 
@@ -152,7 +152,7 @@
                         Classes="askBox"
                         Margin="{StaticResource Margin.AskBox}">
                   <Grid ColumnDefinitions="*,Auto"
-                        ColumnSpacing="{StaticResource Space.8}">
+                        ColumnSpacing="{StaticResource Space.6}">
                     <TextBox Grid.Column="0"
                              Classes="bare ask"
                              AutomationProperties.Name="{x:Static res:Strings.Library_AskLabel}"
@@ -167,8 +167,8 @@
                             Classes="start send"
                             AutomationProperties.Name="{x:Static res:Strings.Library_AskSend}"
                             Command="{Binding AskCommand}">
-                      <controls:IconControl Width="{StaticResource Size.NavIcon}"
-                                            Height="{StaticResource Size.NavIcon}"
+                      <controls:IconControl Width="{StaticResource Size.SmallIcon}"
+                                            Height="{StaticResource Size.SmallIcon}"
                                             Data="{StaticResource Icon.ArrowUp}" />
                     </Button>
                   </Grid>
@@ -178,8 +178,8 @@
                               ItemsSource="{Binding Suggestions}">
                   <ItemsControl.ItemsPanel>
                     <ItemsPanelTemplate>
-                      <WrapPanel ItemSpacing="{StaticResource Space.8}"
-                                 LineSpacing="{StaticResource Space.8}" />
+                      <WrapPanel ItemSpacing="{StaticResource Space.6}"
+                                 LineSpacing="{StaticResource Space.6}" />
                     </ItemsPanelTemplate>
                   </ItemsControl.ItemsPanel>
                   <ItemsControl.ItemTemplate>
@@ -187,7 +187,7 @@
                       <Button Classes="suggestion"
                               Command="{Binding $parent[ItemsControl].((vm:LibraryViewModel)DataContext).AskSuggestionCommand}"
                               CommandParameter="{Binding}">
-                        <TextBlock Classes="t13"
+                        <TextBlock Classes="t12 plain"
                                    Foreground="{Binding $parent[ContentPresenter].Foreground}"
                                    Text="{Binding}" />
                       </Button>
@@ -215,7 +215,7 @@
                   Classes="searchBox"
                   Width="{StaticResource Size.SearchBoxWidth}">
             <Grid ColumnDefinitions="Auto,*"
-                  ColumnSpacing="{StaticResource Space.10}">
+                  ColumnSpacing="{StaticResource Space.8}">
               <controls:IconControl Grid.Column="0"
                                     Width="{StaticResource Size.SearchIcon}"
                                     Height="{StaticResource Size.SearchIcon}"
@@ -236,18 +236,18 @@
         <WrapPanel DataContext="{Binding Library}"
                    x:DataType="vm:LibraryViewModel"
                    Margin="{StaticResource Margin.FiltersTop}"
-                   ItemSpacing="{StaticResource Space.6}"
-                   LineSpacing="{StaticResource Space.6}"
+                   ItemSpacing="{StaticResource Space.4}"
+                   LineSpacing="{StaticResource Space.4}"
                    AutomationProperties.Name="{x:Static res:Strings.Library_FilterLabel}">
           <Button Classes="filter"
                   Classes.on="{Binding IsAllFilter}"
                   Command="{Binding SetFilterCommand}"
                   CommandParameter="{x:Static vm:LibraryFilter.All}">
             <StackPanel Orientation="Horizontal"
-                        Spacing="{StaticResource Space.8}">
+                        Spacing="{StaticResource Space.6}">
               <Ellipse Classes="chipDot"
                        IsVisible="{Binding IsAllFilter}" />
-              <TextBlock Classes="t13 plain"
+              <TextBlock Classes="t12 plain"
                          Foreground="{Binding $parent[ContentPresenter].Foreground}"
                          Text="{x:Static res:Strings.Library_FilterAll}" />
             </StackPanel>
@@ -257,10 +257,10 @@
                   Command="{Binding SetFilterCommand}"
                   CommandParameter="{x:Static vm:LibraryFilter.Today}">
             <StackPanel Orientation="Horizontal"
-                        Spacing="{StaticResource Space.8}">
+                        Spacing="{StaticResource Space.6}">
               <Ellipse Classes="chipDot"
                        IsVisible="{Binding IsTodayFilter}" />
-              <TextBlock Classes="t13 plain"
+              <TextBlock Classes="t12 plain"
                          Foreground="{Binding $parent[ContentPresenter].Foreground}"
                          Text="{x:Static res:Strings.Library_FilterToday}" />
             </StackPanel>
@@ -270,10 +270,10 @@
                   Command="{Binding SetFilterCommand}"
                   CommandParameter="{x:Static vm:LibraryFilter.Week}">
             <StackPanel Orientation="Horizontal"
-                        Spacing="{StaticResource Space.8}">
+                        Spacing="{StaticResource Space.6}">
               <Ellipse Classes="chipDot"
                        IsVisible="{Binding IsWeekFilter}" />
-              <TextBlock Classes="t13 plain"
+              <TextBlock Classes="t12 plain"
                          Foreground="{Binding $parent[ContentPresenter].Foreground}"
                          Text="{x:Static res:Strings.Library_FilterWeek}" />
             </StackPanel>
@@ -283,10 +283,10 @@
                   Command="{Binding SetFilterCommand}"
                   CommandParameter="{x:Static vm:LibraryFilter.Month}">
             <StackPanel Orientation="Horizontal"
-                        Spacing="{StaticResource Space.8}">
+                        Spacing="{StaticResource Space.6}">
               <Ellipse Classes="chipDot"
                        IsVisible="{Binding IsMonthFilter}" />
-              <TextBlock Classes="t13 plain"
+              <TextBlock Classes="t12 plain"
                          Foreground="{Binding $parent[ContentPresenter].Foreground}"
                          Text="{x:Static res:Strings.Library_FilterMonth}" />
             </StackPanel>
@@ -315,7 +315,7 @@
               <controls:IconControl Width="{StaticResource Size.FilterIcon}"
                                     Height="{StaticResource Size.FilterIcon}"
                                     Data="{StaticResource Icon.Calendar}" />
-              <TextBlock Classes="t13 plain"
+              <TextBlock Classes="t12 plain"
                          Foreground="{Binding $parent[ContentPresenter].Foreground}"
                          Text="{Binding RangeText}" />
             </StackPanel>
@@ -325,14 +325,14 @@
 
       <!-- A day heading -->
       <DataTemplate DataType="vm:LibraryGroupEntry">
-        <TextBlock Classes="t13 muted"
+        <TextBlock Classes="t12 muted"
                    Margin="{StaticResource Margin.GroupTop}"
                    Text="{Binding Title}" />
       </DataTemplate>
 
       <!-- An inline error or "Searching…" -->
       <DataTemplate DataType="vm:LibraryNoticeEntry">
-        <TextBlock Classes="t14 muted"
+        <TextBlock Classes="t13 muted"
                    Margin="{StaticResource Margin.FiltersTop}"
                    TextWrapping="Wrap"
                    Text="{Binding Text}" />
@@ -373,7 +373,7 @@
           <Button Classes="libraryRow"
                   Command="{Binding OpenCommand}">
             <Grid ColumnDefinitions="Auto,*,Auto,Auto"
-                  ColumnSpacing="{StaticResource Space.16}">
+                  ColumnSpacing="{StaticResource Space.12}">
               <Border Grid.Column="0"
                       Classes="rowTile">
                 <Panel>
@@ -394,24 +394,24 @@
 
               <StackPanel Grid.Column="1"
                           VerticalAlignment="Center"
-                          Spacing="{StaticResource Space.3}">
-                <TextBlock Classes="t15 medium"
+                          Spacing="{StaticResource Space.2}">
+                <TextBlock Classes="t13 medium"
                            TextTrimming="CharacterEllipsis"
                            Text="{Binding Title}" />
-                <TextBlock Classes="t13 muted"
+                <TextBlock Classes="t12 muted"
                            TextTrimming="CharacterEllipsis"
                            Text="{Binding MetaText}" />
-                <TextBlock Classes="t13 muted"
+                <TextBlock Classes="t12 muted"
                            TextTrimming="CharacterEllipsis"
                            IsVisible="{Binding ShowSnippet}"
                            Text="{Binding Snippet}" />
                 <StackPanel Orientation="Horizontal"
-                            Spacing="{StaticResource Space.10}"
+                            Spacing="{StaticResource Space.8}"
                             Margin="{StaticResource Margin.RowBar}"
                             IsVisible="{Binding ShowProgress}">
                   <ProgressBar Classes="rowBar"
                                Value="{Binding ProgressPercent}" />
-                  <TextBlock Classes="t12 graphite"
+                  <TextBlock Classes="t11 graphite"
                              VerticalAlignment="Center"
                              Text="{Binding ProgressText}" />
                 </StackPanel>
@@ -439,14 +439,14 @@
           <Button Classes="libraryRow"
                   Command="{Binding OpenCommand}">
             <Grid ColumnDefinitions="*,Auto,Auto"
-                  ColumnSpacing="{StaticResource Space.16}">
+                  ColumnSpacing="{StaticResource Space.12}">
               <StackPanel Grid.Column="0"
                           VerticalAlignment="Center"
-                          Spacing="{StaticResource Space.3}">
-                <TextBlock Classes="t15 medium"
+                          Spacing="{StaticResource Space.2}">
+                <TextBlock Classes="t13 medium"
                            TextTrimming="CharacterEllipsis"
                            Text="{Binding Title}" />
-                <TextBlock Classes="t13 muted"
+                <TextBlock Classes="t12 muted"
                            TextWrapping="Wrap"
                            MaxLines="2"
                            TextTrimming="CharacterEllipsis"

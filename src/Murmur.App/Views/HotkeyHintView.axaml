@@ -6,9 +6,9 @@
 
   <!-- "Record  Ctrl Shift R": what the record hotkey does now and its keys. Hidden while no hotkey is set. -->
   <StackPanel Orientation="Horizontal"
-              Spacing="{StaticResource Space.8}"
+              Spacing="{StaticResource Space.6}"
               IsVisible="{Binding HasGesture}">
-    <TextBlock Classes="t13 muted"
+    <TextBlock Classes="t12 muted"
                VerticalAlignment="Center"
                Text="{Binding Label}" />
     <Border Classes="keyCap"
