@@ -26,7 +26,7 @@ public sealed class LevelMeterControl : Control
     /// <summary>Number of bars (and so of remembered levels).</summary>
     public const int BarCount = 40;
 
-    private const double BarGap = 3;
+    private const double BarGap = 2;
     private const double IdleBarHeight = 3;
     private const double MinLiveBarHeight = 4;
     private const double UpdateSeconds = 0.05;

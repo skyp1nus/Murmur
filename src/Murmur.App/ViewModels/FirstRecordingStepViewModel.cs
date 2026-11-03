@@ -105,6 +105,8 @@ public sealed partial class FirstRecordingStepViewModel : OnboardingStepViewMode
 
     public override string Title => Strings.Onb5_Headline;
 
+    public override bool DenseFrame => true;
+
     public override string Subtitle => Strings.Onb5_Subline;
 
     [ObservableProperty]

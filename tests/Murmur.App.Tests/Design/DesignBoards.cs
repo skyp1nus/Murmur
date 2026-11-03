@@ -178,15 +178,18 @@ internal static class DesignBoards
                 MinTextMatchedPercent: 100,
                 MaxTextGeometryErrors: 1,
                 MaxSidebarShapePercent: SettingsSidebarShapeLimit));
-            boards.Add(new("Onb1Welcome" + suffix, BoardScreen.Onboarding1Welcome, dark, 1100, 720, [])); // TODO(real-size stage B): gates of the onboarding
+            boards.Add(new("Onb1Welcome" + suffix, BoardScreen.Onboarding1Welcome, dark, 1100, 720, [], MaxShapeMismatchPercent: dark ? 0.9 : 0.8, MinTextMatchedPercent: 95, MaxTextGeometryErrors: 0));
             boards.Add(new(
                 "Onb2Audio" + suffix,
                 BoardScreen.Onboarding2Audio,
                 dark,
                 1100,
                 720,
-                [new IgnoreRect(572, 404, 252, 20, "Onboarding 2: system audio " + WaveformReason)],
-                ExcludedTexts: [MicPermissionText])); // TODO(real-size stage B): gates of the onboarding
+                [new IgnoreRect(573, 402, 250, 22, "Onboarding 2: system audio " + WaveformReason)],
+                MaxShapeMismatchPercent: 3.0,
+                MinTextMatchedPercent: 95,
+                MaxTextGeometryErrors: 0,
+                ExcludedTexts: [MicPermissionText]));
             boards.Add(new(
                 "Onb3Models" + suffix,
                 BoardScreen.Onboarding3Models,
@@ -194,10 +197,13 @@ internal static class DesignBoards
                 1100,
                 720,
                 [
-                    new IgnoreRect(469, 432, 60, 18, "Onboarding 3: [X.X] GB placeholder", TextOnly: true),
-                    new IgnoreRect(772, 432, 52, 18, "Onboarding 3: [XX] GB placeholder", TextOnly: true),
+                    new IgnoreRect(470, 433, 58, 16, "Onboarding 3: [X.X] GB placeholder", TextOnly: true),
+                    new IgnoreRect(772, 433, 51, 16, "Onboarding 3: [XX] GB placeholder", TextOnly: true),
                 ],
-                ExcludedTexts: [SizeSmall, SizeLarge])); // TODO(real-size stage B): gates of the onboarding
+                MaxShapeMismatchPercent: 5.0,
+                MinTextMatchedPercent: 95,
+                MaxTextGeometryErrors: 0,
+                ExcludedTexts: [SizeSmall, SizeLarge]));
             boards.Add(new(
                 "Onb3ModelsReady" + suffix,
                 BoardScreen.Onboarding3ModelsReady,
@@ -205,23 +211,29 @@ internal static class DesignBoards
                 1100,
                 720,
                 [
-                    new IgnoreRect(469, 404, 60, 18, "Onboarding 3 ready: [X.X] GB placeholder", TextOnly: true),
-                    new IgnoreRect(772, 404, 52, 18, "Onboarding 3 ready: [XX] GB placeholder", TextOnly: true),
+                    new IgnoreRect(470, 405, 58, 16, "Onboarding 3 ready: [X.X] GB placeholder", TextOnly: true),
+                    new IgnoreRect(772, 405, 51, 16, "Onboarding 3 ready: [XX] GB placeholder", TextOnly: true),
                 ],
-                ExcludedTexts: [SizeSmall, SizeLarge])); // TODO(real-size stage B): gates of the onboarding
+                MaxShapeMismatchPercent: 4.5,
+                MinTextMatchedPercent: 95,
+                MaxTextGeometryErrors: 0,
+                ExcludedTexts: [SizeSmall, SizeLarge]));
             boards.Add(new(
                 "Onb4Preferences" + suffix,
                 BoardScreen.Onboarding4Preferences,
                 dark,
                 1100,
                 720,
-                [new IgnoreRect(651, 360, 82, 18, "Onboarding 4: [N] GB free placeholder", TextOnly: true)],
-                ExcludedTexts: [FreeSpace, UserPath])); // TODO(real-size stage B): gates of the onboarding
-            boards.Add(new("Onb5FirstRecording" + suffix, BoardScreen.Onboarding5FirstRecording, dark, 1100, 720, [])); // TODO(real-size stage B): gates of the onboarding
+                [new IgnoreRect(651, 361, 81, 16, "Onboarding 4: [N] GB free placeholder", TextOnly: true)],
+                MaxShapeMismatchPercent: 2.8,
+                MinTextMatchedPercent: 95,
+                MaxTextGeometryErrors: 0,
+                ExcludedTexts: [FreeSpace, UserPath]));
+            boards.Add(new("Onb5FirstRecording" + suffix, BoardScreen.Onboarding5FirstRecording, dark, 1100, 720, [], MaxShapeMismatchPercent: 3.5, MinTextMatchedPercent: 95, MaxTextGeometryErrors: 0));
         }
 
         // The sidebar is the shell's: every main board has to match it, whatever its content does (stage A: Library only).
-        return [.. boards.Select(b => b.Screen is BoardScreen.Library ? b with { MaxSidebarShapePercent = SidebarShapeLimit } : b)]; // TODO(real-size stage B): the sidebar gate of the other main boards
+        return [.. boards.Select(b => b.Screen is BoardScreen.Library ? b with { MaxSidebarShapePercent = SidebarShapeLimit } : b)];
     }
 
     private const double SidebarShapeLimit = 1.0;
