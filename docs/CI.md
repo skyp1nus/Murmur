@@ -1,14 +1,15 @@
 # CI
 
-## Коли що запускається (repo standard v1)
+## Коли що запускається (repo standard v1.1)
 
 Запусків GitHub Actions — мінімум; Windows-перевірки щодня робляться на ПК власника. Гілки: `dev` (default) — PR задач, squash; `main` — лише release PR `dev -> main`, merge commit. Єдиний required check — джоб `ci` (gate) у `ci.yml`.
 
 | Що | Автоматично | Вручну |
 |---|---|---|
-| `ci.yml`, джоби `linux` і `ci` | кожен PR у `dev` або `main` | Actions → ci → Run workflow |
-| `ci.yml`, джоби `windows`, `startup`, `installer`, `capture-e2e` | лише release PR (`dev -> main`) | Run workflow, `windows` = true |
-| `ci.yml`, джоб `bench` | лише release PR (`dev -> main`) | Run workflow, `bench` = true |
+| `ci.yml`, джоби `base`, `linux` і `ci` | кожен PR (будь-яка база) | Actions → ci → Run workflow |
+| `ci-retarget.yml` | зміна бази PR (`pull_request_target: edited`, лише коли змінилась база) | ніколи |
+| `ci.yml`, джоби `windows`, `startup`, `installer`, `capture-e2e` | лише release PR (`dev -> main`) | Run workflow, `windows` = true (лише коли немає відкритого PR цієї гілки) |
+| `ci.yml`, джоб `bench` | лише release PR (`dev -> main`) | Run workflow, `bench` = true (лише коли немає відкритого PR цієї гілки) |
 | `asr.yml`, `ai-eval.yml`, `perf-record.yml` | ніколи | Run workflow |
 | `models.yml` | ніколи | Run workflow |
 | `tags.yml` | push у `main`, що змінює `.github/phase-tags.txt` | Run workflow |
@@ -31,7 +32,11 @@ pwsh scripts/verify-local.ps1 -All -Tone            # усе; -Tone грає т�
 
 ## Workflow `ci`
 
-Workflow: `.github/workflows/ci.yml`. Тригери — див. таблицю вище. Нові запуски того ж PR скасовують попередні (`concurrency: ci-<номер PR або ref>`). Пропущений джоб (`if:` на рівні джоба) звітує Success, тому фільтрів `paths:`/`branches-ignore` на рівні workflow немає. Права токена: лише `contents: read`. Окремий workflow `.github/workflows/ai-eval.yml` (AI-eval фази 3) описано в розділі «AI-eval» нижче.
+Workflow: `.github/workflows/ci.yml`. Тригери — див. таблицю вище. Ключ `concurrency`: `ci-<pr|manual>-<репозиторій head>-<head-гілка>`: нові запуски тієї ж гілки скасовують попередні, але PR-запуски й ручні запуски мають різні групи, тож ручний запуск на `dev` не скасовує запуск release PR. Пропущений джоб (`if:` на рівні джоба) звітує Success, тому фільтрів `paths:`/`branches-ignore` на рівні workflow немає. Права токена: `contents: read` (джоби `base` і `ci` ще читають PR: `pull-requests: read`). Окремий workflow `.github/workflows/ai-eval.yml` (AI-eval фази 3) описано в розділі «AI-eval» нижче.
+
+**Справжня база PR (джоб `base`).** Усі рішення про Windows-джоби й gate беруть базу з виходу першого джоба `base`, а не з ручних входів. Для `pull_request` це `github.base_ref`. Для ручного запуску `base` через REST (`GET repos/<repo>/pulls?head=<власник>:<гілка>&state=open`) шукає відкриті PR цієї гілки: якщо хоч один іде в `main`, база — `main`; інакше база першого PR; вхід `base` береться лише коли відкритого PR немає (при розбіжності перемагає PR; у логу `::notice::`). Тому вхід `base` у ручному запуску треба **залишати порожнім** (його виставляє лише `ci-retarget.yml`). Також `base` віддає `policy_ok` (`main` + head це `dev` цього репозиторію): Windows-джоби не запускаються для PR у `main` з інших гілок, gate і так його відхилить.
+
+**Ручний запуск і release PR.** Ручний запуск на `dev`, поки відкритий PR `dev -> main`, бачить базу `main`: Windows-джоби й `bench` виконуються завжди (входи `windows`/`bench` ігноруються), gate вимагає `success` для кожного джоба, тож зелений `ci` на head release PR неможливий без Windows. Ручний запуск без відкритого PR працює як раніше: `windows`/`bench` керують відповідними джобами, а gate дозволяє пропуск.
 
 SDK береться з `global.json` (prerelease `11.0.100-rc.2.26504.105`, `rollForward: latestFeature`). Одного `global-json-file` недостатньо: `setup-dotnet` обрізає версію до `major.minor` і ставить те, що зараз віддає канал `11.0`. Тому в усіх кроках `setup-dotnet` додатково вказано `dotnet-version: 11.0.100-rc.2.26504.105`, а наступний крок `Verify SDK matches global.json` валить джоб, якщо `dotnet --version` не дорівнює `sdk.version` з `global.json` (UNVERIFIED-ON-ACTIONS: поведінку `setup-dotnet` не перевірено запуском). При зміні SDK в `global.json` треба оновити `dotnet-version` у `ci.yml`. NuGet-кеш: `actions/cache@v4`, ключ від `Directory.Packages.props` і `**/*.csproj`.
 
@@ -39,15 +44,32 @@ SDK береться з `global.json` (prerelease `11.0.100-rc.2.26504.105`, `ro
 
 | Джоб | Раннер | Що робить |
 |---|---|---|
+| `base` | ubuntu-latest, 2 хв, перший | Визначає справжню базу PR (див. вище); виходи `base`, `has_pr`, `policy_ok`. |
 | `linux` | ubuntu-latest, 30 хв | `dotnet build`, `dotnet test`, Native AOT publish `Murmur.Desktop` (`net11.0`) і `Murmur.Transcription` для linux-x64. Джоб іде в `bash` з `pipefail` (`defaults.run.shell: bash`), тож невдалий publish за `| tee` валить крок. Якщо в логу publish є рядок `: warning ` або `: error ` (зокрема IL2xxx/IL3xxx; через `TreatWarningsAsErrors` попередження стають помилками) - крок червоний. |
 | `windows` | windows-latest, 45 хв | `dotnet build`, `dotnet test`, Native AOT publish win-x64 (`Murmur.exe` і `Murmur.Transcription.exe` в одну теку), той самий gate на попередження й помилки, таблиця розмірів у Step Summary, артефакт `murmur-win-x64`. |
 | `startup` | windows-latest, після `windows` | Завантажує `murmur-win-x64`, запускає `scripts/measure-startup.ps1` (7 запусків, бюджет 400 мс за медіаною). Падає, якщо медіана більша за бюджет або хоч один запуск не вдався. |
 | `installer` | windows-latest, після `windows`, 20 хв | Завантажує `murmur-win-x64` (без другого publish), ставить Inno Setup (`choco install innosetup -y --no-progress`, якщо `ISCC.exe` немає), збирає інсталятор `scripts/build-installer.ps1 -SkipPublish`, потім `verify-local.ps1 -Installer -SetupExe ...`: тихе встановлення в temp-теку, перевірка файлів, старт встановленого `Murmur.exe` (бюджет 400 мс), тихе видалення, перевірка, що тека зникла, а дані користувача лишились. Артефакти `murmur-installer`, `installer-verify`. Деталі - у розділі «Інсталятор». |
 | `capture-e2e` | windows-latest, після `windows`, 30 хв | End-to-end запис на раннері без звукової карти: віртуальна карта VB-Audio Virtual Cable, зациклений тон 440 Гц, `Murmur.exe --autorecord 60 --screen`. Деталі - у розділі «Capture e2e» нижче. |
 | `bench` | windows-latest, 40 хв | BenchmarkDotNet (`--job short`), усі `*-report-github.md` додаються до Step Summary. |
-| `ci` | ubuntu-latest, 2 хв, `if: always()`, після всіх джобів | Єдиний required check. Падає, якщо якийсь джоб `failure` або `cancelled`, або якщо PR у `main` прийшов не з `dev`. |
+| `ci` | ubuntu-latest, 2 хв, `if: always()`, після всіх джобів (`needs` містить `base` і всі інші) | Єдиний required check. Береться база з джоба `base`; у `pull_request`-запуску ще перечитується поточна база PR через REST, і розбіжність валить gate (PR перенацілено під час запуску). Падає, якщо якийсь джоб не `success`; пропуск дозволено лише джобам із `MAY_SKIP` (Windows-джоби й `bench`), а коли база `main` (або сам `base` не успів), `MAY_SKIP` порожній і мають бути `success` усі джоби. Також падає, якщо база PR не `dev`/`main` або PR у `main` прийшов не з `dev` цього репозиторію. |
 
 Тести йдуть через Microsoft.Testing.Platform (`global.json`), тому TRX вмикається прапорцем `--report-xunit-trx` (VSTest-прапорець `--logger trx` у цій конфігурації дає exit code 5).
+
+## Workflow `ci-retarget`
+
+Workflow: `.github/workflows/ci-retarget.yml`. Зміна бази PR не запускає `pull_request`-запуск, і head лишається з `ci` для старої бази. Тому цей workflow:
+
+| | |
+|---|---|
+| Тригер | `pull_request_target: types: [edited]`, джоб іде лише коли `github.event.changes.base != null` (зміна заголовка чи опису ігнорується) |
+| Права | `checks: write` (мітка), `actions: write` (dispatch), `pull-requests: read` |
+| Мітка | check-run `ci` = `failure` на head SHA одразу, і ще раз після dispatch. Мітки не гарантують порядок самі по собі: гарантію дає gate. `pull_request`-запуск перед завершенням перечитує поточну базу PR через REST і падає, якщо вона відрізняється від бази запуску (`Base changed during the run`); тож застарілий запуск старої бази не може лишити зелений `ci`. Невдалий REST-запит теж валить gate. Застарілий запуск, що завершився пізніше за dispatch-запуск, лишає червоний результат: тоді потрібен новий запуск `ci` (Actions -> ci -> Run workflow на гілці PR) або push |
+| Dispatch | `gh workflow run ci.yml --ref <head-гілка> -f base=<поточна база>`; поточну базу беремо через REST `pulls/<номер>`, а не з події (база могла змінитись ще раз) |
+| Concurrency | `ci-retarget-<номер PR>-<base або other>`, `cancel-in-progress`: пізніша зміна бази скасовує попередній запуск; редагування заголовка має іншу групу й не скасовує справжній retarget |
+| Форки | `pull_request` дає форку токен лише на читання, тому використано `pull_request_target`. Мітка ставиться завжди, але dispatch лише коли `head.repo.full_name == github.repository` (інакше `--ref` вказав би на однойменну гілку цього репозиторію). Для форка мітка лишається червоною до наступного push у PR |
+| Безпека | workflow нічого не checkout-ить і не виконує код PR, усі дані події передаються лише через `env:`; зберігати це |
+
+`pull_request_target` бере файл workflow з **базової** гілки PR: retarget на `dev` покритий, коли файл є в `dev`, а retarget на `main` (і PR, відкриті в `main`) — лише після релізу, який принесе `ci-retarget.yml` у `main`. Якщо dispatch упав, червона мітка лишається й PR заблокований (fail closed).
 
 ## Workflow `asr`
 

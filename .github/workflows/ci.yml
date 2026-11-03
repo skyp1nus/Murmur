@@ -1,13 +1,19 @@
 name: ci
 
-# Repo standard v1: every PR into dev or main gets the Linux job; the Windows jobs (build/test/AOT, startup, installer,
-# capture e2e) and the benchmarks run only on the release PR (dev -> main) or on a manual run (inputs `windows`, `bench`).
+# Repo standard v1.1: every PR gets the Linux job; the Windows jobs (build/test/AOT, startup, installer, capture e2e)
+# and the benchmarks run only on the release PR (dev -> main) or on a manual run with no open PR (inputs `windows`, `bench`).
+# The first job, `base`, resolves the real PR base once; every later decision (Windows jobs, gate) follows its output,
+# never the manual inputs, so a manual run cannot put a green `ci` without the Windows jobs on a release PR head.
 # Everyday Windows checks run on the owner's PC: scripts/verify-local.ps1. The last job, `ci`, is the only required check.
 on:
+  # STANDARD (repo standard v1.1): every PR gets `ci`, whatever its base; base changes re-run via ci-retarget.yml.
   pull_request:
-    branches: [dev, main]
   workflow_dispatch:
     inputs:
+      base:
+        description: "Leave empty. Used only when this branch has no open PR; an open PR's base always wins (ci-retarget.yml sets it)"
+        required: false
+        type: string
       windows:
         description: Run the Windows jobs (build, tests, AOT publish, startup, installer, capture e2e)
         type: boolean
@@ -18,7 +24,8 @@ on:
         default: false
 
 concurrency:
-  group: ci-${{ github.event.pull_request.number || github.ref }}
+  # Separate groups for PR runs and manual runs: a manual run on `dev` must not cancel the release PR run.
+  group: ci-${{ github.event_name == 'pull_request' && 'pr' || 'manual' }}-${{ github.event.pull_request.head.repo.full_name || github.repository }}-${{ github.head_ref || github.ref_name }}
   cancel-in-progress: true
 
 permissions:
@@ -30,6 +37,60 @@ env:
   NUGET_PACKAGES: ${{ github.workspace }}/.nuget/packages
 
 jobs:
+  # Resolves the real PR base. pull_request: the event's base. Otherwise: the base of the open PRs of this head branch
+  # (REST), and main wins if any of them targets main; the manual input `base` counts only when there is no open PR.
+  base:
+    name: resolve PR base
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      base: ${{ steps.resolve.outputs.base }}
+      has_pr: ${{ steps.resolve.outputs.has_pr }}
+      policy_ok: ${{ steps.resolve.outputs.policy_ok }}
+    steps:
+      - id: resolve
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EVENT: ${{ github.event_name }}
+          BASE_REF: ${{ github.base_ref }}
+          INPUT_BASE: ${{ inputs.base }}
+          HEAD: ${{ github.head_ref || github.ref_name }}
+          HEAD_REPO: ${{ github.event.pull_request.head.repo.full_name || github.repository }}
+          OWNER: ${{ github.repository_owner }}
+        run: |
+          has_pr=false
+          if [ "$EVENT" = pull_request ]; then
+            has_pr=true
+            base=$BASE_REF
+          else
+            prs=$(gh api -X GET "repos/$GITHUB_REPOSITORY/pulls" -f head="$OWNER:$HEAD" -f state=open --jq '.[].base.ref')
+            if [ -n "$prs" ]; then
+              has_pr=true
+              if grep -qx main <<<"$prs"; then base=main; else base=$(head -n 1 <<<"$prs"); fi
+              if [ -n "$INPUT_BASE" ] && [ "$INPUT_BASE" != "$base" ]; then
+                echo "::notice::Input base '$INPUT_BASE' ignored: the open PR of $HEAD targets '$base'."
+              fi
+            else
+              base=$INPUT_BASE
+            fi
+          fi
+          case "$base" in
+            *[!A-Za-z0-9._/-]*) echo "::error::Unexpected characters in the base branch name."; exit 1 ;;
+          esac
+          # Windows jobs are worth running only for a PR that the gate will accept: dev of this repo into main.
+          policy_ok=false
+          if [ "$base" = main ] && [ "$HEAD" = dev ] && [ "$HEAD_REPO" = "$GITHUB_REPOSITORY" ]; then policy_ok=true; fi
+          {
+            echo "base=$base"
+            echo "has_pr=$has_pr"
+            echo "policy_ok=$policy_ok"
+          } >> "$GITHUB_OUTPUT"
+          echo "base='$base' has_pr=$has_pr policy_ok=$policy_ok (head $HEAD_REPO:$HEAD, event $EVENT)"
+
   linux:
     name: build, test, AOT publish (linux-x64)
     runs-on: ubuntu-latest
@@ -110,8 +171,10 @@ jobs:
 
   windows:
     name: build, test, AOT publish (win-x64)
-    # Release PR (base main) or a manual run with `windows` = true.
-    if: ${{ github.base_ref == 'main' || (github.event_name == 'workflow_dispatch' && inputs.windows) }}
+    needs: base
+    # Release PR (resolved base main, dev of this repo), or a manual run with `windows` = true when no PR is open.
+    # An open PR's base always wins over the manual inputs, so a PR into main always gets these jobs.
+    if: ${{ (needs.base.outputs.base == 'main' && needs.base.outputs.policy_ok == 'true') || (github.event_name == 'workflow_dispatch' && needs.base.outputs.has_pr != 'true' && needs.base.outputs.base != 'main' && inputs.windows) }}
     runs-on: windows-latest
     timeout-minutes: 45
     defaults:
@@ -480,8 +543,10 @@ jobs:
 
   bench:
     name: benchmarks
-    # Release PR (base main) or a manual run with `bench` = true.
-    if: ${{ github.base_ref == 'main' || (github.event_name == 'workflow_dispatch' && inputs.bench) }}
+    needs: base
+    # Release PR (resolved base main, dev of this repo), or a manual run with `bench` = true when no PR is open.
+    # An open PR's base always wins over the manual inputs, so a PR into main always gets these jobs.
+    if: ${{ (needs.base.outputs.base == 'main' && needs.base.outputs.policy_ok == 'true') || (github.event_name == 'workflow_dispatch' && needs.base.outputs.has_pr != 'true' && needs.base.outputs.base != 'main' && inputs.bench) }}
     runs-on: windows-latest
     timeout-minutes: 40
     defaults:
@@ -532,18 +597,61 @@ jobs:
           if-no-files-found: warn
           retention-days: 14
 
-  # The only required check: lists every job above in needs; a skipped job counts as passed.
+  # STANDARD: the only required check. Keep the id `ci` with no `name:`; no matrix, no paths filter, no reusable workflow.
+  # `needs` lists every other job of this file; MAY_SKIP (in the last step) lists the jobs that may be skipped by design; it is empty when the base is main.
   ci:
     if: always()
-    needs: [linux, windows, startup, installer, capture-e2e, bench]
+    needs: [base, linux, windows, startup, installer, capture-e2e, bench]
     runs-on: ubuntu-latest
     timeout-minutes: 2
+    permissions:
+      contents: read
+      pull-requests: read
     steps:
-      - name: PRs into main come from dev
-        if: github.base_ref == 'main' && github.head_ref != 'dev'
+      - name: Base policy (into dev; into main only from dev)
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EVENT: ${{ github.event_name }}
+          PR: ${{ github.event.pull_request.number }}
+          BASE: ${{ needs.base.outputs.base }}
+          HEAD: ${{ github.head_ref || github.ref_name }}
+          HEAD_REPO: ${{ github.event.pull_request.head.repo.full_name || github.repository }}
         run: |
-          echo "::error::PRs into main must come from dev. Target dev instead."
-          exit 1
-      - name: All jobs passed
-        if: contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')
-        run: exit 1
+          case "$BASE" in
+            dev) ;;
+            main)
+              if [ "$HEAD" != dev ] || [ "$HEAD_REPO" != "$GITHUB_REPOSITORY" ]; then
+                echo "::error::PRs into main must come from dev of this repo (head: $HEAD_REPO:$HEAD). Retarget the PR to dev."
+                exit 1
+              fi ;;
+            "") echo "::notice::No open PR for $HEAD, so the base policy was not checked." ;;
+            *) echo "::error::Base '$BASE' is not dev or main. Stacked PRs are outside the standard: merge dev into the branch and retarget the PR to dev."; exit 1 ;;
+          esac
+          # A pull_request run keeps the base from its event. If the PR was retargeted mid-run, this run is stale and
+          # fails itself (the retarget run decides). A failed REST call fails closed.
+          if [ "$EVENT" = pull_request ]; then
+            current=$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR" --jq .base.ref) || { echo "::error::Could not read the current PR base."; exit 1; }
+            if [ "$current" != "$BASE" ]; then
+              echo "::error::Base changed during the run ($BASE -> $current); the retarget run decides."
+              exit 1
+            fi
+          fi
+      - name: Every job succeeded
+        env:
+          NEEDS: ${{ toJSON(needs) }}
+          BASE: ${{ needs.base.outputs.base }}
+        run: |
+          # On main every job must succeed. Otherwise (or if `base` itself failed) only the Windows jobs and `bench`
+          # may be skipped by design.
+          MAY_SKIP="windows startup installer capture-e2e bench"
+          if [ "$BASE" = main ] || [ "$(jq -r '.base.result' <<<"$NEEDS")" != success ]; then MAY_SKIP=""; fi
+          bad=0
+          for job in $(jq -r 'keys[]' <<<"$NEEDS"); do
+            result=$(jq -r --arg j "$job" '.[$j].result' <<<"$NEEDS")
+            case "$result" in
+              success) ;;
+              skipped) case " $MAY_SKIP " in *" $job "*) ;; *) echo "::error::$job was skipped but may not be skipped here (base '$BASE')"; bad=1 ;; esac ;;
+              *) echo "::error::$job: $result"; bad=1 ;;
+            esac
+          done
+          exit $bad
