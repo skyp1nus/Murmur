@@ -1,13 +1,17 @@
 name: ci
 
-# Repo standard v1: every PR into dev or main gets the Linux job; the Windows jobs (build/test/AOT, startup, installer,
-# capture e2e) and the benchmarks run only on the release PR (dev -> main) or on a manual run (inputs `windows`, `bench`).
+# Repo standard v1.1: every PR gets the Linux job; the Windows jobs (build/test/AOT, startup, installer, capture e2e)
+# and the benchmarks run only on the release PR (dev -> main) or on a manual run (inputs `windows`, `bench`).
 # Everyday Windows checks run on the owner's PC: scripts/verify-local.ps1. The last job, `ci`, is the only required check.
 on:
+  # STANDARD (repo standard v1.1): every PR gets `ci`, whatever its base; base changes re-run via ci-retarget.yml.
   pull_request:
-    branches: [dev, main]
   workflow_dispatch:
     inputs:
+      base:
+        description: "PR base branch (set by ci-retarget.yml; empty = the open PR's base)"
+        required: false
+        type: string
       windows:
         description: Run the Windows jobs (build, tests, AOT publish, startup, installer, capture e2e)
         type: boolean
@@ -18,7 +22,7 @@ on:
         default: false
 
 concurrency:
-  group: ci-${{ github.event.pull_request.number || github.ref }}
+  group: ci-${{ github.event.pull_request.head.repo.full_name || github.repository }}-${{ github.head_ref || github.ref_name }}
   cancel-in-progress: true
 
 permissions:
@@ -110,8 +114,8 @@ jobs:
 
   windows:
     name: build, test, AOT publish (win-x64)
-    # Release PR (base main) or a manual run with `windows` = true.
-    if: ${{ github.base_ref == 'main' || (github.event_name == 'workflow_dispatch' && inputs.windows) }}
+    # Release PR (base main) or a manual run with `windows` = true (a ci-retarget.yml run sets `base` and follows it).
+    if: ${{ (github.base_ref || inputs.base) == 'main' || (github.event_name == 'workflow_dispatch' && !inputs.base && inputs.windows) }}
     runs-on: windows-latest
     timeout-minutes: 45
     defaults:
@@ -480,8 +484,8 @@ jobs:
 
   bench:
     name: benchmarks
-    # Release PR (base main) or a manual run with `bench` = true.
-    if: ${{ github.base_ref == 'main' || (github.event_name == 'workflow_dispatch' && inputs.bench) }}
+    # Release PR (base main) or a manual run with `bench` = true (a ci-retarget.yml run sets `base` and follows it).
+    if: ${{ (github.base_ref || inputs.base) == 'main' || (github.event_name == 'workflow_dispatch' && !inputs.base && inputs.bench) }}
     runs-on: windows-latest
     timeout-minutes: 40
     defaults:
@@ -532,18 +536,49 @@ jobs:
           if-no-files-found: warn
           retention-days: 14
 
-  # The only required check: lists every job above in needs; a skipped job counts as passed.
+  # STANDARD: the only required check. Keep the id `ci` with no `name:`; no matrix, no paths filter, no reusable workflow.
+  # `needs` lists every other job of this file; MAY_SKIP lists the jobs that are skipped by design on some PRs.
   ci:
     if: always()
     needs: [linux, windows, startup, installer, capture-e2e, bench]
     runs-on: ubuntu-latest
     timeout-minutes: 2
+    permissions:
+      contents: read
+      pull-requests: read
     steps:
-      - name: PRs into main come from dev
-        if: github.base_ref == 'main' && github.head_ref != 'dev'
+      - name: Base policy (into dev; into main only from dev)
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BASE: ${{ github.base_ref || inputs.base }}
+          HEAD: ${{ github.head_ref || github.ref_name }}
+          HEAD_REPO: ${{ github.event.pull_request.head.repo.full_name || github.repository }}
         run: |
-          echo "::error::PRs into main must come from dev. Target dev instead."
-          exit 1
-      - name: All jobs passed
-        if: contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')
-        run: exit 1
+          if [ -z "$BASE" ]; then
+            BASE=$(gh pr list -R "$GITHUB_REPOSITORY" --head "$HEAD" --state open --json baseRefName -q '.[0].baseRefName')
+          fi
+          case "$BASE" in
+            dev) ;;
+            main)
+              if [ "$HEAD" != dev ] || [ "$HEAD_REPO" != "$GITHUB_REPOSITORY" ]; then
+                echo "::error::PRs into main must come from dev of this repo (head: $HEAD_REPO:$HEAD). Retarget the PR to dev."
+                exit 1
+              fi ;;
+            "") echo "::notice::No open PR for $HEAD, so the base policy was not checked." ;;
+            *) echo "::error::Base '$BASE' is not dev or main. Stacked PRs are outside the standard: merge dev into the branch and retarget the PR to dev."; exit 1 ;;
+          esac
+      - name: Every job succeeded
+        env:
+          NEEDS: ${{ toJSON(needs) }}
+          MAY_SKIP: "windows startup installer capture-e2e bench"
+        run: |
+          bad=0
+          for job in $(jq -r 'keys[]' <<<"$NEEDS"); do
+            result=$(jq -r --arg j "$job" '.[$j].result' <<<"$NEEDS")
+            case "$result" in
+              success) ;;
+              skipped) case " $MAY_SKIP " in *" $job "*) ;; *) echo "::error::$job was skipped but is not in MAY_SKIP"; bad=1 ;; esac ;;
+              *) echo "::error::$job: $result"; bad=1 ;;
+            esac
+          done
+          exit $bad

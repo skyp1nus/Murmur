@@ -1,0 +1,35 @@
+name: CI retarget
+
+# STANDARD (repo standard v1.1): a base change starts no pull_request run, and the head keeps its old `ci` result.
+# Mark `ci` failed for the new base at once (fail closed), then re-run CI on the head with that base; the re-run's
+# `ci` supersedes the mark. If the dispatch fails, the PR stays blocked instead of merging on the old result.
+on:
+  pull_request:
+    types: [edited]
+
+permissions:
+  actions: write
+  checks: write
+
+jobs:
+  rerun:
+    if: github.event.changes.base != null
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Mark ci failed until the re-run reports
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SHA: ${{ github.event.pull_request.head.sha }}
+          BASE: ${{ github.base_ref }}
+        run: |
+          gh api -X POST "repos/$GITHUB_REPOSITORY/check-runs" \
+            -f name=ci -f head_sha="$SHA" -f status=completed -f conclusion=failure \
+            -f "output[title]=Base changed to $BASE: CI is re-running" \
+            -f "output[summary]=ci-retarget.yml re-dispatched ci.yml for the new base; that run's ci check replaces this one."
+      - name: Dispatch ci.yml for the new base
+        env:
+          GH_TOKEN: ${{ github.token }}
+          HEAD_REF: ${{ github.head_ref }}
+          BASE: ${{ github.base_ref }}
+        run: gh workflow run ci.yml -R "$GITHUB_REPOSITORY" --ref "$HEAD_REF" -f base="$BASE"

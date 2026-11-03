@@ -1,12 +1,12 @@
 # CI
 
-## Коли що запускається (repo standard v1)
+## Коли що запускається (repo standard v1.1)
 
 Запусків GitHub Actions — мінімум; Windows-перевірки щодня робляться на ПК власника. Гілки: `dev` (default) — PR задач, squash; `main` — лише release PR `dev -> main`, merge commit. Єдиний required check — джоб `ci` (gate) у `ci.yml`.
 
 | Що | Автоматично | Вручну |
 |---|---|---|
-| `ci.yml`, джоби `linux` і `ci` | кожен PR у `dev` або `main` | Actions → ci → Run workflow |
+| `ci.yml`, джоби `linux` і `ci` | кожен PR (будь-яка база); зміна бази PR перезапускає `ci.yml` через `ci-retarget.yml` | Actions → ci → Run workflow |
 | `ci.yml`, джоби `windows`, `startup`, `installer`, `capture-e2e` | лише release PR (`dev -> main`) | Run workflow, `windows` = true |
 | `ci.yml`, джоб `bench` | лише release PR (`dev -> main`) | Run workflow, `bench` = true |
 | `asr.yml`, `ai-eval.yml`, `perf-record.yml` | ніколи | Run workflow |
@@ -31,7 +31,7 @@ pwsh scripts/verify-local.ps1 -All -Tone            # усе; -Tone грає т�
 
 ## Workflow `ci`
 
-Workflow: `.github/workflows/ci.yml`. Тригери — див. таблицю вище. Нові запуски того ж PR скасовують попередні (`concurrency: ci-<номер PR або ref>`). Пропущений джоб (`if:` на рівні джоба) звітує Success, тому фільтрів `paths:`/`branches-ignore` на рівні workflow немає. Права токена: лише `contents: read`. Окремий workflow `.github/workflows/ai-eval.yml` (AI-eval фази 3) описано в розділі «AI-eval» нижче.
+Workflow: `.github/workflows/ci.yml`. Тригери — див. таблицю вище. Нові запуски тієї ж гілки скасовують попередні (`concurrency: ci-<head-гілка PR або ref>`). Пропущений джоб (`if:` на рівні джоба) звітує Success, тому фільтрів `paths:`/`branches-ignore` на рівні workflow немає. Права токена: `contents: read` (gate `ci` ще читає PR: `pull-requests: read`). Окремий workflow `.github/workflows/ai-eval.yml` (AI-eval фази 3) описано в розділі «AI-eval» нижче.
 
 SDK береться з `global.json` (prerelease `11.0.100-rc.2.26504.105`, `rollForward: latestFeature`). Одного `global-json-file` недостатньо: `setup-dotnet` обрізає версію до `major.minor` і ставить те, що зараз віддає канал `11.0`. Тому в усіх кроках `setup-dotnet` додатково вказано `dotnet-version: 11.0.100-rc.2.26504.105`, а наступний крок `Verify SDK matches global.json` валить джоб, якщо `dotnet --version` не дорівнює `sdk.version` з `global.json` (UNVERIFIED-ON-ACTIONS: поведінку `setup-dotnet` не перевірено запуском). При зміні SDK в `global.json` треба оновити `dotnet-version` у `ci.yml`. NuGet-кеш: `actions/cache@v4`, ключ від `Directory.Packages.props` і `**/*.csproj`.
 
@@ -45,7 +45,7 @@ SDK береться з `global.json` (prerelease `11.0.100-rc.2.26504.105`, `ro
 | `installer` | windows-latest, після `windows`, 20 хв | Завантажує `murmur-win-x64` (без другого publish), ставить Inno Setup (`choco install innosetup -y --no-progress`, якщо `ISCC.exe` немає), збирає інсталятор `scripts/build-installer.ps1 -SkipPublish`, потім `verify-local.ps1 -Installer -SetupExe ...`: тихе встановлення в temp-теку, перевірка файлів, старт встановленого `Murmur.exe` (бюджет 400 мс), тихе видалення, перевірка, що тека зникла, а дані користувача лишились. Артефакти `murmur-installer`, `installer-verify`. Деталі - у розділі «Інсталятор». |
 | `capture-e2e` | windows-latest, після `windows`, 30 хв | End-to-end запис на раннері без звукової карти: віртуальна карта VB-Audio Virtual Cable, зациклений тон 440 Гц, `Murmur.exe --autorecord 60 --screen`. Деталі - у розділі «Capture e2e» нижче. |
 | `bench` | windows-latest, 40 хв | BenchmarkDotNet (`--job short`), усі `*-report-github.md` додаються до Step Summary. |
-| `ci` | ubuntu-latest, 2 хв, `if: always()`, після всіх джобів | Єдиний required check. Падає, якщо якийсь джоб `failure` або `cancelled`, або якщо PR у `main` прийшов не з `dev`. |
+| `ci` | ubuntu-latest, 2 хв, `if: always()`, після всіх джобів | Єдиний required check. Падає, якщо якийсь джоб не `success` (пропуск дозволено лише джобам із `MAY_SKIP`: Windows-джоби й `bench`), якщо база PR не `dev`/`main` або PR у `main` прийшов не з `dev`. |
 
 Тести йдуть через Microsoft.Testing.Platform (`global.json`), тому TRX вмикається прапорцем `--report-xunit-trx` (VSTest-прапорець `--logger trx` у цій конфігурації дає exit code 5).
 

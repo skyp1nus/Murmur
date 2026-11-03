@@ -33,7 +33,7 @@ dotnet run -c Release --project tests/Murmur.Benchmarks
 
 ## Перевірка на Windows
 - Щоденна перевірка Windows-поведінки (WASAPI, WGC/MF, AOT win-x64, старт) — на ПК власника: `pwsh scripts/verify-local.ps1` (за замовчуванням build + тести + AOT win-x64 + старт; `-Capture`, `-Perf`, `-Asr`, `-AiEval`, `-All`, `-Tone`). Звіт — `artifacts/local-verify/<час>/report.md`, його додають у PR.
-- GitHub Actions — мінімально: на кожен PR у `dev`/`main` лише Linux-джоб `ci.yml` і gate `ci` (єдиний required check); Windows-джоби `ci.yml` (тести, AOT, `startup`, `installer`, `capture-e2e`) і `bench` — лише на release PR `dev -> main` або вручну; `asr.yml`, `ai-eval.yml`, `perf-record.yml`, `models.yml` — лише вручну (`workflow_dispatch`). Раннер без GPU (WARP) і з забороненим мікрофоном — не плутати це з багами продукту.
+- GitHub Actions — мінімально: на кожен PR (будь-яка база) лише Linux-джоб `ci.yml` і gate `ci` (єдиний required check: перевіряє політику `dev`/`main` і падає на неочікувано пропущеному джобі; зміна бази PR перезапускає CI через `ci-retarget.yml`); Windows-джоби `ci.yml` (тести, AOT, `startup`, `installer`, `capture-e2e`) і `bench` — лише на release PR `dev -> main` або вручну; `asr.yml`, `ai-eval.yml`, `perf-record.yml`, `models.yml` — лише вручну (`workflow_dispatch`). Раннер без GPU (WARP) і з забороненим мікрофоном — не плутати це з багами продукту.
 - Теги `phase-N-done` — рядком у `.github/phase-tags.txt` (створює `tags.yml`).
 
 ## Середовище
