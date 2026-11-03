@@ -332,7 +332,8 @@ public sealed class SessionViewTests : IDisposable
                 UiHarness.Pump();
                 var page = window.GetVisualDescendants().OfType<SessionPagePanel>().Single();
                 var wideColumns = (page.Children[1].Bounds, page.Children[2].Bounds);
-                window.Width = 900;
+                // The shell of this test has no sidebar; the 700 px the page area has at the 900 px minimum of the real window (200 px sidebar) are set directly.
+                window.GetVisualDescendants().OfType<SessionView>().Single().Width = 700;
                 UiHarness.Pump();
                 var narrowColumns = (page.Children[1].Bounds, page.Children[2].Bounds);
                 window.Close();

@@ -37,7 +37,7 @@ public sealed class WaveformControl : Control
         AvaloniaProperty.Register<WaveformControl, IBrush?>(nameof(PlayheadBrush));
 
     /// <summary>The playhead sticks out of the bars by this much above and below; the control is that much taller than its bars.</summary>
-    public const double Overhang = 4;
+    public const double Overhang = 3;
 
     private const double BarWidth = 3;
     private const double BarGap = 2;

@@ -12,6 +12,9 @@
         <ResourceInclude Source="/Styles/Tokens.axaml" />
       </ResourceDictionary.MergedDictionaries>
 
+      <!-- The orb in the sidebar's "Recording" pill: 9 px in Recording.dc.html (Shell's Size.PillOrb is 10). -->
+      <x:Double x:Key="Size.RecordingPillOrb">9</x:Double>
+
       <ResourceDictionary.ThemeDictionaries>
         <!-- The source chips are Canvas in the light theme and Surface in the dark one. -->
         <ResourceDictionary x:Key="Light">

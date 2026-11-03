@@ -55,6 +55,7 @@ public sealed class Phase3ScreenshotTests
             () =>
             {
                 var window = UiHarness.Show(shell);
+                window.Height = 900; // the 720 px of the default window leave the chat column too short for both bubbles
                 var session = shell.Session!;
                 session.IsAskTab = true;
                 UiHarness.Pump();

@@ -8,7 +8,7 @@
 
   <!-- The right side of the top bar of a recording (Session.dc.html): "Export" and "..." -->
   <StackPanel Orientation="Horizontal"
-              Spacing="{StaticResource Space.8}">
+              Spacing="{StaticResource Space.6}">
 
     <Button x:Name="ExportButton"
             Classes="sessionGhost"
@@ -37,7 +37,7 @@
         </Flyout>
       </Button.Flyout>
       <StackPanel Orientation="Horizontal"
-                  Spacing="{StaticResource Space.8}">
+                  Spacing="{StaticResource Space.6}">
         <controls:IconControl Width="{StaticResource Size.SearchIcon}"
                               Height="{StaticResource Size.SearchIcon}"
                               Data="{StaticResource Icon.Download}" />
