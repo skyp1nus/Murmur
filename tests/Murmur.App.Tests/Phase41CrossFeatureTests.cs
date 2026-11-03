@@ -29,9 +29,9 @@ public sealed class Phase41CrossFeatureTests
     [Fact]
     public void EveryBoardOfTheParityTable_HasAllThreeGates_AndTheMainScreensTheSidebarGate()
     {
-        // Real-size rollout (chore/real-size-ui): stage A gates the Library boards, stage B the Recording and Session ones; the other boards are
-        // report-only until their stage-B tasks restore the gates and remove themselves from this list.
-        var reportOnly = DesignBoards.All.Where(b => b.Screen is not (BoardScreen.Library or BoardScreen.Recording or BoardScreen.Session)).Select(b => b.Name).ToHashSet(StringComparer.Ordinal);
+        // Real-size rollout (chore/real-size-ui): stage A gates the Library boards, stage B the other screens; boards whose stage-B
+        // task has not restored the gates yet stay report-only and are listed here.
+        var reportOnly = DesignBoards.All.Where(b => b.Screen is not (BoardScreen.Library or BoardScreen.Recording or BoardScreen.Session or BoardScreen.Chat or BoardScreen.Settings)).Select(b => b.Name).ToHashSet(StringComparer.Ordinal);
         foreach (var board in DesignBoards.All)
         {
             if (reportOnly.Contains(board.Name))

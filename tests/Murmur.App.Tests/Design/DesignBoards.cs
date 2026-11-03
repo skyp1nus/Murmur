@@ -162,7 +162,7 @@ internal static class DesignBoards
                 MaxTextGeometryErrors: 1,
                 ExcludedTexts: [VideoPlaceholder, VideoChip],
                 MaxSidebarShapePercent: SidebarShapeLimit));
-            boards.Add(new("Chat" + suffix, BoardScreen.Chat, dark, 1100, 720, [])); // TODO(real-size stage B): gates of the Ask AI screen
+            boards.Add(new("Chat" + suffix, BoardScreen.Chat, dark, 1100, 720, [], MaxShapeMismatchPercent: dark ? 1.5 : 3.8, MinTextMatchedPercent: 100, MaxTextGeometryErrors: 1, MaxSidebarShapePercent: SidebarShapeLimit));
             boards.Add(new(
                 "Settings" + suffix,
                 BoardScreen.Settings,
@@ -170,10 +170,14 @@ internal static class DesignBoards
                 1100,
                 settingsHeight,
                 [
-                    new IgnoreRect(603, 1183 + shift, 64, 17, "Settings: [VERSION] placeholder", TextOnly: true),
-                    new IgnoreRect(630, 1206 + shift, 68, 18, "Settings: [LICENSE] placeholder", TextOnly: true),
+                    new IgnoreRect(603, 1183 + shift, 63, 15, "Settings: [VERSION] placeholder", TextOnly: true),
+                    new IgnoreRect(636, 1206 + shift, 60, 16, "Settings: [LICENSE] placeholder", TextOnly: true),
                 ],
-                ExcludedTexts: [Version, License, UserPath, StorageText, DirectMl, Credits])); // TODO(real-size stage B): gates of the Settings screen
+                ExcludedTexts: [Version, License, UserPath, StorageText, DirectMl, Credits],
+                MaxShapeMismatchPercent: 1.0,
+                MinTextMatchedPercent: 100,
+                MaxTextGeometryErrors: 1,
+                MaxSidebarShapePercent: SettingsSidebarShapeLimit));
             boards.Add(new("Onb1Welcome" + suffix, BoardScreen.Onboarding1Welcome, dark, 1100, 720, [])); // TODO(real-size stage B): gates of the onboarding
             boards.Add(new(
                 "Onb2Audio" + suffix,
@@ -221,4 +225,11 @@ internal static class DesignBoards
     }
 
     private const double SidebarShapeLimit = 1.0;
+
+    /// <summary>
+    /// The Settings sidebar has no "Fully offline" panel, so its drawn area is about half of the other boards' while the residue of the shell
+    /// (anti-aliasing of the orb, the three nav icons and the pill edges, identical on every board) is the same: 1.16 % / 1.27 % where the others
+    /// show 0.8 %. The shell's own gate stays 1.0 % on the boards that carry the panel.
+    /// </summary>
+    private const double SettingsSidebarShapeLimit = 1.3;
 }
