@@ -20,7 +20,7 @@
 - **Дизайн** — тільки токени з `docs/design/tokens.json`. Violet/Ember — лише для «сфери» запису та іконок, ніколи для кнопок і тексту.
 - **Тести** до кожної публічної поведінки; бенчмарк до кожного гарячого шляху.
 - **Комміти** — Conventional Commits (`feat(capture): ...`), одна задача = одна гілка = один PR.
-- **Гілки:** `dev` — інтеграція, PR задач відкриваються в `dev`; `main` — стабільні версії, у `main` зливається лише `dev` на релізі.
+- **Гілки (repo standard v1):** `dev` — default і інтеграція: гілка задачі `<issue>-<slug>` (без issue — `<type>/<slug>`) від `dev`, PR у `dev` із conventional-заголовком і `Closes #<n>`, лише squash, коли `ci` зелений. `main` — релізи: лише release PR `dev -> main` (відкриває власник), лише merge commit; `main` ніколи не мерджиться назад у `dev`. Прямих push у `dev`/`main` немає. Шаблон PR — `.github/pull_request_template.md`.
 - **Без трейлерів у коммітах:** жодних `Co-Authored-By:` і `Claude-Session:` рядків у повідомленнях коммітів; в описах PR — без посилань на сесію Claude.
 
 ## Команди
@@ -33,7 +33,7 @@ dotnet run -c Release --project tests/Murmur.Benchmarks
 
 ## Перевірка на Windows
 - Щоденна перевірка Windows-поведінки (WASAPI, WGC/MF, AOT win-x64, старт) — на ПК власника: `pwsh scripts/verify-local.ps1` (за замовчуванням build + тести + AOT win-x64 + старт; `-Capture`, `-Perf`, `-Asr`, `-AiEval`, `-All`, `-Tone`). Звіт — `artifacts/local-verify/<час>/report.md`, його додають у PR.
-- GitHub Actions — мінімально (рішення власника, 2026-10-19): на кожен PR лише Linux-джоб `ci.yml`; Windows-джоби `ci.yml` (тести, AOT, `startup`, `capture-e2e`) — з міткою `ci:windows` на PR або вручну; `asr.yml`, `ai-eval.yml`, `perf-record.yml`, `models.yml` і бенчмарки — лише вручну (`workflow_dispatch`). Раннер без GPU (WARP) і з забороненим мікрофоном — не плутати це з багами продукту.
+- GitHub Actions — мінімально: на кожен PR у `dev`/`main` лише Linux-джоб `ci.yml` і gate `ci` (єдиний required check); Windows-джоби `ci.yml` (тести, AOT, `startup`, `installer`, `capture-e2e`) і `bench` — лише на release PR `dev -> main` або вручну; `asr.yml`, `ai-eval.yml`, `perf-record.yml`, `models.yml` — лише вручну (`workflow_dispatch`). Раннер без GPU (WARP) і з забороненим мікрофоном — не плутати це з багами продукту.
 - Теги `phase-N-done` — рядком у `.github/phase-tags.txt` (створює `tags.yml`).
 
 ## Середовище

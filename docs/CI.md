@@ -1,16 +1,16 @@
 # CI
 
-## Коли що запускається (рішення власника, 2026-10-19)
+## Коли що запускається (repo standard v1)
 
-Запусків GitHub Actions — мінімум; Windows-перевірки щодня робляться на ПК власника.
+Запусків GitHub Actions — мінімум; Windows-перевірки щодня робляться на ПК власника. Гілки: `dev` (default) — PR задач, squash; `main` — лише release PR `dev -> main`, merge commit. Єдиний required check — джоб `ci` (gate) у `ci.yml`.
 
 | Що | Автоматично | Вручну |
 |---|---|---|
-| `ci.yml`, джоб `linux` | кожен pull request (крім події «додали мітку») | Actions → ci → Run workflow |
-| `ci.yml`, джоби `windows`, `startup`, `installer`, `capture-e2e` | лише PR з міткою `ci:windows` (додавання мітки теж запускає) | Run workflow, `windows` = true |
-| `ci.yml`, джоб `bench` | ніколи | Run workflow, `bench` = true |
+| `ci.yml`, джоби `linux` і `ci` | кожен PR у `dev` або `main` | Actions → ci → Run workflow |
+| `ci.yml`, джоби `windows`, `startup`, `installer`, `capture-e2e` | лише release PR (`dev -> main`) | Run workflow, `windows` = true |
+| `ci.yml`, джоб `bench` | лише release PR (`dev -> main`) | Run workflow, `bench` = true |
 | `asr.yml`, `ai-eval.yml`, `perf-record.yml` | ніколи | Run workflow |
-| `models.yml` | PR, якому додали мітку `ci:models` (по запуску на кожне додавання) | Run workflow |
+| `models.yml` | ніколи | Run workflow |
 | `tags.yml` | push у `main`, що змінює `.github/phase-tags.txt` | Run workflow |
 
 ### Локально: `scripts/verify-local.ps1`
@@ -31,7 +31,7 @@ pwsh scripts/verify-local.ps1 -All -Tone            # усе; -Tone грає т�
 
 ## Workflow `ci`
 
-Workflow: `.github/workflows/ci.yml`. Тригери — див. таблицю вище. Нові запуски для тієї ж гілки скасовують попередні (`concurrency: ci-<ref>`). Права токена: лише `contents: read`. Окремий workflow `.github/workflows/ai-eval.yml` (AI-eval фази 3) описано в розділі «AI-eval» нижче.
+Workflow: `.github/workflows/ci.yml`. Тригери — див. таблицю вище. Нові запуски того ж PR скасовують попередні (`concurrency: ci-<номер PR або ref>`). Пропущений джоб (`if:` на рівні джоба) звітує Success, тому фільтрів `paths:`/`branches-ignore` на рівні workflow немає. Права токена: лише `contents: read`. Окремий workflow `.github/workflows/ai-eval.yml` (AI-eval фази 3) описано в розділі «AI-eval» нижче.
 
 SDK береться з `global.json` (prerelease `11.0.100-rc.2.26504.105`, `rollForward: latestFeature`). Одного `global-json-file` недостатньо: `setup-dotnet` обрізає версію до `major.minor` і ставить те, що зараз віддає канал `11.0`. Тому в усіх кроках `setup-dotnet` додатково вказано `dotnet-version: 11.0.100-rc.2.26504.105`, а наступний крок `Verify SDK matches global.json` валить джоб, якщо `dotnet --version` не дорівнює `sdk.version` з `global.json` (UNVERIFIED-ON-ACTIONS: поведінку `setup-dotnet` не перевірено запуском). При зміні SDK в `global.json` треба оновити `dotnet-version` у `ci.yml`. NuGet-кеш: `actions/cache@v4`, ключ від `Directory.Packages.props` і `**/*.csproj`.
 
@@ -45,6 +45,7 @@ SDK береться з `global.json` (prerelease `11.0.100-rc.2.26504.105`, `ro
 | `installer` | windows-latest, після `windows`, 20 хв | Завантажує `murmur-win-x64` (без другого publish), ставить Inno Setup (`choco install innosetup -y --no-progress`, якщо `ISCC.exe` немає), збирає інсталятор `scripts/build-installer.ps1 -SkipPublish`, потім `verify-local.ps1 -Installer -SetupExe ...`: тихе встановлення в temp-теку, перевірка файлів, старт встановленого `Murmur.exe` (бюджет 400 мс), тихе видалення, перевірка, що тека зникла, а дані користувача лишились. Артефакти `murmur-installer`, `installer-verify`. Деталі - у розділі «Інсталятор». |
 | `capture-e2e` | windows-latest, після `windows`, 30 хв | End-to-end запис на раннері без звукової карти: віртуальна карта VB-Audio Virtual Cable, зациклений тон 440 Гц, `Murmur.exe --autorecord 60 --screen`. Деталі - у розділі «Capture e2e» нижче. |
 | `bench` | windows-latest, 40 хв | BenchmarkDotNet (`--job short`), усі `*-report-github.md` додаються до Step Summary. |
+| `ci` | ubuntu-latest, 2 хв, `if: always()`, після всіх джобів | Єдиний required check. Падає, якщо якийсь джоб `failure` або `cancelled`, або якщо PR у `main` прийшов не з `dev`. |
 
 Тести йдуть через Microsoft.Testing.Platform (`global.json`), тому TRX вмикається прапорцем `--report-xunit-trx` (VSTest-прапорець `--logger trx` у цій конфігурації дає exit code 5).
 
@@ -89,7 +90,7 @@ UNVERIFIED-ON-ACTIONS: workflow не запускався на GitHub Actions (Y
 Через CLI:
 
 ```powershell
-gh run list --workflow ci --branch main --limit 5
+gh run list --workflow ci --branch dev --limit 5   # release PR (head dev) або ручний запуск
 gh run download <run-id> --name murmur-win-x64 --dir murmur-win-x64
 .\murmur-win-x64\Murmur.exe
 ```
