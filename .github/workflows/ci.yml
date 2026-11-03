@@ -1,11 +1,11 @@
 name: ci
 
-# Owner decision (2026-10-19): keep GitHub Actions runs few. Every pull request gets the Linux job; the Windows jobs
-# (build/test/AOT, startup, installer, capture e2e) run only when the PR carries the label `ci:windows` or on a manual run, and
-# the benchmarks only on a manual run. Everyday Windows checks run on the owner's PC: scripts/verify-local.ps1.
+# Repo standard v1: every PR into dev or main gets the Linux job; the Windows jobs (build/test/AOT, startup, installer,
+# capture e2e) and the benchmarks run only on the release PR (dev -> main) or on a manual run (inputs `windows`, `bench`).
+# Everyday Windows checks run on the owner's PC: scripts/verify-local.ps1. The last job, `ci`, is the only required check.
 on:
   pull_request:
-    types: [opened, synchronize, reopened, labeled]
+    branches: [dev, main]
   workflow_dispatch:
     inputs:
       windows:
@@ -17,9 +17,8 @@ on:
         type: boolean
         default: false
 
-# A `labeled` run (Windows jobs only) must not cancel the Linux run of the same commit, so it gets its own group.
 concurrency:
-  group: ci-${{ github.ref }}-${{ github.event.action == 'labeled' && 'labeled' || 'code' }}
+  group: ci-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 permissions:
@@ -33,8 +32,6 @@ env:
 jobs:
   linux:
     name: build, test, AOT publish (linux-x64)
-    # Adding a label is not a code change: only the Windows jobs react to `ci:windows`.
-    if: ${{ github.event.action != 'labeled' }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
     # Explicit shell: GitHub then runs steps as `bash --noprofile --norc -eo pipefail {0}`,
@@ -113,10 +110,8 @@ jobs:
 
   windows:
     name: build, test, AOT publish (win-x64)
-    if: >-
-      ${{ (github.event_name == 'workflow_dispatch' && inputs.windows) ||
-          (github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'ci:windows') &&
-           (github.event.action != 'labeled' || github.event.label.name == 'ci:windows')) }}
+    # Release PR (base main) or a manual run with `windows` = true.
+    if: ${{ github.base_ref == 'main' || (github.event_name == 'workflow_dispatch' && inputs.windows) }}
     runs-on: windows-latest
     timeout-minutes: 45
     defaults:
@@ -485,7 +480,8 @@ jobs:
 
   bench:
     name: benchmarks
-    if: ${{ github.event_name == 'workflow_dispatch' && inputs.bench }}
+    # Release PR (base main) or a manual run with `bench` = true.
+    if: ${{ github.base_ref == 'main' || (github.event_name == 'workflow_dispatch' && inputs.bench) }}
     runs-on: windows-latest
     timeout-minutes: 40
     defaults:
@@ -535,3 +531,19 @@ jobs:
           path: artifacts/bench
           if-no-files-found: warn
           retention-days: 14
+
+  # The only required check: lists every job above in needs; a skipped job counts as passed.
+  ci:
+    if: always()
+    needs: [linux, windows, startup, installer, capture-e2e, bench]
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: PRs into main come from dev
+        if: github.base_ref == 'main' && github.head_ref != 'dev'
+        run: |
+          echo "::error::PRs into main must come from dev. Target dev instead."
+          exit 1
+      - name: All jobs passed
+        if: contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')
+        run: exit 1
