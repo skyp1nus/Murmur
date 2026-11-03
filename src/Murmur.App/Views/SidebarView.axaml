@@ -66,8 +66,8 @@
                   Command="{Binding ShowRecordingCommand}">
             <StackPanel Orientation="Horizontal"
                         Spacing="{StaticResource Space.8}">
-              <controls:OrbDisc Width="{StaticResource Size.PillOrb}"
-                                Height="{StaticResource Size.PillOrb}"
+              <controls:OrbDisc Width="{StaticResource Size.RecordingPillOrb}"
+                                Height="{StaticResource Size.RecordingPillOrb}"
                                 VerticalAlignment="Center" />
               <TextBlock Classes="t13"
                          Foreground="{DynamicResource Brush.Ink}"

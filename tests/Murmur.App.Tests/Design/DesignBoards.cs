@@ -140,9 +140,13 @@ internal static class DesignBoards
                 1100,
                 720,
                 [
-                    new IgnoreRect(812, 134, 248, 26, "Recording: microphone " + WaveformReason),
-                    new IgnoreRect(812, 234, 248, 26, "Recording: system audio " + WaveformReason),
-                ])); // TODO(real-size stage B): gates (shape, text, geometry errors) of the Recording screen
+                    new IgnoreRect(812, 134, 248, 27, "Recording: microphone " + WaveformReason),
+                    new IgnoreRect(812, 234, 248, 27, "Recording: system audio " + WaveformReason),
+                ],
+                MaxShapeMismatchPercent: dark ? 1.2 : 1.0,
+                MinTextMatchedPercent: 100,
+                MaxTextGeometryErrors: 1,
+                MaxSidebarShapePercent: SidebarShapeLimit));
             boards.Add(new(
                 "Session" + suffix,
                 BoardScreen.Session,
@@ -153,7 +157,11 @@ internal static class DesignBoards
                     new IgnoreRect(224, 135, 396, 223, "Session: screen-recording frame placeholder (the app shows the video, not a placeholder)"),
                     new IgnoreRect(241, 380, 362, 50, "Session: " + WaveformReason),
                 ],
-                ExcludedTexts: [VideoPlaceholder, VideoChip])); // TODO(real-size stage B): gates of the Session screen
+                MaxShapeMismatchPercent: 1.5,
+                MinTextMatchedPercent: 100,
+                MaxTextGeometryErrors: 1,
+                ExcludedTexts: [VideoPlaceholder, VideoChip],
+                MaxSidebarShapePercent: SidebarShapeLimit));
             boards.Add(new("Chat" + suffix, BoardScreen.Chat, dark, 1100, 720, [])); // TODO(real-size stage B): gates of the Ask AI screen
             boards.Add(new(
                 "Settings" + suffix,

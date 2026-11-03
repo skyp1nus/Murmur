@@ -10,8 +10,8 @@
 
   <!--
     The Recording screen of the canvas (Recording.dc.html / RecordingDark.dc.html), in the page area below the top bar: a page
-    column of at most 1180 px with 32 px at the sides, the title, orb, timer and controls in the middle, the Tracks card, the
-    "Let people know" card and a note at the right (below the middle column when the window is narrow).
+    column of at most 960 px with 24 px at the sides, the title, orb, timer and controls in the middle, the Tracks card, the
+    "Let people know" card and a note in a 280 px column at the right (below the middle column when the window is narrow).
     Colours, fonts, type, spacing and the orb's numbers are tokens; what sits below are the sizes of this screen's own components and
     the geometry of single drawings.
   -->
@@ -21,33 +21,30 @@
 
       <!-- Component sizes of the canvas and drawing geometry (the dashed chip, the glyph grid, the timer's shift): sizes of single
            components and drawings, not tokens. -->
-      <x:Double x:Key="Rec.PageMaxWidth">1180</x:Double>
-      <x:Double x:Key="Rec.TitleMaxWidth">520</x:Double>
-      <x:Double x:Key="Rec.SideWidth">320</x:Double>
-      <x:Double x:Key="Rec.WrapBelow">872</x:Double>
-      <x:Double x:Key="Rec.ChipHeight">40</x:Double>
-      <x:Double x:Key="Rec.ButtonHeight">44</x:Double>
-      <x:Double x:Key="Rec.CopyHeight">36</x:Double>
-      <x:Double x:Key="Rec.Bars">36</x:Double>
-      <x:Double x:Key="Rec.Icon">16</x:Double>
-      <x:Double x:Key="Rec.SmallIcon">14</x:Double>
+      <x:Double x:Key="Rec.PageMaxWidth">960</x:Double>
+      <x:Double x:Key="Rec.TitleMaxWidth">420</x:Double>
+      <x:Double x:Key="Rec.SideWidth">280</x:Double>
+      <x:Double x:Key="Rec.WrapBelow">680</x:Double>
+      <x:Double x:Key="Rec.Bars">27</x:Double>
+      <x:Double x:Key="Rec.Icon">14</x:Double>
+      <x:Double x:Key="Rec.PauseIcon">13</x:Double>
+      <x:Double x:Key="Rec.StopIcon">11</x:Double>
       <!-- Rectangle radii are plain numbers, so the chip's radius cannot be the Radius.Pill CornerRadius (9999 would not clamp to a pill there). -->
-      <x:Double x:Key="Rec.ChipRadius">20</x:Double>
-      <Thickness x:Key="Rec.PagePadding">32,24,32,80</Thickness>
-      <Thickness x:Key="Rec.ColumnPadding">0,24</Thickness>
-      <Thickness x:Key="Rec.ChipPadding">17,0</Thickness>
-      <Thickness x:Key="Rec.PausePadding">20,0</Thickness>
-      <Thickness x:Key="Rec.StopPadding">21,0</Thickness>
-      <Thickness x:Key="Rec.CopyPadding">14,0</Thickness>
-      <Thickness x:Key="Rec.CardPadding">24,20</Thickness>
-      <Thickness x:Key="Rec.NotePadding">8,0</Thickness>
-      <x:Double x:Key="Rec.TitleHeight">36</x:Double>
+      <x:Double x:Key="Rec.ChipRadius">14</x:Double>
+      <Thickness x:Key="Rec.PagePadding">24,16,24,32</Thickness>
+      <Thickness x:Key="Rec.ColumnPadding">0,8</Thickness>
+      <Thickness x:Key="Rec.ChipPadding">13,0</Thickness>
+      <Thickness x:Key="Rec.StopPadding">16,0</Thickness>
+      <Thickness x:Key="Rec.NotePadding">6,0</Thickness>
+      <x:Double x:Key="Rec.TitleHeight">31</x:Double>
       <x:Double x:Key="Rec.IconGrid">24</x:Double>
       <Thickness x:Key="Rec.DashInset">0.5</Thickness>
       <!-- The dashed chip of the canvas: 1 px dashes, 3 px long and 3 px apart. -->
       <collections:AvaloniaList x:TypeArguments="x:Double" x:Key="Rec.Dash">3,3</collections:AvaloniaList>
-      <!-- Moves the timer text up by 6 px (and keeps its box): Geist Mono sits lower in a 48 px line in Avalonia than in Chromium. -->
-      <Thickness x:Key="Rec.TimerShift">0,-6,0,6</Thickness>
+      <!-- The note under the cards: 11 px on a 1.55 line. -->
+      <x:Double x:Key="Rec.NoteLine">17.05</x:Double>
+      <!-- Moves the timer text (and keeps its box): Geist Mono sits a little differently in its 44 px line in Avalonia than in Chromium. -->
+      <Thickness x:Key="Rec.TimerShift">0,-7.4,0,7.4</Thickness>
       <x:Double x:Key="Rec.PausedOrbOpacity">0.5</x:Double>
 
       <!-- Filled glyphs of the buttons (24 x 24 grid, like the canvas SVGs). -->
@@ -62,60 +59,66 @@
     <Style Selector="TextBlock.recLabel">
       <Setter Property="FontFamily" Value="{StaticResource Font.Body}" />
       <Setter Property="FontWeight" Value="{StaticResource FontWeight.Body}" />
-      <Setter Property="FontSize" Value="{StaticResource FontSize.Meta}" />
-      <Setter Property="LetterSpacing" Value="{StaticResource LetterSpacing.Meta}" />
+      <Setter Property="FontSize" Value="{StaticResource FontSize.Small}" />
+      <Setter Property="LineHeight" Value="{StaticResource LineHeight.SmallTight}" />
+      <Setter Property="LetterSpacing" Value="{StaticResource LetterSpacing.Small}" />
       <Setter Property="Foreground" Value="{DynamicResource Brush.Smoke}" />
     </Style>
     <Style Selector="TextBlock.recSmall">
       <Setter Property="FontFamily" Value="{StaticResource Font.Body}" />
       <Setter Property="FontWeight" Value="{StaticResource FontWeight.Body}" />
-      <Setter Property="FontSize" Value="{StaticResource FontSize.Small}" />
-      <Setter Property="LetterSpacing" Value="{StaticResource LetterSpacing.Small}" />
+      <Setter Property="FontSize" Value="{StaticResource FontSize.Tag}" />
+      <Setter Property="LineHeight" Value="{StaticResource LineHeight.Tag}" />
+      <Setter Property="LetterSpacing" Value="{StaticResource LetterSpacing.Tag}" />
       <Setter Property="Foreground" Value="{DynamicResource Brush.Smoke}" />
     </Style>
     <Style Selector="TextBlock.recMono">
       <Setter Property="FontFamily" Value="{StaticResource Font.Mono}" />
       <Setter Property="FontWeight" Value="{StaticResource FontWeight.Mono}" />
       <Setter Property="FontSize" Value="{StaticResource FontSize.MonoSmall}" />
+      <Setter Property="LineHeight" Value="{StaticResource LineHeight.MonoSmall}" />
       <Setter Property="LetterSpacing" Value="{StaticResource LetterSpacing.MonoSmall}" />
       <Setter Property="Foreground" Value="{DynamicResource Brush.Smoke}" />
     </Style>
     <Style Selector="TextBlock.recTrackName">
       <Setter Property="FontFamily" Value="{StaticResource Font.Body}" />
       <Setter Property="FontWeight" Value="{StaticResource FontWeight.BodyMedium}" />
-      <Setter Property="FontSize" Value="{StaticResource FontSize.Meta}" />
-      <Setter Property="LetterSpacing" Value="{StaticResource LetterSpacing.Meta}" />
+      <Setter Property="FontSize" Value="{StaticResource FontSize.Small}" />
+      <Setter Property="LineHeight" Value="{StaticResource LineHeight.SmallTight}" />
+      <Setter Property="LetterSpacing" Value="{StaticResource LetterSpacing.Small}" />
       <Setter Property="Foreground" Value="{DynamicResource Brush.Ink}" />
     </Style>
     <Style Selector="TextBlock.recHeading">
       <Setter Property="FontFamily" Value="{StaticResource Font.Body}" />
       <Setter Property="FontWeight" Value="{StaticResource FontWeight.BodyMedium}" />
-      <Setter Property="FontSize" Value="{StaticResource FontSize.RowTitle}" />
-      <Setter Property="LetterSpacing" Value="{StaticResource LetterSpacing.RowTitle}" />
+      <Setter Property="FontSize" Value="{StaticResource FontSize.Meta}" />
+      <Setter Property="LineHeight" Value="{StaticResource LineHeight.MetaTight}" />
+      <Setter Property="LetterSpacing" Value="{StaticResource LetterSpacing.Meta}" />
       <Setter Property="Foreground" Value="{DynamicResource Brush.Ink}" />
     </Style>
     <Style Selector="TextBlock.recCardTitle">
       <Setter Property="FontFamily" Value="{StaticResource Font.Body}" />
       <Setter Property="FontWeight" Value="{StaticResource FontWeight.BodyMedium}" />
-      <Setter Property="FontSize" Value="{StaticResource FontSize.BodySm}" />
-      <Setter Property="LetterSpacing" Value="{StaticResource LetterSpacing.BodySm}" />
+      <Setter Property="FontSize" Value="{StaticResource FontSize.Meta}" />
+      <Setter Property="LineHeight" Value="{StaticResource LineHeight.MetaTight}" />
+      <Setter Property="LetterSpacing" Value="{StaticResource LetterSpacing.Meta}" />
       <Setter Property="Foreground" Value="{DynamicResource Brush.Ink}" />
     </Style>
     <Style Selector="TextBlock.recMessage">
       <Setter Property="FontFamily" Value="{StaticResource Font.Body}" />
       <Setter Property="FontWeight" Value="{StaticResource FontWeight.Body}" />
-      <Setter Property="FontSize" Value="{StaticResource FontSize.Message}" />
-      <Setter Property="LineHeight" Value="{StaticResource LineHeight.Message}" />
-      <Setter Property="LetterSpacing" Value="{StaticResource LetterSpacing.Message}" />
+      <Setter Property="FontSize" Value="{StaticResource FontSize.Small}" />
+      <Setter Property="LineHeight" Value="{StaticResource LineHeight.Small}" />
+      <Setter Property="LetterSpacing" Value="{StaticResource LetterSpacing.Small}" />
       <Setter Property="Foreground" Value="{DynamicResource Brush.Smoke}" />
       <Setter Property="TextWrapping" Value="Wrap" />
     </Style>
     <Style Selector="TextBlock.recNote">
       <Setter Property="FontFamily" Value="{StaticResource Font.Body}" />
       <Setter Property="FontWeight" Value="{StaticResource FontWeight.Body}" />
-      <Setter Property="FontSize" Value="{StaticResource FontSize.Note}" />
-      <Setter Property="LineHeight" Value="{StaticResource LineHeight.Note}" />
-      <Setter Property="LetterSpacing" Value="{StaticResource LetterSpacing.Note}" />
+      <Setter Property="FontSize" Value="{StaticResource FontSize.Tag}" />
+      <Setter Property="LineHeight" Value="{StaticResource Rec.NoteLine}" />
+      <Setter Property="LetterSpacing" Value="{StaticResource LetterSpacing.Tag}" />
       <Setter Property="Foreground" Value="{DynamicResource Brush.Smoke}" />
       <Setter Property="TextWrapping" Value="Wrap" />
     </Style>
@@ -124,9 +127,9 @@
     <Style Selector="TextBox.recTitle">
       <Setter Property="FontFamily" Value="{StaticResource Font.Display}" />
       <Setter Property="FontWeight" Value="{StaticResource FontWeight.Display}" />
-      <Setter Property="FontSize" Value="{StaticResource FontSize.HeadingSm}" />
-      <Setter Property="LineHeight" Value="{StaticResource LineHeight.HeadingSm}" />
-      <Setter Property="LetterSpacing" Value="{StaticResource LetterSpacing.HeadingSm}" />
+      <Setter Property="FontSize" Value="{StaticResource FontSize.PageTitle}" />
+      <Setter Property="LineHeight" Value="{StaticResource LineHeight.PageTitle}" />
+      <Setter Property="LetterSpacing" Value="{StaticResource LetterSpacing.PageTitle}" />
       <Setter Property="Foreground" Value="{DynamicResource Brush.Ink}" />
       <Setter Property="Background" Value="Transparent" />
       <Setter Property="BorderThickness" Value="0" />
@@ -169,11 +172,12 @@
 
     <!-- Source chips: a pill with a hairline when the source is on, a dashed one when it is off. -->
     <Style Selector="ToggleButton.source">
-      <Setter Property="Height" Value="{StaticResource Rec.ChipHeight}" />
+      <Setter Property="Height" Value="{StaticResource Size.Chip}" />
+      <Setter Property="MinHeight" Value="0" />
       <Setter Property="Padding" Value="{StaticResource Rec.ChipPadding}" />
       <Setter Property="FontFamily" Value="{StaticResource Font.Body}" />
       <Setter Property="FontWeight" Value="{StaticResource FontWeight.BodyMedium}" />
-      <Setter Property="FontSize" Value="{StaticResource FontSize.Meta}" />
+      <Setter Property="FontSize" Value="{StaticResource FontSize.Small}" />
       <Setter Property="Foreground" Value="{DynamicResource Brush.Ink}" />
       <Setter Property="Background" Value="Transparent" />
       <Setter Property="BorderThickness" Value="0" />
@@ -235,33 +239,34 @@
 
     <!-- Pause, Stop and Copy: the app's outline and primary pills at the canvas's heights and paddings. -->
     <Style Selector="Button.rec">
-      <Setter Property="FontSize" Value="{StaticResource FontSize.BodySm}" />
-      <Setter Property="Height" Value="{StaticResource Rec.ButtonHeight}" />
-      <Setter Property="Padding" Value="{StaticResource Rec.PausePadding}" />
+      <Setter Property="FontSize" Value="{StaticResource FontSize.Meta}" />
+      <Setter Property="Height" Value="{StaticResource Size.Button}" />
+      <Setter Property="Padding" Value="{StaticResource Inset.Button}" />
     </Style>
     <Style Selector="Button.rec.stop">
       <Setter Property="Padding" Value="{StaticResource Rec.StopPadding}" />
     </Style>
     <Style Selector="Button.rec.copy">
-      <Setter Property="FontSize" Value="{StaticResource FontSize.Meta}" />
-      <Setter Property="Height" Value="{StaticResource Rec.CopyHeight}" />
-      <Setter Property="Padding" Value="{StaticResource Rec.CopyPadding}" />
+      <Setter Property="FontSize" Value="{StaticResource FontSize.Small}" />
+      <Setter Property="Height" Value="{StaticResource Size.Compact}" />
+      <Setter Property="MinHeight" Value="0" />
+      <Setter Property="Padding" Value="{StaticResource Inset.Compact}" />
     </Style>
     <Style Selector="Button.outline.rec">
       <Setter Property="Background" Value="{DynamicResource Brush.Canvas}" />
     </Style>
 
-    <!-- Cards of the right column: Surface (Tracks) or a hairline (Let people know), both 20 px round, no shadow. -->
+    <!-- Cards of the right column: Surface (Tracks) or a hairline (Let people know), both 16 px round, no shadow. -->
     <Style Selector="Border.recSurface">
       <Setter Property="Background" Value="{DynamicResource Brush.Surface}" />
       <Setter Property="CornerRadius" Value="{StaticResource Radius.Card}" />
-      <Setter Property="Padding" Value="{StaticResource Inset.24}" />
+      <Setter Property="Padding" Value="{StaticResource Inset.Card}" />
     </Style>
     <Style Selector="Border.recOutline">
       <Setter Property="BorderBrush" Value="{DynamicResource Brush.Hairline}" />
       <Setter Property="BorderThickness" Value="{StaticResource Hairline.Thickness}" />
       <Setter Property="CornerRadius" Value="{StaticResource Radius.Card}" />
-      <Setter Property="Padding" Value="{StaticResource Rec.CardPadding}" />
+      <Setter Property="Padding" Value="{StaticResource Inset.CardList}" />
     </Style>
     <Style Selector="Border.recDivider">
       <Setter Property="Height" Value="{StaticResource Hairline.Width}" />
@@ -272,11 +277,11 @@
   <UserControl.DataTemplates>
     <!-- One track of the Tracks card: icon and name, the level or state, the bars, the device. -->
     <DataTemplate DataType="vm:RecordingTrackViewModel">
-      <StackPanel Spacing="{StaticResource Space.10}">
+      <StackPanel Spacing="{StaticResource Space.8}">
         <Grid ColumnDefinitions="*,Auto">
           <StackPanel Grid.Column="0"
                       Orientation="Horizontal"
-                      Spacing="{StaticResource Space.8}"
+                      Spacing="{StaticResource Space.6}"
                       VerticalAlignment="Center"
                       TextElement.Foreground="{DynamicResource Brush.Ink}">
             <controls:IconControl Width="{StaticResource Rec.Icon}"
@@ -323,17 +328,17 @@
             IsVisible="{Binding CanGoBack}" />
     <controls:AsidePairPanel SideWidth="{StaticResource Rec.SideWidth}"
                              WrapBelow="{StaticResource Rec.WrapBelow}"
-                             ColumnSpacing="{StaticResource Space.32}"
-                             RowSpacing="{StaticResource Space.32}">
+                             ColumnSpacing="{StaticResource Space.24}"
+                             RowSpacing="{StaticResource Space.24}">
 
       <!-- Middle column: title, orb, timer, sources, buttons. -->
       <StackPanel Margin="{StaticResource Rec.ColumnPadding}"
-                  Spacing="{StaticResource Space.32}"
+                  Spacing="{StaticResource Space.20}"
                   HorizontalAlignment="Stretch">
 
         <StackPanel MaxWidth="{StaticResource Rec.TitleMaxWidth}"
                     HorizontalAlignment="Stretch"
-                    Spacing="{StaticResource Space.8}">
+                    Spacing="{StaticResource Space.4}">
           <TextBlock Classes="recLabel"
                      HorizontalAlignment="Center"
                      Text="{x:Static res:Strings.Recording_TitleLabel}" />
@@ -356,7 +361,7 @@
                                   IsVisible="{Binding ShowOrb}"
                                   IsActive="{Binding OrbActive}" />
 
-        <StackPanel Spacing="{StaticResource Space.8}">
+        <StackPanel Spacing="{StaticResource Space.4}">
           <TextBlock Classes="recTimer"
                      Classes.paused="{Binding IsPaused}"
                      HorizontalAlignment="Center"
@@ -372,12 +377,12 @@
         <!-- Source chips: choose the sources before recording; only the screen one stays live during it. -->
         <StackPanel Orientation="Horizontal"
                     HorizontalAlignment="Center"
-                    Spacing="{StaticResource Space.8}">
+                    Spacing="{StaticResource Space.6}">
           <ToggleButton Classes="source"
                         IsEnabled="{Binding CanToggleMicrophone}"
                         IsChecked="{Binding Microphone, Mode=TwoWay}">
             <StackPanel Orientation="Horizontal"
-                        Spacing="{StaticResource Space.8}">
+                        Spacing="{StaticResource Space.6}">
               <controls:IconControl Width="{StaticResource Rec.Icon}"
                                     Height="{StaticResource Rec.Icon}"
                                     Data="{StaticResource Icon.Microphone}" />
@@ -390,7 +395,7 @@
                         IsEnabled="{Binding CanToggleSystemAudio}"
                         IsChecked="{Binding SystemAudio, Mode=TwoWay}">
             <StackPanel Orientation="Horizontal"
-                        Spacing="{StaticResource Space.8}">
+                        Spacing="{StaticResource Space.6}">
               <controls:IconControl Width="{StaticResource Rec.Icon}"
                                     Height="{StaticResource Rec.Icon}"
                                     Data="{StaticResource Icon.Speaker}" />
@@ -403,7 +408,7 @@
                         IsEnabled="{Binding CanToggleScreen}"
                         IsChecked="{Binding Screen, Mode=TwoWay}">
             <StackPanel Orientation="Horizontal"
-                        Spacing="{StaticResource Space.8}">
+                        Spacing="{StaticResource Space.6}">
               <controls:IconControl Width="{StaticResource Rec.Icon}"
                                     Height="{StaticResource Rec.Icon}"
                                     Data="{StaticResource Icon.Screen}" />
@@ -461,14 +466,14 @@
 
         <StackPanel Orientation="Horizontal"
                     HorizontalAlignment="Center"
-                    Spacing="{StaticResource Space.10}">
+                    Spacing="{StaticResource Space.8}">
           <Button Classes="outline rec"
                   Command="{Binding PauseResumeCommand}"
                   IsVisible="{Binding IsRunning}">
             <StackPanel Orientation="Horizontal"
-                        Spacing="{StaticResource Space.8}">
-              <Viewbox Width="{StaticResource Rec.Icon}"
-                       Height="{StaticResource Rec.Icon}">
+                        Spacing="{StaticResource Space.6}">
+              <Viewbox Width="{StaticResource Rec.PauseIcon}"
+                       Height="{StaticResource Rec.PauseIcon}">
                 <Canvas Width="{StaticResource Rec.IconGrid}"
                         Height="{StaticResource Rec.IconGrid}">
                   <Path Data="{StaticResource Rec.Pause}"
@@ -488,9 +493,9 @@
                   Classes="primary rec stop"
                   Command="{Binding StartStopCommand}">
             <StackPanel Orientation="Horizontal"
-                        Spacing="{StaticResource Space.8}">
-              <Viewbox Width="{StaticResource Rec.SmallIcon}"
-                       Height="{StaticResource Rec.SmallIcon}"
+                        Spacing="{StaticResource Space.6}">
+              <Viewbox Width="{StaticResource Rec.StopIcon}"
+                       Height="{StaticResource Rec.StopIcon}"
                        IsVisible="{Binding IsRunning}">
                 <Canvas Width="{StaticResource Rec.IconGrid}"
                         Height="{StaticResource Rec.IconGrid}">
@@ -527,10 +532,10 @@
       </StackPanel>
 
       <!-- Right column: the tracks, the message for the other people, the note. -->
-      <StackPanel Spacing="{StaticResource Space.16}">
+      <StackPanel Spacing="{StaticResource Space.12}">
         <Border Classes="recSurface"
                 IsVisible="{Binding IsRunning}">
-          <StackPanel Spacing="{StaticResource Space.20}">
+          <StackPanel Spacing="{StaticResource Space.14}">
             <TextBlock Classes="recHeading"
                        Text="{x:Static res:Strings.Recording_Tracks}" />
             <ContentControl Content="{Binding MicrophoneTrack}" />
@@ -540,7 +545,7 @@
         </Border>
 
         <Border Classes="recOutline">
-          <StackPanel Spacing="{StaticResource Space.12}">
+          <StackPanel Spacing="{StaticResource Space.8}">
             <TextBlock Classes="recCardTitle"
                        Text="{x:Static res:Strings.Recording_LetPeopleKnow}" />
             <TextBlock Classes="recMessage"
