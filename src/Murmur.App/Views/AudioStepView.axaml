@@ -11,8 +11,7 @@
   <StackPanel Classes="onbStep audio"
               HorizontalAlignment="Stretch">
 
-    <StackPanel Spacing="{StaticResource Space.12}"
-                HorizontalAlignment="Center">
+    <StackPanel Classes="onbText">
       <TextBlock Classes="onbH1"
                  Text="{Binding Title}" />
       <TextBlock Classes="onbSub"
@@ -21,19 +20,19 @@
 
     <StackPanel MaxWidth="{StaticResource Size.OnbAudioWidth}"
                 HorizontalAlignment="Stretch"
-                Spacing="{StaticResource Space.16}">
+                Spacing="{StaticResource Space.12}">
 
       <Grid ColumnDefinitions="*,*"
-            ColumnSpacing="{StaticResource Space.16}">
+            ColumnSpacing="{StaticResource Space.12}">
 
         <!-- Microphone: track "Me" -->
         <Border Grid.Column="0"
                 Classes="panel"
-                Padding="{StaticResource Inset.24}">
-          <StackPanel Spacing="{StaticResource Space.16}">
+                Padding="{StaticResource Inset.Card}">
+          <StackPanel Spacing="{StaticResource Space.12}">
             <Grid ColumnDefinitions="*,Auto">
               <StackPanel Orientation="Horizontal"
-                          Spacing="{StaticResource Space.10}">
+                          Spacing="{StaticResource Space.8}">
                 <Border Classes="iconBadge">
                   <controls:IconControl Width="{StaticResource Size.SmallIcon}"
                                         Height="{StaticResource Size.SmallIcon}"
@@ -49,7 +48,7 @@
                          VerticalAlignment="Center"
                          Text="{x:Static res:Strings.Onb2_TrackYou}" />
             </Grid>
-            <StackPanel Spacing="{StaticResource Space.6}">
+            <StackPanel Spacing="{StaticResource Space.4}">
               <TextBlock Classes="onbLabel"
                          Text="{x:Static res:Strings.Onb2_InputDevice}" />
               <ComboBox x:Name="MicrophoneBox"
@@ -74,11 +73,11 @@
         <!-- System audio: track "Others" -->
         <Border Grid.Column="1"
                 Classes="panel"
-                Padding="{StaticResource Inset.24}">
-          <StackPanel Spacing="{StaticResource Space.16}">
+                Padding="{StaticResource Inset.Card}">
+          <StackPanel Spacing="{StaticResource Space.12}">
             <Grid ColumnDefinitions="*,Auto">
               <StackPanel Orientation="Horizontal"
-                          Spacing="{StaticResource Space.10}">
+                          Spacing="{StaticResource Space.8}">
                 <Border Classes="iconBadge">
                   <controls:IconControl Width="{StaticResource Size.SmallIcon}"
                                         Height="{StaticResource Size.SmallIcon}"
@@ -94,7 +93,7 @@
                          VerticalAlignment="Center"
                          Text="{x:Static res:Strings.Onb2_TrackOthers}" />
             </Grid>
-            <StackPanel Spacing="{StaticResource Space.6}">
+            <StackPanel Spacing="{StaticResource Space.4}">
               <TextBlock Classes="onbLabel"
                          Text="{x:Static res:Strings.Onb2_OutputDevice}" />
               <ComboBox x:Name="SystemAudioBox"
@@ -123,13 +122,13 @@
       <!-- The microphone is allowed: the meter should move. -->
       <Border x:Name="GrantedBanner"
               Classes="well"
-              Padding="{StaticResource Margin.OnbBanner}"
+              Padding="{StaticResource Inset.CardList}"
               IsVisible="{Binding ShowGranted}">
         <Grid ColumnDefinitions="Auto,*"
-              ColumnSpacing="{StaticResource Space.16}">
+              ColumnSpacing="{StaticResource Space.12}">
           <Border Classes="bannerIcon ok">
-            <controls:IconControl Width="{StaticResource Size.NavIcon}"
-                                  Height="{StaticResource Size.NavIcon}"
+            <controls:IconControl Width="{StaticResource Size.OnbBannerGlyph}"
+                                  Height="{StaticResource Size.OnbBannerGlyph}"
                                   HorizontalAlignment="Center"
                                   TextElement.Foreground="{DynamicResource Brush.Canvas}"
                                   Data="{StaticResource Icon.Check}" />
@@ -148,13 +147,13 @@
       <!-- Windows refuses the microphone: how to allow it, and try again. -->
       <Border x:Name="DeniedBanner"
               Classes="well"
-              Padding="{StaticResource Margin.OnbBanner}"
+              Padding="{StaticResource Inset.CardList}"
               IsVisible="{Binding ShowDenied}">
         <Grid ColumnDefinitions="Auto,*,Auto"
-              ColumnSpacing="{StaticResource Space.16}">
+              ColumnSpacing="{StaticResource Space.12}">
           <Border Classes="bannerIcon">
-            <controls:IconControl Width="{StaticResource Size.NavIcon}"
-                                  Height="{StaticResource Size.NavIcon}"
+            <controls:IconControl Width="{StaticResource Size.OnbBannerGlyph}"
+                                  Height="{StaticResource Size.OnbBannerGlyph}"
                                   HorizontalAlignment="Center"
                                   Data="{StaticResource Icon.Lock}" />
           </Border>
@@ -190,13 +189,13 @@
       <!-- No microphone at all. -->
       <Border x:Name="NoMicrophoneBanner"
               Classes="well"
-              Padding="{StaticResource Margin.OnbBanner}"
+              Padding="{StaticResource Inset.CardList}"
               IsVisible="{Binding ShowNoMicrophone}">
         <Grid ColumnDefinitions="Auto,*,Auto"
-              ColumnSpacing="{StaticResource Space.16}">
+              ColumnSpacing="{StaticResource Space.12}">
           <Border Classes="bannerIcon">
-            <controls:IconControl Width="{StaticResource Size.NavIcon}"
-                                  Height="{StaticResource Size.NavIcon}"
+            <controls:IconControl Width="{StaticResource Size.OnbBannerGlyph}"
+                                  Height="{StaticResource Size.OnbBannerGlyph}"
                                   HorizontalAlignment="Center"
                                   Data="{StaticResource Icon.Microphone}" />
           </Border>
@@ -219,13 +218,13 @@
       <!-- The microphone is there but does not start. -->
       <Border x:Name="MicrophoneFailedBanner"
               Classes="well"
-              Padding="{StaticResource Margin.OnbBanner}"
+              Padding="{StaticResource Inset.CardList}"
               IsVisible="{Binding ShowMicrophoneFailed}">
         <Grid ColumnDefinitions="Auto,*,Auto"
-              ColumnSpacing="{StaticResource Space.16}">
+              ColumnSpacing="{StaticResource Space.12}">
           <Border Classes="bannerIcon">
-            <controls:IconControl Width="{StaticResource Size.NavIcon}"
-                                  Height="{StaticResource Size.NavIcon}"
+            <controls:IconControl Width="{StaticResource Size.OnbBannerGlyph}"
+                                  Height="{StaticResource Size.OnbBannerGlyph}"
                                   HorizontalAlignment="Center"
                                   Data="{StaticResource Icon.Info}" />
           </Border>

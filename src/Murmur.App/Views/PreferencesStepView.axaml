@@ -10,8 +10,7 @@
   <StackPanel Classes="onbStep"
               HorizontalAlignment="Stretch">
 
-    <StackPanel Spacing="{StaticResource Space.12}"
-                HorizontalAlignment="Center">
+    <StackPanel Classes="onbText">
       <TextBlock Classes="onbH1"
                  Text="{Binding Title}" />
       <TextBlock Classes="onbSub"
@@ -26,10 +25,10 @@
         <!-- Transcription language: only "Auto-detect" for now. -->
         <Grid x:Name="LanguageRow"
               ColumnDefinitions="*,Auto"
-              ColumnSpacing="{StaticResource Space.24}"
-              Margin="{StaticResource Margin.OnbRow}">
+              ColumnSpacing="{StaticResource Space.16}"
+              Margin="{StaticResource Inset.GroupRow}">
           <StackPanel VerticalAlignment="Center"
-                      Spacing="{StaticResource Space.3}">
+                      Spacing="{StaticResource Space.2}">
             <TextBlock Classes="onbTitle"
                        Text="{x:Static res:Strings.Onb4_Language}" />
             <TextBlock Classes="onbNote"
@@ -49,10 +48,10 @@
         <!-- Recordings folder: the path, the free space of its drive and "Change". -->
         <Grid x:Name="FolderRow"
               ColumnDefinitions="*,Auto"
-              ColumnSpacing="{StaticResource Space.24}"
-              Margin="{StaticResource Margin.OnbRow}">
+              ColumnSpacing="{StaticResource Space.16}"
+              Margin="{StaticResource Inset.GroupRow}">
           <StackPanel VerticalAlignment="Center"
-                      Spacing="{StaticResource Space.3}">
+                      Spacing="{StaticResource Space.2}">
             <TextBlock Classes="onbTitle"
                        Text="{x:Static res:Strings.Onb4_Folder}" />
             <TextBlock x:Name="FolderPath"
@@ -67,7 +66,7 @@
           </StackPanel>
           <StackPanel Grid.Column="1"
                       Orientation="Horizontal"
-                      Spacing="{StaticResource Space.12}"
+                      Spacing="{StaticResource Space.10}"
                       VerticalAlignment="Center">
             <TextBlock x:Name="FolderFreeSpace"
                        Classes="onbMono"
@@ -89,10 +88,10 @@
           <!-- Start / stop hotkey: the row text is the canvas wording; clicking the field starts the capture of a new combination. -->
           <Grid x:Name="HotkeyRow"
                 ColumnDefinitions="*,Auto"
-                ColumnSpacing="{StaticResource Space.24}"
-                Margin="{StaticResource Margin.OnbRow}">
+                ColumnSpacing="{StaticResource Space.16}"
+                Margin="{StaticResource Inset.GroupRow}">
             <StackPanel VerticalAlignment="Center"
-                        Spacing="{StaticResource Space.3}">
+                        Spacing="{StaticResource Space.2}">
               <TextBlock Classes="onbTitle"
                          Text="{x:Static res:Strings.Onb4_Hotkey}" />
               <TextBlock Classes="onbNote"
@@ -118,16 +117,17 @@
                   <ItemsControl.ItemsPanel>
                     <ItemsPanelTemplate>
                       <StackPanel Orientation="Horizontal"
-                                  Spacing="{StaticResource Space.6}" />
+                                  Spacing="{StaticResource Space.4}" />
                     </ItemsPanelTemplate>
                   </ItemsControl.ItemsPanel>
                   <ItemsControl.ItemTemplate>
                     <DataTemplate x:DataType="vm:HotkeyCap">
                       <StackPanel Orientation="Horizontal"
-                                  Spacing="{StaticResource Space.6}">
+                                  Spacing="{StaticResource Space.4}">
                         <Border Classes="cap">
                           <TextBlock Classes="onbMono"
                                      LetterSpacing="0"
+                                     VerticalAlignment="Center"
                                      Text="{Binding Text}" />
                         </Border>
                         <TextBlock Classes="onbMono"
@@ -169,10 +169,10 @@
         <!-- Record the screen by default -->
         <Grid x:Name="ScreenRow"
               ColumnDefinitions="*,Auto"
-              ColumnSpacing="{StaticResource Space.24}"
-              Margin="{StaticResource Margin.OnbRow}">
+              ColumnSpacing="{StaticResource Space.16}"
+              Margin="{StaticResource Inset.GroupRow}">
           <StackPanel VerticalAlignment="Center"
-                      Spacing="{StaticResource Space.3}">
+                      Spacing="{StaticResource Space.2}">
             <TextBlock Classes="onbTitle"
                        Text="{x:Static res:Strings.Onb4_Screen}" />
             <TextBlock Classes="onbNote"

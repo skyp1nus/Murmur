@@ -11,8 +11,7 @@
   <StackPanel Classes="onbStep voice"
               HorizontalAlignment="Stretch">
 
-    <StackPanel Spacing="{StaticResource Space.12}"
-                HorizontalAlignment="Center">
+    <StackPanel Classes="onbText">
       <TextBlock Classes="onbH1"
                  Text="{Binding Title}" />
       <TextBlock Classes="onbSub"
@@ -20,7 +19,7 @@
     </StackPanel>
 
     <StackPanel HorizontalAlignment="Center"
-                Spacing="{StaticResource Space.18}">
+                Spacing="{StaticResource Space.12}">
       <controls:GlassOrbControl x:Name="VoiceOrb"
                                 Classes="voice"
                                 HorizontalAlignment="Center"
@@ -28,7 +27,7 @@
       <Border x:Name="Countdown"
               Classes="countdown">
         <StackPanel Orientation="Horizontal"
-                    Spacing="{StaticResource Space.10}">
+                    Spacing="{StaticResource Space.8}">
           <TextBlock x:Name="StatusLabel"
                      Classes="onbNote"
                      VerticalAlignment="Center"
@@ -49,12 +48,12 @@
       <!-- Waiting: the dashed card, with a progress bar while the model downloads or the text is being recognised. -->
       <Border x:Name="PlaceholderCard"
               CornerRadius="{StaticResource Radius.Card}"
-              MinHeight="{StaticResource Size.OnbWaitingCard}"
+              Height="{StaticResource Size.OnbWaitingCard}"
               IsVisible="{Binding ShowPlaceholder}">
         <Panel>
           <!-- The canvas card has a dashed 1 px outline; a Border cannot dash, so a rounded rectangle draws it. -->
           <Rectangle Classes="onbDashedOutline" />
-          <StackPanel Margin="{StaticResource Margin.OnbBanner}"
+          <StackPanel Margin="{StaticResource Inset.CardList}"
                       Spacing="{StaticResource Space.12}"
                       HorizontalAlignment="Center"
                       VerticalAlignment="Center">
@@ -77,10 +76,10 @@
       <!-- Done: who said what, with a time chip -->
       <Border x:Name="TranscriptCard"
               Classes="panel"
-              Padding="{StaticResource Margin.OnbTranscript}"
+              Padding="{StaticResource Inset.CardList}"
               IsVisible="{Binding ShowTranscript}">
         <Grid ColumnDefinitions="*,Auto"
-              ColumnSpacing="{StaticResource Space.14}">
+              ColumnSpacing="{StaticResource Space.12}">
           <ItemsControl ItemsSource="{Binding Segments}">
             <ItemsControl.ItemsPanel>
               <ItemsPanelTemplate>
@@ -90,18 +89,18 @@
             <ItemsControl.ItemTemplate>
               <DataTemplate x:DataType="vm:TrialSegment">
                 <Grid ColumnDefinitions="Auto,*"
-                      ColumnSpacing="{StaticResource Space.14}">
+                      ColumnSpacing="{StaticResource Space.12}">
                   <Border Classes="avatar">
-                    <TextBlock Classes="onbTag"
+                    <TextBlock Classes="onbAvatar"
                                HorizontalAlignment="Center"
                                VerticalAlignment="Center"
                                Foreground="{DynamicResource Brush.Canvas}"
                                Text="{Binding Initial}" />
                   </Border>
                   <StackPanel Grid.Column="1"
-                              Spacing="{StaticResource Space.6}">
+                              Spacing="{StaticResource Space.4}">
                     <StackPanel Orientation="Horizontal"
-                                Spacing="{StaticResource Space.10}">
+                                Spacing="{StaticResource Space.8}">
                       <TextBlock Classes="onbNoteMedium"
                                  VerticalAlignment="Center"
                                  Text="{Binding Speaker}" />
@@ -109,13 +108,12 @@
                         <StackPanel Orientation="Horizontal"
                                     Spacing="{StaticResource Space.4}">
                           <Path Data="{StaticResource Icon.Play}"
-                                Width="{StaticResource Space.8}"
-                                Height="{StaticResource Space.8}"
+                                Width="{StaticResource Size.OnbPlay}"
+                                Height="{StaticResource Size.OnbPlay}"
                                 Stretch="Uniform"
                                 VerticalAlignment="Center"
                                 Fill="{DynamicResource Brush.Ink}" />
-                          <TextBlock Classes="onbMono"
-                                     FontSize="{StaticResource FontSize.Small}"
+                          <TextBlock Classes="onbMonoSmall"
                                      VerticalAlignment="Center"
                                      Text="{Binding Time}" />
                         </StackPanel>
@@ -140,10 +138,10 @@
       <!-- Failed, or nothing recognised -->
       <Border x:Name="MessageCard"
               Classes="panel"
-              Padding="{StaticResource Margin.OnbBanner}"
+              Padding="{StaticResource Inset.CardList}"
               IsVisible="{Binding ShowMessage}">
         <Grid ColumnDefinitions="Auto,*,Auto"
-              ColumnSpacing="{StaticResource Space.16}">
+              ColumnSpacing="{StaticResource Space.12}">
           <controls:IconControl Width="{StaticResource Size.NavIcon}"
                                 Height="{StaticResource Size.NavIcon}"
                                 VerticalAlignment="Top"
@@ -169,7 +167,7 @@
     <StackPanel x:Name="ConsentNote"
                 Orientation="Horizontal"
                 HorizontalAlignment="Center"
-                Spacing="{StaticResource Space.8}">
+                Spacing="{StaticResource Space.6}">
       <controls:IconControl Width="{StaticResource Size.OnbConsent}"
                             Height="{StaticResource Size.OnbConsent}"
                             TextElement.Foreground="{DynamicResource Brush.Smoke}"

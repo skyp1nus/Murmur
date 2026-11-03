@@ -13,6 +13,12 @@ public abstract partial class OnboardingStepViewModel : ObservableObject
 
     public abstract string Subtitle { get; }
 
+    /// <summary>
+    /// The canvas draws the last two steps with a tighter frame (24 px sides, narrower footer buttons) than the first three (28 px):
+    /// layout only, the page switches its "dense" class with it.
+    /// </summary>
+    public virtual bool DenseFrame => false;
+
     /// <summary>Continue is possible (step 2 needs a working microphone, or the "without microphone" choice).</summary>
     [ObservableProperty]
     public partial bool CanContinue { get; set; } = true;

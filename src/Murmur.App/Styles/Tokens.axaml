@@ -180,6 +180,9 @@
   <x:Double x:Key="FontSize.Transcript">16</x:Double>
   <x:Double x:Key="LineHeight.Transcript">24.8</x:Double>
   <x:Double x:Key="LetterSpacing.Transcript">0.13</x:Double>
+  <x:Double x:Key="FontSize.OnbTranscript">14</x:Double>
+  <x:Double x:Key="LineHeight.OnbTranscript">21.7</x:Double>
+  <x:Double x:Key="LetterSpacing.OnbTranscript">0.13</x:Double>
   <x:Double x:Key="FontSize.Message">13</x:Double>
   <x:Double x:Key="LineHeight.Message">20.15</x:Double>
   <x:Double x:Key="LetterSpacing.Message">0.13</x:Double>
