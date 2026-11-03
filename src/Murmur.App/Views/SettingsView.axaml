@@ -32,7 +32,7 @@
       <Thickness x:Key="Settings.CardDetails">0,14,0,0</Thickness>
       <x:Double x:Key="Settings.MaxWidth">960</x:Double>
       <x:Double x:Key="Settings.Side">200</x:Double>
-      <x:Double x:Key="Settings.Wrap">600</x:Double>
+      <x:Double x:Key="Settings.Wrap">720</x:Double>
       <x:Double x:Key="Settings.ProgressWidth">200</x:Double>
       <x:Double x:Key="Settings.Icon12">12</x:Double>
       <x:Double x:Key="Settings.Icon13">13</x:Double>

@@ -31,7 +31,7 @@ public sealed class Phase41CrossFeatureTests
     {
         // Real-size rollout (chore/real-size-ui): stage A gates the Library boards; the other boards are report-only until their
         // stage-B tasks restore the gates and remove themselves from this list.
-        var reportOnly = DesignBoards.All.Where(b => b.Screen is not BoardScreen.Library).Select(b => b.Name).ToHashSet(StringComparer.Ordinal);
+        var reportOnly = DesignBoards.All.Where(b => b.Screen is not (BoardScreen.Library or BoardScreen.Chat or BoardScreen.Settings)).Select(b => b.Name).ToHashSet(StringComparer.Ordinal);
         foreach (var board in DesignBoards.All)
         {
             if (reportOnly.Contains(board.Name))

@@ -162,8 +162,8 @@ internal static class DesignBoards
                 1100,
                 settingsHeight,
                 [
-                    new IgnoreRect(603, 1183 + shift, 64, 17, "Settings: [VERSION] placeholder", TextOnly: true),
-                    new IgnoreRect(630, 1206 + shift, 68, 18, "Settings: [LICENSE] placeholder", TextOnly: true),
+                    new IgnoreRect(603, 1183 + shift, 63, 15, "Settings: [VERSION] placeholder", TextOnly: true),
+                    new IgnoreRect(636, 1206 + shift, 60, 16, "Settings: [LICENSE] placeholder", TextOnly: true),
                 ],
                 ExcludedTexts: [Version, License, UserPath, StorageText, DirectMl, Credits],
                 MaxShapeMismatchPercent: 1.0,
