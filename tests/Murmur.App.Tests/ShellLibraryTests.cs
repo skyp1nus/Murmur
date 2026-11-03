@@ -958,7 +958,7 @@ public sealed class ShellLibraryTests
         Assert.True(narrow, "the two cards stack on a narrow window");
         Assert.True(wide, "the two cards sit side by side on a wide window");
         Assert.True(extentOk, "no horizontal scrolling at the minimum size");
-        Assert.Equal(241, sidebarWidth);
+        Assert.Equal(200, sidebarWidth);
     }
 
     [Fact]

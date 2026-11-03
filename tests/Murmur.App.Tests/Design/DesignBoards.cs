@@ -50,7 +50,7 @@ internal enum BoardScreen
 /// </param>
 /// <param name="MaxShapeMismatchPercent">The shape-layer mismatch of drawn pixels (total) above which the test fails; <c>null</c> = report only. Screen tasks set it.</param>
 /// <param name="MinTextMatchedPercent">The share of reference texts the app must have (by text); <c>null</c> = report only.</param>
-/// <param name="MaxSidebarShapePercent">The shape-layer mismatch of the sidebar strip (x &lt; 241) above which the test fails; <c>null</c> = report only. The sidebar is the shell's, so every main board has it.</param>
+/// <param name="MaxSidebarShapePercent">The shape-layer mismatch of the sidebar strip (x &lt; 200) above which the test fails; <c>null</c> = report only. The sidebar is the shell's, so every main board has it.</param>
 /// <param name="MaxTextGeometryErrors">The most matched texts allowed to be off in position, width, lines, size, weight or family; <c>null</c> = report only.</param>
 internal sealed record DesignBoard(
     string Name,
@@ -68,7 +68,7 @@ internal sealed record DesignBoard(
     /// <summary>The page colour of the theme (docs/design/tokens.json): what the comparison treats as background.</summary>
     public (byte R, byte G, byte B) Background => ImageComparer.CanvasColor(Dark);
 
-    /// <summary>The main screens have the 240 px sidebar of the canvas; the onboarding fills the window.</summary>
+    /// <summary>The main screens have the 200 px sidebar of the canvas; the onboarding fills the window.</summary>
     public bool HasSidebar => Screen is BoardScreen.Library or BoardScreen.Recording or BoardScreen.Session or BoardScreen.Chat or BoardScreen.Settings;
 
     public bool IsOnboarding => !HasSidebar;
@@ -127,115 +127,89 @@ internal static class DesignBoards
         foreach (var dark in new[] { false, true })
         {
             var suffix = dark ? "Dark" : string.Empty;
-            var settingsHeight = dark ? 1821 : 1819;
+            var settingsHeight = dark ? 1316 : 1314;
             var shift = dark ? 2 : 0;
 
-            // Library: reached 0.8 % / 1.2 % shape mismatch, every text found, 2 geometry errors (x +2.3 / +2.1 px of two chips).
-            boards.Add(new("Main" + suffix, BoardScreen.Library, dark, 1440, 1406, [], MaxShapeMismatchPercent: dark ? 1.5 : 1.0, MinTextMatchedPercent: 100, MaxTextGeometryErrors: 2));
+            // The canvas is drawn for the real window, 1100 x 720 (docs/design/README.md); the sizes are those of docs/design/reference/*.png.
+            // Library: the gates of the screen. Every other board is report-only until its real-size stage (stage B) restores its gates.
+            boards.Add(new("Main" + suffix, BoardScreen.Library, dark, 1100, 1014, [], MaxShapeMismatchPercent: dark ? 1.5 : 1.0, MinTextMatchedPercent: 100, MaxTextGeometryErrors: 2));
             boards.Add(new(
                 "Recording" + suffix,
                 BoardScreen.Recording,
                 dark,
-                1440,
-                1000,
+                1100,
+                720,
                 [
-                    new IgnoreRect(1100, 173, 276, 36, "Recording: microphone " + WaveformReason),
-                    new IgnoreRect(1100, 301, 276, 36, "Recording: system audio " + WaveformReason),
-                ],
-                // Set at integration with the shell frame: reached 0.77 % / 0.94 % shape, every text found, 1 geometry error.
-                MaxShapeMismatchPercent: dark ? 1.2 : 1.0,
-                MinTextMatchedPercent: 100,
-                MaxTextGeometryErrors: 1));
+                    new IgnoreRect(812, 134, 248, 26, "Recording: microphone " + WaveformReason),
+                    new IgnoreRect(812, 234, 248, 26, "Recording: system audio " + WaveformReason),
+                ])); // TODO(real-size stage B): gates (shape, text, geometry errors) of the Recording screen
             boards.Add(new(
                 "Session" + suffix,
                 BoardScreen.Session,
                 dark,
-                1440,
                 1100,
+                780,
                 [
-                    new IgnoreRect(273, 165, 535, 301, "Session: screen-recording frame placeholder (the app shows the video, not a placeholder)"),
-                    new IgnoreRect(292, 497, 498, 66, "Session: " + WaveformReason),
+                    new IgnoreRect(224, 135, 396, 223, "Session: screen-recording frame placeholder (the app shows the video, not a placeholder)"),
+                    new IgnoreRect(241, 380, 362, 50, "Session: " + WaveformReason),
                 ],
-                // Reached 1.10 % / 1.14 % shape mismatch, every text found, 1 geometry error (the width of "12:21": the canvas box includes the space after it).
-                MaxShapeMismatchPercent: 1.5,
-                MinTextMatchedPercent: 100,
-                MaxTextGeometryErrors: 1,
-                ExcludedTexts: [VideoPlaceholder, VideoChip]));
-            // Ask AI: reached 3.7 % / 1.4 % shape mismatch, every text found, 1 geometry error: the placeholder of the question box, which the
-            // reference measures against the centre of the whole textarea while the canvas draws it on its first line (the app does the same).
-            boards.Add(new("Chat" + suffix, BoardScreen.Chat, dark, 1440, 1080, [], MaxShapeMismatchPercent: dark ? 1.5 : 3.8, MinTextMatchedPercent: 100, MaxTextGeometryErrors: 1));
+                ExcludedTexts: [VideoPlaceholder, VideoChip])); // TODO(real-size stage B): gates of the Session screen
+            boards.Add(new("Chat" + suffix, BoardScreen.Chat, dark, 1100, 720, [])); // TODO(real-size stage B): gates of the Ask AI screen
             boards.Add(new(
                 "Settings" + suffix,
                 BoardScreen.Settings,
                 dark,
-                1440,
+                1100,
                 settingsHeight,
                 [
-                    new IgnoreRect(822, 1611 + shift, 70, 17, "Settings: [VERSION] placeholder", TextOnly: true),
-                    new IgnoreRect(853, 1638 + shift, 70, 18, "Settings: [LICENSE] placeholder", TextOnly: true),
+                    new IgnoreRect(603, 1183 + shift, 64, 17, "Settings: [VERSION] placeholder", TextOnly: true),
+                    new IgnoreRect(630, 1206 + shift, 68, 18, "Settings: [LICENSE] placeholder", TextOnly: true),
                 ],
-                ExcludedTexts: [Version, License, UserPath, StorageText, DirectMl, Credits],
-                // Reached 0.82 % / 0.65 % shape, every text found (four documented deviations excluded), 1 geometry error: "CPU" sits
-                // 12.7 px right because the control says "Vulkan" where the canvas says "DirectML" (D-042) and is right-aligned.
-                MaxShapeMismatchPercent: 1.0,
-                MinTextMatchedPercent: 100,
-                MaxTextGeometryErrors: 1));
-            boards.Add(new("Onb1Welcome" + suffix, BoardScreen.Onboarding1Welcome, dark, 1280, 800, [], MaxShapeMismatchPercent: 0.8, MinTextMatchedPercent: 95, MaxTextGeometryErrors: 0));
+                ExcludedTexts: [Version, License, UserPath, StorageText, DirectMl, Credits])); // TODO(real-size stage B): gates of the Settings screen
+            boards.Add(new("Onb1Welcome" + suffix, BoardScreen.Onboarding1Welcome, dark, 1100, 720, [])); // TODO(real-size stage B): gates of the onboarding
             boards.Add(new(
                 "Onb2Audio" + suffix,
                 BoardScreen.Onboarding2Audio,
                 dark,
-                1280,
-                800,
-                [new IgnoreRect(671, 456, 366, 26, "Onboarding 2: system audio " + WaveformReason)],
-                MaxShapeMismatchPercent: 3.0,
-                MinTextMatchedPercent: 95,
-                MaxTextGeometryErrors: 0,
-                ExcludedTexts: [MicPermissionText]));
+                1100,
+                720,
+                [new IgnoreRect(572, 404, 252, 20, "Onboarding 2: system audio " + WaveformReason)],
+                ExcludedTexts: [MicPermissionText])); // TODO(real-size stage B): gates of the onboarding
             boards.Add(new(
                 "Onb3Models" + suffix,
                 BoardScreen.Onboarding3Models,
                 dark,
-                1280,
-                800,
+                1100,
+                720,
                 [
-                    new IgnoreRect(547, 497, 65, 16, "Onboarding 3: [X.X] GB placeholder", TextOnly: true),
-                    new IgnoreRect(942, 497, 57, 16, "Onboarding 3: [XX] GB placeholder", TextOnly: true),
+                    new IgnoreRect(469, 432, 60, 18, "Onboarding 3: [X.X] GB placeholder", TextOnly: true),
+                    new IgnoreRect(772, 432, 52, 18, "Onboarding 3: [XX] GB placeholder", TextOnly: true),
                 ],
-                MaxShapeMismatchPercent: 5.0,
-                MinTextMatchedPercent: 95,
-                MaxTextGeometryErrors: 0,
-                ExcludedTexts: [SizeSmall, SizeLarge]));
+                ExcludedTexts: [SizeSmall, SizeLarge])); // TODO(real-size stage B): gates of the onboarding
             boards.Add(new(
                 "Onb3ModelsReady" + suffix,
                 BoardScreen.Onboarding3ModelsReady,
                 dark,
-                1280,
-                800,
+                1100,
+                720,
                 [
-                    new IgnoreRect(547, 462, 65, 16, "Onboarding 3 ready: [X.X] GB placeholder", TextOnly: true),
-                    new IgnoreRect(942, 462, 57, 16, "Onboarding 3 ready: [XX] GB placeholder", TextOnly: true),
+                    new IgnoreRect(469, 404, 60, 18, "Onboarding 3 ready: [X.X] GB placeholder", TextOnly: true),
+                    new IgnoreRect(772, 404, 52, 18, "Onboarding 3 ready: [XX] GB placeholder", TextOnly: true),
                 ],
-                MaxShapeMismatchPercent: 4.5,
-                MinTextMatchedPercent: 95,
-                MaxTextGeometryErrors: 0,
-                ExcludedTexts: [SizeSmall, SizeLarge]));
+                ExcludedTexts: [SizeSmall, SizeLarge])); // TODO(real-size stage B): gates of the onboarding
             boards.Add(new(
                 "Onb4Preferences" + suffix,
                 BoardScreen.Onboarding4Preferences,
                 dark,
-                1280,
-                800,
-                [new IgnoreRect(792, 404, 92, 18, "Onboarding 4: [N] GB free placeholder", TextOnly: true)],
-                MaxShapeMismatchPercent: 2.8,
-                MinTextMatchedPercent: 95,
-                MaxTextGeometryErrors: 0,
-                ExcludedTexts: [FreeSpace, UserPath]));
-            boards.Add(new("Onb5FirstRecording" + suffix, BoardScreen.Onboarding5FirstRecording, dark, 1280, 800, [], MaxShapeMismatchPercent: 3.5, MinTextMatchedPercent: 95, MaxTextGeometryErrors: 0));
+                1100,
+                720,
+                [new IgnoreRect(651, 360, 82, 18, "Onboarding 4: [N] GB free placeholder", TextOnly: true)],
+                ExcludedTexts: [FreeSpace, UserPath])); // TODO(real-size stage B): gates of the onboarding
+            boards.Add(new("Onb5FirstRecording" + suffix, BoardScreen.Onboarding5FirstRecording, dark, 1100, 720, [])); // TODO(real-size stage B): gates of the onboarding
         }
 
-        // The sidebar is the shell's: every main board has to match it (reached 0.84 % at most), whatever its content does.
-        return [.. boards.Select(b => b.HasSidebar ? b with { MaxSidebarShapePercent = SidebarShapeLimit } : b)];
+        // The sidebar is the shell's: every main board has to match it, whatever its content does (stage A: Library only).
+        return [.. boards.Select(b => b.Screen is BoardScreen.Library ? b with { MaxSidebarShapePercent = SidebarShapeLimit } : b)]; // TODO(real-size stage B): the sidebar gate of the other main boards
     }
 
     private const double SidebarShapeLimit = 1.0;

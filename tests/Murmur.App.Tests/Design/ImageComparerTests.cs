@@ -8,8 +8,8 @@ public sealed class ImageComparerTests
     private static PixelImage Page()
     {
         var image = PixelImage.Filled(400, 300, 252, 252, 252);
-        image.Fill(0, 0, 241, 300, 245, 244, 242);
-        image.Fill(240, 0, 1, 300, 214, 209, 203);
+        image.Fill(0, 0, 200, 300, 245, 244, 242);
+        image.Fill(199, 0, 1, 300, 214, 209, 203);
         image.Fill(280, 40, 80, 30, 0, 0, 0);
         image.Fill(280, 120, 100, 1, 214, 209, 203);
         image.Fill(20, 20, 150, 40, 0, 0, 0);
@@ -82,8 +82,8 @@ public sealed class ImageComparerTests
 
         Assert.Equal(150 * 40, result.Sidebar.Mismatched);
         Assert.Equal(0, result.Content.Mismatched);
-        Assert.Equal(241L * 300, result.Sidebar.Compared);
-        Assert.Equal((400L - 241) * 300, result.Content.Compared);
+        Assert.Equal(200L * 300, result.Sidebar.Compared);
+        Assert.Equal((400L - 200) * 300, result.Content.Compared);
     }
 
     [Fact]

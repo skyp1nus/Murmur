@@ -38,8 +38,8 @@ public sealed class MainWindowTests
             TestContext.Current.CancellationToken);
 
         Assert.Equal("Murmur", snapshot.Title);
-        Assert.Equal(1200, snapshot.Width);
-        Assert.Equal(780, snapshot.Height);
+        Assert.Equal(1100, snapshot.Width);
+        Assert.Equal(720, snapshot.Height);
         Assert.Equal(900, snapshot.MinWidth);
         Assert.Equal(600, snapshot.MinHeight);
         Assert.Contains("What are we recording today?", snapshot.texts);
@@ -270,15 +270,15 @@ public sealed class MainWindowTests
             TestContext.Current.CancellationToken);
 
         Assert.Equal(FontWeight.Light, display.FontWeight);
-        Assert.Equal(36, display.FontSize);
-        Assert.Equal(-0.72, display.LetterSpacing, 3);
+        Assert.Equal(24, display.FontSize);
+        Assert.Equal(-0.48, display.LetterSpacing, 3);
         Assert.Equal("Geist Mono", mono.Name);
-        Assert.Equal(13, mono.FontSize);
-        Assert.Equal(17, mono.LineHeight, 3);
+        Assert.Equal(12, mono.FontSize);
+        Assert.Equal(16, mono.LineHeight, 3);
         Assert.Equal(new CornerRadius(9999), primaryRadius);
-        Assert.Equal(new CornerRadius(24), cardRadius);
+        Assert.Equal(new CornerRadius(20), cardRadius);
         Assert.Equal(new CornerRadius(9999), pillRadius);
-        Assert.Equal(new CornerRadius(10), badgeRadius);
+        Assert.Equal(new CornerRadius(8), badgeRadius);
     }
 
     [Fact]
