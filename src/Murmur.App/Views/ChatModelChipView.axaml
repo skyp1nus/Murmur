@@ -8,12 +8,12 @@
   <!-- "Gemma 4 E4B · local": the model that answers, with its small orb. -->
   <Border Classes="chatModel">
     <StackPanel Orientation="Horizontal"
-                Spacing="{StaticResource Space.8}"
+                Spacing="{StaticResource Space.6}"
                 VerticalAlignment="Center">
-      <controls:OrbDisc Width="{StaticResource Size.PillOrb}"
-                        Height="{StaticResource Size.PillOrb}"
+      <controls:OrbDisc Width="{StaticResource Chat.ModelOrb}"
+                        Height="{StaticResource Chat.ModelOrb}"
                         VerticalAlignment="Center" />
-      <TextBlock Classes="t12 graphite"
+      <TextBlock Classes="t11 graphite"
                  VerticalAlignment="Center"
                  Text="{Binding Text}" />
     </StackPanel>

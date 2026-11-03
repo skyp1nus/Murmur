@@ -154,7 +154,7 @@ internal static class DesignBoards
                     new IgnoreRect(241, 380, 362, 50, "Session: " + WaveformReason),
                 ],
                 ExcludedTexts: [VideoPlaceholder, VideoChip])); // TODO(real-size stage B): gates of the Session screen
-            boards.Add(new("Chat" + suffix, BoardScreen.Chat, dark, 1100, 720, [])); // TODO(real-size stage B): gates of the Ask AI screen
+            boards.Add(new("Chat" + suffix, BoardScreen.Chat, dark, 1100, 720, [], MaxShapeMismatchPercent: dark ? 1.5 : 3.8, MinTextMatchedPercent: 100, MaxTextGeometryErrors: 1));
             boards.Add(new(
                 "Settings" + suffix,
                 BoardScreen.Settings,

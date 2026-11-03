@@ -213,6 +213,12 @@
   <x:Double x:Key="FontSize.Chip">12</x:Double>
   <x:Double x:Key="LineHeight.Chip">19.8</x:Double>
   <x:Double x:Key="LetterSpacing.Chip">0.13</x:Double>
+  <x:Double x:Key="FontSize.ChatText">13</x:Double>
+  <x:Double x:Key="LineHeight.ChatText">20</x:Double>
+  <x:Double x:Key="LetterSpacing.ChatText">0.13</x:Double>
+  <x:Double x:Key="FontSize.SourceSnippet">12</x:Double>
+  <x:Double x:Key="LineHeight.SourceSnippet">17</x:Double>
+  <x:Double x:Key="LetterSpacing.SourceSnippet">0.13</x:Double>
   <x:Double x:Key="FontSize.SubheadingTight">18</x:Double>
   <x:Double x:Key="LineHeight.SubheadingTight">21</x:Double>
   <x:Double x:Key="LetterSpacing.SubheadingTight">0.13</x:Double>
