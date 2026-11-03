@@ -1,41 +1,324 @@
 {
   "v": 3,
-  "createdOnFiles": {"v": 1, "at": "2026-10-17T23:05:00Z"},
-  "title": "Murmur — MVP",
-  "launch": {"view": "canvas"},
-  "pages": [{"id": "light", "name": "Light theme"}, {"id": "dark", "name": "Dark theme"}, {"id": "onboarding", "name": "Onboarding"}, {"id": "onboardingDark", "name": "Onboarding · Dark"}],
-  "boards": {
-    "Main.dc.html": {"x": 0, "y": 0, "w": 1440, "h": 1240, "title": "1 · Library", "expand": "fill", "is_interactive": true, "page": "light"},
-    "Recording.dc.html": {"x": 1520, "y": 0, "w": 1440, "h": 1000, "title": "2 · Recording", "expand": "fill", "is_interactive": true, "page": "light"},
-    "Session.dc.html": {"x": 3040, "y": 0, "w": 1440, "h": 1100, "title": "3 · Recording details", "expand": "fill", "is_interactive": true, "page": "light"},
-    "Chat.dc.html": {"x": 0, "y": 1360, "w": 1440, "h": 1080, "title": "4 · Ask AI", "expand": "fill", "is_interactive": true, "page": "light"},
-    "Settings.dc.html": {"x": 1520, "y": 1360, "w": 1440, "h": 1560, "title": "5 · Settings", "expand": "fill", "is_interactive": true, "page": "light"},
-    "MainDark.dc.html": {"x": 0, "y": 0, "w": 1440, "h": 1240, "title": "1 · Library — dark", "expand": "fill", "is_interactive": true, "page": "dark"},
-    "RecordingDark.dc.html": {"x": 1520, "y": 0, "w": 1440, "h": 1000, "title": "2 · Recording — dark", "expand": "fill", "is_interactive": true, "page": "dark"},
-    "SessionDark.dc.html": {"x": 3040, "y": 0, "w": 1440, "h": 1100, "title": "3 · Recording details — dark", "expand": "fill", "is_interactive": true, "page": "dark"},
-    "ChatDark.dc.html": {"x": 0, "y": 1360, "w": 1440, "h": 1080, "title": "4 · Ask AI — dark", "expand": "fill", "is_interactive": true, "page": "dark"},
-    "SettingsDark.dc.html": {"x": 1520, "y": 1360, "w": 1440, "h": 1560, "title": "5 · Settings — dark", "expand": "fill", "is_interactive": true, "page": "dark"},
-    "Onb1Welcome.dc.html": {"x": 0, "y": 0, "w": 1280, "h": 800, "title": "Onboarding / 1 Welcome", "is_interactive": true, "page": "onboarding"},
-    "Onb2Audio.dc.html": {"x": 1360, "y": 0, "w": 1280, "h": 800, "title": "Onboarding / 2 Audio", "is_interactive": true, "page": "onboarding"},
-    "Onb3Models.dc.html": {"x": 2720, "y": 0, "w": 1280, "h": 800, "title": "Onboarding / 3 Models", "is_interactive": true, "page": "onboarding"},
-    "Onb4Preferences.dc.html": {"x": 4080, "y": 0, "w": 1280, "h": 800, "title": "Onboarding / 4 Preferences", "is_interactive": true, "page": "onboarding"},
-    "Onb5FirstRecording.dc.html": {"x": 5440, "y": 0, "w": 1280, "h": 800, "title": "Onboarding / 5 First recording", "is_interactive": true, "page": "onboarding"},
-    "Onb3ModelsReady.dc.html": {"x": 2720, "y": 920, "w": 1280, "h": 800, "title": "Onboarding / 3 Models – ready", "is_interactive": true, "page": "onboarding"},
-    "OnbComponents.dc.html": {"x": 6800, "y": 0, "w": 1280, "h": 1600, "title": "Onboarding / Components", "page": "onboarding"},
-    "Onb1WelcomeDark.dc.html": {"x": 0, "y": 0, "w": 1280, "h": 800, "title": "Onboarding Dark / 1 Welcome", "is_interactive": true, "page": "onboardingDark"},
-    "Onb2AudioDark.dc.html": {"x": 1360, "y": 0, "w": 1280, "h": 800, "title": "Onboarding Dark / 2 Audio", "is_interactive": true, "page": "onboardingDark"},
-    "Onb3ModelsDark.dc.html": {"x": 2720, "y": 0, "w": 1280, "h": 800, "title": "Onboarding Dark / 3 Models", "is_interactive": true, "page": "onboardingDark"},
-    "Onb4PreferencesDark.dc.html": {"x": 4080, "y": 0, "w": 1280, "h": 800, "title": "Onboarding Dark / 4 Preferences", "is_interactive": true, "page": "onboardingDark"},
-    "Onb5FirstRecordingDark.dc.html": {"x": 5440, "y": 0, "w": 1280, "h": 800, "title": "Onboarding Dark / 5 First recording", "is_interactive": true, "page": "onboardingDark"},
-    "Onb3ModelsReadyDark.dc.html": {"x": 2720, "y": 920, "w": 1280, "h": 800, "title": "Onboarding Dark / 3 Models – ready", "is_interactive": true, "page": "onboardingDark"},
-    "OnbComponentsDark.dc.html": {"x": 6800, "y": 0, "w": 1280, "h": 1600, "title": "Onboarding Dark / Components", "page": "onboardingDark"}
+  "createdOnFiles": {
+    "v": 1,
+    "at": "2026-10-17T23:05:00Z"
   },
-  "order": ["Main.dc.html", "Recording.dc.html", "Session.dc.html", "Chat.dc.html", "Settings.dc.html", "MainDark.dc.html", "RecordingDark.dc.html", "SessionDark.dc.html", "ChatDark.dc.html", "SettingsDark.dc.html", "Onb1Welcome.dc.html", "Onb2Audio.dc.html", "Onb3Models.dc.html", "Onb4Preferences.dc.html", "Onb5FirstRecording.dc.html", "Onb3ModelsReady.dc.html", "OnbComponents.dc.html", "Onb1WelcomeDark.dc.html", "Onb2AudioDark.dc.html", "Onb3ModelsDark.dc.html", "Onb4PreferencesDark.dc.html", "Onb5FirstRecordingDark.dc.html", "Onb3ModelsReadyDark.dc.html", "OnbComponentsDark.dc.html"],
+  "title": "Murmur — MVP",
+  "launch": {
+    "view": "canvas"
+  },
+  "pages": [
+    {
+      "id": "light",
+      "name": "Light theme"
+    },
+    {
+      "id": "dark",
+      "name": "Dark theme"
+    },
+    {
+      "id": "onboarding",
+      "name": "Onboarding"
+    },
+    {
+      "id": "onboardingDark",
+      "name": "Onboarding · Dark"
+    }
+  ],
+  "boards": {
+    "Main.dc.html": {
+      "x": 0,
+      "y": 0,
+      "w": 1100,
+      "h": 1000,
+      "title": "1 · Library",
+      "expand": "fill",
+      "is_interactive": true,
+      "page": "light"
+    },
+    "Recording.dc.html": {
+      "x": 1180,
+      "y": 0,
+      "w": 1100,
+      "h": 720,
+      "title": "2 · Recording",
+      "expand": "fill",
+      "is_interactive": true,
+      "page": "light"
+    },
+    "Session.dc.html": {
+      "x": 2360,
+      "y": 0,
+      "w": 1100,
+      "h": 780,
+      "title": "3 · Recording details",
+      "expand": "fill",
+      "is_interactive": true,
+      "page": "light"
+    },
+    "Chat.dc.html": {
+      "x": 0,
+      "y": 1120,
+      "w": 1100,
+      "h": 720,
+      "title": "4 · Ask AI",
+      "expand": "fill",
+      "is_interactive": true,
+      "page": "light"
+    },
+    "Settings.dc.html": {
+      "x": 1180,
+      "y": 1120,
+      "w": 1100,
+      "h": 1300,
+      "title": "5 · Settings",
+      "expand": "fill",
+      "is_interactive": true,
+      "page": "light"
+    },
+    "MainDark.dc.html": {
+      "x": 0,
+      "y": 0,
+      "w": 1100,
+      "h": 1000,
+      "title": "1 · Library — dark",
+      "expand": "fill",
+      "is_interactive": true,
+      "page": "dark"
+    },
+    "RecordingDark.dc.html": {
+      "x": 1180,
+      "y": 0,
+      "w": 1100,
+      "h": 720,
+      "title": "2 · Recording — dark",
+      "expand": "fill",
+      "is_interactive": true,
+      "page": "dark"
+    },
+    "SessionDark.dc.html": {
+      "x": 2360,
+      "y": 0,
+      "w": 1100,
+      "h": 780,
+      "title": "3 · Recording details — dark",
+      "expand": "fill",
+      "is_interactive": true,
+      "page": "dark"
+    },
+    "ChatDark.dc.html": {
+      "x": 0,
+      "y": 1120,
+      "w": 1100,
+      "h": 720,
+      "title": "4 · Ask AI — dark",
+      "expand": "fill",
+      "is_interactive": true,
+      "page": "dark"
+    },
+    "SettingsDark.dc.html": {
+      "x": 1180,
+      "y": 1120,
+      "w": 1100,
+      "h": 1300,
+      "title": "5 · Settings — dark",
+      "expand": "fill",
+      "is_interactive": true,
+      "page": "dark"
+    },
+    "Onb1Welcome.dc.html": {
+      "x": 0,
+      "y": 0,
+      "w": 1100,
+      "h": 720,
+      "title": "Onboarding / 1 Welcome",
+      "is_interactive": true,
+      "page": "onboarding"
+    },
+    "Onb2Audio.dc.html": {
+      "x": 1180,
+      "y": 0,
+      "w": 1100,
+      "h": 720,
+      "title": "Onboarding / 2 Audio",
+      "is_interactive": true,
+      "page": "onboarding"
+    },
+    "Onb3Models.dc.html": {
+      "x": 2360,
+      "y": 0,
+      "w": 1100,
+      "h": 720,
+      "title": "Onboarding / 3 Models",
+      "is_interactive": true,
+      "page": "onboarding"
+    },
+    "Onb4Preferences.dc.html": {
+      "x": 3540,
+      "y": 0,
+      "w": 1100,
+      "h": 720,
+      "title": "Onboarding / 4 Preferences",
+      "is_interactive": true,
+      "page": "onboarding"
+    },
+    "Onb5FirstRecording.dc.html": {
+      "x": 4720,
+      "y": 0,
+      "w": 1100,
+      "h": 720,
+      "title": "Onboarding / 5 First recording",
+      "is_interactive": true,
+      "page": "onboarding"
+    },
+    "Onb3ModelsReady.dc.html": {
+      "x": 2360,
+      "y": 840,
+      "w": 1100,
+      "h": 720,
+      "title": "Onboarding / 3 Models – ready",
+      "is_interactive": true,
+      "page": "onboarding"
+    },
+    "OnbComponents.dc.html": {
+      "x": 5900,
+      "y": 0,
+      "w": 1100,
+      "h": 1160,
+      "title": "Onboarding / Components",
+      "page": "onboarding"
+    },
+    "Onb1WelcomeDark.dc.html": {
+      "x": 0,
+      "y": 0,
+      "w": 1100,
+      "h": 720,
+      "title": "Onboarding Dark / 1 Welcome",
+      "is_interactive": true,
+      "page": "onboardingDark"
+    },
+    "Onb2AudioDark.dc.html": {
+      "x": 1180,
+      "y": 0,
+      "w": 1100,
+      "h": 720,
+      "title": "Onboarding Dark / 2 Audio",
+      "is_interactive": true,
+      "page": "onboardingDark"
+    },
+    "Onb3ModelsDark.dc.html": {
+      "x": 2360,
+      "y": 0,
+      "w": 1100,
+      "h": 720,
+      "title": "Onboarding Dark / 3 Models",
+      "is_interactive": true,
+      "page": "onboardingDark"
+    },
+    "Onb4PreferencesDark.dc.html": {
+      "x": 3540,
+      "y": 0,
+      "w": 1100,
+      "h": 720,
+      "title": "Onboarding Dark / 4 Preferences",
+      "is_interactive": true,
+      "page": "onboardingDark"
+    },
+    "Onb5FirstRecordingDark.dc.html": {
+      "x": 4720,
+      "y": 0,
+      "w": 1100,
+      "h": 720,
+      "title": "Onboarding Dark / 5 First recording",
+      "is_interactive": true,
+      "page": "onboardingDark"
+    },
+    "Onb3ModelsReadyDark.dc.html": {
+      "x": 2360,
+      "y": 840,
+      "w": 1100,
+      "h": 720,
+      "title": "Onboarding Dark / 3 Models – ready",
+      "is_interactive": true,
+      "page": "onboardingDark"
+    },
+    "OnbComponentsDark.dc.html": {
+      "x": 5900,
+      "y": 0,
+      "w": 1100,
+      "h": 1160,
+      "title": "Onboarding Dark / Components",
+      "page": "onboardingDark"
+    }
+  },
+  "order": [
+    "Main.dc.html",
+    "Recording.dc.html",
+    "Session.dc.html",
+    "Chat.dc.html",
+    "Settings.dc.html",
+    "MainDark.dc.html",
+    "RecordingDark.dc.html",
+    "SessionDark.dc.html",
+    "ChatDark.dc.html",
+    "SettingsDark.dc.html",
+    "Onb1Welcome.dc.html",
+    "Onb2Audio.dc.html",
+    "Onb3Models.dc.html",
+    "Onb4Preferences.dc.html",
+    "Onb5FirstRecording.dc.html",
+    "Onb3ModelsReady.dc.html",
+    "OnbComponents.dc.html",
+    "Onb1WelcomeDark.dc.html",
+    "Onb2AudioDark.dc.html",
+    "Onb3ModelsDark.dc.html",
+    "Onb4PreferencesDark.dc.html",
+    "Onb5FirstRecordingDark.dc.html",
+    "Onb3ModelsReadyDark.dc.html",
+    "OnbComponentsDark.dc.html"
+  ],
   "notes": {
-    "title": {"x": 0, "y": -320, "text": "Murmur — MVP screens", "kind": "title1", "maxW": 4480, "page": "light"},
-    "titleDark": {"x": 0, "y": -320, "text": "Murmur — Dark theme", "kind": "title1", "maxW": 4480, "page": "dark"},
-    "titleOnboarding": {"x": 0, "y": -320, "text": "Murmur — Onboarding", "kind": "title1", "maxW": 8080, "page": "onboarding"},
-    "titleOnboardingDark": {"x": 0, "y": -320, "text": "Murmur — Onboarding · Dark", "kind": "title1", "maxW": 8080, "page": "onboardingDark"}
+    "title": {
+      "x": 0,
+      "y": -320,
+      "text": "Murmur — MVP screens · window 1100×720 (min 900×600)",
+      "kind": "title1",
+      "maxW": 3460,
+      "page": "light"
+    },
+    "titleDark": {
+      "x": 0,
+      "y": -320,
+      "text": "Murmur — Dark theme · window 1100×720",
+      "kind": "title1",
+      "maxW": 3460,
+      "page": "dark"
+    },
+    "titleOnboarding": {
+      "x": 0,
+      "y": -320,
+      "text": "Murmur — Onboarding · 1100×720",
+      "kind": "title1",
+      "maxW": 7000,
+      "page": "onboarding"
+    },
+    "titleOnboardingDark": {
+      "x": 0,
+      "y": -320,
+      "text": "Murmur — Onboarding · Dark",
+      "kind": "title1",
+      "maxW": 7000,
+      "page": "onboardingDark"
+    },
+    "sizes": {
+      "x": 3540,
+      "y": 0,
+      "w": 440,
+      "maxH": 1000,
+      "page": "light",
+      "text": "Real-size spec (Windows, 100% scale)\n\nWindow: 1100×720 default, 900×600 minimum.\n\nType: page title 24/300 · section 18/300 · body 13 · secondary 12 · micro 11 · numbers Geist Mono 12 · recording timer 44.\n\nSidebar 200 · header 48 · status bar 28 · content padding 16 24 32.\n\nButtons 32 (small 28, onboarding CTA 36) · chips 28 · inputs 32, radius 4 · switches 36×20.\n\nCards radius 16 / 20, padding 20 · list rows 10 14 · icon tiles 32.\n\nOrbs: library 88 · recording 160 · floating 44."
+    }
   },
   "designSystems": []
 }
