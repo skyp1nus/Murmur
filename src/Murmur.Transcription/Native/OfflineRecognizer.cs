@@ -50,6 +50,39 @@ internal sealed class ParakeetModelFiles
 internal sealed record RecognitionResult(string Text, string[] Tokens, float[] Timestamps, float[] Durations, string Language)
 {
     public static readonly RecognitionResult Empty = new(string.Empty, [], [], [], string.Empty);
+
+    /// <summary>
+    /// Natural-log probability of each token as chosen by the decoder (sherpa-onnx <c>ys_log_probs</c>): for greedy
+    /// search the log-softmax of the joiner's token logits (blank included) at the emitting frame; for modified beam
+    /// search the same value plus the hotword boost of that token, if any. Empty when the model does not report it.
+    /// </summary>
+    public float[] LogProbs { get; init; } = [];
+}
+
+/// <summary>
+/// Decoder settings of the Parakeet recognizer. The defaults are the production settings (greedy search); the beam and
+/// hotword settings exist for the word-confidence spike (#53) and are reachable only from the diagnostic
+/// <c>--confidence-eval</c> command.
+/// </summary>
+internal sealed record RecognizerOptions
+{
+    public const string GreedySearch = "greedy_search";
+    public const string ModifiedBeamSearch = "modified_beam_search";
+
+    public static readonly RecognizerOptions Default = new();
+
+    public string DecodingMethod { get; init; } = GreedySearch;
+
+    /// <summary>Beam width of modified beam search (ignored by greedy search).</summary>
+    public int MaxActivePaths { get; init; } = 4;
+
+    /// <summary>Hotwords file (one phrase per line, optional <c>:score</c>); needs <see cref="BpeVocab"/> and beam search.</summary>
+    public string? HotwordsFile { get; init; }
+
+    public float HotwordsScore { get; init; } = 1.5f;
+
+    /// <summary>SentencePiece vocabulary (<c>piece score</c> per line) used to encode hotwords into tokens.</summary>
+    public string? BpeVocab { get; init; }
 }
 
 /// <summary>
@@ -69,10 +102,15 @@ internal sealed unsafe class OfflineRecognizer : IDisposable
     public static string NativeVersion =>
         $"sherpa-onnx {NativeUtf8.ToManaged(SherpaOnnxNative.SherpaOnnxGetVersionStr())}, onnxruntime {NativeUtf8.ToManaged(SherpaOnnxNative.SherpaOnnxGetOnnxruntimeVersionStr())}";
 
-    public static OfflineRecognizer CreateParakeet(ParakeetModelFiles model, int numThreads)
+    public static OfflineRecognizer CreateParakeet(ParakeetModelFiles model, int numThreads) =>
+        CreateParakeet(model, numThreads, RecognizerOptions.Default);
+
+    public static OfflineRecognizer CreateParakeet(ParakeetModelFiles model, int numThreads, RecognizerOptions decoding)
     {
         ArgumentNullException.ThrowIfNull(model);
+        ArgumentNullException.ThrowIfNull(decoding);
         ArgumentOutOfRangeException.ThrowIfLessThan(numThreads, 1);
+        ValidateDecoding(decoding);
         var missing = model.MissingFiles();
         if (missing.Count > 0)
         {
@@ -91,8 +129,19 @@ internal sealed unsafe class OfflineRecognizer : IDisposable
         config.ModelConfig.Debug = 0;
         config.ModelConfig.Provider = strings.Add("cpu");
         config.ModelConfig.ModelType = strings.Add("nemo_transducer");
-        config.DecodingMethod = strings.Add("greedy_search");
-        config.MaxActivePaths = 4;
+        config.DecodingMethod = strings.Add(decoding.DecodingMethod);
+        config.MaxActivePaths = decoding.MaxActivePaths;
+        if (!string.IsNullOrEmpty(decoding.BpeVocab))
+        {
+            config.ModelConfig.ModelingUnit = strings.Add("bpe");
+            config.ModelConfig.BpeVocab = strings.Add(decoding.BpeVocab);
+        }
+
+        if (!string.IsNullOrEmpty(decoding.HotwordsFile))
+        {
+            config.HotwordsFile = strings.Add(decoding.HotwordsFile);
+            config.HotwordsScore = decoding.HotwordsScore;
+        }
 
         var handle = SherpaOnnxNative.SherpaOnnxCreateOfflineRecognizer(&config);
         if (handle == 0)
@@ -101,6 +150,33 @@ internal sealed unsafe class OfflineRecognizer : IDisposable
         }
 
         return new OfflineRecognizer(handle);
+    }
+
+    /// <summary>Rejects settings sherpa-onnx would ignore or crash on, before any native code runs.</summary>
+    internal static void ValidateDecoding(RecognizerOptions decoding)
+    {
+        ArgumentNullException.ThrowIfNull(decoding);
+        ArgumentOutOfRangeException.ThrowIfLessThan(decoding.MaxActivePaths, 1, nameof(decoding));
+        if (decoding.DecodingMethod is not (RecognizerOptions.GreedySearch or RecognizerOptions.ModifiedBeamSearch))
+        {
+            throw new ArgumentException($"Unsupported decoding method '{decoding.DecodingMethod}'.", nameof(decoding));
+        }
+
+        // sherpa-onnx ignores hotwords under greedy search, and with modeling unit "bpe" but no vocabulary it
+        // dereferences a null BPE encoder while encoding them.
+        if (!string.IsNullOrEmpty(decoding.HotwordsFile)
+            && (decoding.DecodingMethod != RecognizerOptions.ModifiedBeamSearch || string.IsNullOrEmpty(decoding.BpeVocab)))
+        {
+            throw new ArgumentException("Hotwords need modified_beam_search and a BPE vocabulary.", nameof(decoding));
+        }
+
+        foreach (var f in (ReadOnlySpan<string?>)[decoding.HotwordsFile, decoding.BpeVocab])
+        {
+            if (!string.IsNullOrEmpty(f) && !File.Exists(f))
+            {
+                throw new FileNotFoundException("Decoder file not found: " + f, f);
+            }
+        }
     }
 
     /// <summary>
@@ -189,7 +265,13 @@ internal sealed unsafe class OfflineRecognizer : IDisposable
 
             var timestamps = r->Timestamps is null ? [] : new ReadOnlySpan<float>(r->Timestamps, count).ToArray();
             var durations = r->Durations is null ? [] : new ReadOnlySpan<float>(r->Durations, count).ToArray();
-            return new RecognitionResult(NativeUtf8.ToManaged(r->Text).Trim(), tokens, timestamps, durations, NativeUtf8.ToManaged(r->Lang));
+
+            // c-api.cc fills ys_log_probs only when it has exactly one value per token, otherwise leaves it NULL.
+            var logProbs = r->YsLogProbs is null ? [] : new ReadOnlySpan<float>(r->YsLogProbs, count).ToArray();
+            return new RecognitionResult(NativeUtf8.ToManaged(r->Text).Trim(), tokens, timestamps, durations, NativeUtf8.ToManaged(r->Lang))
+            {
+                LogProbs = logProbs,
+            };
         }
         finally
         {

@@ -63,9 +63,39 @@ public sealed class CliOptionsTests
     [InlineData("--serve", "--model-dir", "--vad", "/v")]
     [InlineData("--bench", "--model-dir", "/m", "--vad", "/v")]
     [InlineData("--frobnicate")]
+    [InlineData("--confidence-eval", "clips.tsv")]
+    [InlineData("--confidence-eval", "clips.tsv", "--model-dir", "/m", "--beam-clips", "-1")]
+    [InlineData("--confidence-eval", "clips.tsv", "--model-dir", "/m", "--max-active-paths", "0")]
+    [InlineData("--confidence-eval", "clips.tsv", "--model-dir", "/m", "--hotwords-score", "0")]
+    [InlineData("--confidence-eval", "clips.tsv", "--transcribe", "a.wav", "--model-dir", "/m", "--vad", "/v")]
     public void InvalidCommandLines_AreRejectedWithAMessage(params string[] args)
     {
         Assert.False(CliOptions.TryParse(args, out _, out var error));
         Assert.False(string.IsNullOrWhiteSpace(error));
+    }
+
+    [Fact]
+    public void ConfidenceEval_NeedsOnlyTheModel_AndParsesItsOptions()
+    {
+        Assert.True(CliOptions.TryParse(
+            ["--confidence-eval", "clips.tsv", "--model-dir", "/m", "--beam-clips", "0", "--max-active-paths", "8", "--bpe-vocab", "bpe.vocab", "--hotwords-score", "2.5", "--out", "r.json"],
+            out var o,
+            out var error), error);
+
+        Assert.Equal(WorkerCommand.ConfidenceEval, o.Command);
+        Assert.Equal("clips.tsv", o.ConfidenceManifest);
+        Assert.Equal((0, 8, "bpe.vocab", 2.5f), (o.BeamClips, o.MaxActivePaths, o.BpeVocab, o.HotwordsScore));
+        Assert.Null(o.VadModelPath);
+    }
+
+    [Fact]
+    public void WordConfidence_IsOffByDefault()
+    {
+        Assert.True(CliOptions.TryParse(["--transcribe", "a.wav", "--model-dir", "/m", "--vad", "/v"], out var o, out _));
+        Assert.False(o.WordConfidence);
+        Assert.Equal((20, 4, 1.5f), (o.BeamClips, o.MaxActivePaths, o.HotwordsScore));
+
+        Assert.True(CliOptions.TryParse(["--transcribe", "a.wav", "--model-dir", "/m", "--vad", "/v", "--word-confidence"], out o, out _));
+        Assert.True(o.WordConfidence);
     }
 }

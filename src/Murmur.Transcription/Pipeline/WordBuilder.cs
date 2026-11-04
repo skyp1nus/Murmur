@@ -34,24 +34,7 @@ internal static class WordBuilder
         var segmentLength = Math.Max(0.0, segmentEnd - segmentStart);
 
         // Pass 1: word spans as [first token, last token] plus text.
-        var spans = new List<(int First, int Last, string Text)>();
-        var text = new StringBuilder();
-        var first = -1;
-        for (var i = 0; i < tokens.Length; i++)
-        {
-            var token = tokens[i] ?? string.Empty;
-            var boundary = token.Length > 0 && (token[0] == WordBoundary || token[0] == ' ');
-            var piece = boundary ? token.TrimStart(WordBoundary, ' ') : token;
-            if (boundary || first < 0)
-            {
-                Flush(spans, text, first, i - 1);
-                first = i;
-            }
-
-            text.Append(piece);
-        }
-
-        Flush(spans, text, first, tokens.Length - 1);
+        var spans = Spans(tokens);
 
         // Pass 2: times.
         var previousStart = 0.0;
@@ -77,6 +60,34 @@ internal static class WordBuilder
         }
 
         return words;
+    }
+
+    /// <summary>
+    /// Word spans as [first token, last token] plus the word text, in order. Tokens that only carry a boundary (e.g. a
+    /// lone "▁") start a span that is dropped when its text is empty, so spans line up with the words of
+    /// <see cref="Build"/> one to one (WordConfidence relies on that).
+    /// </summary>
+    public static List<(int First, int Last, string Text)> Spans(ReadOnlySpan<string> tokens)
+    {
+        var spans = new List<(int First, int Last, string Text)>();
+        var text = new StringBuilder();
+        var first = -1;
+        for (var i = 0; i < tokens.Length; i++)
+        {
+            var token = tokens[i] ?? string.Empty;
+            var boundary = token.Length > 0 && (token[0] == WordBoundary || token[0] == ' ');
+            var piece = boundary ? token.TrimStart(WordBoundary, ' ') : token;
+            if (boundary || first < 0)
+            {
+                Flush(spans, text, first, i - 1);
+                first = i;
+            }
+
+            text.Append(piece);
+        }
+
+        Flush(spans, text, first, tokens.Length - 1);
+        return spans;
     }
 
     private static double Time(float value, double fallback) => float.IsFinite(value) ? value : fallback;
