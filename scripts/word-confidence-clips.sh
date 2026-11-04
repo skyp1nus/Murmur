@@ -8,6 +8,8 @@
 #
 # usage: scripts/word-confidence-clips.sh <out-dir> [clips-per-language=150]
 # env:   FLEURS_LANGS  space-separated fleurs_config:language pairs (default "en_us:en uk_ua:uk")
+#        REQUIRE_FLEURS=1  fail when FLEURS cannot be downloaded instead of falling back to espeak-ng
+#        CI            when set, a missing espeak-ng is installed with apt-get (otherwise: fail with a hint)
 #        FLEURS_BASE   base URL of the FLEURS data folder (default: Hugging Face; tests use file://)
 #        HF_TOKEN      optional Hugging Face token
 set -euo pipefail
@@ -57,7 +59,14 @@ fleurs() {
 
 tts() {
   local lang="$1" dir="$OUT/tts-$1" i=0 sentence
-  command -v espeak-ng >/dev/null 2>&1 || { sudo apt-get update -qq && sudo apt-get install -y -qq espeak-ng >/dev/null; }
+  if ! command -v espeak-ng >/dev/null 2>&1; then
+    if [ -n "${CI:-}" ]; then
+      sudo apt-get update -qq && sudo apt-get install -y -qq espeak-ng >/dev/null
+    else
+      log "espeak-ng is not installed; install it (e.g. 'sudo apt-get install espeak-ng') or set REQUIRE_FLEURS=1"
+      exit 1
+    fi
+  fi
   mkdir -p "$dir"
   case "$lang" in
     uk) sentences=(
@@ -97,7 +106,13 @@ for pair in $LANGS; do
   config="${pair%%:*}"
   lang="${pair##*:}"
   if ! fleurs "$config" "$lang"; then
-    log "FLEURS $config unavailable, falling back to espeak-ng"
+    if [ "${REQUIRE_FLEURS:-0}" = "1" ]; then
+      log "FLEURS $config unavailable and REQUIRE_FLEURS=1: failing instead of falling back to espeak-ng"
+      echo "::error::FLEURS $config could not be downloaded (REQUIRE_FLEURS=1)"
+      exit 1
+    fi
+    log "FLEURS $config unavailable, falling back to espeak-ng (synthetic speech: much weaker numbers)"
+    echo "::warning::FLEURS $config unavailable; $lang clips are espeak-ng synthetic speech ($lang-tts)"
     tts "$lang"
   fi
 done

@@ -63,16 +63,34 @@ internal static class WordAlignment
         return sb.ToString().Trim('\'', '-');
     }
 
-    /// <summary>Splits on whitespace and normalises; punctuation-only words are dropped.</summary>
+    /// <summary>
+    /// Splits text into words: on whitespace, and on an em / en dash between two letters ("government—with" is two
+    /// words, as in the reference transcripts). Hyphens stay inside words ("будь-який").
+    /// </summary>
+    public static string[] SplitWords(string? text)
+    {
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            return [];
+        }
+
+        var chars = text.ToCharArray();
+        for (var i = 1; i + 1 < chars.Length; i++)
+        {
+            if (chars[i] is '—' or '–' && char.IsLetter(chars[i - 1]) && char.IsLetter(chars[i + 1]))
+            {
+                chars[i] = ' ';
+            }
+        }
+
+        return new string(chars).Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries);
+    }
+
+    /// <summary>Splits with <see cref="SplitWords"/> and normalises; punctuation-only words are dropped.</summary>
     public static List<string> NormalizeText(string? text)
     {
         var words = new List<string>();
-        if (string.IsNullOrWhiteSpace(text))
-        {
-            return words;
-        }
-
-        foreach (var w in text.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries))
+        foreach (var w in SplitWords(text))
         {
             var n = Normalize(w);
             if (n.Length > 0)

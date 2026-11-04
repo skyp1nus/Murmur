@@ -178,6 +178,8 @@ jobs:
         shell: bash
     env:
       PARAKEET: ${{ github.workspace }}/models/sherpa-onnx-nemo-parakeet-tdt-0.6b-v3-int8
+      # Real speech only: synthetic espeak-ng clips would silently change what the numbers mean.
+      REQUIRE_FLEURS: "1"
     steps:
       - uses: actions/checkout@v5
 

@@ -28,7 +28,12 @@ internal sealed record ConfidenceEvalOptions
     public string? WorkDirectory { get; init; }
 }
 
-internal sealed record WordReport(string Text, string Normalized, WordLabel Label, string[] Tokens, float[] LogProbs, float Min, float Mean, float GeometricMean);
+/// <param name="Normalized">Normalised form; space-separated pieces when a dash splits the word (see WordAlignment.SplitWords).</param>
+internal sealed record WordReport(string Text, string Normalized, WordLabel Label, string[] Tokens, float[] LogProbs, float Min, float Mean, float GeometricMean)
+{
+    /// <summary>False when the clip had no log-probabilities: the word counts for WER but not for the confidence statistics (its scores are 0 placeholders).</summary>
+    public bool Scored { get; init; } = true;
+}
 
 internal sealed record ClipReport
 {
@@ -113,6 +118,9 @@ internal sealed record EvalReport
 
     public IReadOnlyList<string> HotwordsUsed { get; init; } = [];
 
+    /// <summary>Recognised words left out of the confidence statistics because their clip had no log-probabilities.</summary>
+    public int UnscoredWords { get; init; }
+
     public IReadOnlyList<ClipReport> Clips { get; init; } = [];
 }
 
@@ -193,10 +201,19 @@ internal static class ConfidenceEval
                 {
                     var dir = options.WorkDirectory ?? Path.GetTempPath();
                     Directory.CreateDirectory(dir);
-                    var file = Path.Combine(dir, "murmur-hotwords.txt");
+                    var file = Path.Combine(dir, $"murmur-hotwords-{Guid.NewGuid():N}.txt");
                     File.WriteAllLines(file, hotwords, new UTF8Encoding(false));
                     var hotOptions = beamOptions with { HotwordsFile = file, HotwordsScore = options.HotwordsScore, BpeVocab = options.BpeVocab };
-                    var hot = Decode("beam+hotwords", hotOptions, clips, audio, subset, createRecognizer, log);
+                    Decoded hot;
+                    try
+                    {
+                        hot = Decode("beam+hotwords", hotOptions, clips, audio, subset, createRecognizer, log);
+                    }
+                    finally
+                    {
+                        TryDelete(file);
+                    }
+
                     runs.Add(Summary(hot, $"beam {options.MaxActivePaths} + {hotwords.Count} hotwords (score {options.HotwordsScore.ToString(CultureInfo.InvariantCulture)})", hotOptions, hotwords.Count, subset, clips, audio, reports, hot.Results));
                 }
             }
@@ -216,8 +233,23 @@ internal static class ConfidenceEval
             Summaries = summaries,
             Decoding = runs,
             HotwordsUsed = hotwords,
+            UnscoredWords = reports.Sum(r => r.Words.Count(w => !w.Scored)),
             Clips = reports,
         };
+    }
+
+    private static void TryDelete(string path)
+    {
+        try
+        {
+            File.Delete(path);
+        }
+        catch (IOException)
+        {
+        }
+        catch (UnauthorizedAccessException)
+        {
+        }
     }
 
     public static string ToJson(EvalReport report) => JsonSerializer.Serialize(report, EvalJsonContext.Default.EvalReport);
@@ -236,6 +268,9 @@ internal static class ConfidenceEval
             var errs = cl.Sum(x => x.Substitutions + x.Insertions + x.Deletions);
             sb.Append(c, $"- {language}: {cl.Length} clips, {cl.Sum(x => x.AudioSeconds):0.0} s, {refs} reference words, WER {Pct(errs, refs)} (S {cl.Sum(x => x.Substitutions)}, I {cl.Sum(x => x.Insertions)}, D {cl.Sum(x => x.Deletions)})\n");
         }
+
+        sb.Append(c, $"- greedy decode time: {report.Clips.Sum(x => x.DecodeMs) / 1000.0:0.0} s for {report.Clips.Sum(x => x.AudioSeconds):0.0} s of audio\n");
+        sb.Append(c, $"- words without log-probabilities (excluded from the statistics, still in WER): {report.UnscoredWords}\n");
 
         sb.Append("\n## Separation of wrong words (greedy)\n\n| aggregation | lang | words | wrong | AUC | mean ok / wrong | median ok / wrong | best F1 at t | P | R |\n|---|---|---|---|---|---|---|---|---|---|\n");
         foreach (var s in report.Summaries)
@@ -270,13 +305,13 @@ internal static class ConfidenceEval
         }
 
         sb.Append("\n## Wrong words (greedy), lowest confidence first\n\n| lang | word | label | min | geo | token probs |\n|---|---|---|---|---|---|\n");
-        foreach (var (lang, w) in report.Clips.SelectMany(x => x.Words.Where(w => w.Label != WordLabel.Correct).Select(w => (x.Language, w))).OrderBy(x => x.w.Min).Take(80))
+        foreach (var (lang, w) in report.Clips.SelectMany(x => x.Words.Where(w => w.Scored && w.Label != WordLabel.Correct).Select(w => (x.Language, w))).OrderBy(x => x.w.Min).Take(80))
         {
             sb.Append(c, $"| {lang} | {Escape(w.Text)} | {w.Label} | {w.Min:0.000} | {w.GeometricMean:0.000} | {string.Join(' ', w.LogProbs.Select(p => Math.Exp(p).ToString("0.00", c)))} |\n");
         }
 
         sb.Append("\n## Correct words with the lowest confidence (false alarms)\n\n| lang | word | min | geo |\n|---|---|---|---|\n");
-        foreach (var (lang, w) in report.Clips.SelectMany(x => x.Words.Where(w => w.Label == WordLabel.Correct).Select(w => (x.Language, w))).OrderBy(x => x.w.Min).Take(30))
+        foreach (var (lang, w) in report.Clips.SelectMany(x => x.Words.Where(w => w.Scored && w.Label == WordLabel.Correct).Select(w => (x.Language, w))).OrderBy(x => x.w.Min).Take(30))
         {
             sb.Append(c, $"| {lang} | {Escape(w.Text)} | {w.Min:0.000} | {w.GeometricMean:0.000} |\n");
         }
@@ -291,33 +326,57 @@ internal static class ConfidenceEval
         var haveProbs = result.LogProbs.Length == result.Tokens.Length;
         var words = new List<WordReport>();
         var hypothesis = new List<string>();
+        var owner = new List<int>(); // hypothesis piece -> index in words
         foreach (var (first, last, text) in spans)
         {
-            var normalized = WordAlignment.Normalize(text);
-            if (normalized.Length == 0)
+            // "government—with" is one recognised word but two reference words: align its pieces separately.
+            var pieces = WordAlignment.NormalizeText(text);
+            if (pieces.Count == 0)
             {
                 continue; // punctuation-only word: neither scored nor aligned
             }
 
             var tokens = result.Tokens[first..(last + 1)];
-            var probs = haveProbs ? result.LogProbs[first..(last + 1)] : Unknown(tokens.Length);
-            words.Add(new WordReport(
-                text,
-                normalized,
-                WordLabel.Correct,
-                tokens,
-                probs,
-                WordConfidence.ForWord(tokens, probs, ConfidenceAggregation.Min),
-                WordConfidence.ForWord(tokens, probs, ConfidenceAggregation.Mean),
-                WordConfidence.ForWord(tokens, probs, ConfidenceAggregation.GeometricMean)));
-            hypothesis.Add(normalized);
+            WordReport word;
+            if (haveProbs)
+            {
+                var probs = result.LogProbs[first..(last + 1)];
+                word = new WordReport(
+                    text,
+                    string.Join(' ', pieces),
+                    WordLabel.Correct,
+                    tokens,
+                    probs,
+                    WordConfidence.ForWord(tokens, probs, ConfidenceAggregation.Min),
+                    WordConfidence.ForWord(tokens, probs, ConfidenceAggregation.Mean),
+                    WordConfidence.ForWord(tokens, probs, ConfidenceAggregation.GeometricMean));
+            }
+            else
+            {
+                // No log-probabilities: aligned (it counts for WER) but not scored.
+                word = new WordReport(text, string.Join(' ', pieces), WordLabel.Correct, tokens, [], 0, 0, 0) { Scored = false };
+            }
+
+            foreach (var p in pieces)
+            {
+                hypothesis.Add(p);
+                owner.Add(words.Count);
+            }
+
+            words.Add(word);
         }
 
         var (refNormalized, refRaw) = ReferenceWords(clip.Reference);
         var alignment = WordAlignment.Align(hypothesis, refNormalized);
-        for (var i = 0; i < words.Count; i++)
+        for (var p = 0; p < owner.Count; p++)
         {
-            words[i] = words[i] with { Label = alignment.Labels[i] };
+            // A word is a substitution if any piece is one, else an insertion if any piece is one.
+            var w = words[owner[p]];
+            var label = alignment.Labels[p];
+            if (label == WordLabel.Substitution || (label == WordLabel.Insertion && w.Label == WordLabel.Correct))
+            {
+                words[owner[p]] = w with { Label = label };
+            }
         }
 
         return new ClipReport
@@ -342,7 +401,7 @@ internal static class ConfidenceEval
     {
         var normalized = new List<string>();
         var raw = new List<string>();
-        foreach (var w in reference.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries))
+        foreach (var w in WordAlignment.SplitWords(reference))
         {
             var n = WordAlignment.Normalize(w);
             if (n.Length > 0)
@@ -357,16 +416,8 @@ internal static class ConfidenceEval
 
     private static readonly char[] TrimmedPunctuation = ['.', ',', ';', ':', '!', '?', '"', '\'', '(', ')', '[', ']', '«', '»', '“', '”', '„', '—', '–', '…'];
 
-    /// <summary>NaN log-probabilities: <see cref="WordConfidence.ForWord"/> scores such a word 0 (unknown).</summary>
-    private static float[] Unknown(int count)
-    {
-        var a = new float[count];
-        Array.Fill(a, float.NaN);
-        return a;
-    }
-
     private static List<ScoredWord> Scored(IEnumerable<ClipReport> clips, ConfidenceAggregation aggregation) =>
-        [.. clips.SelectMany(c => c.Words).Select(w => new ScoredWord(
+        [.. clips.SelectMany(c => c.Words).Where(w => w.Scored).Select(w => new ScoredWord(
             aggregation switch
             {
                 ConfidenceAggregation.Mean => w.Mean,
@@ -421,11 +472,11 @@ internal static class ConfidenceEval
             decodeMs += run.Milliseconds[i];
             if (own is not null)
             {
-                var diff = WordAlignment.Align([.. report.Words.Select(w => w.Normalized)], [.. greedy[i].Words.Select(w => w.Normalized)]);
+                var diff = WordAlignment.Align([.. report.Words.SelectMany(w => w.Normalized.Split(' '))], [.. greedy[i].Words.SelectMany(w => w.Normalized.Split(' '))]);
                 changed += diff.Errors;
             }
 
-            scored.AddRange(report.Words.Select(w => new ScoredWord(w.Min, w.Label != WordLabel.Correct)));
+            scored.AddRange(report.Words.Where(w => w.Scored).Select(w => new ScoredWord(w.Min, w.Label != WordLabel.Correct)));
         }
 
         return new DecodingRun

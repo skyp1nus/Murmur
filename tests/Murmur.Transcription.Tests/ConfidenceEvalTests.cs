@@ -110,6 +110,8 @@ public sealed class ConfidenceEvalTests
         Assert.Equal(["greedy_search", "modified_beam_search", "modified_beam_search+hotwords"], disposed); // each disposed after its run
         Assert.Equal(["your", "світ"], report.HotwordsUsed);
         Assert.Equal("your\nсвіт\n", hotwords!.ReplaceLineEndings("\n"));
+        Assert.StartsWith(Path.Combine(dir.Path, "murmur-hotwords-"), created[2].HotwordsFile, StringComparison.Ordinal); // unique name
+        Assert.False(File.Exists(created[2].HotwordsFile)); // deleted after the run
 
         Assert.Equal(3, report.Decoding.Count);
         var (greedy, beam, hot) = (report.Decoding[0], report.Decoding[1], report.Decoding[2]);
@@ -165,18 +167,68 @@ public sealed class ConfidenceEvalTests
 
         Assert.Equal(["київ", "столиця", "2024"], normalized);
         Assert.Equal(["Київ", "столиця", "2024"], raw);
+        Assert.Equal(["Уряд", "з", "народом"], ConfidenceEval.ReferenceWords("Уряд—з народом.").Raw);
     }
 
     [Fact]
-    public void Score_WithoutLogProbs_GivesZeroConfidence()
+    public void Score_WithoutLogProbs_AlignsButDoesNotScore()
     {
         var clip = new EvalClip("en", "a.wav", "hello world");
-        var result = new RecognitionResult("hello world", [" hello", " world"], [0f, 0.4f], [], string.Empty);
+        var result = new RecognitionResult("hello word", [" hello", " word"], [0f, 0.4f], [], string.Empty);
 
         var report = ConfidenceEval.Score(clip, 16_000, result, 12.5);
 
-        Assert.All(report.Words, w => Assert.Equal(0f, w.Min));
-        Assert.All(report.Words, w => Assert.Equal(WordLabel.Correct, w.Label));
+        Assert.All(report.Words, w => Assert.False(w.Scored));
+        Assert.Equal([WordLabel.Correct, WordLabel.Substitution], report.Words.Select(w => w.Label)); // still counts for WER
+        Assert.Equal(1, report.Substitutions);
         Assert.Equal(1.0, report.AudioSeconds);
+    }
+
+    [Fact]
+    public void Run_ExcludesWordsWithoutLogProbs_FromTheStatistics_AndCountsThem()
+    {
+        using var dir = new TempDir();
+        WavFile.Write(dir.File("a.wav"), [.. Enumerable.Repeat(0.1f, 16_000)], 16_000);
+        WavFile.Write(dir.File("b.wav"), [.. Enumerable.Repeat(0.2f, 16_000)], 16_000);
+        File.WriteAllLines(dir.File("clips.tsv"), ["en\ta.wav\tAsk not what your country can do.", "en\tb.wav\thello world"]);
+        var noProbs = new RecognitionResult("hello word", [" hello", " word"], [0f, 0.4f], [], string.Empty);
+
+        var report = ConfidenceEval.Run(
+            new ConfidenceEvalOptions { ManifestPath = dir.File("clips.tsv"), BeamClips = 0 },
+            _ => new ByLevelRecognizer(English, noProbs),
+            1,
+            TextWriter.Null);
+
+        Assert.Equal(2, report.UnscoredWords);
+        var all = report.Summaries.Single(s => s is { Aggregation: "Min", Language: "all" }).Summary;
+        Assert.Equal((7, 1), (all.Words, all.Wrong)); // only the English clip's words
+        Assert.Equal(1, report.Clips[1].Substitutions);
+        Assert.Contains("excluded from the statistics, still in WER): 2", ConfidenceEval.ToMarkdown(report), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Score_SplitsDashJoinedWords_LikeTheReference()
+    {
+        var clip = new EvalClip("en", "a.wav", "the government — with the people – and will—power");
+        var result = Result([" the", " government", "—", "with", " the", " people", " and", " will", "-", "power"], [0.9, 0.9, 0.5, 0.9, 0.9, 0.9, 0.9, 0.9, 0.9, 0.9]);
+
+        var report = ConfidenceEval.Score(clip, 16_000, result, 1);
+
+        Assert.Equal(["the", "government with", "the", "people", "and", "will-power"], report.Words.Select(w => w.Normalized));
+        Assert.Equal(1, report.Substitutions); // "will-power" vs "will power" (a hyphen is not a dash)
+        Assert.Equal(1, report.Insertions + report.Deletions);
+        Assert.All(report.Words.Take(5), w => Assert.Equal(WordLabel.Correct, w.Label));
+    }
+
+    /// <summary>First clip (sample value below 0.15) gets <c>low</c>, the rest <c>high</c>.</summary>
+    private sealed class ByLevelRecognizer(RecognitionResult low, RecognitionResult high) : ISpeechRecognizer
+    {
+        public void Decode(ReadOnlySpan<ReadOnlyMemory<float>> utterances, Span<RecognitionResult> results)
+        {
+            for (var i = 0; i < utterances.Length; i++)
+            {
+                results[i] = utterances[i].Span[100] < 0.15f ? low : high;
+            }
+        }
     }
 }

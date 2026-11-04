@@ -18,6 +18,21 @@ public sealed class WordAlignmentTests
     public void Normalize_LowerCasesAndStripsPunctuation(string? word, string expected) =>
         Assert.Equal(expected, WordAlignment.Normalize(word));
 
+    [Theory]
+    [InlineData("government—with", new[] { "government", "with" })]
+    [InlineData("річ–інша", new[] { "річ", "інша" })]
+    [InlineData("a — b", new[] { "a", "—", "b" })]          // a free-standing dash is its own (punctuation) token
+    [InlineData("будь-який", new[] { "будь-який" })]         // hyphens stay
+    [InlineData("1990—2000", new[] { "1990—2000" })]         // only between letters
+    [InlineData("—start end—", new[] { "—start", "end—" })]
+    [InlineData("  ", new string[0])]
+    public void SplitWords_TreatsDashesBetweenLettersAsSpaces(string text, string[] expected) =>
+        Assert.Equal(expected, WordAlignment.SplitWords(text));
+
+    [Fact]
+    public void NormalizeText_SplitsOnDashesBetweenLetters() =>
+        Assert.Equal(["government", "with", "the", "people"], WordAlignment.NormalizeText("government—with the people"));
+
     [Fact]
     public void NormalizeText_DropsPunctuationOnlyWords() =>
         Assert.Equal(["ask", "not", "what"], WordAlignment.NormalizeText("Ask not — what?"));
