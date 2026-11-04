@@ -19,6 +19,10 @@ BASE="${FLEURS_BASE:-https://huggingface.co/datasets/google/fleurs/resolve/main/
 
 log() { printf '[word-confidence-clips] %s\n' "$*" >&2; }
 
+case "$N" in
+  ''|*[!0-9]*) log "clips-per-language must be a non-negative integer, got '$N'"; exit 2 ;;
+esac
+
 mkdir -p "$OUT"
 OUT="$(cd "$OUT" && pwd)"
 MANIFEST="$OUT/clips.tsv"

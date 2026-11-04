@@ -231,8 +231,12 @@ jobs:
             exit 1
           fi
 
+      # Inputs reach the shell through env, never through ${{ }} inside run (no script injection); the
+      # worker's own parser rejects anything that is not a non-negative integer.
       - name: Prepare clips (FLEURS en_us + uk_ua test)
-        run: scripts/word-confidence-clips.sh artifacts/confidence/clips "${{ github.event.inputs.confidence_clips || '150' }}"
+        env:
+          CONFIDENCE_CLIPS: ${{ github.event.inputs.confidence_clips || '150' }}
+        run: scripts/word-confidence-clips.sh artifacts/confidence/clips "$CONFIDENCE_CLIPS"
 
       # Hotwords need a SentencePiece vocabulary. The sherpa-onnx archive may not ship bpe.vocab; derive it from
       # tokens.txt (SentencePiece BPE scores are the negated merge order = token id order).
@@ -248,11 +252,13 @@ jobs:
           head -5 artifacts/confidence/bpe.vocab
 
       - name: Measure word confidence
+        env:
+          BEAM_CLIPS: ${{ github.event.inputs.beam_clips || '20' }}
         run: |
           artifacts/publish/linux-x64/Murmur.Transcription --confidence-eval artifacts/confidence/clips/clips.tsv \
             --model-dir "$PARAKEET" \
             --threads "$(nproc)" \
-            --beam-clips "${{ github.event.inputs.beam_clips || '20' }}" \
+            --beam-clips "$BEAM_CLIPS" \
             --max-active-paths 4 \
             --bpe-vocab artifacts/confidence/bpe.vocab \
             --out artifacts/confidence/word-confidence.json > /dev/null
