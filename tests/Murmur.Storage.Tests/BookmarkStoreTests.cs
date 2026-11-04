@@ -200,7 +200,7 @@ public sealed class BookmarkStoreTests : IDisposable
         using (var old = new SqliteConnection(new SqliteConnectionStringBuilder { DataSource = databasePath, Pooling = false }.ToString()))
         {
             old.Open();
-            SchemaMigrator.Apply(old, [.. SchemaMigrator.Migrations.Take(5)]);
+            SchemaMigrator.Apply(old, [.. SchemaMigrator.Migrations.Take(6)]);
             using var insert = old.CreateCommand();
             insert.CommandText =
                 "INSERT INTO sessions (id, title, started_at, duration_ms, state, has_mic, has_system, screen_segments, folder, error) " +

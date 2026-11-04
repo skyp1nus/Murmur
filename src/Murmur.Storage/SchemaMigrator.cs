@@ -117,7 +117,18 @@ internal static class SchemaMigrator
         );
         """,
 
-        // 6: bookmarks, the moments marked during a recording (#45). at_ms is on the session timeline (paused time excluded); the
+        // 6: the chapters of a session (Gemma's split of a long transcript), in timeline order; they go with the session through ON DELETE CASCADE.
+        """
+        CREATE TABLE chapters (
+            session_id TEXT    NOT NULL REFERENCES sessions (id) ON DELETE CASCADE,
+            idx        INTEGER NOT NULL,
+            title      TEXT    NOT NULL,
+            start_ms   INTEGER NOT NULL,
+            PRIMARY KEY (session_id, idx)
+        );
+        """,
+
+        // 7: bookmarks, the moments marked during a recording (#45). at_ms is on the session timeline (paused time excluded); the
         // bookmarks go with the session through ON DELETE CASCADE.
         """
         CREATE TABLE bookmarks (

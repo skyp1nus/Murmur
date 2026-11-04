@@ -137,8 +137,9 @@ public sealed partial class LibraryViewModel : ObservableObject, IDisposable, IF
     public partial string? Error { get; set; }
 
     /// <summary>
-    /// A dismissible one-line note about something that went wrong in the background (the marks of a recording could not be saved). Unlike
-    /// <see cref="Error"/> a reload of the list does not clear it; only the user does, with <see cref="DismissNoticeCommand"/>.
+    /// A dismissible one-line note about something that went wrong in the background (the marks of a recording could not be saved), shown
+    /// at the top of the page so it is never below the fold. Unlike <see cref="Error"/> a reload of the list does not clear it; only the
+    /// user does, with <see cref="DismissNoticeCommand"/>.
     /// </summary>
     [ObservableProperty]
     public partial string? Notice { get; set; }
@@ -664,7 +665,10 @@ public sealed partial class LibraryViewModel : ObservableObject, IDisposable, IF
         RefreshEntries();
     }
 
-    partial void OnNoticeChanged(string? value) => RefreshEntries();
+    partial void OnNoticeChanged(string? value) => OnPropertyChanged(nameof(HasNotice));
+
+    /// <summary>The <see cref="Notice"/> line above the page is shown.</summary>
+    public bool HasNotice => Notice is not null;
 
     partial void OnErrorChanged(string? value)
     {
@@ -829,11 +833,6 @@ public sealed partial class LibraryViewModel : ObservableObject, IDisposable, IF
         if (Error is { } error)
         {
             tail.Add(new LibraryNoticeEntry(error));
-        }
-
-        if (Notice is { } notice)
-        {
-            tail.Add(new LibraryNoticeEntry(notice, DismissNoticeCommand));
         }
 
         if (ShowSearchResults)

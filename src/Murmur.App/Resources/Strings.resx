@@ -1544,4 +1544,12 @@
   <data name="Library_DismissNotice" xml:space="preserve">
     <value>Dismiss</value>
   </data>
+  <data name="Session_Chapters" xml:space="preserve">
+    <value>Chapters</value>
+    <comment>Name of the strip of chapters above the player (screen readers)</comment>
+  </data>
+  <data name="Session_ChapterTip" xml:space="preserve">
+    <value>Go to chapter "{0}"</value>
+    <comment>{0} = chapter title; tooltip of a chapter segment, which jumps there</comment>
+  </data>
 </root>

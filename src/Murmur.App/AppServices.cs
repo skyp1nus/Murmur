@@ -56,6 +56,7 @@ namespace Murmur.App;
 /// <c>null</c> = motion is never reduced.
 /// </param>
 /// <param name="Summaries">Keeps the summary of a recording between visits; <c>null</c> = a summary lives only while the recording is open.</param>
+/// <param name="ChapterStore">Keeps the chapters of a recording between visits; <c>null</c> = chapters live only while the recording is open.</param>
 public sealed record AppServices(
     IRecorder Recorder,
     ICapture Capture,
@@ -77,4 +78,5 @@ public sealed record AppServices(
     IMotionPreference? Motion = null,
     ISummaryStore? Summaries = null,
     IChatStore? Chats = null,
+    IChapterStore? ChapterStore = null,
     IRecordingMarks? Marks = null);

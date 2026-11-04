@@ -293,15 +293,49 @@ public sealed class RecordingMarkTests : IDisposable
         await marks.PendingFlush;
 
         Assert.Equal(Strings.Library_MarksNotSaved, shell.Library.Notice);
-        var entry = shell.Library.Entries.OfType<LibraryNoticeEntry>().Single(n => n.Text == Strings.Library_MarksNotSaved);
-        Assert.NotNull(entry.Dismiss);
+        Assert.True(shell.Library.HasNotice);
         await shell.Library.LoadAsync();
         Assert.Equal(Strings.Library_MarksNotSaved, shell.Library.Notice);
 
-        entry.Dismiss!.Execute(null);
+        shell.Library.DismissNoticeCommand.Execute(null);
 
         Assert.Null(shell.Library.Notice);
-        Assert.DoesNotContain(shell.Library.Entries.OfType<LibraryNoticeEntry>(), n => n.Text == Strings.Library_MarksNotSaved);
+        Assert.False(shell.Library.HasNotice);
+    }
+
+    [Fact]
+    public async Task TheLibraryNotice_IsAtTheTopOfThePage_InsideTheSmallestWindow_AndKeepsTheFullTextWidthWithoutADismissButtonToo()
+    {
+        using var english = UiCulture.Override("en");
+        var harness = new UiHarness();
+        harness.SeedSessions();
+        var shell = harness.CreateShell();
+        await shell.Library.LoadAsync();
+
+        var (hiddenHeight, notice, button, pageTop) = await UiHarness.Session.Dispatch(
+            () =>
+            {
+                var window = new MainWindow { DataContext = shell, Width = 900, Height = 600 };
+                window.Show();
+                UiHarness.Pump();
+                var view = window.GetVisualDescendants().OfType<Views.LibraryView>().Single();
+                var border = view.GetVisualDescendants().OfType<Border>().Single(b => b.Name == "LibraryNotice");
+                var hidden = border.Bounds.Height;
+
+                shell.Library.Notice = Strings.Library_MarksNotSaved;
+                UiHarness.Pump();
+                var dismiss = border.GetVisualDescendants().OfType<Button>().Single();
+                var page = view.GetVisualDescendants().OfType<ItemsControl>().Single(i => i.Name == "Page");
+                var result = (hidden, new Rect(border.TranslatePoint(default, window) ?? default, border.Bounds.Size), new Rect(dismiss.TranslatePoint(default, window) ?? default, dismiss.Bounds.Size), page.TranslatePoint(default, window)!.Value.Y);
+                window.Close();
+                return result;
+            },
+            Ct);
+
+        Assert.Equal(0, hiddenHeight);
+        Assert.True(notice.Top < 100, $"the notice is at the top of the page: {notice}");
+        Assert.True(button.Bottom <= 600 && button.Right <= 900, $"Dismiss {button} is inside the window");
+        Assert.True(pageTop >= notice.Bottom - 0.5, "the page starts below the notice");
     }
 
     [Fact]

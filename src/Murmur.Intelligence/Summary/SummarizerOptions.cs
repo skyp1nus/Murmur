@@ -51,6 +51,24 @@ public sealed record SummarizerOptions
     /// <summary>Hidden reasoning is off: a summary of given text needs none, and on a CPU the thinking tokens take minutes.</summary>
     public ReasoningEffort Reasoning { get; init; } = ReasoningEffort.None;
 
+    /// <summary>A session shorter than this gets no chapters (<see cref="ChapterGenerator.MinimumDuration"/>).</summary>
+    public TimeSpan ChapterMinimumDuration { get; init; } = TimeSpan.FromMinutes(10);
+
+    /// <summary>The fewest chapters of a split; fewer usable ones from the model is an unusable answer.</summary>
+    public int MinChapters { get; init; } = 2;
+
+    /// <summary>The most chapters of a split; when the model gives more, the shortest ones are merged into their predecessors.</summary>
+    public int MaxChapters { get; init; } = 12;
+
+    /// <summary>A chapter title is cut to this many characters.</summary>
+    public int MaxChapterTitleLength { get; init; } = 48;
+
+    /// <summary>A chapter that starts less than this after the previous one is dropped.</summary>
+    public TimeSpan MinChapterLength { get; init; } = TimeSpan.FromSeconds(30);
+
+    /// <summary>Output budget of a chapter request (a list of at most a few dozen short lines).</summary>
+    public int ChapterMaxOutputTokens { get; init; } = 512;
+
     /// <summary>The id reported when the chat client does not tell its model.</summary>
     public string FallbackModelId { get; init; } = "local";
 }
