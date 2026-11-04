@@ -2,6 +2,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Murmur.App.Resources;
 using Murmur.App.Services;
+using Murmur.Core.Calls;
 using Murmur.Core.Capture;
 using Murmur.Core.Intelligence;
 using Murmur.Core.Models;
@@ -50,6 +51,8 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable, I
     private StorageSettingsViewModel? _storage;
     private HotkeysSettingsViewModel? _hotkeys;
     private AppearanceSettingsViewModel? _appearance;
+    private CallSettingsViewModel? _calls;
+    private readonly bool _callDetectionSupported;
     private bool _disposed;
 
     /// <param name="settings">Where preferences are read and saved.</param>
@@ -63,6 +66,7 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable, I
     /// <param name="accelerationProbe">Which accelerations this PC supports; <c>null</c> = only the CPU build is offered.</param>
     /// <param name="accelerationStatus">Which AI build runs and why a GPU build does not; <c>null</c> = nothing to report.</param>
     /// <param name="accelerationRuntimeIds">The model-manager item of each GPU build's runtime (<see cref="AiServices.AccelerationRuntimeIds"/>); <c>null</c> = nothing to download.</param>
+    /// <param name="audioSessions">Watches the audio sessions for call detection; <c>null</c> or unsupported hides the "Detect calls" row.</param>
     public SettingsViewModel(
         ISettingsStore settings,
         ICapture capture,
@@ -74,7 +78,8 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable, I
         string? version = null,
         IAccelerationProbe? accelerationProbe = null,
         IAccelerationStatusSource? accelerationStatus = null,
-        IReadOnlyDictionary<AiAcceleration, string>? accelerationRuntimeIds = null)
+        IReadOnlyDictionary<AiAcceleration, string>? accelerationRuntimeIds = null,
+        IAudioSessionMonitor? audioSessions = null)
     {
         ArgumentNullException.ThrowIfNull(settings);
         ArgumentNullException.ThrowIfNull(capture);
@@ -90,6 +95,7 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable, I
         _accelerationStatus = accelerationStatus;
         _accelerationRuntimeIds = accelerationRuntimeIds;
         About = new AboutViewModel(version);
+        _callDetectionSupported = audioSessions?.IsSupported == true;
 
         var sections = new List<SettingsSection>(6);
         if (models is not null)
@@ -134,6 +140,17 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable, I
 
     public AboutViewModel About { get; }
 
+    // ---- Call detection (#44) ----------------------------------------------------------------------------------------------
+
+    /// <summary>The platform can watch the audio sessions: the "Detect calls" row of the Devices section shows.</summary>
+    public bool CallDetectionSupported => _callDetectionSupported;
+
+    /// <summary>The "Detect calls" row; created on first use.</summary>
+    public CallSettingsViewModel Calls => _calls ?? (CanCreate() ? _calls = new CallSettingsViewModel(_writer, () => SampleCallToastRequested?.Invoke()) : null!);
+
+    /// <summary>"Try it" was clicked: the call coordinator shows the toast for a sample app.</summary>
+    internal event Action? SampleCallToastRequested;
+
     /// <summary>Tells whether a recording is running (set by the shell); the introduction is not shown over a recording.</summary>
     internal Func<bool>? RecordingActive { get; set; }
 
@@ -176,6 +193,7 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable, I
         _storage?.Refresh();
         _hotkeys?.Refresh();
         _appearance?.Refresh();
+        _calls?.ReloadSaved();
     }
 
     private void OnStoreChanged(AppSettings settings) => _post(() =>
@@ -193,6 +211,7 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable, I
         _storage?.Refresh();
         _hotkeys?.ReloadSaved();
         _appearance?.ReloadSaved();
+        _calls?.ReloadSaved();
     });
 
     [RelayCommand]

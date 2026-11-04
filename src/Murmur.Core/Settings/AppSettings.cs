@@ -70,6 +70,22 @@ public sealed record AppSettings
 
     /// <summary>Which <c>llama-server</c> build runs the chat model; the CPU build is the default and the fallback.</summary>
     public AiAcceleration Acceleration { get; init; } = AiAcceleration.Cpu;
+
+    // ---- Call detection (#44) ----------------------------------------------------------------------------------------------
+
+    /// <summary>Murmur watches the local audio sessions and offers to record when a call starts (Settings → Detect calls).</summary>
+    public bool DetectCalls { get; init; } = true;
+
+    /// <summary>
+    /// Process names (case-insensitive, without <c>.exe</c>) whose calls are recorded without asking ("Always record calls from
+    /// this app"); empty by default.
+    /// </summary>
+    /// <remarks>
+    /// Stored as a <see cref="ProcessNameList"/> whatever list is assigned: names are normalized (trimmed, no <c>.exe</c>, no
+    /// duplicates or blanks) and the list compares by value, so two settings with the same allowlist are equal records (a file
+    /// read back equals the settings that were saved) and <c>null</c> reads as empty.
+    /// </remarks>
+    public IReadOnlyList<string> CallAllowlist { get; init => field = ProcessNameList.From(value); } = ProcessNameList.Empty;
 }
 
 /// <summary>Loads and saves <see cref="AppSettings"/>. Thread-safe; <see cref="Changed"/> may be raised off the UI thread.</summary>

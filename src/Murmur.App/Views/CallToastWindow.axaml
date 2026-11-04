@@ -1,0 +1,223 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:Murmur.App.ViewModels"
+        xmlns:res="using:Murmur.App.Resources"
+        xmlns:controls="using:Murmur.App.Controls"
+        x:Class="Murmur.App.Views.CallToastWindow"
+        x:DataType="vm:CallToastViewModel"
+        Title="{Binding Title}"
+        WindowDecorations="None"
+        Topmost="True"
+        ShowInTaskbar="False"
+        ShowActivated="False"
+        CanResize="False"
+        CanMinimize="False"
+        CanMaximize="False"
+        SizeToContent="WidthAndHeight"
+        Background="Transparent"
+        TransparencyLevelHint="Transparent">
+
+  <!--
+    The call toast of #44 (docs/design/features/Idea1Autopilot.dc.html, layer "Idea 1 / Call detected toast"): a 320 px card with
+    16 px corners, 14 px padding and 10 px between its rows, Shadow.Subtle, Canvas in the light theme and Surface in the dark one.
+    Row 1: the 24 px orb (the only gradient), the title (13/500) over the body (12, Smoke), the close button. Row 2: Record (primary
+    pill, fills the row) and Not now (secondary pill), or Open and Stop for an auto-recorded call. Row 3: "Always record calls from
+    this app" (12, Graphite). The window is borderless, topmost, has no taskbar entry and does not take the focus; it sits in the
+    bottom-right corner of the primary screen's work area, the card 16 px from both edges (the window is larger by the shadow room).
+  -->
+
+  <Window.Resources>
+    <ResourceDictionary>
+      <!-- Brush.CallToastFill (Canvas / Surface per theme) lives in Styles/Recording.axaml, with the app's other themed aliases. -->
+      <x:Double x:Key="Size.CallToastWidth">320</x:Double>
+      <x:Double x:Key="Size.CallToastOrb">24</x:Double>
+      <x:Double x:Key="Size.CallToastClose">24</x:Double>
+      <x:Double x:Key="Size.CallToastCloseIcon">11</x:Double>
+      <x:Double x:Key="Size.CallToastCheck">13</x:Double>
+      <!-- Room around the card for Shadow.Subtle (0 2 4 0): the window is this much larger on every side. -->
+      <Thickness x:Key="Margin.CallToastShadow">6</Thickness>
+      <StreamGeometry x:Key="CallToast.CloseIcon">M6 6l12 12M18 6L6 18</StreamGeometry>
+    </ResourceDictionary>
+  </Window.Resources>
+
+  <Window.Styles>
+    <Style Selector="TextBlock.callTitle">
+      <Setter Property="FontFamily" Value="{StaticResource Font.Body}" />
+      <Setter Property="FontWeight" Value="{StaticResource FontWeight.BodyMedium}" />
+      <Setter Property="FontSize" Value="{StaticResource FontSize.Meta}" />
+      <Setter Property="LineHeight" Value="{StaticResource LineHeight.Meta}" />
+      <Setter Property="LetterSpacing" Value="{StaticResource LetterSpacing.Meta}" />
+      <Setter Property="Foreground" Value="{DynamicResource Brush.Ink}" />
+      <Setter Property="TextWrapping" Value="Wrap" />
+    </Style>
+    <Style Selector="TextBlock.callBody">
+      <Setter Property="FontFamily" Value="{StaticResource Font.Body}" />
+      <Setter Property="FontSize" Value="{StaticResource FontSize.Small}" />
+      <Setter Property="LineHeight" Value="{StaticResource LineHeight.Small}" />
+      <Setter Property="LetterSpacing" Value="{StaticResource LetterSpacing.Small}" />
+      <Setter Property="Foreground" Value="{DynamicResource Brush.Smoke}" />
+      <Setter Property="TextWrapping" Value="Wrap" />
+    </Style>
+
+    <!-- The two pills of a row: the first fills the row, the second is as wide as its label (12 px at the sides). -->
+    <Style Selector="Button.callButton">
+      <Setter Property="Height" Value="{StaticResource Size.Button}" />
+      <Setter Property="MinHeight" Value="0" />
+    </Style>
+    <Style Selector="Button.outline.callButton">
+      <Setter Property="Padding" Value="{StaticResource Inset.Compact}" />
+    </Style>
+
+    <!-- The close button: a 24 px transparent circle with a Smoke cross, filled on hover. -->
+    <Style Selector="Button.callClose">
+      <Setter Property="Width" Value="{StaticResource Size.CallToastClose}" />
+      <Setter Property="Height" Value="{StaticResource Size.CallToastClose}" />
+      <Setter Property="MinHeight" Value="0" />
+      <Setter Property="MinWidth" Value="0" />
+      <Setter Property="Padding" Value="0" />
+      <Setter Property="CornerRadius" Value="{StaticResource Radius.Pill}" />
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="BorderThickness" Value="0" />
+      <Setter Property="VerticalAlignment" Value="Top" />
+      <Setter Property="HorizontalContentAlignment" Value="Center" />
+      <Setter Property="VerticalContentAlignment" Value="Center" />
+      <Setter Property="Foreground" Value="{DynamicResource Brush.Smoke}" />
+    </Style>
+    <Style Selector="Button.callClose:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="{DynamicResource Brush.FillHover}" />
+      <Setter Property="Foreground" Value="{DynamicResource Brush.Ink}" />
+    </Style>
+    <Style Selector="Button.callClose:pressed /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="{DynamicResource Brush.FillPressed}" />
+    </Style>
+
+    <!-- "Always record calls from this app": a 13 px box (Ink when checked) and a 12 px Graphite label, 8 px apart. -->
+    <Style Selector="CheckBox.callAlways">
+      <Setter Property="MinWidth" Value="0" />
+      <Setter Property="MinHeight" Value="0" />
+      <Setter Property="Padding" Value="0" />
+      <Setter Property="Cursor" Value="Hand" />
+      <Setter Property="Template">
+        <ControlTemplate>
+          <StackPanel Orientation="Horizontal"
+                      Spacing="{StaticResource Space.8}"
+                      Background="Transparent">
+            <Border x:Name="PART_Box"
+                    Width="{StaticResource Size.CallToastCheck}"
+                    Height="{StaticResource Size.CallToastCheck}"
+                    VerticalAlignment="Center"
+                    CornerRadius="{StaticResource Radius.Input}"
+                    Background="Transparent"
+                    BorderBrush="{DynamicResource Brush.Ash}"
+                    BorderThickness="{StaticResource Hairline.Thickness}">
+              <controls:IconControl x:Name="PART_Tick"
+                                    Stroke="2.2"
+                                    IsVisible="False"
+                                    TextElement.Foreground="{DynamicResource Brush.Canvas}"
+                                    Data="{StaticResource Icon.Check}" />
+            </Border>
+            <ContentPresenter x:Name="PART_ContentPresenter"
+                              VerticalAlignment="Center"
+                              Content="{TemplateBinding Content}" />
+          </StackPanel>
+        </ControlTemplate>
+      </Setter>
+    </Style>
+    <Style Selector="CheckBox.callAlways:checked /template/ Border#PART_Box">
+      <Setter Property="Background" Value="{DynamicResource Brush.Ink}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource Brush.Ink}" />
+    </Style>
+    <Style Selector="CheckBox.callAlways:checked /template/ controls|IconControl#PART_Tick">
+      <Setter Property="IsVisible" Value="True" />
+    </Style>
+    <Style Selector="CheckBox.callAlways TextBlock">
+      <Setter Property="FontFamily" Value="{StaticResource Font.Body}" />
+      <Setter Property="FontSize" Value="{StaticResource FontSize.Small}" />
+      <Setter Property="LineHeight" Value="{StaticResource LineHeight.Small}" />
+      <Setter Property="LetterSpacing" Value="{StaticResource LetterSpacing.Small}" />
+      <Setter Property="Foreground" Value="{DynamicResource Brush.Graphite}" />
+    </Style>
+  </Window.Styles>
+
+  <Border x:Name="Card"
+          Margin="{StaticResource Margin.CallToastShadow}"
+          Width="{StaticResource Size.CallToastWidth}"
+          Padding="{StaticResource Inset.14}"
+          CornerRadius="{StaticResource Radius.Card}"
+          Background="{DynamicResource Brush.CallToastFill}"
+          BorderBrush="{DynamicResource Brush.Hairline}"
+          BorderThickness="{StaticResource Hairline.Thickness}"
+          BoxShadow="{StaticResource Shadow.Subtle}">
+    <StackPanel Spacing="{StaticResource Space.10}">
+      <Grid ColumnDefinitions="Auto,*,Auto"
+            ColumnSpacing="{StaticResource Space.10}">
+        <controls:OrbDisc x:Name="Orb"
+                          Grid.Column="0"
+                          Width="{StaticResource Size.CallToastOrb}"
+                          Height="{StaticResource Size.CallToastOrb}"
+                          VerticalAlignment="Top" />
+        <StackPanel Grid.Column="1"
+                    Spacing="{StaticResource Space.2}">
+          <TextBlock x:Name="TitleText"
+                     Classes="callTitle"
+                     Text="{Binding Title}" />
+          <TextBlock x:Name="BodyText"
+                     Classes="callBody"
+                     Text="{Binding Body}" />
+        </StackPanel>
+        <Button x:Name="CloseButton"
+                Grid.Column="2"
+                Classes="callClose"
+                ToolTip.Tip="{x:Static res:Strings.Calls_Dismiss}"
+                AutomationProperties.Name="{x:Static res:Strings.Calls_Dismiss}"
+                Command="{Binding DismissCommand}">
+          <controls:IconControl Width="{StaticResource Size.CallToastCloseIcon}"
+                                Height="{StaticResource Size.CallToastCloseIcon}"
+                                Stroke="2"
+                                Data="{StaticResource CallToast.CloseIcon}" />
+        </Button>
+      </Grid>
+
+      <Grid x:Name="OfferButtons"
+            ColumnDefinitions="*,Auto"
+            ColumnSpacing="{StaticResource Space.8}"
+            IsVisible="{Binding IsOffer}">
+        <Button x:Name="RecordButton"
+                Grid.Column="0"
+                Classes="primary callButton"
+                HorizontalAlignment="Stretch"
+                Content="{x:Static res:Strings.Calls_Record}"
+                Command="{Binding RecordCommand}" />
+        <Button x:Name="NotNowButton"
+                Grid.Column="1"
+                Classes="outline callButton"
+                Content="{x:Static res:Strings.Calls_NotNow}"
+                Command="{Binding NotNowCommand}" />
+      </Grid>
+
+      <Grid x:Name="AutoButtons"
+            ColumnDefinitions="*,Auto"
+            ColumnSpacing="{StaticResource Space.8}"
+            IsVisible="{Binding IsAutoRecording}">
+        <Button x:Name="OpenButton"
+                Grid.Column="0"
+                Classes="primary callButton"
+                HorizontalAlignment="Stretch"
+                Content="{x:Static res:Strings.Calls_Open}"
+                Command="{Binding OpenCommand}" />
+        <Button x:Name="StopButton"
+                Grid.Column="1"
+                Classes="outline callButton"
+                Content="{x:Static res:Strings.Calls_Stop}"
+                Command="{Binding StopCommand}" />
+      </Grid>
+
+      <CheckBox x:Name="AlwaysRecordBox"
+                Classes="callAlways"
+                IsVisible="{Binding ShowAlwaysRecord}"
+                IsChecked="{Binding AlwaysRecord, Mode=TwoWay}">
+        <TextBlock Text="{x:Static res:Strings.Calls_AlwaysRecord}" />
+      </CheckBox>
+    </StackPanel>
+  </Border>
+</Window>

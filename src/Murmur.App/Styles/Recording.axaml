@@ -19,9 +19,12 @@
         <!-- The source chips are Canvas in the light theme and Surface in the dark one. -->
         <ResourceDictionary x:Key="Light">
           <StaticResource x:Key="Brush.RecordingChip" ResourceKey="Brush.Canvas" />
+          <!-- The call toast (#44, CallToastWindow): Canvas in the light theme, Surface in the dark one. -->
+          <StaticResource x:Key="Brush.CallToastFill" ResourceKey="Brush.Canvas" />
         </ResourceDictionary>
         <ResourceDictionary x:Key="Dark">
           <StaticResource x:Key="Brush.RecordingChip" ResourceKey="Brush.Surface" />
+          <StaticResource x:Key="Brush.CallToastFill" ResourceKey="Brush.Surface" />
         </ResourceDictionary>
       </ResourceDictionary.ThemeDictionaries>
     </ResourceDictionary>
