@@ -9,8 +9,8 @@ Murmur bundles or links the components below. Each is used under the license sho
 | Avalonia (Avalonia, .Desktop, .Themes.Fluent, .Fonts.Inter, .Skia, .Headless) | 12.1.4 | MIT | UI framework |
 | CommunityToolkit.Mvvm | 8.4.2 | MIT | MVVM source generators |
 | Microsoft.Extensions.AI.Abstractions | 10.11.0 | MIT | `IChatClient` / `IEmbeddingGenerator` abstractions |
-| Microsoft.Data.Sqlite (+ SQLitePCLRaw, e_sqlite3) | 11.0.0-rc.2 | MIT (SQLitePCLRaw: Apache-2.0; SQLite: public domain) | Sessions, transcripts, FTS5, vectors |
-| System.Numerics.Tensors | 11.0.0-rc.2 | MIT | SIMD dot products for vector search |
+| Microsoft.Data.Sqlite (+ SQLitePCLRaw, e_sqlite3) | 11.0.0-rc.3 | MIT (SQLitePCLRaw: Apache-2.0; SQLite: public domain) | Sessions, transcripts, FTS5, vectors |
+| System.Numerics.Tensors | 11.0.0-rc.3 | MIT | SIMD dot products for vector search |
 | sherpa-onnx native runtime (`org.k2fsa.sherpa.onnx.runtime.<rid>`) | 1.13.8 | Apache-2.0 (bundles ONNX Runtime 1.28: MIT) | ASR worker (`Murmur.Transcription`) |
 | llama.cpp `llama-server` (downloaded by `scripts/fetch-models` `-Ai`, not in the repo) | b11716 | MIT | Local LLM / embeddings sidecar |
 
