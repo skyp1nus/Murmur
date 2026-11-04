@@ -49,7 +49,8 @@ public sealed class WorkerAsrClientTests : IDisposable
         Assert.Equal([TimeSpan.Zero, TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(2)], segments.Select(s => s.Start));
         Assert.Equal(TimeSpan.FromSeconds(3), segments[^1].End);
         Assert.Equal("system 1", segments[1].Text);
-        Assert.Equal([new TranscriptWord("system", TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(1.5)), new TranscriptWord("1", TimeSpan.FromSeconds(1.5), TimeSpan.FromSeconds(2))], segments[1].Words);
+        // The fake worker reports a confidence for the second word only (D-052): null stays null.
+        Assert.Equal([new TranscriptWord("system", TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(1.5)), new TranscriptWord("1", TimeSpan.FromSeconds(1.5), TimeSpan.FromSeconds(2)) { Confidence = 0.42f }], segments[1].Words);
         Assert.Equal(new AsrProgress(TimeSpan.FromSeconds(3), TimeSpan.FromSeconds(3)), progress.Values[^1]);
         Assert.Contains(new AsrProgress(TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(3)), progress.Values);
 

@@ -9,7 +9,14 @@ public enum Speaker
     Others,
 }
 
-public readonly record struct TranscriptWord(string Text, TimeSpan Start, TimeSpan End);
+public readonly record struct TranscriptWord(string Text, TimeSpan Start, TimeSpan End)
+{
+    /// <summary>
+    /// ASR confidence 0..1 (D-052), or null when unknown (older transcripts, workers that do not report it).
+    /// An init property rather than a positional parameter, so <c>new TranscriptWord(text, start, end)</c> stays valid.
+    /// </summary>
+    public float? Confidence { get; init; }
+}
 
 public sealed record TranscriptSegment(Speaker Speaker, TimeSpan Start, TimeSpan End, string Text, IReadOnlyList<TranscriptWord> Words);
 
