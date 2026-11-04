@@ -1,4 +1,5 @@
 using System.Collections;
+using Murmur.Core.Calls;
 
 namespace Murmur.Core.Settings;
 
@@ -130,11 +131,8 @@ public sealed class ProcessNameList : IReadOnlyList<string>, IEquatable<ProcessN
 
     public override string ToString() => string.Join(", ", _names);
 
-    private static string Normalize(string name)
-    {
-        var trimmed = name.Trim();
-        return trimmed.EndsWith(".exe", StringComparison.OrdinalIgnoreCase) ? trimmed[..^4].TrimEnd() : trimmed;
-    }
+    /// <summary>The one normalisation of process names, shared with the call detector (<see cref="CallAppNames.Normalize"/>).</summary>
+    private static string Normalize(string name) => CallAppNames.Normalize(name);
 
     private static bool Contains(IReadOnlyList<string> names, string normalized)
     {

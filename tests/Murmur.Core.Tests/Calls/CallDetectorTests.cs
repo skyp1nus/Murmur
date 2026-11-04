@@ -24,11 +24,24 @@ public sealed class CallDetectorTests
 
         public event Action? Changed;
 
+        /// <summary>How many of the next <see cref="Snapshot"/> calls throw (the audio service restarting).</summary>
+        public int FailNext { get; set; }
+
+        /// <summary>The threads <see cref="Snapshot"/> was called on.</summary>
+        public List<int> SnapshotThreads { get; } = [];
+
         public AudioActivitySnapshot Snapshot()
         {
             lock (_gate)
             {
                 Snapshots++;
+                SnapshotThreads.Add(Environment.CurrentManagedThreadId);
+                if (FailNext > 0)
+                {
+                    FailNext--;
+                    throw new InvalidOperationException("audio service restarting");
+                }
+
                 return _snapshot;
             }
         }
@@ -265,6 +278,7 @@ public sealed class CallDetectorTests
     {
         using var rig = new Rig();
         rig.Detector.Start();
+        rig.Advance(0); // the first evaluation, queued on the timer
         Assert.False(rig.Detector.IsTimerScheduled);
         Assert.Equal(0, rig.Time.ActiveTimers);
 
@@ -375,6 +389,113 @@ public sealed class CallDetectorTests
         rig.Monitor.Set(true, Teams);
         rig.Advance(3);
         Assert.Single(rig.Started);
+    }
+
+    [Fact]
+    public void ATickThatCannotReadTheSessions_DoesNotStallTheEndOfTheCall()
+    {
+        using var rig = new Rig();
+        rig.Detector.Start();
+        rig.Monitor.Set(true, Teams);
+        rig.Advance(3);
+        rig.Monitor.Set(false);
+
+        rig.Monitor.FailNext = 1; // the next tick throws; no Changed follows
+        rig.Advance(30);
+
+        Assert.Single(rig.Ended);
+        Assert.Null(rig.Detector.CurrentCall);
+    }
+
+    [Fact]
+    public void ATickThatCannotReadTheSessions_DoesNotStallTheStartOfACall()
+    {
+        using var rig = new Rig();
+        rig.Detector.Start();
+        rig.Monitor.Set(true, Teams);
+
+        rig.Monitor.FailNext = 3; // the ticks at 1, 2 and 3 s throw; no Changed follows
+        rig.Advance(3.5);
+        Assert.Empty(rig.Started);
+
+        rig.Advance(1);
+        Assert.Single(rig.Started);
+    }
+
+    [Fact]
+    public void Start_QueuesTheFirstEvaluation_OffTheCallersThread()
+    {
+        using var rig = new Rig();
+
+        rig.Detector.Start();
+        Assert.Equal(0, rig.Monitor.Snapshots);
+        Assert.True(rig.Detector.IsTimerScheduled);
+
+        rig.Advance(0);
+        Assert.Equal(1, rig.Monitor.Snapshots);
+    }
+
+    [Fact]
+    public void Start_UsesThePool_WithTheSystemClock()
+    {
+        var monitor = new FakeMonitor();
+        using var detector = new CallDetector(monitor, TimeProvider.System, OwnPid);
+
+        detector.Start();
+        var deadline = DateTime.UtcNow.AddSeconds(5);
+        while (monitor.Snapshots == 0 && DateTime.UtcNow < deadline)
+        {
+            Thread.Sleep(5);
+        }
+
+        Assert.NotEmpty(monitor.SnapshotThreads);
+        Assert.DoesNotContain(Environment.CurrentManagedThreadId, monitor.SnapshotThreads);
+    }
+
+    [Fact]
+    public void AThrowingSubscriber_IsContained_AndTheOthersStillHearTheCall()
+    {
+        using var rig = new Rig();
+        rig.Detector.CallStarted += _ => throw new InvalidOperationException("bad handler");
+        var late = new List<CallInfo>();
+        rig.Detector.CallStarted += late.Add;
+        rig.Detector.Start();
+
+        rig.Monitor.Set(true, Teams);
+        rig.Advance(3);
+
+        Assert.Single(rig.Started);
+        Assert.Single(late);
+    }
+
+    [Fact]
+    public async Task StartAndStop_FromManyThreads_LeaveTheMonitorBalanced()
+    {
+        var monitor = new FakeMonitor();
+        using var detector = new CallDetector(monitor, new ManualTimeProvider(), OwnPid);
+
+        var workers = Enumerable.Range(0, 8).Select(i => Task.Run(
+            () =>
+            {
+                for (var n = 0; n < 200; n++)
+                {
+                    if ((n + i) % 2 == 0)
+                    {
+                        detector.Start();
+                    }
+                    else
+                    {
+                        detector.Stop();
+                    }
+                }
+            },
+            TestContext.Current.CancellationToken)).ToArray();
+        await Task.WhenAll(workers);
+        detector.Stop();
+
+        Assert.False(detector.IsRunning);
+        Assert.Equal(monitor.Starts, monitor.Stops);
+        Assert.False(monitor.HasSubscribers);
     }
 
     [Fact]

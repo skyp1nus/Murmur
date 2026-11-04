@@ -145,8 +145,9 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable, I
     /// <summary>The platform can watch the audio sessions: the "Detect calls" row of the Devices section shows.</summary>
     public bool CallDetectionSupported => _callDetectionSupported;
 
-    /// <summary>The "Detect calls" row; created on first use.</summary>
-    public CallSettingsViewModel Calls => _calls ?? (CanCreate() ? _calls = new CallSettingsViewModel(_writer, () => SampleCallToastRequested?.Invoke()) : null!);
+    /// <summary>The "Detect calls" row; created on first use, and only where <see cref="CallDetectionSupported"/> (<c>null</c> otherwise).</summary>
+    public CallSettingsViewModel? Calls =>
+        _calls ??= !_callDetectionSupported || _disposed ? null : new CallSettingsViewModel(_writer, () => SampleCallToastRequested?.Invoke());
 
     /// <summary>"Try it" was clicked: the call coordinator shows the toast for a sample app.</summary>
     internal event Action? SampleCallToastRequested;

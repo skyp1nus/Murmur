@@ -49,12 +49,15 @@ public static class CallAppNames
         return Names.TryGetValue(name, out var friendly) ? friendly : name;
     }
 
-    /// <summary>The process name as it is compared and stored (the allowlist): trimmed, without a trailing <c>.exe</c>.</summary>
+    /// <summary>
+    /// The process name as it is compared and stored (the allowlist, <see cref="Settings.ProcessNameList"/>): trimmed, without a
+    /// trailing <c>.exe</c>. The only normalisation of process names in Murmur.
+    /// </summary>
     public static string Normalize(string processName)
     {
         ArgumentNullException.ThrowIfNull(processName);
         var name = processName.Trim();
-        return name.EndsWith(".exe", StringComparison.OrdinalIgnoreCase) ? name[..^4] : name;
+        return name.EndsWith(".exe", StringComparison.OrdinalIgnoreCase) ? name[..^4].TrimEnd() : name;
     }
 
     /// <summary>Whether two process names name the same app (case-insensitive, <c>.exe</c> ignored).</summary>

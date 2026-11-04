@@ -21,6 +21,8 @@ internal sealed class CallToastWindowHost : ICallToastHost
     /// <summary>The window on screen (for tests).</summary>
     internal CallToastWindow? Window => _window;
 
+    public event Action? Closed;
+
     public void Show(CallToastViewModel toast)
     {
         ArgumentNullException.ThrowIfNull(toast);
@@ -32,6 +34,7 @@ internal sealed class CallToastWindowHost : ICallToastHost
         }
 
         _window = window;
+        window.Closed += OnWindowClosed;
         window.Show();
     }
 
@@ -42,7 +45,23 @@ internal sealed class CallToastWindowHost : ICallToastHost
         if (_window is { } window)
         {
             _window = null;
+            window.Closed -= OnWindowClosed;
             window.Close();
         }
+    }
+
+    /// <summary>The window closed on its own (Alt+F4, the system): forget it and tell the coordinator.</summary>
+    private void OnWindowClosed(object? sender, EventArgs e)
+    {
+        if (sender is not CallToastWindow window || !ReferenceEquals(window, _window))
+        {
+            return;
+        }
+
+        window.Closed -= OnWindowClosed;
+        _window = null;
+        _follower?.Dispose();
+        _follower = null;
+        Closed?.Invoke();
     }
 }

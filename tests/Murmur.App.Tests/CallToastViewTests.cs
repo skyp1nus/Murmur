@@ -198,6 +198,30 @@ public sealed class CallToastViewTests
         Assert.True(closed);
     }
 
+    [Fact]
+    public async Task AWindowClosedOnItsOwn_IsReported_AndForgotten()
+    {
+        var (closed, window) = await Session.Dispatch(
+            () =>
+            {
+                var host = new CallToastWindowHost();
+                var raised = 0;
+                host.Closed += () => raised++;
+                host.Show(new CallToastViewModel(Teams, CallToastKind.Offer));
+                UiHarness.Pump();
+                host.Window!.Close(); // Alt+F4
+                UiHarness.Pump();
+                var afterUser = (raised, host.Window);
+                host.Show(new CallToastViewModel(Teams, CallToastKind.Offer));
+                host.Close(); // closed by the coordinator: not reported
+                return (raised, afterUser.Window);
+            },
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal(1, closed);
+        Assert.Null(window);
+    }
+
     // ---- Settings → Detect calls -------------------------------------------------------------------------------------------
 
     private sealed class SupportedMonitor : IAudioSessionMonitor

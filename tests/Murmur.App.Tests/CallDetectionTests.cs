@@ -59,6 +59,15 @@ public sealed class CallDetectionTests
         }
 
         public void Close() => Shown = null;
+
+        public event Action? Closed;
+
+        /// <summary>The user closed the window without a button (Alt+F4).</summary>
+        public void CloseByUser()
+        {
+            Shown = null;
+            Closed?.Invoke();
+        }
     }
 
     private sealed class Rig : IDisposable
@@ -406,6 +415,66 @@ public sealed class CallDetectionTests
     }
 
     [Fact]
+    public void TryIt_NeverReplacesTheToastOfARealCall()
+    {
+        using var rig = new Rig();
+        rig.Coordinator.Start();
+        rig.Detector.RaiseStarted(Teams);
+        var offer = rig.Toasts.Shown;
+
+        rig.Coordinator.ShowSample();
+
+        Assert.Same(offer, rig.Toasts.Shown);
+        Assert.Single(rig.Toasts.History);
+    }
+
+    [Fact]
+    public void TryIt_ReplacesAnEarlierSample()
+    {
+        using var rig = new Rig();
+        rig.Coordinator.Start();
+        rig.Coordinator.ShowSample();
+        rig.Coordinator.ShowSample();
+
+        Assert.Equal(2, rig.Toasts.History.Count);
+        Assert.True(rig.Toasts.Shown!.IsSample);
+    }
+
+    [Fact]
+    public void AToastWindowClosedByTheUser_IsADismissal()
+    {
+        using var rig = new Rig();
+        rig.Coordinator.Start();
+        rig.Detector.RaiseStarted(Teams);
+        var offer = rig.Toasts.Shown!;
+
+        rig.Toasts.CloseByUser();
+
+        Assert.Null(rig.Coordinator.Toast);
+        offer.RecordCommand.Execute(null); // a late click on the closed window does nothing
+        Assert.Equal(0, rig.StartRequests);
+        rig.Coordinator.ShowSample();
+        Assert.True(rig.Toasts.Shown!.IsSample);
+    }
+
+    [Fact]
+    public async Task AFailedAllowlistSave_StillRecords_AndIsOnlyLogged()
+    {
+        using var rig = new Rig();
+        rig.Coordinator.Start();
+        rig.Detector.RaiseStarted(Teams);
+        rig.Store.SaveFailure = new IOException("disk full");
+
+        rig.Toasts.Shown!.AlwaysRecord = true;
+        rig.Toasts.Shown!.RecordCommand.Execute(null);
+        await rig.Coordinator.LastAction;
+
+        Assert.Equal(RecorderState.Recording, rig.Recorder.State);
+        Assert.Empty(rig.Store.Current.CallAllowlist);
+        Assert.Null(rig.Toasts.Shown);
+    }
+
+    [Fact]
     public async Task TheSamplesRecord_StartsARecording_ButNeverAllowlists()
     {
         using var rig = new Rig();
@@ -428,7 +497,7 @@ public sealed class CallDetectionTests
         var asked = 0;
         settings.SampleCallToastRequested += () => asked++;
 
-        settings.Calls.TryItCommand.Execute(null);
+        settings.Calls!.TryItCommand.Execute(null);
 
         Assert.Equal(1, asked);
     }
@@ -471,6 +540,9 @@ public sealed class CallDetectionTests
         Assert.False(none.CallDetectionSupported);
         Assert.False(unsupported.CallDetectionSupported);
         Assert.True(supported.CallDetectionSupported);
+        Assert.Null(none.Calls);
+        Assert.Null(unsupported.Calls);
+        Assert.NotNull(supported.Calls);
     }
 
     [Fact]
@@ -478,15 +550,15 @@ public sealed class CallDetectionTests
     {
         var store = new FakeSettingsStore();
         using var settings = new SettingsViewModel(store, new FakeCapture(), post: a => a(), audioSessions: new SupportedMonitor());
-        Assert.True(settings.Calls.DetectCalls);
+        Assert.True(settings.Calls!.DetectCalls);
 
-        settings.Calls.DetectCalls = false;
-        await settings.Calls.LastSave;
+        settings.Calls!.DetectCalls = false;
+        await settings.Calls!.LastSave;
         Assert.False(store.Current.DetectCalls);
-        Assert.Null(settings.Calls.Error);
+        Assert.Null(settings.Calls!.Error);
 
         await store.SaveAsync(store.Current with { DetectCalls = true }, TestContext.Current.CancellationToken);
-        Assert.True(settings.Calls.DetectCalls);
+        Assert.True(settings.Calls!.DetectCalls);
     }
 
     [Fact]
@@ -495,11 +567,11 @@ public sealed class CallDetectionTests
         var store = new FakeSettingsStore { SaveFailure = new IOException("disk full") };
         using var settings = new SettingsViewModel(store, new FakeCapture(), post: a => a(), audioSessions: new SupportedMonitor());
 
-        settings.Calls.DetectCalls = false;
-        await settings.Calls.LastSave;
+        settings.Calls!.DetectCalls = false;
+        await settings.Calls!.LastSave;
 
-        Assert.True(settings.Calls.HasError);
-        Assert.Contains("disk full", settings.Calls.Error, StringComparison.Ordinal);
+        Assert.True(settings.Calls!.HasError);
+        Assert.Contains("disk full", settings.Calls!.Error, StringComparison.Ordinal);
     }
 
     // ---- The toast's texts -------------------------------------------------------------------------------------------------

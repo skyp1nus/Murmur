@@ -12,12 +12,19 @@ internal interface ICallToastHost
     /// <summary>Shows <paramref name="toast"/>, replacing the one on screen.</summary>
     void Show(CallToastViewModel toast);
 
-    /// <summary>Closes the toast on screen, if any.</summary>
+    /// <summary>Closes the toast on screen, if any (does not raise <see cref="Closed"/>).</summary>
     void Close();
+
+    /// <summary>The toast on screen was closed by something other than <see cref="Close"/> (Alt+F4, the system): the user dismissed it.</summary>
+    event Action? Closed;
 }
 
 /// <summary>What the call toast does to the rest of the app; every delegate runs on the UI thread.</summary>
-/// <param name="StartRecording">Starts a recording with the default sources through the Recording flow (like the record hotkey).</param>
+/// <param name="StartRecording">
+/// Starts a recording through the Recording flow. The app uses the very start path of the record hotkey
+/// (<c>ShellViewModel.ToggleRecordingFromHotkeyAsync</c>): the saved default sources, or the source choices the Recording screen
+/// holds right now when it is open. An auto-recorded call starts the same way.
+/// </param>
 /// <param name="StopRecording">Stops the running recording.</param>
 /// <param name="OpenApp">Brings the main window to the front on the recording screen.</param>
 /// <param name="CanRecord">The app can take a recording now (not during the onboarding); <c>null</c> = always.</param>
@@ -95,6 +102,7 @@ internal sealed class CallCoordinator : IDisposable
         }
 
         _started = true;
+        _toasts.Closed += OnToastClosed;
         _detector.CallStarted += OnCallStarted;
         _detector.CallEnded += OnCallEnded;
         _recorder.StateChanged += OnRecorderStateChanged;
@@ -102,10 +110,13 @@ internal sealed class CallCoordinator : IDisposable
         Apply(_settings.Current);
     }
 
-    /// <summary>Settings → "Try it": the "Call detected" toast for a sample app.</summary>
+    /// <summary>
+    /// Settings → "Try it": the "Call detected" toast for a sample app. Ignored while the toast of a real call is on screen (the
+    /// sample never replaces a live offer or an auto-record toast).
+    /// </summary>
     public void ShowSample()
     {
-        if (_disposed)
+        if (_disposed || _toast is { IsSample: false })
         {
             return;
         }
@@ -123,6 +134,7 @@ internal sealed class CallCoordinator : IDisposable
         _disposed = true;
         if (_started)
         {
+            _toasts.Closed -= OnToastClosed;
             _detector.CallStarted -= OnCallStarted;
             _detector.CallEnded -= OnCallEnded;
             _recorder.StateChanged -= OnRecorderStateChanged;
@@ -242,6 +254,16 @@ internal sealed class CallCoordinator : IDisposable
         _toasts.Close();
     }
 
+    /// <summary>The window went away without a button (Alt+F4, the system): the same as dismissing it.</summary>
+    private void OnToastClosed() => _post(() =>
+    {
+        if (_toast is { } toast)
+        {
+            toast.ActionChosen -= OnActionChosen;
+            _toast = null;
+        }
+    });
+
     private void OnActionChosen(CallToastViewModel toast, CallToastAction action)
     {
         if (!ReferenceEquals(toast, _toast))
@@ -259,17 +281,27 @@ internal sealed class CallCoordinator : IDisposable
         };
     }
 
+    /// <summary>
+    /// Record: the recording starts whatever happens to the allowlist; with "Always record" the process name is saved too, and a
+    /// save that fails is logged (the recording of this call is unaffected, the next call of the app simply asks again).
+    /// </summary>
     private async Task RecordAsync(CallToastViewModel toast)
     {
+        Task<string?>? save = null;
         if (toast is { AlwaysRecord: true, IsSample: false })
         {
             var processName = toast.Call.ProcessName;
-            _ = _writer.UpdateAsync(s => s with { CallAllowlist = ProcessNameList.From(s.CallAllowlist).Add(processName) });
+            save = _writer.UpdateAsync(s => s with { CallAllowlist = ProcessNameList.From(s.CallAllowlist).Add(processName) });
         }
 
         if (_recorder.State == RecorderState.Idle && _actions.CanRecord?.Invoke() != false)
         {
             await TryStartRecordingAsync();
+        }
+
+        if (save is not null && await save is { } error)
+        {
+            Console.Error.WriteLine($"Adding {toast.Call.ProcessName} to the call allowlist failed: {error}");
         }
     }
 

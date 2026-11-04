@@ -19,7 +19,11 @@ namespace Murmur.Core.Calls;
 /// <para><b>Threads.</b> The monitor event and the timer may arrive on any thread. Evaluations never overlap: a request that
 /// arrives during one is coalesced into one more pass, and the snapshot is taken outside the state lock, so a monitor that raises
 /// <see cref="IAudioSessionMonitor.Changed"/> from its own thread cannot deadlock with it. The events are raised on the thread
-/// that evaluates, outside the lock (off the UI thread).</para>
+/// that evaluates, outside the lock (off the UI thread), one handler at a time: a handler that throws is logged and the others
+/// still run. <see cref="Start"/> and <see cref="Stop"/> are serialised; the first evaluation after a start runs on the timer
+/// (the thread pool), never on the caller's thread.</para>
+/// <para><b>A failing monitor.</b> When <see cref="IAudioSessionMonitor.Snapshot"/> throws, the reading is dropped and, while a
+/// countdown runs, the timer is armed again, so the 3 s / 30 s rules still hold without another change event.</para>
 /// <para><b>Process ids.</b> This process (<see cref="Environment.ProcessId"/> by default) and ids below 1 (the system-sounds
 /// session) never count. An app is followed by process id and process name, so a call app that moves its audio to another
 /// process of the same name keeps its session.</para>
@@ -41,6 +45,7 @@ public sealed class CallDetector : ICallDetector
     private readonly TimeProvider _time;
     private readonly int _ownProcessId;
     private readonly Lock _gate = new();
+    private readonly Lock _lifecycle = new();
 
     // Under _gate.
     private readonly Dictionary<int, Candidate> _candidates = [];
@@ -106,56 +111,77 @@ public sealed class CallDetector : ICallDetector
         }
     }
 
+    /// <remarks>
+    /// The first evaluation is queued on the timer (the thread pool), not run on the caller's thread: a platform monitor may
+    /// enumerate COM sessions in <see cref="IAudioSessionMonitor.Snapshot"/>, and Start is called on the UI thread.
+    /// </remarks>
     public void Start()
     {
-        lock (_gate)
+        // _lifecycle keeps a Start and a Stop from interleaving their subscribe / monitor calls; evaluations never take it.
+        lock (_lifecycle)
         {
-            ObjectDisposedException.ThrowIf(_disposed, this);
-            if (_running)
+            lock (_gate)
             {
-                return;
+                ObjectDisposedException.ThrowIf(_disposed, this);
+                if (_running)
+                {
+                    return;
+                }
+
+                _running = true;
+                _timer = _time.CreateTimer(static state => ((CallDetector)state!).RequestEvaluation(), this, Timeout.InfiniteTimeSpan, Timeout.InfiniteTimeSpan);
             }
 
-            _running = true;
-            _timer = _time.CreateTimer(static state => ((CallDetector)state!).RequestEvaluation(), this, Timeout.InfiniteTimeSpan, Timeout.InfiniteTimeSpan);
+            // Subscribe first, start after: a session that starts in between is not lost.
+            _monitor.Changed += RequestEvaluation;
+            _monitor.Start();
+            lock (_gate)
+            {
+                if (_running && _timer is { } timer)
+                {
+                    _scheduled = true;
+                    timer.Change(TimeSpan.Zero, Timeout.InfiniteTimeSpan);
+                }
+            }
         }
-
-        // Subscribe first, start after: a session that starts in between is not lost.
-        _monitor.Changed += RequestEvaluation;
-        _monitor.Start();
-        RequestEvaluation();
     }
 
     public void Stop()
     {
-        ITimer? timer;
-        lock (_gate)
+        lock (_lifecycle)
         {
-            if (!_running)
+            ITimer? timer;
+            lock (_gate)
             {
-                return;
+                if (!_running)
+                {
+                    return;
+                }
+
+                _running = false;
+                timer = _timer;
+                _timer = null;
+                _scheduled = false;
+                _candidates.Clear();
+                _call = null;
+                _inactiveSince = -1;
             }
 
-            _running = false;
-            timer = _timer;
-            _timer = null;
-            _scheduled = false;
-            _candidates.Clear();
-            _call = null;
-            _inactiveSince = -1;
+            _monitor.Changed -= RequestEvaluation;
+            timer?.Dispose();
+            _monitor.Stop();
         }
-
-        _monitor.Changed -= RequestEvaluation;
-        timer?.Dispose();
-        _monitor.Stop();
     }
 
     public void Dispose()
     {
-        Stop();
-        lock (_gate)
+        lock (_lifecycle)
         {
-            _disposed = true;
+            Stop();
+            lock (_gate)
+            {
+                _disposed = true;
+            }
         }
     }
 
@@ -199,9 +225,20 @@ public sealed class CallDetector : ICallDetector
         {
             snapshot = _monitor.Snapshot();
         }
-        catch (Exception)
+        catch (Exception ex)
         {
-            // A monitor that cannot read the sessions right now is asked again on its next change (or the next tick).
+            // A monitor that cannot read the sessions right now is asked again on its next change, and, while something
+            // counts down, on the next tick: the one-shot timer is armed again, so a 3 s or 30 s countdown never stalls.
+            Console.Error.WriteLine("Murmur: call detection could not read the audio sessions: " + ex.Message);
+            lock (_gate)
+            {
+                if (_running && IsCountingDown && _timer is { } timer)
+                {
+                    _scheduled = true;
+                    timer.Change(PollInterval, Timeout.InfiniteTimeSpan);
+                }
+            }
+
             return;
         }
 
@@ -250,12 +287,36 @@ public sealed class CallDetector : ICallDetector
 
         if (ended is not null)
         {
-            CallEnded?.Invoke(ended);
+            Raise(CallEnded, ended, "CallEnded");
         }
 
         if (started is not null)
         {
-            CallStarted?.Invoke(started);
+            Raise(CallStarted, started, "CallStarted");
+        }
+    }
+
+    /// <summary>Something waits for a deadline: a candidate's 3 s or an inactive call's 30 s.</summary>
+    private bool IsCountingDown => _call is not null ? _inactiveSince >= 0 : _candidates.Count > 0;
+
+    /// <summary>Raises an event handler by handler: a throwing subscriber is logged and never reaches the monitor's or the pool's thread.</summary>
+    private static void Raise(Action<CallInfo>? handlers, CallInfo call, string name)
+    {
+        if (handlers is null)
+        {
+            return;
+        }
+
+        foreach (var handler in handlers.GetInvocationList())
+        {
+            try
+            {
+                ((Action<CallInfo>)handler)(call);
+            }
+            catch (Exception ex)
+            {
+                Console.Error.WriteLine("Murmur: a " + name + " handler of call detection failed: " + ex.Message);
+            }
         }
     }
 

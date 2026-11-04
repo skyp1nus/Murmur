@@ -15,6 +15,18 @@
       <!-- The orb in the sidebar's "Recording" pill: 9 px in Recording.dc.html (Shell's Size.PillOrb is 10). -->
       <x:Double x:Key="Size.RecordingPillOrb">9</x:Double>
 
+      <!-- The call toast (#44, CallToastWindow; Idea1Autopilot.dc.html "Idea 1 / Call detected toast"). -->
+      <x:Double x:Key="Size.CallToastWidth">320</x:Double>
+      <x:Double x:Key="Size.CallToastOrb">24</x:Double>
+      <x:Double x:Key="Size.CallToastClose">24</x:Double>
+      <x:Double x:Key="Size.CallToastCloseIcon">11</x:Double>
+      <x:Double x:Key="Size.CallToastCheck">13</x:Double>
+      <x:Double x:Key="CallToast.Stroke.Close">2</x:Double>
+      <x:Double x:Key="CallToast.Stroke.Check">2.2</x:Double>
+      <!-- Room around the card for Shadow.Subtle (0 2 4 0): the window is this much larger on every side. -->
+      <Thickness x:Key="Margin.CallToastShadow">6</Thickness>
+      <StreamGeometry x:Key="CallToast.CloseIcon">M6 6l12 12M18 6L6 18</StreamGeometry>
+
       <ResourceDictionary.ThemeDictionaries>
         <!-- The source chips are Canvas in the light theme and Surface in the dark one. -->
         <ResourceDictionary x:Key="Light">

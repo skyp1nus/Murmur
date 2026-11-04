@@ -686,13 +686,13 @@
                       <ToggleButton x:Name="DetectCallsSwitch"
                                     Classes="switch"
                                     AutomationProperties.Name="{x:Static res:Strings.Calls_DetectTitle}"
-                                    IsChecked="{Binding Calls.DetectCalls, Mode=TwoWay}" />
+                                    IsChecked="{Binding Calls.DetectCalls, Mode=TwoWay, FallbackValue=False}" />
                     </StackPanel>
                   </Grid>
                 </Border>
                 <TextBlock Classes="settingsMeta graphite"
                            Margin="{StaticResource Inset.GroupRow}"
-                           IsVisible="{Binding Calls.HasError}"
+                           IsVisible="{Binding Calls.HasError, FallbackValue=False}"
                            Text="{Binding Calls.Error}" />
               </StackPanel>
             </Border>
