@@ -1520,6 +1520,21 @@
   <data name="Session_AskAi" xml:space="preserve">
     <value>Запитати AI про цей запис</value>
   </data>
+  <data name="Recording_Mark" xml:space="preserve">
+    <value>Позначити</value>
+  </data>
+  <data name="Recording_Marked" xml:space="preserve">
+    <value>Позначено</value>
+  </data>
+  <data name="Hotkeys_Mark" xml:space="preserve">
+    <value>Позначити момент</value>
+  </data>
+  <data name="Library_MarksNotSaved" xml:space="preserve">
+    <value>Позначки цього запису не вдалося зберегти.</value>
+  </data>
+  <data name="Library_DismissNotice" xml:space="preserve">
+    <value>Закрити</value>
+  </data>
   <data name="Session_Chapters" xml:space="preserve">
     <value>Розділи</value>
     <comment>Name of the strip of chapters above the player (screen readers)</comment>

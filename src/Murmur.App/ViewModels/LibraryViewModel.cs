@@ -136,6 +136,17 @@ public sealed partial class LibraryViewModel : ObservableObject, IDisposable, IF
     [ObservableProperty]
     public partial string? Error { get; set; }
 
+    /// <summary>
+    /// A dismissible one-line note about something that went wrong in the background (the marks of a recording could not be saved), shown
+    /// at the top of the page so it is never below the fold. Unlike <see cref="Error"/> a reload of the list does not clear it; only the
+    /// user does, with <see cref="DismissNoticeCommand"/>.
+    /// </summary>
+    [ObservableProperty]
+    public partial string? Notice { get; set; }
+
+    [RelayCommand]
+    private void DismissNotice() => Notice = null;
+
     /// <summary>The row the user clicked. Setting it opens the session and clears the selection again, so a row can be clicked twice.</summary>
     [ObservableProperty]
     public partial SessionItemViewModel? SelectedSession { get; set; }
@@ -653,6 +664,11 @@ public sealed partial class LibraryViewModel : ObservableObject, IDisposable, IF
         OnPropertyChanged(nameof(ShowEmptyState));
         RefreshEntries();
     }
+
+    partial void OnNoticeChanged(string? value) => OnPropertyChanged(nameof(HasNotice));
+
+    /// <summary>The <see cref="Notice"/> line above the page is shown.</summary>
+    public bool HasNotice => Notice is not null;
 
     partial void OnErrorChanged(string? value)
     {

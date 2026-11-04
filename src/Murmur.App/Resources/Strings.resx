@@ -1529,6 +1529,21 @@
   <data name="Session_AskAi" xml:space="preserve">
     <value>Ask AI about this recording</value>
   </data>
+  <data name="Recording_Mark" xml:space="preserve">
+    <value>Mark</value>
+  </data>
+  <data name="Recording_Marked" xml:space="preserve">
+    <value>Marked</value>
+  </data>
+  <data name="Hotkeys_Mark" xml:space="preserve">
+    <value>Mark moment</value>
+  </data>
+  <data name="Library_MarksNotSaved" xml:space="preserve">
+    <value>Marks of this recording could not be saved.</value>
+  </data>
+  <data name="Library_DismissNotice" xml:space="preserve">
+    <value>Dismiss</value>
+  </data>
   <data name="Session_Chapters" xml:space="preserve">
     <value>Chapters</value>
     <comment>Name of the strip of chapters above the player (screen readers)</comment>

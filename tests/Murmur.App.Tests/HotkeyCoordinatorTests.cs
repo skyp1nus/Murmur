@@ -31,7 +31,7 @@ public sealed class HotkeyCoordinatorTests : IDisposable
             _inner = new OnboardingRig(settings ?? Completed);
             Hotkeys = new FakeGlobalHotkeys();
             var post = inlineUi ? (Action<Action>)(a => a()) : a => { lock (_ui) { _ui.Enqueue(a); } };
-            Coordinator = new HotkeyCoordinator(Hotkeys, Store, Shell, () => ShowAppCalls++, post, a => Background.Add(a), () => Closing);
+            Coordinator = new HotkeyCoordinator(Hotkeys, Store, Shell, () => ShowAppCalls++, post, a => Background.Add(a), () => Closing, _inner.Recorder);
             RunBackground();
         }
 
@@ -448,6 +448,125 @@ public sealed class HotkeyCoordinatorTests : IDisposable
         rig.Hotkeys.PressFromAnotherThread(HotkeyAction.TogglePause);
         Assert.Equal(RecorderState.Recording, rig.Recorder.State);
         Assert.Equal(1, rig.Recorder.Resumes);
+    }
+
+    [Fact]
+    public void Mark_MarksTheRunningRecordingAtTheTimelinePosition_AndDoesNothingOtherwise()
+    {
+        using var rig = new Rig();
+        rig.Start();
+
+        rig.Hotkeys.PressFromAnotherThread(HotkeyAction.Mark); // nothing records yet
+        Assert.Empty(rig.Onboarding.Marks.Current);
+
+        rig.Hotkeys.PressFromAnotherThread(HotkeyAction.ToggleRecording);
+        rig.Recorder.Elapsed = TimeSpan.FromSeconds(75);
+        rig.Hotkeys.PressFromAnotherThread(HotkeyAction.Mark);
+        rig.Hotkeys.PressFromAnotherThread(HotkeyAction.TogglePause);
+        rig.Hotkeys.PressFromAnotherThread(HotkeyAction.Mark); // while paused: the position of the pause
+        rig.Hotkeys.PressFromAnotherThread(HotkeyAction.TogglePause);
+
+        Assert.Equal([TimeSpan.FromSeconds(75), TimeSpan.FromSeconds(75)], rig.Onboarding.Marks.Current);
+        Assert.Equal("01:15", rig.Shell.Recording.MarkChipTime);
+        Assert.True(rig.Shell.Recording.IsMarkChipShown);
+    }
+
+    [Fact]
+    public void Mark_IsIgnoredDuringTheOnboarding_AndWhileARowCaptures()
+    {
+        using var onboarding = new Rig(new AppSettings());
+        onboarding.Start();
+        onboarding.Recorder.ForceRecording(new Murmur.Core.Sessions.SessionRecord { Id = Murmur.Core.Sessions.SessionId.New(), Title = "t", StartedAt = DateTimeOffset.UnixEpoch });
+
+        onboarding.Hotkeys.PressFromAnotherThread(HotkeyAction.Mark);
+
+        Assert.Empty(onboarding.Onboarding.Marks.Current);
+
+        using var rig = new Rig();
+        rig.Start();
+        rig.Hotkeys.PressFromAnotherThread(HotkeyAction.ToggleRecording);
+        rig.Rows.Rows[1].CaptureCommand.Execute(null);
+
+        rig.Hotkeys.PressFromAnotherThread(HotkeyAction.Mark);
+
+        Assert.Empty(rig.Onboarding.Marks.Current);
+    }
+
+    private static string? MarkGestureNow(Rig rig) =>
+        rig.Hotkeys.Calls.LastOrDefault(c => c.Action == HotkeyAction.Mark) is { } call ? call.Gesture : null;
+
+    [Fact]
+    public void TheMarkHotkey_IsRegisteredOnlyWhileRecording_AndReleasedWhenTheRecorderGoesIdle()
+    {
+        using var rig = new Rig();
+        rig.Start();
+
+        // Idle: never registered.
+        Assert.DoesNotContain(rig.Hotkeys.Calls, c => c.Action == HotkeyAction.Mark);
+        Assert.Equal(HotkeyRegistration.Cleared, rig.Coordinator.RegistrationOf(HotkeyAction.Mark));
+
+        rig.Hotkeys.PressFromAnotherThread(HotkeyAction.ToggleRecording);
+        rig.RunBackground();
+        Assert.Equal("Ctrl+Alt+M", MarkGestureNow(rig));
+        Assert.Equal(HotkeyRegistration.Registered, rig.Coordinator.RegistrationOf(HotkeyAction.Mark));
+
+        // A pause keeps it; a stop releases it.
+        rig.Hotkeys.PressFromAnotherThread(HotkeyAction.TogglePause);
+        rig.RunBackground();
+        Assert.Equal(1, rig.Hotkeys.Calls.Count(c => c.Action == HotkeyAction.Mark));
+
+        rig.Hotkeys.PressFromAnotherThread(HotkeyAction.ToggleRecording);
+        rig.RunBackground();
+        Assert.Null(MarkGestureNow(rig));
+        Assert.Equal(2, rig.Hotkeys.Calls.Count(c => c.Action == HotkeyAction.Mark));
+        Assert.Equal(HotkeyRegistration.Cleared, rig.Coordinator.RegistrationOf(HotkeyAction.Mark));
+
+        // The next recording holds it again.
+        rig.Hotkeys.PressFromAnotherThread(HotkeyAction.ToggleRecording);
+        rig.RunBackground();
+        Assert.Equal("Ctrl+Alt+M", MarkGestureNow(rig));
+    }
+
+    [Fact]
+    public void TheMarkHotkey_IsRegisteredAtStartWhenARecordingAlreadyRuns()
+    {
+        using var rig = new Rig();
+        rig.Recorder.ForceRecording(new Murmur.Core.Sessions.SessionRecord { Id = Murmur.Core.Sessions.SessionId.New(), Title = "t", StartedAt = DateTimeOffset.UnixEpoch });
+
+        rig.Start();
+
+        Assert.Equal("Ctrl+Alt+M", MarkGestureNow(rig));
+    }
+
+    [Fact]
+    public async Task TheMarkGesture_FollowsTheSettings_WhileRecording()
+    {
+        using var rig = new Rig(Completed with { MarkHotkey = "Ctrl+Alt+F9" });
+        rig.Start();
+        rig.Hotkeys.PressFromAnotherThread(HotkeyAction.ToggleRecording);
+        rig.RunBackground();
+        Assert.Equal("Ctrl+Alt+F9", MarkGestureNow(rig));
+
+        await rig.SaveAsync(s => s with { MarkHotkey = "Ctrl+Alt+F8" });
+        Assert.Equal("Ctrl+Alt+F8", MarkGestureNow(rig));
+
+        await rig.SaveAsync(s => s with { MarkHotkey = null });
+
+        Assert.Equal(HotkeyRegistration.Cleared, rig.Coordinator.RegistrationOf(HotkeyAction.Mark));
+        Assert.Null(MarkGestureNow(rig));
+    }
+
+    [Fact]
+    public void ATakenMarkGesture_IsReportedToTheSettingsRow_DuringARecording()
+    {
+        using var rig = new Rig();
+        rig.Hotkeys.Results["Ctrl+Alt+M"] = HotkeyRegistration.Taken;
+        rig.Start();
+        rig.Hotkeys.PressFromAnotherThread(HotkeyAction.ToggleRecording);
+        rig.RunBackground();
+
+        Assert.Equal(HotkeyRegistration.Taken, rig.Coordinator.RegistrationOf(HotkeyAction.Mark));
+        Assert.Equal(Strings.Hotkeys_Taken, rig.Rows.Rows.Single(r => r.Action == HotkeyAction.Mark).RegistrationNote);
     }
 
     [Fact]

@@ -127,6 +127,18 @@ internal static class SchemaMigrator
             PRIMARY KEY (session_id, idx)
         );
         """,
+
+        // 7: bookmarks, the moments marked during a recording (#45). at_ms is on the session timeline (paused time excluded); the
+        // bookmarks go with the session through ON DELETE CASCADE.
+        """
+        CREATE TABLE bookmarks (
+            id         INTEGER PRIMARY KEY,
+            session_id TEXT    NOT NULL REFERENCES sessions (id) ON DELETE CASCADE,
+            at_ms      INTEGER NOT NULL,
+            note       TEXT    NOT NULL DEFAULT ''
+        );
+        CREATE INDEX ix_bookmarks_session_at ON bookmarks (session_id, at_ms, id);
+        """,
     ];
 
     public static int LatestVersion => Migrations.Length;
