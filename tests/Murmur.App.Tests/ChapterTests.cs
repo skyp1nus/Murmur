@@ -9,6 +9,7 @@ using Murmur.App.ViewModels;
 using Murmur.App.Views;
 using Murmur.Core.Capture;
 using Murmur.Core.Intelligence;
+using Murmur.Core.Recording;
 using Murmur.Core.Sessions;
 
 namespace Murmur.App.Tests;
@@ -687,5 +688,67 @@ public sealed class ChapterTests : IDisposable
         Assert.Empty(overflows);
         Assert.True(timeHidden == (timesVisible == 0), $"times visible {timesVisible}, narrowest {narrowest}");
         Assert.Equal(!timeHidden, narrowest >= ChapterStripView.CompactWidth);
+    }
+
+    [Fact]
+    public async Task WhileRecording_NeitherTheSummaryNorTheChaptersAreMade()
+    {
+        var vm = await LoadAsync();
+        await _recorder.StartAsync(new RecordingOptions(), CancellationToken.None);
+
+        Assert.False(vm.CanSummarize);
+        vm.SummarizeCommand.Execute(null);
+        await vm.SummaryTask;
+
+        Assert.Equal(0, _generator.Calls);
+        Assert.Empty(_chapters.Saved);
+        Assert.False(vm.HasChapters);
+    }
+
+    [Fact]
+    public async Task WithoutTheSummarizer_NoChaptersAreMade()
+    {
+        _fixture.UseShortTranscript();
+        var chat = new ChatViewModel(new FakeAssistant(), _llm, _recorder, _fixture.Record.Id, "/models", action => action());
+        var vm = new SessionViewModel(_fixture.Record, _fixture.Files, _fixture.Transcripts, _fixture.Player, _fixture.Processing, _fixture.Time, action => action(), chat, null,
+            new SessionServices(null, _summaries, ChapterGenerator: _generator, Chapters: _chapters));
+        await vm.LoadAsync();
+
+        Assert.False(vm.CanSummarize);
+        vm.SummarizeCommand.Execute(null);
+
+        Assert.Equal(0, _generator.Calls);
+    }
+
+    [Theory]
+    [InlineData("Light", 900, 600)]
+    [InlineData("Dark", 900, 600)]
+    public async Task Session_WithChapters_AtTheSmallestWindow_WritesPng(string theme, int width, int height)
+    {
+        _chapters.Put(_fixture.Record.Id, [.. FakeChapterGenerator.Sample, new Chapter("A chapter with a title that is much too long to fit its segment", S(2400))]);
+        var harness = new UiHarness();
+        harness.Store.Add(_fixture.Record);
+        var shell = harness.CreateShell(_ => Create(), _fixture.Processing);
+        await shell.Library.LoadAsync();
+        shell.Library.SelectedSession = shell.Library.Sessions[0];
+        await shell.SessionLoadTask;
+        _fixture.Player.Position = S(800);
+        var path = System.IO.Path.Combine(RepoPaths.ScreenshotsDirectory, "chapters-session-" + theme.ToLowerInvariant() + "-" + width + "x" + height + ".png");
+
+        await Session.Dispatch(
+            () =>
+            {
+                var window = UiHarness.Show(shell);
+                window.Width = width;
+                window.Height = height;
+                window.RequestedThemeVariant = theme == "Dark" ? Avalonia.Styling.ThemeVariant.Dark : Avalonia.Styling.ThemeVariant.Light;
+                shell.Session!.Tick();
+                UiHarness.Pump(6);
+                UiHarness.Save(window, path);
+                window.Close();
+            },
+            Ct);
+
+        Assert.True(new FileInfo(path).Length > 10_000, "Screenshot looks empty.");
     }
 }
