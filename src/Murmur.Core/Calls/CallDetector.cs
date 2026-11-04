@@ -55,6 +55,7 @@ public sealed class CallDetector : ICallDetector
     private CallInfo? _call;
     private long _inactiveSince = -1;
     private bool _scheduled;
+    private bool _hasReading;
 
     // Coalesced, non-overlapping evaluations.
     private int _requested;
@@ -129,6 +130,7 @@ public sealed class CallDetector : ICallDetector
                 }
 
                 _running = true;
+                _hasReading = false;
                 _timer = _time.CreateTimer(static state => ((CallDetector)state!).RequestEvaluation(), this, Timeout.InfiniteTimeSpan, Timeout.InfiniteTimeSpan);
             }
 
@@ -232,7 +234,8 @@ public sealed class CallDetector : ICallDetector
             Console.Error.WriteLine("Murmur: call detection could not read the audio sessions: " + ex.Message);
             lock (_gate)
             {
-                if (_running && IsCountingDown && _timer is { } timer)
+                // Also before the first reading since Start succeeded: a call already in progress then has no Changed to come.
+                if (_running && (IsCountingDown || !_hasReading) && _timer is { } timer)
                 {
                     _scheduled = true;
                     timer.Change(PollInterval, Timeout.InfiniteTimeSpan);
@@ -251,6 +254,7 @@ public sealed class CallDetector : ICallDetector
                 return;
             }
 
+            _hasReading = true;
             var now = _time.GetTimestamp();
             if (_call is { } call)
             {

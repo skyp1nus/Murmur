@@ -19,6 +19,12 @@ public interface IAudioSessionMonitor : IDisposable
 
     void Start();
 
+    /// <summary>
+    /// Stops watching. Must never wait for the thread that raises <see cref="Changed"/> to finish (signal it and return):
+    /// <see cref="CallDetector"/> calls Stop under its lifecycle lock, and a call handler running on that thread may call
+    /// <see cref="ICallDetector.Start"/> / <see cref="ICallDetector.Stop"/>, so a waiting Stop would deadlock. A
+    /// <see cref="Start"/> right after Stop must work even while the old thread is still winding down.
+    /// </summary>
     void Stop();
 }
 

@@ -423,6 +423,38 @@ public sealed class CallDetectorTests
     }
 
     [Fact]
+    public void AFailedFirstReading_IsRetried_SoACallInProgressIsStillDetected()
+    {
+        using var rig = new Rig();
+        rig.Monitor.SetSilently(true, Teams); // the call runs already; no Changed will come
+        rig.Monitor.FailNext = 2; // the first reading and its first retry fail
+
+        rig.Detector.Start();
+        rig.Advance(0);
+        Assert.True(rig.Detector.IsTimerScheduled);
+
+        rig.Advance(1);
+        Assert.True(rig.Detector.IsTimerScheduled);
+
+        rig.Advance(1 + 3); // the reading at 2 s succeeds, the 3 s run from there
+        Assert.Single(rig.Started);
+    }
+
+    [Fact]
+    public void AFailedReading_AfterOneSucceeded_WithNothingCountingDown_WaitsForTheNextChange()
+    {
+        using var rig = new Rig();
+        rig.Detector.Start();
+        rig.Advance(0); // a good first reading: idle
+
+        rig.Monitor.FailNext = 1;
+        rig.Monitor.Set(false, Teams); // playback alone; this reading fails
+
+        Assert.False(rig.Detector.IsTimerScheduled);
+        Assert.Equal(0, rig.Time.ActiveTimers);
+    }
+
+    [Fact]
     public void Start_QueuesTheFirstEvaluation_OffTheCallersThread()
     {
         using var rig = new Rig();

@@ -206,7 +206,7 @@ public sealed class CallToastViewTests
             {
                 var host = new CallToastWindowHost();
                 var raised = 0;
-                host.Closed += () => raised++;
+                host.Closed += _ => raised++;
                 host.Show(new CallToastViewModel(Teams, CallToastKind.Offer));
                 UiHarness.Pump();
                 host.Window!.Close(); // Alt+F4

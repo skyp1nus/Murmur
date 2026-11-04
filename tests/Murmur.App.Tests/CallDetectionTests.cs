@@ -60,13 +60,14 @@ public sealed class CallDetectionTests
 
         public void Close() => Shown = null;
 
-        public event Action? Closed;
+        public event Action<CallToastViewModel>? Closed;
 
         /// <summary>The user closed the window without a button (Alt+F4).</summary>
         public void CloseByUser()
         {
+            var closed = Shown!;
             Shown = null;
-            Closed?.Invoke();
+            Closed?.Invoke(closed);
         }
     }
 
@@ -455,6 +456,47 @@ public sealed class CallDetectionTests
         Assert.Equal(0, rig.StartRequests);
         rig.Coordinator.ShowSample();
         Assert.True(rig.Toasts.Shown!.IsSample);
+    }
+
+    [Fact]
+    public void ALateCloseOfAnOlderToast_LeavesTheCurrentToastAlive()
+    {
+        var queue = new Queue<Action>();
+        var store = new FakeSettingsStore();
+        var detector = new FakeCallDetector();
+        var toasts = new FakeToastHost();
+        var recorder = new FakeRecorder();
+        var starts = 0;
+        using var coordinator = new CallCoordinator(
+            detector,
+            store,
+            recorder,
+            toasts,
+            new CallActions(() => { starts++; return Task.CompletedTask; }, () => Task.CompletedTask, () => { }),
+            queue.Enqueue);
+        coordinator.Start();
+        void Drain()
+        {
+            while (queue.TryDequeue(out var action))
+            {
+                action();
+            }
+        }
+
+        Drain();
+        detector.RaiseStarted(Teams);
+        Drain();
+        var first = toasts.Shown!;
+        detector.RaiseStarted(Zoom); // queued first: the next toast goes up before ...
+        toasts.CloseByUser(); // ... the post of the first window's close runs
+        Drain();
+
+        var second = coordinator.Toast;
+        Assert.NotNull(second);
+        Assert.NotSame(first, second);
+        Assert.Equal(Zoom, second!.Call);
+        second.RecordCommand.Execute(null);
+        Assert.Equal(1, starts);
     }
 
     [Fact]

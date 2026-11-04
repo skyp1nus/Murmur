@@ -21,7 +21,7 @@ internal sealed class CallToastWindowHost : ICallToastHost
     /// <summary>The window on screen (for tests).</summary>
     internal CallToastWindow? Window => _window;
 
-    public event Action? Closed;
+    public event Action<CallToastViewModel>? Closed;
 
     public void Show(CallToastViewModel toast)
     {
@@ -62,6 +62,9 @@ internal sealed class CallToastWindowHost : ICallToastHost
         _window = null;
         _follower?.Dispose();
         _follower = null;
-        Closed?.Invoke();
+        if (window.DataContext is CallToastViewModel toast)
+        {
+            Closed?.Invoke(toast);
+        }
     }
 }

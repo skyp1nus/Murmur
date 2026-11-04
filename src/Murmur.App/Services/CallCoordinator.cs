@@ -15,8 +15,11 @@ internal interface ICallToastHost
     /// <summary>Closes the toast on screen, if any (does not raise <see cref="Closed"/>).</summary>
     void Close();
 
-    /// <summary>The toast on screen was closed by something other than <see cref="Close"/> (Alt+F4, the system): the user dismissed it.</summary>
-    event Action? Closed;
+    /// <summary>
+    /// A toast window was closed by something other than <see cref="Close"/> (Alt+F4, the system): the user dismissed it. The
+    /// argument is the toast that window showed.
+    /// </summary>
+    event Action<CallToastViewModel>? Closed;
 }
 
 /// <summary>What the call toast does to the rest of the app; every delegate runs on the UI thread.</summary>
@@ -255,11 +258,12 @@ internal sealed class CallCoordinator : IDisposable
     }
 
     /// <summary>The window went away without a button (Alt+F4, the system): the same as dismissing it.</summary>
-    private void OnToastClosed() => _post(() =>
+    private void OnToastClosed(CallToastViewModel closed) => _post(() =>
     {
-        if (_toast is { } toast)
+        // Only the toast that window showed: a toast shown since (the post ran late) stays alive.
+        if (ReferenceEquals(_toast, closed))
         {
-            toast.ActionChosen -= OnActionChosen;
+            closed.ActionChosen -= OnActionChosen;
             _toast = null;
         }
     });
