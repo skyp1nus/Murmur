@@ -131,6 +131,68 @@ public sealed class RealModelTests(ModelFixture fixture)
     }
 
     [Fact]
+    public void RecognizerResult_HasALogProbabilityPerToken_AndAConfidentCleanClip()
+    {
+        Models.SkipIfMissing();
+        var results = new RecognitionResult[1];
+
+        fixture.Recognizer.Decode([Models.TestClip16k("en").AsMemory()], results);
+
+        var r = results[0];
+        Assert.Equal(r.Tokens.Length, r.LogProbs.Length); // ys_log_probs needs no config flag for greedy TDT
+        Assert.All(r.LogProbs, p => Assert.True(float.IsFinite(p) && p <= 1e-4f, $"log-prob {p}"));
+        var confidence = WordConfidence.Compute(r.Tokens, r.LogProbs);
+        Assert.Equal(WordBuilder.Spans(r.Tokens).Count, confidence.Length);
+        var median = confidence.Order().ElementAt(confidence.Length / 2);
+        Assert.True(median > 0.8f, $"median word confidence {median}: {string.Join(' ', confidence)}");
+    }
+
+    [Fact]
+    public void BeamSearchWithHotwords_DecodesAndReportsLogProbabilities()
+    {
+        Models.SkipIfMissing();
+        using var dir = new TempDir();
+        var vocab = dir.File("bpe.vocab");
+        File.WriteAllLines(vocab, BpeVocabFromTokens(Path.Combine(Models.ParakeetDir, "tokens.txt")));
+        var hotwords = dir.File("hotwords.txt");
+        File.WriteAllText(hotwords, "country\n");
+        var options = new RecognizerOptions
+        {
+            DecodingMethod = RecognizerOptions.ModifiedBeamSearch,
+            MaxActivePaths = 4,
+            HotwordsFile = hotwords,
+            BpeVocab = vocab,
+        };
+
+        using var recognizer = OfflineRecognizer.CreateParakeet(new ParakeetModelFiles(Models.ParakeetDir), 2, options);
+        var results = new RecognitionResult[1];
+        recognizer.Decode([Models.TestClip16k("en").AsMemory()], results);
+
+        Assert.Contains("country", results[0].Text, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal(results[0].Tokens.Length, results[0].LogProbs.Length);
+        Assert.Equal(results[0].Tokens.Length, results[0].Durations.Length);
+    }
+
+    /// <summary>
+    /// bpe.vocab ("piece score") for hotword encoding, derived from tokens.txt: SentencePiece BPE scores are the negated
+    /// merge order, which is the token id order, so <c>-id</c> keeps the same preference (the real file comes from the
+    /// .nemo tokenizer, which the sherpa-onnx model archive may not ship).
+    /// </summary>
+    internal static IEnumerable<string> BpeVocabFromTokens(string tokensFile)
+    {
+        foreach (var line in File.ReadLines(tokensFile))
+        {
+            var space = line.LastIndexOf(' ');
+            if (space <= 0 || line.StartsWith("<blk>", StringComparison.Ordinal))
+            {
+                continue;
+            }
+
+            yield return line[..space] + "\t" + (-int.Parse(line.AsSpan(space + 1), System.Globalization.CultureInfo.InvariantCulture)).ToString(System.Globalization.CultureInfo.InvariantCulture);
+        }
+    }
+
+    [Fact]
     public void MissingModelFiles_FailWithFileNotFound_BeforeNativeCode()
     {
         using var dir = new TempDir();

@@ -6,6 +6,20 @@ name: asr
 # Manual only (owner decision 2026-10-19): the same bench runs locally with `pwsh scripts/verify-local.ps1 -Asr`.
 on:
   workflow_dispatch:
+    inputs:
+      # Spike #53: run only the word-confidence measurement (Linux) instead of the tests + 1 h bench.
+      word_confidence:
+        description: "Word-confidence measurement only (spike #53)"
+        type: boolean
+        default: false
+      confidence_clips:
+        description: "FLEURS test clips per language (en, uk) for the word-confidence measurement"
+        type: string
+        default: "150"
+      beam_clips:
+        description: "Clips per language decoded again with modified beam search / hotwords"
+        type: string
+        default: "20"
 
 concurrency:
   group: asr-${{ github.ref }}
@@ -25,6 +39,7 @@ env:
 jobs:
   asr:
     name: real-model tests and 1 h bench (${{ matrix.os }})
+    if: github.event.inputs.word_confidence != 'true'
     runs-on: ${{ matrix.os }}
     timeout-minutes: 45
     strategy:
@@ -148,5 +163,111 @@ jobs:
         with:
           name: asr-test-results-${{ matrix.rid }}
           path: artifacts/test-results
+          if-no-files-found: warn
+          retention-days: 14
+
+  # Spike #53: per-word confidence (sherpa-onnx ys_log_probs) on FLEURS en/uk clips with known transcripts,
+  # plus the cost of modified beam search and hotwords. Report: docs/REPORTS/spike-53-word-confidence.md.
+  word-confidence:
+    name: word-confidence measurement (spike #53)
+    if: github.event.inputs.word_confidence == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    defaults:
+      run:
+        shell: bash
+    env:
+      PARAKEET: ${{ github.workspace }}/models/sherpa-onnx-nemo-parakeet-tdt-0.6b-v3-int8
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-dotnet@v5
+        with:
+          global-json-file: global.json
+          dotnet-version: 11.0.100-rc.3.26522.148
+
+      - name: Verify SDK matches global.json
+        run: test "$(dotnet --version | tr -d '\r')" = "$(jq -r .sdk.version global.json | tr -d '\r')"
+
+      - uses: actions/cache@v4
+        with:
+          path: ${{ env.NUGET_PACKAGES }}
+          key: nuget-${{ runner.os }}-${{ hashFiles('Directory.Packages.props', '**/*.csproj') }}
+          restore-keys: nuget-${{ runner.os }}-
+
+      - name: Restore ASR models cache
+        id: models-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: ${{ env.MURMUR_MODELS_DIR }}
+          key: models-${{ runner.os }}-parakeet-tdt-0.6b-v3-int8-silero_vad-v1
+
+      - name: Fetch models
+        run: scripts/fetch-models.sh
+
+      - name: Save ASR models cache
+        if: steps.models-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: ${{ env.MURMUR_MODELS_DIR }}
+          key: models-${{ runner.os }}-parakeet-tdt-0.6b-v3-int8-silero_vad-v1
+
+      - name: Show models
+        run: find "$MURMUR_MODELS_DIR" -maxdepth 3 -type f -printf '%s %p\n'
+
+      - name: Native AOT prerequisites
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends clang zlib1g-dev
+
+      # Includes the real-model checks of ys_log_probs and of beam search + hotwords.
+      - name: Test (Murmur.Transcription.Tests, real models)
+        run: dotnet test --project tests/Murmur.Transcription.Tests -c Release --report-xunit-trx --results-directory artifacts/test-results
+
+      - name: Publish Native AOT (Murmur.Transcription, linux-x64)
+        run: |
+          mkdir -p artifacts/logs
+          dotnet publish src/Murmur.Transcription -c Release -r linux-x64 -o artifacts/publish/linux-x64 2>&1 | tee artifacts/logs/publish-transcription.log
+          if grep -nE ': (warning|error) ' artifacts/logs/publish-transcription.log; then
+            echo "::error::Native AOT publish produced warnings or errors (see above)"
+            exit 1
+          fi
+
+      - name: Prepare clips (FLEURS en_us + uk_ua test)
+        run: scripts/word-confidence-clips.sh artifacts/confidence/clips "${{ github.event.inputs.confidence_clips || '150' }}"
+
+      # Hotwords need a SentencePiece vocabulary. The sherpa-onnx archive may not ship bpe.vocab; derive it from
+      # tokens.txt (SentencePiece BPE scores are the negated merge order = token id order).
+      - name: BPE vocabulary for hotwords
+        run: |
+          if [ -f "$PARAKEET/bpe.vocab" ]; then
+            cp "$PARAKEET/bpe.vocab" artifacts/confidence/bpe.vocab
+            echo "using the model's bpe.vocab"
+          else
+            awk '$1 != "<blk>" { printf "%s\t%d\n", $1, -$2 }' "$PARAKEET/tokens.txt" > artifacts/confidence/bpe.vocab
+            echo "derived bpe.vocab from tokens.txt"
+          fi
+          head -5 artifacts/confidence/bpe.vocab
+
+      - name: Measure word confidence
+        run: |
+          artifacts/publish/linux-x64/Murmur.Transcription --confidence-eval artifacts/confidence/clips/clips.tsv \
+            --model-dir "$PARAKEET" \
+            --threads "$(nproc)" \
+            --beam-clips "${{ github.event.inputs.beam_clips || '20' }}" \
+            --max-active-paths 4 \
+            --bpe-vocab artifacts/confidence/bpe.vocab \
+            --out artifacts/confidence/word-confidence.json > /dev/null
+          cat artifacts/confidence/word-confidence.md >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload measurement
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: word-confidence
+          path: |
+            artifacts/confidence/word-confidence.json
+            artifacts/confidence/word-confidence.md
+            artifacts/confidence/clips/clips.tsv
+            artifacts/confidence/bpe.vocab
+            artifacts/test-results
           if-no-files-found: warn
           retention-days: 14

@@ -1,5 +1,8 @@
+using System.Globalization;
 using System.Text;
+using Murmur.Core.Transcription.Protocol;
 using Murmur.Transcription.Bench;
+using Murmur.Transcription.Native;
 using Murmur.Transcription.Pipeline;
 using Murmur.Transcription.Server;
 
@@ -18,7 +21,9 @@ internal static class Program
         "usage:\n" +
         "  Murmur.Transcription --serve --model-dir <dir> --vad <silero_vad.onnx> [--threads N] [--idle-exit-seconds S]\n" +
         "  Murmur.Transcription --bench --model-dir <dir> --vad <file> --wav <file>[,<file>...] [--seconds 3600] [--out <json>] [--threads N]\n" +
-        "  Murmur.Transcription --transcribe <16 kHz mono wav> --model-dir <dir> --vad <file> [--threads N]\n" +
+        "  Murmur.Transcription --transcribe <16 kHz mono wav> --model-dir <dir> --vad <file> [--threads N] [--word-confidence]\n" +
+        "  Murmur.Transcription --confidence-eval <manifest.tsv> --model-dir <dir> [--out <json>] [--beam-clips 20] [--max-active-paths 4]\n" +
+        "      [--bpe-vocab <file> [--hotwords-score 1.5]]   (spike #53; manifest lines: language<TAB>wav<TAB>reference)\n" +
         "tuning (all commands): [--parallel P] [--batch N] [--max-speech S] [--vad-threshold T] [--min-silence S]\n" +
         "  --threads N = CPU budget (default: logical cores), split into P decode workers (default N) x N/P ONNX Runtime threads;\n" +
         "  --batch N = segments per DecodeMultipleOfflineStreams call (default 1). bench extras: [--vad-only] [--save-wav <file>]";
@@ -59,6 +64,8 @@ internal static class Program
                 return Bench(options, output, error);
             case WorkerCommand.Transcribe:
                 return Transcribe(options, output, error);
+            case WorkerCommand.ConfidenceEval:
+                return ConfidenceEvaluation(options, output, error);
             case WorkerCommand.Serve:
                 error.WriteLine("error: --serve must be started as the process entry point");
                 return UsageExitCode;
@@ -152,11 +159,69 @@ internal static class Program
         }
     }
 
+    /// <summary>"word(0.97) word(0.41)": the words of a segment with their confidence ("?" when unknown).</summary>
+    internal static string FormatConfidence(IReadOnlyList<WorkerWord> words, float[] confidence)
+    {
+        var sb = new StringBuilder();
+        for (var i = 0; i < words.Count; i++)
+        {
+            sb.Append(i > 0 ? " " : string.Empty).Append(words[i].Text).Append('(')
+                .Append(i < confidence.Length ? confidence[i].ToString("0.00", CultureInfo.InvariantCulture) : "?").Append(')');
+        }
+
+        return sb.ToString();
+    }
+
+    private static int ConfidenceEvaluation(CliOptions options, TextWriter output, TextWriter error)
+    {
+        try
+        {
+            var model = new ParakeetModelFiles(options.ModelDirectory!);
+            var evalOptions = new ConfidenceEvalOptions
+            {
+                ManifestPath = options.ConfidenceManifest!,
+                BeamClips = options.BeamClips,
+                MaxActivePaths = options.MaxActivePaths,
+                BpeVocab = options.BpeVocab,
+                HotwordsScore = options.HotwordsScore,
+                WorkDirectory = string.IsNullOrEmpty(options.OutputPath) ? null : Path.GetDirectoryName(Path.GetFullPath(options.OutputPath)),
+            };
+            var report = ConfidenceEval.Run(
+                evalOptions,
+                decoding => new OwnedRecognizer(OfflineRecognizer.CreateParakeet(model, options.Threads, decoding)),
+                options.Threads,
+                error);
+            var markdown = ConfidenceEval.ToMarkdown(report);
+            output.WriteLine(markdown);
+            if (!string.IsNullOrEmpty(options.OutputPath))
+            {
+                File.WriteAllText(options.OutputPath, ConfidenceEval.ToJson(report) + "\n", Utf8NoBom);
+                File.WriteAllText(Path.ChangeExtension(options.OutputPath, ".md"), markdown, Utf8NoBom);
+            }
+
+            return 0;
+        }
+        catch (Exception ex) when (ex is IOException or InvalidDataException or InvalidOperationException or UnauthorizedAccessException or FormatException or ArgumentException)
+        {
+            error.WriteLine("error: " + ex.Message);
+            return FailureExitCode;
+        }
+    }
+
     private static int Transcribe(CliOptions options, TextWriter output, TextWriter error)
     {
         try
         {
-            using var engine = new SherpaTranscriptionEngine(EngineOptionsFrom(options));
+            var engineOptions = EngineOptionsFrom(options);
+            if (options.WordConfidence)
+            {
+                engineOptions = engineOptions with
+                {
+                    Pipeline = engineOptions.Pipeline with { OnWordConfidence = (s, c) => output.WriteLine("  " + FormatConfidence(s.Words, c)) },
+                };
+            }
+
+            using var engine = new SherpaTranscriptionEngine(engineOptions);
             var text = new StringBuilder();
             var stats = engine.Transcribe(
                 options.TranscribePath!,

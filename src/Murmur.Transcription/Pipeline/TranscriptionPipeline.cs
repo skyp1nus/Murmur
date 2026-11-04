@@ -29,6 +29,13 @@ internal sealed record PipelineOptions
     public int ReadBlockSamples { get; init; } = 16 * 1024;
 
     public VadOptions Vad { get; init; } = new();
+
+    /// <summary>
+    /// Off (null) by default. When set, receives every emitted segment together with its per-word confidence
+    /// (<see cref="WordConfidence.Compute"/>; aligned with the segment's words, empty when the model gave no
+    /// log-probabilities), on the thread that emits segments. Diagnostics only (#53): the protocol has no confidence.
+    /// </summary>
+    public Action<WorkerSegment, float[]>? OnWordConfidence { get; init; }
 }
 
 /// <summary>What the pipeline needs from an ASR engine; implemented by <see cref="OfflineRecognizer"/>.</summary>
@@ -184,7 +191,13 @@ internal sealed class TranscriptionPipeline(ISpeechRecognizer recognizer, Func<I
                         }
 
                         var w = WordBuilder.Build(r.Tokens, r.Timestamps, r.Durations, start, end);
-                        onSegment(new WorkerSegment(WordBuilder.Round(start), WordBuilder.Round(end), r.Text, w));
+                        var emitted = new WorkerSegment(WordBuilder.Round(start), WordBuilder.Round(end), r.Text, w);
+                        onSegment(emitted);
+                        if (_options.OnWordConfidence is { } onConfidence)
+                        {
+                            var confidence = WordConfidence.Compute(r.Tokens, r.LogProbs);
+                            onConfidence(emitted, confidence.Length == w.Count ? confidence : []);
+                        }
                         segments++;
                         words += w.Count;
                     }
