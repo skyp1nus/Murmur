@@ -19,4 +19,10 @@
       </ResourceDictionary.ThemeDictionaries>
     </ResourceDictionary>
   </Styles.Resources>
+
+  <!-- The device pickers of the page: 32 px tall, 10 px inside (the onboarding's are 40 px). -->
+  <Style Selector="ComboBox.onb.settingsPicker">
+    <Setter Property="Height" Value="{StaticResource Size.Field}" />
+    <Setter Property="Padding" Value="{StaticResource Inset.Toggle}" />
+  </Style>
 </Styles>

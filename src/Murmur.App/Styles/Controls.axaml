@@ -127,19 +127,23 @@
 
       <StaticResource x:Key="ProgressBarCornerRadius" ResourceKey="Radius.Pill" />
 
-      <!-- Component sizes of the navigation and the settings (illustration sizes, not layout tokens). -->
-      <x:Double x:Key="Size.Sidebar">240</x:Double>
-      <x:Double x:Key="Size.NavItem">40</x:Double>
-      <x:Double x:Key="Size.NavSubItem">36</x:Double>
-      <x:Double x:Key="Size.NavIcon">18</x:Double>
+      <!-- Component sizes of the real-size window (1100 x 720, minimum 900 x 600): the controls of the canvas and the navigation. -->
+      <x:Double x:Key="Size.WindowWidth">1100</x:Double>
+      <x:Double x:Key="Size.WindowHeight">720</x:Double>
+      <x:Double x:Key="Size.WindowMinWidth">900</x:Double>
+      <x:Double x:Key="Size.WindowMinHeight">600</x:Double>
+      <x:Double x:Key="Size.Sidebar">200</x:Double>
+      <x:Double x:Key="Size.NavItem">32</x:Double>
+      <x:Double x:Key="Size.NavSubItem">28</x:Double>
+      <x:Double x:Key="Size.NavIcon">16</x:Double>
       <x:Double x:Key="Size.SmallIcon">14</x:Double>
       <x:Double x:Key="Size.VideoIcon">28</x:Double>
-      <x:Double x:Key="Size.Field">40</x:Double>
-      <x:Double x:Key="Size.Compact">36</x:Double>
-      <x:Double x:Key="Size.Progress">4</x:Double>
-      <x:Double x:Key="Size.ProgressWidth">220</x:Double>
-      <x:Double x:Key="Size.SettingsSide">220</x:Double>
-      <x:Double x:Key="Size.SettingsWrap">720</x:Double>
+      <x:Double x:Key="Size.Button">32</x:Double>
+      <x:Double x:Key="Size.Field">32</x:Double>
+      <x:Double x:Key="Size.Compact">28</x:Double>
+      <x:Double x:Key="Size.Chip">28</x:Double>
+      <x:Double x:Key="Size.Progress">3</x:Double>
+      <x:Double x:Key="Size.LibraryEmptyWidth">720</x:Double>
       <x:Double x:Key="Size.SettingsMaxWidth">980</x:Double>
       <x:Double x:Key="Size.SidebarOrb">40</x:Double>
       <x:Double x:Key="Size.AboutOrb">100</x:Double>
@@ -159,7 +163,7 @@
     <Setter Property="Foreground" Value="{DynamicResource Brush.Ink}" />
     <Setter Property="FontFamily" Value="{StaticResource Font.Body}" />
     <Setter Property="FontWeight" Value="{StaticResource FontWeight.Body}" />
-    <Setter Property="FontSize" Value="{StaticResource FontSize.Body}" />
+    <Setter Property="FontSize" Value="{StaticResource FontSize.Meta}" />
   </Style>
 
   <!-- Typography -->
@@ -244,9 +248,10 @@
   <Style Selector="Button.primary, Button.outline">
     <Setter Property="CornerRadius" Value="{StaticResource Radius.Pill}" />
     <Setter Property="Padding" Value="{StaticResource Inset.Button}" />
+    <Setter Property="MinHeight" Value="{StaticResource Size.Button}" />
     <Setter Property="FontFamily" Value="{StaticResource Font.Body}" />
     <Setter Property="FontWeight" Value="{StaticResource FontWeight.BodyMedium}" />
-    <Setter Property="FontSize" Value="{StaticResource FontSize.Body}" />
+    <Setter Property="FontSize" Value="{StaticResource FontSize.Meta}" />
     <Setter Property="HorizontalContentAlignment" Value="Center" />
     <Setter Property="VerticalContentAlignment" Value="Center" />
   </Style>
@@ -300,9 +305,10 @@
     <Setter Property="CornerRadius" Value="{StaticResource Radius.Input}" />
     <Setter Property="Padding" Value="{StaticResource Inset.Input}" />
     <Setter Property="BorderThickness" Value="{StaticResource Hairline.Thickness}" />
+    <Setter Property="MinHeight" Value="{StaticResource Size.Field}" />
     <Setter Property="FontFamily" Value="{StaticResource Font.Body}" />
     <Setter Property="FontWeight" Value="{StaticResource FontWeight.Body}" />
-    <Setter Property="FontSize" Value="{StaticResource FontSize.BodySm}" />
+    <Setter Property="FontSize" Value="{StaticResource FontSize.Meta}" />
     <Setter Property="CaretBrush" Value="{DynamicResource Brush.Ink}" />
     <Setter Property="SelectionBrush" Value="{DynamicResource Brush.Stone}" />
     <Setter Property="SelectionForegroundBrush" Value="{DynamicResource Brush.Ink}" />
@@ -316,8 +322,8 @@
   <Style Selector="TextBlock.timer">
     <Setter Property="FontFamily" Value="{StaticResource Font.Mono}" />
     <Setter Property="FontWeight" Value="{StaticResource FontWeight.Mono}" />
-    <Setter Property="FontSize" Value="{StaticResource FontSize.Display}" />
-    <Setter Property="LineHeight" Value="{StaticResource LineHeight.Display}" />
+    <Setter Property="FontSize" Value="{StaticResource FontSize.Timer}" />
+    <Setter Property="LineHeight" Value="{StaticResource LineHeight.Timer}" />
     <Setter Property="LetterSpacing" Value="0" />
   </Style>
 
@@ -337,9 +343,10 @@
   <Style Selector="ToggleButton.pill">
     <Setter Property="CornerRadius" Value="{StaticResource Radius.Pill}" />
     <Setter Property="Padding" Value="{StaticResource Inset.Button}" />
+    <Setter Property="MinHeight" Value="{StaticResource Size.Button}" />
     <Setter Property="FontFamily" Value="{StaticResource Font.Body}" />
     <Setter Property="FontWeight" Value="{StaticResource FontWeight.BodyMedium}" />
-    <Setter Property="FontSize" Value="{StaticResource FontSize.BodySm}" />
+    <Setter Property="FontSize" Value="{StaticResource FontSize.Meta}" />
     <Setter Property="HorizontalContentAlignment" Value="Center" />
     <Setter Property="VerticalContentAlignment" Value="Center" />
     <Setter Property="Background" Value="Transparent" />
@@ -387,10 +394,11 @@
   <Style Selector="ComboBox">
     <Setter Property="CornerRadius" Value="{StaticResource Radius.Input}" />
     <Setter Property="Padding" Value="{StaticResource Inset.Input}" />
+    <Setter Property="MinHeight" Value="{StaticResource Size.Field}" />
     <Setter Property="BorderThickness" Value="{StaticResource Hairline.Thickness}" />
     <Setter Property="FontFamily" Value="{StaticResource Font.Body}" />
     <Setter Property="FontWeight" Value="{StaticResource FontWeight.Body}" />
-    <Setter Property="FontSize" Value="{StaticResource FontSize.BodySm}" />
+    <Setter Property="FontSize" Value="{StaticResource FontSize.Meta}" />
     <Setter Property="HorizontalAlignment" Value="Stretch" />
   </Style>
 
@@ -477,7 +485,7 @@
   <!-- Sidebar navigation (Library / Ask AI / Settings): pill rows with a line icon, Surface when hovered or current. -->
   <Style Selector="Button.nav">
     <Setter Property="CornerRadius" Value="{StaticResource Radius.Pill}" />
-    <Setter Property="Padding" Value="{StaticResource Inset.Input}" />
+    <Setter Property="Padding" Value="{StaticResource Inset.Nav}" />
     <Setter Property="MinHeight" Value="{StaticResource Size.NavItem}" />
     <Setter Property="HorizontalAlignment" Value="Stretch" />
     <Setter Property="HorizontalContentAlignment" Value="Left" />
@@ -487,7 +495,7 @@
     <Setter Property="BorderThickness" Value="0" />
     <Setter Property="FontFamily" Value="{StaticResource Font.Body}" />
     <Setter Property="FontWeight" Value="{StaticResource FontWeight.Body}" />
-    <Setter Property="FontSize" Value="{StaticResource FontSize.BodySm}" />
+    <Setter Property="FontSize" Value="{StaticResource FontSize.Meta}" />
   </Style>
   <Style Selector="Button.nav.sub">
     <Setter Property="MinHeight" Value="{StaticResource Size.NavSubItem}" />
@@ -508,9 +516,9 @@
 
   <!-- Compact outline / primary button of settings rows: the same pill, less padding. -->
   <Style Selector="Button.compact">
-    <Setter Property="Padding" Value="{StaticResource Inset.Input}" />
+    <Setter Property="Padding" Value="{StaticResource Inset.Compact}" />
     <Setter Property="MinHeight" Value="{StaticResource Size.Compact}" />
-    <Setter Property="FontSize" Value="{StaticResource FontSize.BodySm}" />
+    <Setter Property="FontSize" Value="{StaticResource FontSize.Small}" />
     <Setter Property="VerticalAlignment" Value="Center" />
   </Style>
 

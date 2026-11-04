@@ -47,15 +47,15 @@ public sealed class ParityCalibrationTests
     // Boxes are the ink boxes of the lines in docs/design/reference/Main.png; the canvas body has letter-spacing 0.01em.
     private static readonly Case[] Cases =
     [
-        Text("Heading 36 px / 300 / -0.02em", "What are we recording today?", 333, 99, 478, 35, 36, 300, -0.02, "#000000"),
-        Text("Row title 15 px / 500", "Client demo — Q4 roadmap", 410, 693, 200, 14, 15, 500, 0.01, "#000000"),
-        Text("Row meta 13 px / 400", "10:30 · English · Mic, system audio, screen", 410, 714, 265, 13, 13, 400, 0.01, "#777169"),
-        Text("Row snippet 13 px / 400", "…PDF export moves to next sprint: first we finish meeting summaries and action items.", 410, 733, 541, 13, 13, 400, 0.01, "#777169"),
-        Text("Timestamp, Geist Mono 13 px", "47:12", 1256, 712, 39, 10, 13, 400, 0.01, "#44403b", mono: true),
-        new("Card corner: 16 px radius, 1 px hairline", 326, 666, 60, 50, () => new Border { Width = 300, Height = 200, CornerRadius = new CornerRadius(16), BorderThickness = new Thickness(1), BorderBrush = new SolidColorBrush(Color.Parse("#ebe8e4")) }, 6, 6, 3),
-        new("Outline pill: 82 x 36, radius 18, 1 px border", 889, 391, 90, 44, () => new Border { Width = 82, Height = 36, CornerRadius = new CornerRadius(18), BorderThickness = new Thickness(1), BorderBrush = new SolidColorBrush(Color.Parse("#e5e5e5")) }, 4, 4, 3, "Onb4Preferences.notext.png"),
-        new("Row hairline: 1 px, 300 px long", 400, 368, 60, 9, () => new Border { Width = 300, Height = 1, Background = new SolidColorBrush(Color.Parse("#ebe8e4")) }, 0, 4, 3, "Onb4Preferences.notext.png"),
-        new("Black pill, left cap (44 px high)", 520, 396, 22, 52, () => new Border { Width = 143, Height = 44, CornerRadius = new CornerRadius(22), Background = Brushes.Black }, 4, 4, 3),
+        Text("Heading 24 px / 300 / -0.02em", "What are we recording today?", 224, 68, 320, 24, 24, 300, -0.02, "#000000"),
+        Text("Row title 13 px / 500", "Client demo — Q4 roadmap", 283, 495, 174, 13, 13, 500, 0.01, "#000000"),
+        Text("Row meta 12 px / 400", "10:30 · English · Mic, system audio, screen", 283, 513, 245, 12, 12, 400, 0.01, "#777169"),
+        Text("Row snippet 12 px / 400", "…PDF export moves to next sprint: first we finish meeting summaries and action items.", 284, 529, 499, 13, 12, 400, 0.01, "#777169"),
+        Text("Timestamp, Geist Mono 12 px", "47:12", 998, 512, 37, 9, 12, 400, 0.01, "#44403b", mono: true),
+        new("Card corner: 16 px radius, 1 px hairline", 218, 475, 60, 50, () => new Border { Width = 300, Height = 200, CornerRadius = new CornerRadius(16), BorderThickness = new Thickness(1), BorderBrush = new SolidColorBrush(Color.Parse("#ebe8e4")) }, 6, 6, 3),
+        new("Outline pill: 52 x 28, radius 14, 1 px border", 220, 414, 60, 36, () => new Border { Width = 52, Height = 28, CornerRadius = new CornerRadius(14), BorderThickness = new Thickness(1), BorderBrush = new SolidColorBrush(Color.Parse("#e5e5e5")) }, 4, 4, 3, "Main.notext.png"),
+        new("Row hairline: 1 px, 300 px long", 400, 548, 60, 9, () => new Border { Width = 300, Height = 1, Background = new SolidColorBrush(Color.Parse("#ebe8e4")) }, 0, 4, 3, "Main.notext.png"),
+        new("Black pill, left cap (36 px high)", 8, 52, 22, 44, () => new Border { Width = 176, Height = 36, CornerRadius = new CornerRadius(18), Background = Brushes.Black }, 4, 4, 3),
     ];
 
     [Fact]

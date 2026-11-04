@@ -1,25 +1,25 @@
 {
  "board": "Onb5FirstRecordingDark",
- "width": 1280,
- "height": 800,
+ "width": 1100,
+ "height": 720,
  "texts": [
   {
    "text": "Murmur",
    "lines": [
     {
-     "x": 74,
-     "y": 42.5,
-     "w": 56.88,
-     "h": 19
+     "x": 48,
+     "y": 15.5,
+     "w": 53.09,
+     "h": 17
     }
    ],
-   "baseline": 57.5,
+   "baseline": 29.5,
    "blockId": 0,
    "blockText": "Murmur",
    "fontFamily": "Inter, ui-sans-serif, system-ui, \"Segoe UI\", sans-serif",
-   "fontSize": 15,
+   "fontSize": 14,
    "fontWeight": 600,
-   "letterSpacing": "-0.15px",
+   "letterSpacing": "-0.14px",
    "lineHeight": "normal",
    "color": "rgb(245, 243, 241)"
   },
@@ -27,19 +27,19 @@
    "text": "5 / 5",
    "lines": [
     {
-     "x": 521.14,
-     "y": 43.5,
-     "w": 39.7,
-     "h": 17
+     "x": 457.67,
+     "y": 16,
+     "w": 36.66,
+     "h": 16
     }
    ],
-   "baseline": 56.5,
+   "baseline": 28,
    "blockId": 1,
    "blockText": "5 / 5",
    "fontFamily": "\"Geist Mono\", ui-monospace, monospace",
-   "fontSize": 13,
+   "fontSize": 12,
    "fontWeight": 400,
-   "letterSpacing": "0.14px",
+   "letterSpacing": "0.13px",
    "lineHeight": "normal",
    "color": "rgb(165, 159, 151)"
   },
@@ -47,59 +47,59 @@
    "text": "Try it: say something.",
    "lines": [
     {
-     "x": 431.25,
-     "y": 135.8,
-     "w": 417.48,
-     "h": 54
+     "x": 417.16,
+     "y": 160.91,
+     "w": 265.67,
+     "h": 34
     }
    ],
-   "baseline": 178.8,
+   "baseline": 187.91,
    "blockId": 2,
    "blockText": "Try it: say something.",
    "fontFamily": "Inter, ui-sans-serif, system-ui, \"Segoe UI\", sans-serif",
-   "fontSize": 44,
+   "fontSize": 28,
    "fontWeight": 300,
-   "letterSpacing": "-0.88px",
-   "lineHeight": "48.4px",
+   "letterSpacing": "-0.56px",
+   "lineHeight": "32.2px",
    "color": "rgb(245, 243, 241)"
   },
   {
    "text": "Speak for a few seconds — we’ll transcribe it right here, offline.",
    "lines": [
     {
-     "x": 395.92,
-     "y": 201.19,
-     "w": 488.14,
-     "h": 20
+     "x": 336.19,
+     "y": 204.09,
+     "w": 427.61,
+     "h": 17
     }
    ],
-   "baseline": 217.19,
+   "baseline": 218.09,
    "blockId": 3,
    "blockText": "Speak for a few seconds — we’ll transcribe it right here, offline.",
    "fontFamily": "Inter, ui-sans-serif, system-ui, \"Segoe UI\", sans-serif",
-   "fontSize": 16,
+   "fontSize": 14,
    "fontWeight": 400,
-   "letterSpacing": "0.14px",
-   "lineHeight": "24px",
+   "letterSpacing": "0.13px",
+   "lineHeight": "21px",
    "color": "rgb(165, 159, 151)"
   },
   {
    "text": "Listening",
    "lines": [
     {
-     "x": 586.73,
-     "y": 449.19,
-     "w": 56.81,
-     "h": 16
+     "x": 501.44,
+     "y": 401.59,
+     "w": 52.45,
+     "h": 15
     }
    ],
-   "baseline": 462.19,
+   "baseline": 413.59,
    "blockId": 4,
    "blockText": "Listening",
    "fontFamily": "Inter, ui-sans-serif, system-ui, \"Segoe UI\", sans-serif",
-   "fontSize": 13,
+   "fontSize": 12,
    "fontWeight": 400,
-   "letterSpacing": "0.14px",
+   "letterSpacing": "0.13px",
    "lineHeight": "normal",
    "color": "rgb(214, 209, 203)"
   },
@@ -107,19 +107,19 @@
    "text": "00:10",
    "lines": [
     {
-     "x": 653.55,
-     "y": 448.69,
-     "w": 39.7,
-     "h": 17
+     "x": 561.89,
+     "y": 401.09,
+     "w": 36.66,
+     "h": 16
     }
    ],
-   "baseline": 461.69,
+   "baseline": 413.09,
    "blockId": 5,
    "blockText": "00:10",
    "fontFamily": "\"Geist Mono\", ui-monospace, monospace",
-   "fontSize": 13,
+   "fontSize": 12,
    "fontWeight": 400,
-   "letterSpacing": "0.14px",
+   "letterSpacing": "0.13px",
    "lineHeight": "normal",
    "color": "rgb(245, 243, 241)"
   },
@@ -127,19 +127,19 @@
    "text": "Your words will appear here.",
    "lines": [
     {
-     "x": 543.8,
-     "y": 542.69,
-     "w": 192.39,
-     "h": 17
+     "x": 460.67,
+     "y": 471.09,
+     "w": 178.64,
+     "h": 16
     }
    ],
-   "baseline": 556.69,
+   "baseline": 484.09,
    "blockId": 6,
    "blockText": "Your words will appear here.",
    "fontFamily": "Inter, ui-sans-serif, system-ui, \"Segoe UI\", sans-serif",
-   "fontSize": 14,
+   "fontSize": 13,
    "fontWeight": 400,
-   "letterSpacing": "0.14px",
+   "letterSpacing": "0.13px",
    "lineHeight": "normal",
    "color": "rgb(165, 159, 151)"
   },
@@ -147,19 +147,19 @@
    "text": "Always tell people when you’re recording a meeting.",
    "lines": [
     {
-     "x": 487.47,
-     "y": 629.19,
-     "w": 328.05,
-     "h": 16
+     "x": 408.08,
+     "y": 535.09,
+     "w": 302.84,
+     "h": 15
     }
    ],
-   "baseline": 642.19,
+   "baseline": 547.09,
    "blockId": 7,
    "blockText": "Always tell people when you’re recording a meeting.",
    "fontFamily": "Inter, ui-sans-serif, system-ui, \"Segoe UI\", sans-serif",
-   "fontSize": 13,
+   "fontSize": 12,
    "fontWeight": 400,
-   "letterSpacing": "0.14px",
+   "letterSpacing": "0.13px",
    "lineHeight": "normal",
    "color": "rgb(165, 159, 151)"
   },
@@ -167,19 +167,19 @@
    "text": "Back",
    "lines": [
     {
-     "x": 86,
-     "y": 727.5,
-     "w": 33.63,
-     "h": 17
+     "x": 54,
+     "y": 684,
+     "w": 31.22,
+     "h": 16
     }
    ],
-   "baseline": 741.5,
+   "baseline": 697,
    "blockId": 8,
    "blockText": "Back",
    "fontFamily": "Inter, ui-sans-serif, system-ui, \"Segoe UI\", sans-serif",
-   "fontSize": 14,
+   "fontSize": 13,
    "fontWeight": 500,
-   "letterSpacing": "0.14px",
+   "letterSpacing": "0.13px",
    "lineHeight": "normal",
    "color": "rgb(245, 243, 241)"
   },
@@ -187,19 +187,19 @@
    "text": "Skip",
    "lines": [
     {
-     "x": 155.63,
-     "y": 727.5,
-     "w": 29.63,
-     "h": 17
+     "x": 111.22,
+     "y": 684,
+     "w": 27.5,
+     "h": 16
     }
    ],
-   "baseline": 741.5,
+   "baseline": 697,
    "blockId": 9,
    "blockText": "Skip",
    "fontFamily": "Inter, ui-sans-serif, system-ui, \"Segoe UI\", sans-serif",
-   "fontSize": 14,
+   "fontSize": 13,
    "fontWeight": 500,
-   "letterSpacing": "0.14px",
+   "letterSpacing": "0.13px",
    "lineHeight": "normal",
    "color": "rgb(165, 159, 151)"
   },
@@ -207,19 +207,19 @@
    "text": "Open Murmur",
    "lines": [
     {
-     "x": 1113.63,
-     "y": 727.5,
-     "w": 94.38,
-     "h": 17
+     "x": 970.36,
+     "y": 684,
+     "w": 87.64,
+     "h": 16
     }
    ],
-   "baseline": 741.5,
+   "baseline": 697,
    "blockId": 10,
    "blockText": "Open Murmur",
    "fontFamily": "Inter, ui-sans-serif, system-ui, \"Segoe UI\", sans-serif",
-   "fontSize": 14,
+   "fontSize": 13,
    "fontWeight": 500,
-   "letterSpacing": "0.14px",
+   "letterSpacing": "0.13px",
    "lineHeight": "normal",
    "color": "rgb(20, 19, 18)"
   }

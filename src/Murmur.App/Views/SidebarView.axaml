@@ -15,27 +15,27 @@
               Classes="offline"
               VerticalAlignment="Bottom"
               IsVisible="{Binding ShowOffline}">
-        <StackPanel Spacing="{StaticResource Space.6}">
+        <StackPanel Spacing="{StaticResource Space.4}">
           <StackPanel Orientation="Horizontal"
-                      Spacing="{StaticResource Space.8}">
+                      Spacing="{StaticResource Space.6}">
             <controls:IconControl Width="{StaticResource Size.OfflineIcon}"
                                   Height="{StaticResource Size.OfflineIcon}"
                                   Data="{StaticResource Icon.Shield}" />
-            <TextBlock Classes="t13 medium"
+            <TextBlock Classes="t12 medium"
                        VerticalAlignment="Center"
                        Text="{x:Static res:Strings.Nav_OfflineTitle}" />
           </StackPanel>
-          <TextBlock Classes="note12"
+          <TextBlock Classes="note11"
                      Text="{Binding OfflineText}" />
         </StackPanel>
       </Border>
 
       <StackPanel DockPanel.Dock="Top"
-                  Spacing="{StaticResource Space.24}">
+                  Spacing="{StaticResource Space.16}">
 
         <!-- Wordmark -->
         <StackPanel Orientation="Horizontal"
-                    Spacing="{StaticResource Space.10}"
+                    Spacing="{StaticResource Space.8}"
                     Margin="{StaticResource Inset.Wordmark}">
           <controls:OrbDisc Width="{StaticResource Size.WordmarkOrb}"
                             Height="{StaticResource Size.WordmarkOrb}"
@@ -51,12 +51,12 @@
                   IsVisible="{Binding ShowNewRecording}"
                   Command="{Binding NewRecordingCommand}">
             <StackPanel Orientation="Horizontal"
-                        Spacing="{StaticResource Space.10}">
-              <Ellipse Width="{StaticResource Space.8}"
-                       Height="{StaticResource Space.8}"
+                        Spacing="{StaticResource Space.8}">
+              <Ellipse Width="{StaticResource Size.NewDot}"
+                       Height="{StaticResource Size.NewDot}"
                        VerticalAlignment="Center"
                        Fill="{DynamicResource Brush.Canvas}" />
-              <TextBlock Classes="t14"
+              <TextBlock Classes="t13"
                          Foreground="{DynamicResource Brush.Canvas}"
                          Text="{x:Static res:Strings.Library_NewRecording}" />
             </StackPanel>
@@ -65,11 +65,11 @@
                   IsVisible="{Binding IsRecordingActive}"
                   Command="{Binding ShowRecordingCommand}">
             <StackPanel Orientation="Horizontal"
-                        Spacing="{StaticResource Space.10}">
-              <controls:OrbDisc Width="{StaticResource Size.PillOrb}"
-                                Height="{StaticResource Size.PillOrb}"
+                        Spacing="{StaticResource Space.8}">
+              <controls:OrbDisc Width="{StaticResource Size.RecordingPillOrb}"
+                                Height="{StaticResource Size.RecordingPillOrb}"
                                 VerticalAlignment="Center" />
-              <TextBlock Classes="t14"
+              <TextBlock Classes="t13"
                          Foreground="{DynamicResource Brush.Ink}"
                          Text="{x:Static res:Strings.Nav_Recording}" />
             </StackPanel>
@@ -82,11 +82,11 @@
                   Classes.on="{Binding IsLibrary}"
                   Command="{Binding ShowLibraryCommand}">
             <StackPanel Orientation="Horizontal"
-                        Spacing="{StaticResource Space.10}">
+                        Spacing="{StaticResource Space.8}">
               <controls:IconControl Width="{StaticResource Size.NavIcon}"
                                     Height="{StaticResource Size.NavIcon}"
                                     Data="{StaticResource Icon.Library}" />
-              <TextBlock Classes="t14"
+              <TextBlock Classes="t13"
                          Foreground="{Binding $parent[ContentPresenter].Foreground}"
                          Text="{x:Static res:Strings.Nav_Library}" />
             </StackPanel>
@@ -96,11 +96,11 @@
                   IsVisible="{Binding CanAskAi}"
                   Command="{Binding ShowChatCommand}">
             <StackPanel Orientation="Horizontal"
-                        Spacing="{StaticResource Space.10}">
+                        Spacing="{StaticResource Space.8}">
               <controls:IconControl Width="{StaticResource Size.NavIcon}"
                                     Height="{StaticResource Size.NavIcon}"
                                     Data="{StaticResource Icon.Ai}" />
-              <TextBlock Classes="t14"
+              <TextBlock Classes="t13"
                          Foreground="{Binding $parent[ContentPresenter].Foreground}"
                          Text="{x:Static res:Strings.Common_AskAi}" />
             </StackPanel>
@@ -109,11 +109,11 @@
                   Classes.on="{Binding IsSettings}"
                   Command="{Binding ShowSettingsCommand}">
             <StackPanel Orientation="Horizontal"
-                        Spacing="{StaticResource Space.10}">
+                        Spacing="{StaticResource Space.8}">
               <controls:IconControl Width="{StaticResource Size.NavIcon}"
                                     Height="{StaticResource Size.NavIcon}"
                                     Data="{StaticResource Icon.Settings}" />
-              <TextBlock Classes="t14"
+              <TextBlock Classes="t13"
                          Foreground="{Binding $parent[ContentPresenter].Foreground}"
                          Text="{x:Static res:Strings.Nav_Settings}" />
             </StackPanel>
@@ -127,7 +127,7 @@
                     VerticalScrollBarVisibility="Auto"
                     IsVisible="{Binding HasEntries}">
         <StackPanel Spacing="{StaticResource Space.2}">
-          <TextBlock Classes="t12 muted"
+          <TextBlock Classes="t11 muted"
                      Margin="{StaticResource Margin.NavTitle}"
                      Text="{Binding ContextTitle}" />
           <ItemsControl ItemsSource="{Binding Entries}">
@@ -144,7 +144,7 @@
                           Classes.on="{Binding IsActive}"
                           IsVisible="{Binding !CanManage}"
                           Command="{Binding OpenCommand}">
-                    <TextBlock Classes="t13"
+                    <TextBlock Classes="t12"
                                TextTrimming="CharacterEllipsis"
                                Foreground="{Binding $parent[ContentPresenter].Foreground}"
                                Text="{Binding Title}" />
@@ -166,7 +166,7 @@
                                     Command="{Binding DeleteCommand}" />
                         </ContextMenu>
                       </Button.ContextMenu>
-                      <TextBlock Classes="t13"
+                      <TextBlock Classes="t12"
                                  TextTrimming="CharacterEllipsis"
                                  Foreground="{Binding $parent[ContentPresenter].Foreground}"
                                  Text="{Binding Title}" />

@@ -20,34 +20,36 @@
 
   <UserControl.Resources>
     <ResourceDictionary>
-      <!-- Layout of the canvas page: 1240 wide at most, columns of 480 and 520 that wrap below 1024. -->
-      <x:Double x:Key="Session.PageMaxWidth">1240</x:Double>
-      <x:Double x:Key="Session.LeftBasis">480</x:Double>
-      <x:Double x:Key="Session.RightBasis">520</x:Double>
+      <!-- Layout of the canvas page: 960 wide at most, columns of 380 and 420 that wrap below 820. -->
+      <x:Double x:Key="Session.PageMaxWidth">960</x:Double>
+      <x:Double x:Key="Session.LeftBasis">380</x:Double>
+      <x:Double x:Key="Session.RightBasis">420</x:Double>
       <x:Double x:Key="Session.MinRightHeight">520</x:Double>
-      <Thickness x:Key="Session.PagePadding">32,16,32,24</Thickness>
+      <Thickness x:Key="Session.PagePadding">24,16,24,32</Thickness>
 
       <!-- Component sizes. -->
-      <x:Double x:Key="Session.Avatar">28</x:Double>
-      <x:Double x:Key="Session.Play">44</x:Double>
-      <x:Double x:Key="Session.PlayIcon">16</x:Double>
-      <x:Double x:Key="Session.Small">32</x:Double>
-      <x:Double x:Key="Session.Tab">36</x:Double>
-      <x:Double x:Key="Session.TabDot">6</x:Double>
-      <x:Double x:Key="Session.TabIcon">15</x:Double>
-      <x:Double x:Key="Session.Icon">16</x:Double>
-      <x:Double x:Key="Session.Check">18</x:Double>
-      <x:Double x:Key="Session.WaveformHeight">64</x:Double>
+      <x:Double x:Key="Session.Avatar">24</x:Double>
+      <x:Double x:Key="Session.Play">32</x:Double>
+      <x:Double x:Key="Session.PlayIcon">13</x:Double>
+      <x:Double x:Key="Session.Small">28</x:Double>
+      <x:Double x:Key="Session.Tab">28</x:Double>
+      <x:Double x:Key="Session.TabDot">5</x:Double>
+      <x:Double x:Key="Session.TabIcon">13</x:Double>
+      <x:Double x:Key="Session.Check">14</x:Double>
+      <x:Double x:Key="Session.WaveformHeight">48</x:Double>
+      <x:Double x:Key="Session.VideoIcon">22</x:Double>
       <x:Double x:Key="Session.VideoIconStroke">1.4</x:Double>
       <x:Double x:Key="Session.DimmedOpacity">0.4</x:Double>
       <x:Double x:Key="Session.StatusWidth">480</x:Double>
-      <Thickness x:Key="Session.WaveformMargin">0,-4</Thickness>
-      <!-- The title's 36.16 px line is rounded up to a whole pixel here; the canvas keeps the fraction. -->
-      <Thickness x:Key="Session.HeaderTrim">0,0,0,-1</Thickness>
-      <Thickness x:Key="Session.TimeShift">0,-2,0,0</Thickness>
-      <Thickness x:Key="Session.DateTrim">0,0,-2,0</Thickness>
+      <!-- The playhead sticks out 3 px above and below the 42 px of bars. -->
+      <Thickness x:Key="Session.WaveformMargin">0,-3</Thickness>
+      <!-- The canvas lines are 20.15 px and its rows add up to 2 px more than the whole-pixel lines of the app over the 14 lines of the demo; one pixel down
+           splits that drift between the first and the last row (fitted at 100 % scale). -->
+      <Thickness x:Key="Session.TranscriptShift">0,1,0,0</Thickness>
       <Thickness x:Key="Session.RowGap">0,0,0,2</Thickness>
-      <Thickness x:Key="Session.TimeNudge">0,1,0,0</Thickness>
+      <Thickness x:Key="Session.RowPadding">10,8</Thickness>
+      <Thickness x:Key="Session.TimePadding">5,0</Thickness>
+      <Thickness x:Key="Session.VideoMargin">10</Thickness>
 
       <!-- Filled glyphs of the play button (24 x 24 grid, like the canvas SVGs). -->
       <StreamGeometry x:Key="Session.PlayGlyph">M8 5v14l11-7z</StreamGeometry>
@@ -57,12 +59,20 @@
 
   <UserControl.Styles>
     <!-- Type of the canvas. Every step is a token step; a button's text has no tracking (a form control does not inherit it). -->
+    <Style Selector="TextBlock.sessionTitle">
+      <Setter Property="FontFamily" Value="{StaticResource Font.Display}" />
+      <Setter Property="FontWeight" Value="{StaticResource FontWeight.Display}" />
+      <Setter Property="FontSize" Value="{StaticResource FontSize.PageTitle}" />
+      <Setter Property="LineHeight" Value="{StaticResource LineHeight.PageTitle}" />
+      <Setter Property="LetterSpacing" Value="{StaticResource LetterSpacing.PageTitle}" />
+      <Setter Property="Foreground" Value="{DynamicResource Brush.Ink}" />
+    </Style>
     <Style Selector="TextBlock.sessionMeta">
       <Setter Property="FontFamily" Value="{StaticResource Font.Body}" />
       <Setter Property="FontWeight" Value="{StaticResource FontWeight.Body}" />
-      <Setter Property="FontSize" Value="{StaticResource FontSize.MetaTight}" />
-      <Setter Property="LineHeight" Value="{StaticResource LineHeight.MetaTight}" />
-      <Setter Property="LetterSpacing" Value="{StaticResource LetterSpacing.MetaTight}" />
+      <Setter Property="FontSize" Value="{StaticResource FontSize.Small}" />
+      <Setter Property="LineHeight" Value="{StaticResource LineHeight.SmallTight}" />
+      <Setter Property="LetterSpacing" Value="{StaticResource LetterSpacing.Small}" />
       <Setter Property="Foreground" Value="{DynamicResource Brush.Smoke}" />
     </Style>
     <Style Selector="TextBlock.sessionMeta.mono">
@@ -72,20 +82,12 @@
       <Setter Property="LineHeight" Value="{StaticResource LineHeight.MonoRow}" />
       <Setter Property="LetterSpacing" Value="{StaticResource LetterSpacing.MonoRow}" />
     </Style>
-    <!-- Chromium sets the date a little narrower than Skia does; the facts after it keep the canvas's places. -->
-    <Style Selector="ItemsControl.sessionMetaList > ContentPresenter:nth-child(1)">
-      <Setter Property="Margin" Value="{StaticResource Session.DateTrim}" />
-    </Style>
-    <!-- The dot between the facts is 4 px wide in the canvas, a hair more than Skia sets it. -->
-    <Style Selector="TextBlock.sessionMeta.dot">
-      <Setter Property="LetterSpacing" Value="0.31" />
-    </Style>
     <Style Selector="TextBlock.sessionLabel">
       <Setter Property="FontFamily" Value="{StaticResource Font.Body}" />
       <Setter Property="FontWeight" Value="{StaticResource FontWeight.Body}" />
-      <Setter Property="FontSize" Value="{StaticResource FontSize.Meta}" />
-      <Setter Property="LineHeight" Value="{StaticResource LineHeight.Meta}" />
-      <Setter Property="LetterSpacing" Value="{StaticResource LetterSpacing.Meta}" />
+      <Setter Property="FontSize" Value="{StaticResource FontSize.Small}" />
+      <Setter Property="LineHeight" Value="{StaticResource LineHeight.SmallTight}" />
+      <Setter Property="LetterSpacing" Value="{StaticResource LetterSpacing.Small}" />
       <Setter Property="Foreground" Value="{DynamicResource Brush.Smoke}" />
     </Style>
     <Style Selector="TextBlock.sessionNote">
@@ -100,33 +102,43 @@
     <Style Selector="TextBlock.sessionBody">
       <Setter Property="FontFamily" Value="{StaticResource Font.Body}" />
       <Setter Property="FontWeight" Value="{StaticResource FontWeight.Body}" />
-      <Setter Property="FontSize" Value="{StaticResource FontSize.RowTitle}" />
-      <Setter Property="LineHeight" Value="{StaticResource LineHeight.RowTitle}" />
-      <Setter Property="LetterSpacing" Value="{StaticResource LetterSpacing.RowTitle}" />
+      <Setter Property="FontSize" Value="{StaticResource FontSize.Meta}" />
+      <Setter Property="LineHeight" Value="{StaticResource LineHeight.Meta}" />
+      <Setter Property="LetterSpacing" Value="{StaticResource LetterSpacing.Meta}" />
       <Setter Property="TextWrapping" Value="Wrap" />
     </Style>
     <Style Selector="TextBlock.sessionOverview">
       <Setter Property="FontFamily" Value="{StaticResource Font.Body}" />
       <Setter Property="FontWeight" Value="{StaticResource FontWeight.Body}" />
-      <Setter Property="FontSize" Value="{StaticResource FontSize.OverviewText}" />
-      <Setter Property="LineHeight" Value="{StaticResource LineHeight.OverviewText}" />
-      <Setter Property="LetterSpacing" Value="{StaticResource LetterSpacing.OverviewText}" />
+      <Setter Property="FontSize" Value="{StaticResource FontSize.Message}" />
+      <Setter Property="LineHeight" Value="{StaticResource LineHeight.Message}" />
+      <Setter Property="LetterSpacing" Value="{StaticResource LetterSpacing.Message}" />
       <Setter Property="TextWrapping" Value="Wrap" />
     </Style>
     <Style Selector="TextBlock.sessionCardTitle">
       <Setter Property="FontFamily" Value="{StaticResource Font.Body}" />
       <Setter Property="FontWeight" Value="{StaticResource FontWeight.BodyMedium}" />
-      <Setter Property="FontSize" Value="{StaticResource FontSize.RowTitle}" />
-      <Setter Property="LineHeight" Value="{StaticResource LineHeight.RowTitle}" />
-      <Setter Property="LetterSpacing" Value="{StaticResource LetterSpacing.RowTitle}" />
+      <Setter Property="FontSize" Value="{StaticResource FontSize.Meta}" />
+      <Setter Property="LineHeight" Value="{StaticResource LineHeight.MetaTight}" />
+      <Setter Property="LetterSpacing" Value="{StaticResource LetterSpacing.Meta}" />
       <Setter Property="TextWrapping" Value="Wrap" />
     </Style>
-    <!-- 13 px / 500 without tracking: the text of the tabs. -->
+    <!-- The line under the summary: 11 px. -->
+    <Style Selector="TextBlock.sessionFoot">
+      <Setter Property="FontFamily" Value="{StaticResource Font.Body}" />
+      <Setter Property="FontWeight" Value="{StaticResource FontWeight.Body}" />
+      <Setter Property="FontSize" Value="{StaticResource FontSize.Tag}" />
+      <Setter Property="LineHeight" Value="{StaticResource LineHeight.Tag}" />
+      <Setter Property="LetterSpacing" Value="{StaticResource LetterSpacing.Tag}" />
+      <Setter Property="Foreground" Value="{DynamicResource Brush.Smoke}" />
+      <Setter Property="TextWrapping" Value="Wrap" />
+    </Style>
+    <!-- 12 px / 500 without tracking: the text of the tabs. -->
     <Style Selector="TextBlock.sessionTabText">
       <Setter Property="FontFamily" Value="{StaticResource Font.Body}" />
       <Setter Property="FontWeight" Value="{StaticResource FontWeight.BodyMedium}" />
-      <Setter Property="FontSize" Value="{StaticResource FontSize.MetaTight}" />
-      <Setter Property="LineHeight" Value="{StaticResource LineHeight.MetaTight}" />
+      <Setter Property="FontSize" Value="{StaticResource FontSize.Small}" />
+      <Setter Property="LineHeight" Value="{StaticResource LineHeight.SmallTight}" />
       <Setter Property="LetterSpacing" Value="0" />
       <Setter Property="VerticalAlignment" Value="Center" />
     </Style>
@@ -148,9 +160,9 @@
     <Style Selector="TextBlock.sessionName">
       <Setter Property="FontFamily" Value="{StaticResource Font.Body}" />
       <Setter Property="FontWeight" Value="{StaticResource FontWeight.BodyMedium}" />
-      <Setter Property="FontSize" Value="{StaticResource FontSize.MetaTight}" />
-      <Setter Property="LineHeight" Value="{StaticResource LineHeight.MetaTight}" />
-      <Setter Property="LetterSpacing" Value="{StaticResource LetterSpacing.MetaTight}" />
+      <Setter Property="FontSize" Value="{StaticResource FontSize.Small}" />
+      <Setter Property="LineHeight" Value="{StaticResource LineHeight.SmallTight}" />
+      <Setter Property="LetterSpacing" Value="{StaticResource LetterSpacing.Small}" />
     </Style>
     <Style Selector="TextBlock.sessionTime">
       <Setter Property="FontFamily" Value="{StaticResource Font.Mono}" />
@@ -162,9 +174,9 @@
     <Style Selector="TextBlock.sessionAvatarText">
       <Setter Property="FontFamily" Value="{StaticResource Font.Body}" />
       <Setter Property="FontWeight" Value="{StaticResource FontWeight.BodyMedium}" />
-      <Setter Property="FontSize" Value="{StaticResource FontSize.Tag}" />
-      <Setter Property="LineHeight" Value="{StaticResource LineHeight.Tag}" />
-      <Setter Property="LetterSpacing" Value="{StaticResource LetterSpacing.Tag}" />
+      <Setter Property="FontSize" Value="{StaticResource FontSize.Caption}" />
+      <Setter Property="LineHeight" Value="{StaticResource LineHeight.Caption}" />
+      <Setter Property="LetterSpacing" Value="{StaticResource LetterSpacing.Caption}" />
       <Setter Property="HorizontalAlignment" Value="Center" />
       <Setter Property="VerticalAlignment" Value="Center" />
     </Style>
@@ -181,7 +193,7 @@
       <Setter Property="Foreground" Value="{DynamicResource Brush.Smoke}" />
     </Style>
 
-    <!-- Pills with a hairline on the Canvas: the tabs (36), You / Others / speed (32). -->
+    <!-- Pills with a hairline on the Canvas: the tabs, You / Others / speed (28). -->
     <Style Selector="Button.sessionPill, ToggleButton.sessionPill">
       <Setter Property="MinHeight" Value="0" />
       <Setter Property="MinWidth" Value="0" />
@@ -250,7 +262,7 @@
     </Style>
     <Style Selector="ToggleButton.sessionPill.tab">
       <Setter Property="Height" Value="{StaticResource Session.Tab}" />
-      <Setter Property="Padding" Value="{StaticResource Inset.Toggle}" />
+      <Setter Property="Padding" Value="{StaticResource Inset.Compact}" />
     </Style>
 
     <!-- The black play button. -->
@@ -293,31 +305,34 @@
       <Setter Property="BorderBrush" Value="{DynamicResource Brush.Hairline}" />
       <Setter Property="BorderThickness" Value="{StaticResource Hairline.Thickness}" />
       <Setter Property="CornerRadius" Value="{StaticResource Radius.Card}" />
-      <Setter Property="Padding" Value="{StaticResource Inset.20}" />
+      <Setter Property="Padding" Value="{StaticResource Inset.CardList}" />
     </Style>
     <Style Selector="Border.sessionSurface">
       <Setter Property="Background" Value="{DynamicResource Brush.Surface}" />
       <Setter Property="CornerRadius" Value="{StaticResource Radius.Card}" />
-      <Setter Property="Padding" Value="{StaticResource Inset.24}" />
+      <Setter Property="Padding" Value="{StaticResource Inset.Card}" />
     </Style>
     <Style Selector="Border.sessionOutline">
       <Setter Property="BorderBrush" Value="{DynamicResource Brush.Hairline}" />
       <Setter Property="BorderThickness" Value="{StaticResource Hairline.Thickness}" />
       <Setter Property="CornerRadius" Value="{StaticResource Radius.Card}" />
-      <Setter Property="Padding" Value="{StaticResource Inset.24}" />
+      <Setter Property="Padding" Value="{StaticResource Inset.Card}" />
     </Style>
 
-    <!-- The size chip over the video: Canvas at 90 %, 4 x 10 px. -->
+    <!-- The size chip over the video: Canvas at 90 %, 10 px from the corner, 3 x 8 px inside. -->
+    <Style Selector="Panel.videoChip">
+      <Setter Property="Margin" Value="{StaticResource Session.VideoMargin}" />
+    </Style>
     <Style Selector="Panel.videoChip > TextBlock.sessionChipText">
-      <Setter Property="Margin" Value="{StaticResource Inset.SessionVideoChip}" />
+      <Setter Property="Margin" Value="{StaticResource Inset.SessionChip}" />
     </Style>
 
     <!-- A line of the transcript: transparent, Surface under the pointer and for the current one, dimmed when its track is off. -->
     <Style Selector="Button.sessionRow">
       <Setter Property="MinHeight" Value="0" />
-      <Setter Property="Padding" Value="{StaticResource Inset.SessionRow}" />
+      <Setter Property="Padding" Value="{StaticResource Session.RowPadding}" />
       <Setter Property="Margin" Value="{StaticResource Session.RowGap}" />
-      <Setter Property="CornerRadius" Value="{StaticResource Radius.Note}" />
+      <Setter Property="CornerRadius" Value="{StaticResource Radius.Panel}" />
       <Setter Property="HorizontalAlignment" Value="Stretch" />
       <Setter Property="HorizontalContentAlignment" Value="Stretch" />
       <Setter Property="VerticalContentAlignment" Value="Top" />
@@ -342,9 +357,9 @@
       <Setter Property="Foreground" Value="{DynamicResource Brush.Ink}" />
     </Style>
     <Style Selector="controls|TranscriptTextControl.sessionText">
-      <Setter Property="FontSize" Value="{StaticResource FontSize.SegmentText}" />
-      <Setter Property="LineHeight" Value="{StaticResource LineHeight.SegmentText}" />
-      <Setter Property="LetterSpacing" Value="{StaticResource LetterSpacing.SegmentText}" />
+      <Setter Property="FontSize" Value="{StaticResource FontSize.MessageLine}" />
+      <Setter Property="LineHeight" Value="{StaticResource LineHeight.MessageLine}" />
+      <Setter Property="LetterSpacing" Value="{StaticResource LetterSpacing.MessageLine}" />
       <Setter Property="MarkBrush" Value="{DynamicResource Brush.Ink}" />
       <Setter Property="MarkForeground" Value="{DynamicResource Brush.Canvas}" />
       <Setter Property="MarkCornerRadius" Value="{StaticResource Radius.Input}" />
@@ -371,13 +386,12 @@
     <Style Selector="Button.sessionTime">
       <Setter Property="MinHeight" Value="0" />
       <Setter Property="MinWidth" Value="0" />
-      <Setter Property="Padding" Value="{StaticResource Inset.SessionTime}" />
-      <Setter Property="CornerRadius" Value="{StaticResource Radius.Key}" />
+      <Setter Property="Padding" Value="{StaticResource Session.TimePadding}" />
+      <Setter Property="CornerRadius" Value="{StaticResource Radius.Kbd}" />
       <Setter Property="Background" Value="Transparent" />
       <Setter Property="BorderThickness" Value="0" />
       <Setter Property="Foreground" Value="{DynamicResource Brush.Smoke}" />
       <Setter Property="VerticalAlignment" Value="Center" />
-      <Setter Property="Margin" Value="{StaticResource Session.TimeNudge}" />
     </Style>
     <Style Selector="Button.sessionTime /template/ ContentPresenter#PART_ContentPresenter">
       <Setter Property="Background" Value="Transparent" />
@@ -394,7 +408,7 @@
     <Style Selector="Button.sessionChip">
       <Setter Property="MinHeight" Value="0" />
       <Setter Property="MinWidth" Value="0" />
-      <Setter Property="Padding" Value="{StaticResource Inset.SessionChip}" />
+      <Setter Property="Padding" Value="{StaticResource Inset.Key}" />
       <Setter Property="CornerRadius" Value="{StaticResource Radius.Pill}" />
       <Setter Property="BorderThickness" Value="0" />
       <Setter Property="Background" Value="{DynamicResource Brush.FillHover}" />
@@ -409,7 +423,7 @@
       <Setter Property="Background" Value="{DynamicResource Brush.FillPressed}" />
     </Style>
     <Style Selector="Border.sessionChipLabel">
-      <Setter Property="Padding" Value="{StaticResource Inset.SessionChip}" />
+      <Setter Property="Padding" Value="{StaticResource Inset.Key}" />
       <Setter Property="CornerRadius" Value="{StaticResource Radius.Pill}" />
       <Setter Property="Background" Value="{DynamicResource Brush.FillHover}" />
       <Setter Property="VerticalAlignment" Value="Top" />
@@ -464,23 +478,24 @@
             HorizontalAlignment="Stretch"
             VerticalAlignment="Top">
       <controls:SessionPagePanel x:Name="Page"
-                                 ColumnSpacing="{StaticResource Space.24}"
-                                 RowSpacing="{StaticResource Space.28}"
+                                 ColumnSpacing="{StaticResource Space.20}"
+                                 RowSpacing="{StaticResource Space.20}"
                                  LeftBasis="{StaticResource Session.LeftBasis}"
                                  RightBasis="{StaticResource Session.RightBasis}"
                                  MinRightHeight="{StaticResource Session.MinRightHeight}">
 
         <!-- Title and the facts under it -->
-        <StackPanel Spacing="{StaticResource Space.8}"
-                    Margin="{StaticResource Session.HeaderTrim}">
-          <TextBlock Classes="headingSm"
+        <StackPanel Spacing="{StaticResource Space.6}">
+          <TextBlock Classes="sessionTitle"
                      TextTrimming="CharacterEllipsis"
                      Text="{Binding Title}" />
+          <!-- parity-only: the canvas packs the fractional-width runs of this line without rounding; layout rounding widens each run and "Parakeet TDT v3" lands 2.3 px right. -->
           <ItemsControl Classes="sessionMetaList"
+                        UseLayoutRounding="False"
                         ItemsSource="{Binding Meta}">
             <ItemsControl.ItemsPanel>
               <ItemsPanelTemplate>
-                <WrapPanel ItemSpacing="{StaticResource Space.8}" />
+                <WrapPanel ItemSpacing="{StaticResource Space.6}" />
               </ItemsPanelTemplate>
             </ItemsControl.ItemsPanel>
             <ItemsControl.ItemTemplate>
@@ -498,7 +513,7 @@
         </StackPanel>
 
         <!-- Left: the video and the player -->
-        <StackPanel Spacing="{StaticResource Space.16}">
+        <StackPanel Spacing="{StaticResource Space.12}">
           <Border x:Name="VideoPanel"
                   Classes="videoPanel"
                   IsVisible="{Binding HasVideo}">
@@ -511,10 +526,10 @@
                 <StackPanel x:Name="VideoPlaceholder"
                             HorizontalAlignment="Center"
                             VerticalAlignment="Center"
-                            Spacing="{StaticResource Space.10}"
+                            Spacing="{StaticResource Space.8}"
                             IsVisible="{Binding ShowVideoPlaceholder}">
-                  <controls:IconControl Width="{StaticResource Size.VideoIcon}"
-                                        Height="{StaticResource Size.VideoIcon}"
+                  <controls:IconControl Width="{StaticResource Session.VideoIcon}"
+                                        Height="{StaticResource Session.VideoIcon}"
                                         HorizontalAlignment="Center"
                                         Stroke="{StaticResource Session.VideoIconStroke}"
                                         TextElement.Foreground="{DynamicResource Brush.Smoke}"
@@ -537,14 +552,14 @@
           </Border>
 
           <Border Classes="sessionPlayer">
-            <StackPanel Spacing="{StaticResource Space.16}">
+            <StackPanel Spacing="{StaticResource Space.12}">
               <controls:WaveformControl x:Name="Waveform"
                                         Height="{StaticResource Session.WaveformHeight}"
                                         Margin="{StaticResource Session.WaveformMargin}"
                                         Peaks="{Binding Peaks}"
                                         Fraction="{Binding PositionFraction}" />
               <Grid ColumnDefinitions="Auto,*,Auto"
-                    ColumnSpacing="{StaticResource Space.12}">
+                    ColumnSpacing="{StaticResource Space.10}">
                 <Button Grid.Column="0"
                         Classes="sessionPlay"
                         AutomationProperties.Name="{Binding PlayPauseLabel}"
@@ -565,13 +580,17 @@
                 <TextBlock Grid.Column="1"
                            Classes="sessionMeta mono"
                            VerticalAlignment="Center"
-                           Margin="{StaticResource Session.TimeShift}"
                            Foreground="{DynamicResource Brush.Ink}">
                   <Run Text="{Binding PositionText, StringFormat='{}{0} '}" /><Run Text="{Binding DurationText, StringFormat='/ {0}'}" Foreground="{DynamicResource Brush.Smoke}" />
                 </TextBlock>
+                <!--
+                  The canvas gap is 4 px. The pills are 43.78, 60.67 and 35.2 px wide in the canvas; layout rounding rounds each of them (and its text)
+                  up to whole pixels, which makes the group about 2 px wider than the canvas's. There is no margin or border to remove, so the gap
+                  gives the 2 px back: the group ends where the canvas's does (fitted at 100 % scale).
+                -->
                 <StackPanel Grid.Column="2"
                             Orientation="Horizontal"
-                            Spacing="{StaticResource Space.6}">
+                            Spacing="{StaticResource Space.2}">
                   <ToggleButton Classes="sessionPill filter"
                                 IsEnabled="{Binding CanMuteTracks}"
                                 IsChecked="{Binding YouOn, Mode=TwoWay}"
@@ -604,14 +623,14 @@
 
         <!-- Right: the tabs and what they show -->
         <Grid RowDefinitions="Auto,*"
-              RowSpacing="{StaticResource Space.16}">
+              RowSpacing="{StaticResource Space.12}">
           <StackPanel Grid.Row="0"
                       Orientation="Horizontal"
-                      Spacing="{StaticResource Space.6}">
+                      Spacing="{StaticResource Space.4}">
             <ToggleButton Classes="sessionPill tab"
                           IsChecked="{Binding IsTranscriptTab, Mode=TwoWay}">
               <StackPanel Orientation="Horizontal"
-                          Spacing="{StaticResource Space.8}">
+                          Spacing="{StaticResource Space.6}">
                 <Ellipse Classes="sessionDot"
                          IsVisible="{Binding $parent[ToggleButton].IsChecked}" />
                 <TextBlock Classes="sessionTabText"
@@ -621,7 +640,7 @@
             <ToggleButton Classes="sessionPill tab"
                           IsChecked="{Binding IsSummaryTab, Mode=TwoWay}">
               <StackPanel Orientation="Horizontal"
-                          Spacing="{StaticResource Space.8}">
+                          Spacing="{StaticResource Space.6}">
                 <Ellipse Classes="sessionDot"
                          IsVisible="{Binding $parent[ToggleButton].IsChecked}" />
                 <TextBlock Classes="sessionTabText"
@@ -631,14 +650,14 @@
             <ToggleButton Classes="sessionPill tab"
                           IsChecked="{Binding IsAskTab, Mode=TwoWay}">
               <StackPanel Orientation="Horizontal"
-                          Spacing="{StaticResource Space.8}">
+                          Spacing="{StaticResource Space.6}">
                 <Ellipse Classes="sessionDot"
                          IsVisible="{Binding $parent[ToggleButton].IsChecked}" />
                 <controls:IconControl Width="{StaticResource Session.TabIcon}"
                                       Height="{StaticResource Session.TabIcon}"
                                       Data="{StaticResource Icon.Ai}" />
                 <TextBlock Classes="sessionTabText"
-                           LetterSpacing="{StaticResource LetterSpacing.MetaTight}"
+                           LetterSpacing="{StaticResource LetterSpacing.Small}"
                            Text="{x:Static res:Strings.Common_AskAi}" />
               </StackPanel>
             </ToggleButton>
@@ -647,13 +666,13 @@
           <!-- Transcript: the search box, then the virtualised list of lines (or a card that says why there is none) -->
           <Grid Grid.Row="1"
                 RowDefinitions="Auto,*"
-                RowSpacing="{StaticResource Space.12}"
+                RowSpacing="{StaticResource Space.8}"
                 IsVisible="{Binding IsTranscriptTab}">
             <Border Grid.Row="0"
                     Classes="searchBox"
                     IsVisible="{Binding ShowTranscriptList}">
               <Grid ColumnDefinitions="Auto,*"
-                    ColumnSpacing="{StaticResource Space.10}">
+                    ColumnSpacing="{StaticResource Space.8}">
                 <controls:IconControl Grid.Column="0"
                                       Width="{StaticResource Size.SearchIcon}"
                                       Height="{StaticResource Size.SearchIcon}"
@@ -675,6 +694,7 @@
 
             <ScrollViewer x:Name="TranscriptScroller"
                           Grid.Row="1"
+                          Margin="{StaticResource Session.TranscriptShift}"
                           HorizontalScrollBarVisibility="Disabled"
                           VerticalScrollBarVisibility="Auto"
                           IsVisible="{Binding ShowTranscriptList}">
@@ -692,7 +712,7 @@
                             Classes.dimmed="{Binding IsDimmed}"
                             Command="{Binding SeekCommand}">
                       <Grid ColumnDefinitions="Auto,*"
-                            ColumnSpacing="{StaticResource Space.14}">
+                            ColumnSpacing="{StaticResource Space.10}">
                         <Border Grid.Column="0"
                                 Classes="sessionAvatar"
                                 Classes.me="{Binding IsMe}"
@@ -701,9 +721,9 @@
                                      Text="{Binding Initial}" />
                         </Border>
                         <StackPanel Grid.Column="1"
-                                    Spacing="{StaticResource Space.4}">
+                                    Spacing="{StaticResource Space.2}">
                           <StackPanel Orientation="Horizontal"
-                                      Spacing="{StaticResource Space.10}">
+                                      Spacing="{StaticResource Space.8}">
                             <TextBlock Classes="sessionName"
                                        VerticalAlignment="Center"
                                        Text="{Binding SpeakerLabel}" />
@@ -767,7 +787,7 @@
                         HorizontalScrollBarVisibility="Disabled"
                         VerticalScrollBarVisibility="Auto"
                         IsVisible="{Binding IsSummaryTab}">
-            <StackPanel Spacing="{StaticResource Space.16}">
+            <StackPanel Spacing="{StaticResource Space.12}">
 
               <Border Classes="sessionSurface"
                       IsVisible="{Binding ShowSummaryEmpty}">
@@ -834,10 +854,10 @@
                 </StackPanel>
               </Border>
 
-              <StackPanel Spacing="{StaticResource Space.16}"
+              <StackPanel Spacing="{StaticResource Space.12}"
                           IsVisible="{Binding ShowSummaryReady}">
                 <Border Classes="sessionSurface">
-                  <StackPanel Spacing="{StaticResource Space.10}">
+                  <StackPanel Spacing="{StaticResource Space.6}">
                     <TextBlock Classes="sessionLabel"
                                Text="{x:Static res:Strings.Session_SummaryOverview}" />
                     <TextBlock Classes="sessionOverview"
@@ -847,19 +867,19 @@
 
                 <Border Classes="sessionOutline"
                         IsVisible="{Binding HasKeyPoints}">
-                  <StackPanel Spacing="{StaticResource Space.14}">
+                  <StackPanel Spacing="{StaticResource Space.10}">
                     <TextBlock Classes="sessionLabel"
                                Text="{x:Static res:Strings.Session_SummaryKeyPoints}" />
                     <ItemsControl ItemsSource="{Binding KeyPoints}">
                       <ItemsControl.ItemsPanel>
                         <ItemsPanelTemplate>
-                          <StackPanel Spacing="{StaticResource Space.14}" />
+                          <StackPanel Spacing="{StaticResource Space.10}" />
                         </ItemsPanelTemplate>
                       </ItemsControl.ItemsPanel>
                       <ItemsControl.ItemTemplate>
                         <DataTemplate x:DataType="vm:SummaryItemViewModel">
                           <Grid ColumnDefinitions="*,Auto"
-                                ColumnSpacing="{StaticResource Space.12}">
+                                ColumnSpacing="{StaticResource Space.10}">
                             <TextBlock Grid.Column="0"
                                        Classes="sessionBody"
                                        Text="{Binding Text}" />
@@ -879,19 +899,19 @@
 
                 <Border Classes="sessionOutline"
                         IsVisible="{Binding HasActionItems}">
-                  <StackPanel Spacing="{StaticResource Space.14}">
+                  <StackPanel Spacing="{StaticResource Space.10}">
                     <TextBlock Classes="sessionLabel"
                                Text="{x:Static res:Strings.Session_SummaryActionItems}" />
                     <ItemsControl ItemsSource="{Binding ActionItems}">
                       <ItemsControl.ItemsPanel>
                         <ItemsPanelTemplate>
-                          <StackPanel Spacing="{StaticResource Space.14}" />
+                          <StackPanel Spacing="{StaticResource Space.10}" />
                         </ItemsPanelTemplate>
                       </ItemsControl.ItemsPanel>
                       <ItemsControl.ItemTemplate>
                         <DataTemplate x:DataType="vm:SummaryItemViewModel">
                           <Grid ColumnDefinitions="Auto,*,Auto"
-                                ColumnSpacing="{StaticResource Space.12}">
+                                ColumnSpacing="{StaticResource Space.10}">
                             <CheckBox Grid.Column="0"
                                       Classes="sessionCheck"
                                       VerticalAlignment="Top"
@@ -915,7 +935,7 @@
 
                 <Grid ColumnDefinitions="*,Auto">
                   <TextBlock Grid.Column="0"
-                             Classes="sessionNote"
+                             Classes="sessionFoot"
                              VerticalAlignment="Center"
                              Text="{Binding SummaryFooter}" />
                   <Button Grid.Column="1"

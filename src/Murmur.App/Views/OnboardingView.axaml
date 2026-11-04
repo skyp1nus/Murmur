@@ -5,7 +5,8 @@
              xmlns:views="using:Murmur.App.Views"
              xmlns:controls="using:Murmur.App.Controls"
              x:Class="Murmur.App.Views.OnboardingView"
-             x:DataType="vm:OnboardingViewModel">
+             x:DataType="vm:OnboardingViewModel"
+             Classes.dense="{Binding CurrentStep.DenseFrame}">
 
   <!-- The step content is chosen by the step view model's type (no reflection-based view locator). -->
   <UserControl.DataTemplates>
@@ -26,8 +27,8 @@
     </DataTemplate>
   </UserControl.DataTemplates>
 
-  <Grid RowDefinitions="Auto,*,Auto"
-        Margin="{StaticResource Margin.OnbPage}">
+  <Grid Classes="onbFrame"
+        RowDefinitions="Auto,*,Auto">
 
     <!-- Top bar: wordmark, step indicator (1 / 5 and five segments) -->
     <Grid Grid.Row="0"
@@ -46,8 +47,8 @@
       </StackPanel>
 
       <StackPanel Grid.Column="1"
+                  Classes="onbIndicator"
                   Orientation="Horizontal"
-                  Spacing="{StaticResource Space.14}"
                   VerticalAlignment="Center"
                   AutomationProperties.Name="{Binding StepAutomationName}">
         <TextBlock Classes="onbMono"
@@ -59,7 +60,7 @@
           <ItemsControl.ItemsPanel>
             <ItemsPanelTemplate>
               <StackPanel Orientation="Horizontal"
-                          Spacing="{StaticResource Space.6}" />
+                          Spacing="{StaticResource Space.4}" />
             </ItemsPanelTemplate>
           </ItemsControl.ItemsPanel>
           <ItemsControl.ItemTemplate>
@@ -88,15 +89,15 @@
           Height="{StaticResource Size.OnbFooter}"
           ColumnDefinitions="Auto,*,Auto">
       <StackPanel Grid.Column="0"
+                  Classes="onbFootLeft"
                   Orientation="Horizontal"
-                  VerticalAlignment="Center"
-                  Spacing="{StaticResource Space.4}">
+                  VerticalAlignment="Center">
         <Button x:Name="BackButton"
-                Classes="text onbFoot"
+                Classes="text onbBack"
                 IsVisible="{Binding CurrentStep.ShowBack}"
                 Command="{Binding BackCommand}">
           <StackPanel Orientation="Horizontal"
-                      Spacing="{StaticResource Space.6}">
+                      Spacing="{StaticResource Space.4}">
             <controls:IconControl Width="{StaticResource Size.OnbChevron}"
                                   Height="{StaticResource Size.OnbChevron}"
                                   Data="{StaticResource Icon.ChevronLeft}" />
@@ -104,7 +105,7 @@
           </StackPanel>
         </Button>
         <Button x:Name="SkipButton"
-                Classes="text muted onbFoot"
+                Classes="text muted onbSkip"
                 IsVisible="{Binding CurrentStep.ShowSkip}"
                 Content="{x:Static res:Strings.Onb_Skip}"
                 Command="{Binding SkipCommand}" />

@@ -39,35 +39,42 @@
       </ResourceDictionary.ThemeDictionaries>
 
       <!-- Sizes of the canvas that the spacing scale does not hold. -->
-      <x:Double x:Key="Chat.ColumnWidth">820</x:Double>
-      <x:Double x:Key="Chat.ScopeHeight">34</x:Double>
-      <x:Double x:Key="Chat.ModelChipHeight">30</x:Double>
-      <x:Double x:Key="Chat.AvatarSize">24</x:Double>
-      <x:Double x:Key="Chat.ActionSize">32</x:Double>
-      <x:Double x:Key="Chat.ActionIcon">16</x:Double>
-      <x:Double x:Key="Chat.PlayIcon">9</x:Double>
-      <x:Double x:Key="Chat.SendIcon">18</x:Double>
+      <x:Double x:Key="Chat.ColumnWidth">720</x:Double>
+      <x:Double x:Key="Chat.ScopeHeight">28</x:Double>
+      <x:Double x:Key="Chat.ModelChipHeight">26</x:Double>
+      <x:Double x:Key="Chat.ModelOrb">9</x:Double>
+      <x:Double x:Key="Chat.ScopeDot">6</x:Double>
+      <x:Double x:Key="Chat.AvatarSize">20</x:Double>
+      <x:Double x:Key="Chat.ActionSize">28</x:Double>
+      <x:Double x:Key="Chat.SendSize">32</x:Double>
+      <x:Double x:Key="Chat.ActionIcon">14</x:Double>
+      <x:Double x:Key="Chat.PlayIcon">8</x:Double>
+      <x:Double x:Key="Chat.SendIcon">16</x:Double>
       <x:Double x:Key="Chat.StopGlyph">12</x:Double>
-      <x:Double x:Key="Chat.SourceMinWidth">220</x:Double>
-      <x:Double x:Key="Chat.InputMinHeight">58</x:Double>
+      <x:Double x:Key="Chat.SourceMinWidth">200</x:Double>
+      <x:Double x:Key="Chat.InputMinHeight">32</x:Double>
       <x:Double x:Key="Chat.InputMaxHeight">168</x:Double>
       <x:Double x:Key="Chat.NoticeWidth">480</x:Double>
-      <Thickness x:Key="Chat.ColumnInset">0,24,0,0</Thickness>
-      <Thickness x:Key="Chat.ItemSides">32,0</Thickness>
-      <Thickness x:Key="Chat.ItemInset">0,0,0,32</Thickness>
-      <Thickness x:Key="Chat.ComposerArea">32,0,32,32</Thickness>
-      <Thickness x:Key="Chat.BubbleInset">18,12</Thickness>
-      <Thickness x:Key="Chat.ChipInset">8,0,8,2</Thickness>
+      <Thickness x:Key="Chat.ColumnInset">0,16,0,0</Thickness>
+      <Thickness x:Key="Chat.ItemSides">24,0</Thickness>
+      <Thickness x:Key="Chat.ItemInset">0,0,0,20</Thickness>
+      <Thickness x:Key="Chat.ComposerArea">24,0,24,24</Thickness>
+      <Thickness x:Key="Chat.BubbleInset">14,8</Thickness>
+      <Thickness x:Key="Chat.ChipInset">6,1.5</Thickness>
       <!--
-        An embedded control rests on the baseline and a taller one pushes the text of its line down. The canvas draws the 22 px chip from 17 px
-        above the baseline to 5 px below it (vertical-align: 1px): it is laid out 18 px high (2 px down, 6 px short at the bottom) and drawn in full.
+        An embedded control rests on the baseline and a taller one pushes the text of its line down. The chip is drawn 17 px tall (the 14 px mono
+        line and 1.5 px above and below it); the margin takes 3.3 px above and 3.7 px below out of its layout, so it is laid out 10 px high, never
+        makes its line taller, and is still drawn in full (ClipToBounds is off). The numbers place it like the canvas's chip (vertical-align: 1px).
       -->
-      <Thickness x:Key="Chat.ChipMargin">-1.5,2,0,-6</Thickness>
-      <!-- Avalonia sets a 26.4 px line of Inter 16 about 2 px lower than the canvas does; the chips above are laid out against the shifted text. -->
-      <Thickness x:Key="Chat.AnswerShift">0,-2,0,2</Thickness>
-      <Thickness x:Key="Chat.ModelChipInset">12,0</Thickness>
-      <Thickness x:Key="Chat.SourceInset">16,14</Thickness>
-      <Thickness x:Key="Chat.ComposerInset">20,10,10,10</Thickness>
+      <Thickness x:Key="Chat.ChipMargin">-1.5,-3.3,0,-3.7</Thickness>
+      <!--
+        The answer lines are 20 px (the canvas has 20.15, which the layout would round up): 0.3 px per line is added under a paragraph of two lines.
+        The value is fixed, not derived per line: it fits the two-line answers of the Chat / ChatDark boards only, any other paragraph is 0.6 px taller.
+      -->
+      <Thickness x:Key="Chat.AnswerGrow">0,0,0,0.6</Thickness>
+      <Thickness x:Key="Chat.ModelChipInset">10,0</Thickness>
+      <Thickness x:Key="Chat.SourceInset">12,10</Thickness>
+      <Thickness x:Key="Chat.ComposerInset">16,6,6,6</Thickness>
       <Thickness x:Key="Chat.InputInset">0,6</Thickness>
       <StreamGeometry x:Key="Chat.Icon.Play">M8 5v14l11-7z</StreamGeometry>
       <StreamGeometry x:Key="Chat.Icon.Copy">M10 8h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-8a2 2 0 0 1-2-2v-8a2 2 0 0 1 2-2z M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2</StreamGeometry>
@@ -97,10 +104,10 @@
   <Style Selector="Button.chatScope">
     <Setter Property="Height" Value="{StaticResource Chat.ScopeHeight}" />
     <Setter Property="MinHeight" Value="0" />
-    <Setter Property="Padding" Value="{StaticResource Inset.Toggle}" />
+    <Setter Property="Padding" Value="{StaticResource Inset.Compact}" />
     <Setter Property="CornerRadius" Value="{StaticResource Radius.Pill}" />
     <Setter Property="FontFamily" Value="{StaticResource Font.Body}" />
-    <Setter Property="FontSize" Value="{StaticResource FontSize.Meta}" />
+    <Setter Property="FontSize" Value="{StaticResource FontSize.Small}" />
     <Setter Property="FontWeight" Value="{StaticResource FontWeight.BodyMedium}" />
     <Setter Property="HorizontalContentAlignment" Value="Center" />
     <Setter Property="VerticalContentAlignment" Value="Center" />
@@ -120,6 +127,11 @@
     <Setter Property="Foreground" Value="{DynamicResource Brush.Ink}" />
   </Style>
 
+  <Style Selector="Button.chatScope Ellipse.chipDot">
+    <Setter Property="Width" Value="{StaticResource Chat.ScopeDot}" />
+    <Setter Property="Height" Value="{StaticResource Chat.ScopeDot}" />
+  </Style>
+
   <Style Selector="Border.chatModel">
     <Setter Property="Height" Value="{StaticResource Chat.ModelChipHeight}" />
     <Setter Property="Padding" Value="{StaticResource Chat.ModelChipInset}" />
@@ -136,33 +148,33 @@
   </Style>
   <Style Selector="TextBlock.chatBubbleText">
     <Setter Property="FontFamily" Value="{StaticResource Font.Body}" />
-    <Setter Property="FontSize" Value="{StaticResource FontSize.Bubble}" />
-    <Setter Property="LineHeight" Value="{StaticResource LineHeight.Bubble}" />
-    <Setter Property="LetterSpacing" Value="{StaticResource LetterSpacing.Bubble}" />
+    <Setter Property="FontSize" Value="{StaticResource FontSize.MessageLine}" />
+    <Setter Property="LineHeight" Value="{StaticResource LineHeight.MessageLine}" />
+    <Setter Property="LetterSpacing" Value="{StaticResource LetterSpacing.MessageLine}" />
     <Setter Property="TextWrapping" Value="Wrap" />
   </Style>
 
-  <!-- The answer: 16 px / 1.65 ink text; its blocks are 16 px apart (12 px when there are no sources under it). -->
+  <!-- The answer: 13 px / 1.55 ink text; its blocks are 12 px apart (10 px when there are no sources under it). -->
   <Style Selector="StackPanel.chatAnswer">
-    <Setter Property="Spacing" Value="{StaticResource Space.12}" />
+    <Setter Property="Spacing" Value="{StaticResource Space.10}" />
   </Style>
   <Style Selector="StackPanel.chatAnswer.sourced">
-    <Setter Property="Spacing" Value="{StaticResource Space.16}" />
-  </Style>
-  <Style Selector="StackPanel.chatParagraphs">
     <Setter Property="Spacing" Value="{StaticResource Space.12}" />
   </Style>
+  <Style Selector="StackPanel.chatParagraphs">
+    <Setter Property="Spacing" Value="{StaticResource Space.10}" />
+  </Style>
   <Style Selector="StackPanel.chatAnswer.sourced StackPanel.chatParagraphs">
-    <Setter Property="Spacing" Value="{StaticResource Space.16}" />
+    <Setter Property="Spacing" Value="{StaticResource Space.12}" />
   </Style>
   <Style Selector="TextBlock.chatAnswerText">
     <Setter Property="FontFamily" Value="{StaticResource Font.Body}" />
-    <Setter Property="FontSize" Value="{StaticResource FontSize.Answer}" />
-    <Setter Property="LineHeight" Value="{StaticResource LineHeight.Answer}" />
-    <Setter Property="LetterSpacing" Value="{StaticResource LetterSpacing.Answer}" />
+    <Setter Property="FontSize" Value="{StaticResource FontSize.MessageLine}" />
+    <Setter Property="LineHeight" Value="{StaticResource LineHeight.MessageLine}" />
+    <Setter Property="LetterSpacing" Value="{StaticResource LetterSpacing.MessageLine}" />
     <Setter Property="Foreground" Value="{DynamicResource Brush.Ink}" />
     <Setter Property="TextWrapping" Value="Wrap" />
-    <Setter Property="Margin" Value="{StaticResource Chat.AnswerShift}" />
+    <Setter Property="Margin" Value="{StaticResource Chat.AnswerGrow}" />
   </Style>
 
   <!-- A time chip: a Geist Mono pill with the play glyph; it sits inside a line of the answer. -->
@@ -196,9 +208,9 @@
   <Style Selector="TextBlock.chatChipText">
     <Setter Property="FontFamily" Value="{StaticResource Font.Mono}" />
     <Setter Property="FontWeight" Value="{StaticResource FontWeight.Mono}" />
-    <Setter Property="FontSize" Value="{StaticResource FontSize.Chip}" />
-    <Setter Property="LineHeight" Value="{StaticResource LineHeight.Chip}" />
-    <Setter Property="LetterSpacing" Value="{StaticResource LetterSpacing.Chip}" />
+    <Setter Property="FontSize" Value="{StaticResource FontSize.MonoSmall}" />
+    <Setter Property="LineHeight" Value="{StaticResource LineHeight.MonoSmall}" />
+    <Setter Property="LetterSpacing" Value="{StaticResource LetterSpacing.MonoSmall}" />
     <Setter Property="VerticalAlignment" Value="Center" />
   </Style>
 
@@ -206,7 +218,7 @@
   <Style Selector="Button.chatSource">
     <Setter Property="MinHeight" Value="0" />
     <Setter Property="Padding" Value="{StaticResource Chat.SourceInset}" />
-    <Setter Property="CornerRadius" Value="{StaticResource Radius.Note}" />
+    <Setter Property="CornerRadius" Value="{StaticResource Radius.Panel}" />
     <Setter Property="Background" Value="Transparent" />
     <Setter Property="Foreground" Value="{DynamicResource Brush.Ink}" />
     <Setter Property="BorderBrush" Value="{DynamicResource Brush.Hairline}" />
@@ -237,6 +249,23 @@
     <Setter Property="LineHeight" Value="{StaticResource LineHeight.MonoSmall}" />
     <Setter Property="LetterSpacing" Value="{StaticResource LetterSpacing.MonoSmall}" />
     <Setter Property="Foreground" Value="{DynamicResource Brush.Smoke}" />
+  </Style>
+
+  <!-- "Sources": 11 px Smoke on the canvas's 14 px line. -->
+  <Style Selector="TextBlock.chatSourcesLabel">
+    <Setter Property="FontFamily" Value="{StaticResource Font.Body}" />
+    <Setter Property="FontSize" Value="{StaticResource FontSize.Tag}" />
+    <Setter Property="LineHeight" Value="{StaticResource LineHeight.Tag}" />
+    <Setter Property="LetterSpacing" Value="{StaticResource LetterSpacing.Tag}" />
+    <Setter Property="Foreground" Value="{DynamicResource Brush.Smoke}" />
+  </Style>
+  <Style Selector="TextBlock.chatSourceSnippet">
+    <Setter Property="FontFamily" Value="{StaticResource Font.Body}" />
+    <Setter Property="FontSize" Value="{StaticResource FontSize.SourceSnippet}" />
+    <Setter Property="LineHeight" Value="{StaticResource LineHeight.SourceSnippet}" />
+    <Setter Property="LetterSpacing" Value="{StaticResource LetterSpacing.SourceSnippet}" />
+    <Setter Property="Foreground" Value="{DynamicResource Brush.Smoke}" />
+    <Setter Property="TextWrapping" Value="Wrap" />
   </Style>
 
   <!-- The round icon buttons under an answer (Copy answer, Regenerate). -->
@@ -280,18 +309,22 @@
     <Setter Property="Padding" Value="{StaticResource Chat.InputInset}" />
     <Setter Property="MinHeight" Value="{StaticResource Chat.InputMinHeight}" />
     <Setter Property="MaxHeight" Value="{StaticResource Chat.InputMaxHeight}" />
-    <Setter Property="FontSize" Value="{StaticResource FontSize.RowTitle}" />
-    <Setter Property="LineHeight" Value="{StaticResource LineHeight.RowTitle}" />
+    <Setter Property="FontSize" Value="{StaticResource FontSize.Meta}" />
+    <Setter Property="LineHeight" Value="{StaticResource LineHeight.Meta}" />
     <Setter Property="LetterSpacing" Value="0" />
     <Setter Property="AcceptsReturn" Value="True" />
     <Setter Property="TextWrapping" Value="Wrap" />
     <Setter Property="VerticalContentAlignment" Value="Top" />
     <Setter Property="VerticalAlignment" Value="Stretch" />
   </Style>
+  <Style Selector="Button.start.send.chatSend">
+    <Setter Property="Width" Value="{StaticResource Chat.SendSize}" />
+    <Setter Property="Height" Value="{StaticResource Chat.SendSize}" />
+  </Style>
   <!-- Stop while an answer is generating: the outline circle in the place of the send button. -->
   <Style Selector="Button.chatStop">
-    <Setter Property="Width" Value="{StaticResource Size.AskSend}" />
-    <Setter Property="Height" Value="{StaticResource Size.AskSend}" />
+    <Setter Property="Width" Value="{StaticResource Chat.SendSize}" />
+    <Setter Property="Height" Value="{StaticResource Chat.SendSize}" />
     <Setter Property="MinHeight" Value="0" />
     <Setter Property="MinWidth" Value="0" />
     <Setter Property="Padding" Value="0" />

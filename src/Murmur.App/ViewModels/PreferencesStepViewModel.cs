@@ -36,6 +36,8 @@ public sealed partial class PreferencesStepViewModel : OnboardingStepViewModel
 
     public override string Title => Strings.Onb4_Headline;
 
+    public override bool DenseFrame => true;
+
     public override string Subtitle => Strings.Onb4_Subline;
 
     public StorageSettingsViewModel Storage { get; }

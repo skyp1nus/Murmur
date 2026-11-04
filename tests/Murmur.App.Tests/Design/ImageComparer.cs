@@ -62,8 +62,8 @@ internal static class ImageComparer
         return (Convert.ToByte(hex[..2], 16), Convert.ToByte(hex[2..4], 16), Convert.ToByte(hex[4..6], 16));
     }
 
-    /// <summary>The width of the sidebar strip of the main screens (the 240 px column and its hairline).</summary>
-    public const int SidebarWidth = 241;
+    /// <summary>The width of the sidebar strip of the main screens (the 200 px column, its hairline included).</summary>
+    public const int SidebarWidth = 200;
 
     /// <summary>The largest per-channel difference (of 255) that still counts as the same colour.</summary>
     public const int DefaultTolerance = 5;

@@ -1393,4 +1393,21 @@ public sealed class OnboardingViewModelTests : IDisposable
         Assert.True(rig.Devices.Latest(AudioDeviceKind.Microphone).FaultedHandledAtStart);
         Assert.True(rig.Devices.Latest(AudioDeviceKind.SystemOutput).FaultedHandledAtStart);
     }
+
+    // The frame ---------------------------------------------------------------------------------------------------------
+
+    [Fact]
+    public async Task OnlyTheLastTwoSteps_UseTheDenseFrameOfTheCanvas()
+    {
+        using var rig = new OnboardingRig();
+        var dense = new List<bool>();
+
+        for (var step = 1; step <= 5; step++)
+        {
+            await rig.GoToStepAsync(step);
+            dense.Add(rig.Onboarding.CurrentStep.DenseFrame);
+        }
+
+        Assert.Equal([false, false, false, true, true], dense);
+    }
 }

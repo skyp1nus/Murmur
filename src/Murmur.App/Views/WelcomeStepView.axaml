@@ -12,14 +12,10 @@
     <controls:GlassOrbControl x:Name="WelcomeOrb"
                               Classes="welcome"
                               HorizontalAlignment="Center"
+                              Margin="{StaticResource Margin.OnbOrbLift}"
                               IsActive="True" />
-    <StackPanel Spacing="{StaticResource Space.14}"
-                HorizontalAlignment="Center">
-      <TextBlock Classes="display"
-                 Margin="{StaticResource Margin.OnbDisplayLift}"
-                 Padding="{StaticResource Margin.OnbDescender}"
-                 TextAlignment="Center"
-                 TextWrapping="Wrap"
+    <StackPanel Classes="onbText">
+      <TextBlock Classes="onbH1"
                  Text="{Binding Title}" />
       <TextBlock Classes="onbSub"
                  Text="{Binding Subtitle}" />

@@ -44,26 +44,32 @@ public static class TokenGenerator
         """;
 
     /// <summary>Typography scale entries that use the display font (light weight, negative tracking).</summary>
-    private static readonly string[] DisplayScale = ["display", "heading", "headingSm", "cardTitle", "pageTitle", "hero", "timer"];
+    private static readonly string[] DisplayScale = ["display", "heading", "headingSm", "cardTitle", "pageTitle", "hero", "timer", "onbTitle"];
 
     /// <summary>Component insets: name, horizontal and vertical value. Both must exist in the spacing scale.</summary>
     private static readonly (string Name, int Horizontal, int Vertical)[] Insets =
     [
-        ("Button", 24, 12),
-        ("Input", 12, 8),
-        ("Search", 20, 12),
-        ("Card", 32, 32),
-        ("SidebarFrame", 16, 20),
-        ("Wordmark", 10, 4),
-        ("Offline", 16, 14),
-        ("TopBar", 32, 12),
-        ("Key", 8, 3),
-        ("Toggle", 14, 0),
-        ("Suggestion", 12, 0),
-        ("StartButton", 20, 0),
-        ("SearchBox", 16, 0),
-        ("RowPad", 20, 16),
-        ("LibraryItem", 32, 0),
+        ("Button", 14, 0),
+        ("Input", 12, 6),
+        ("Search", 12, 0),
+        ("Card", 16, 16),
+        ("CardHero", 20, 20),
+        ("CardList", 16, 14),
+        ("GroupRow", 16, 12),
+        ("SidebarFrame", 12, 16),
+        ("Wordmark", 8, 2),
+        ("Offline", 12, 12),
+        ("TopBar", 24, 0),
+        ("Key", 6, 2),
+        ("Nav", 10, 0),
+        ("Compact", 12, 0),
+        ("Toggle", 10, 0),
+        ("Filter", 12, 0),
+        ("Suggestion", 10, 0),
+        ("StartButton", 14, 0),
+        ("SearchBox", 12, 0),
+        ("RowPad", 14, 10),
+        ("LibraryItem", 24, 0),
         ("InputBare", 2, 0),
         ("SessionRow", 14, 12),
         ("SessionChip", 8, 3),
@@ -218,6 +224,11 @@ public static class TokenGenerator
 
         foreach (var entry in scale.EnumerateObject())
         {
+            if (entry.Name.StartsWith('$'))
+            {
+                continue;
+            }
+
             var name = Pascal(entry.Name);
             var size = entry.Value.GetProperty("size").GetDouble();
             var ratio = entry.Value.GetProperty("lineHeight").GetDouble();

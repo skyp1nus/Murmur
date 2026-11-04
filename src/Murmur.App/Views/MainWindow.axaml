@@ -6,10 +6,10 @@
         x:DataType="vm:ShellViewModel"
         Title="Murmur"
         Icon="/Assets/murmur.ico"
-        Width="1200"
-        Height="780"
-        MinWidth="900"
-        MinHeight="600">
+        Width="{StaticResource Size.WindowWidth}"
+        Height="{StaticResource Size.WindowHeight}"
+        MinWidth="{StaticResource Size.WindowMinWidth}"
+        MinHeight="{StaticResource Size.WindowMinHeight}">
 
   <!-- Navigation: the shell exposes the current page view model; templates are keyed by its type (no reflection). -->
   <Window.DataTemplates>
@@ -61,7 +61,7 @@
 
     <Grid Grid.Column="1"
           RowDefinitions="Auto,*">
-      <!-- The 60 px top bar of the main screens -->
+      <!-- The 48 px top bar of the main screens -->
       <Border Grid.Row="0"
               IsVisible="{Binding !IsOnboarding}">
         <views:TopBarView DataContext="{Binding TopBar}" />

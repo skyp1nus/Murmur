@@ -15,7 +15,7 @@
               ToolTip.Tip="{Binding Tooltip}"
               ToolTip.ShowOnDisabled="True">
         <StackPanel Orientation="Horizontal"
-                    Spacing="{StaticResource Space.4}">
+                    Spacing="{StaticResource Space.3}">
           <controls:IconControl Width="{StaticResource Chat.PlayIcon}"
                                 Height="{StaticResource Chat.PlayIcon}"
                                 IsFilled="True"
@@ -29,7 +29,7 @@
   </UserControl.Resources>
 
   <!--
-    The conversation of the canvas (Chat.dc.html): the messages as one virtualised column of 820 px, the composer under it. The message
+    The conversation of the canvas (Chat.dc.html): the messages as one virtualised column of 720 px, the composer under it. The message
     list is an items control with its own scroll viewer, so a long chat only builds the messages on screen.
   -->
   <Grid RowDefinitions="*,Auto">
@@ -72,16 +72,16 @@
                         Classes.sourced="{Binding HasSources}"
                         IsVisible="{Binding IsAssistant}">
               <StackPanel Orientation="Horizontal"
-                          Spacing="{StaticResource Space.10}">
+                          Spacing="{StaticResource Space.8}">
                 <controls:OrbDisc Width="{StaticResource Chat.AvatarSize}"
                                   Height="{StaticResource Chat.AvatarSize}"
                                   VerticalAlignment="Center" />
-                <TextBlock Classes="t13 medium"
+                <TextBlock Classes="t12 medium"
                            VerticalAlignment="Center"
                            Text="Murmur" />
               </StackPanel>
 
-              <TextBlock Classes="t14 muted"
+              <TextBlock Classes="t13 muted"
                          IsVisible="{Binding ShowThinking}"
                          Text="{x:Static res:Strings.Chat_Thinking}" />
 
@@ -107,15 +107,15 @@
                 </ItemsControl.ItemTemplate>
               </ItemsControl>
 
-              <TextBlock Classes="t14 muted"
+              <TextBlock Classes="t13 muted"
                          TextWrapping="Wrap"
                          IsVisible="{Binding HasStatus}"
                          Text="{Binding StatusText}" />
 
               <!-- Sources -->
-              <StackPanel Spacing="{StaticResource Space.8}"
+              <StackPanel Spacing="{StaticResource Space.6}"
                           IsVisible="{Binding HasSources}">
-                <TextBlock Classes="t12 muted"
+                <TextBlock Classes="chatSourcesLabel"
                            Text="{x:Static res:Strings.Chat_Sources}" />
                 <ItemsControl ItemsSource="{Binding Sources}">
                   <ItemsControl.ItemsPanel>
@@ -130,11 +130,11 @@
                               Command="{Binding OpenCommand}"
                               ToolTip.Tip="{Binding Tooltip}"
                               ToolTip.ShowOnDisabled="True">
-                        <StackPanel Spacing="{StaticResource Space.6}">
+                        <StackPanel Spacing="{StaticResource Space.4}">
                           <Grid ColumnDefinitions="*,Auto"
                                 ColumnSpacing="{StaticResource Space.8}">
                             <TextBlock Grid.Column="0"
-                                       Classes="t13 medium"
+                                       Classes="t12 medium"
                                        TextTrimming="CharacterEllipsis"
                                        Foreground="{Binding $parent[ContentPresenter].Foreground}"
                                        Text="{Binding Title}" />
@@ -142,8 +142,7 @@
                                        Classes="chatSourceTime"
                                        Text="{Binding Time}" />
                           </Grid>
-                          <TextBlock Classes="t13 muted"
-                                     LineHeight="{StaticResource LineHeight.Meta}"
+                          <TextBlock Classes="chatSourceSnippet"
                                      TextWrapping="Wrap"
                                      Text="{Binding Snippet}" />
                         </StackPanel>
@@ -155,7 +154,7 @@
 
               <!-- Copy answer, Regenerate -->
               <StackPanel Orientation="Horizontal"
-                          Spacing="{StaticResource Space.6}"
+                          Spacing="{StaticResource Space.4}"
                           IsVisible="{Binding HasActions}">
                 <Button Classes="chatIcon"
                         AutomationProperties.Name="{x:Static res:Strings.Chat_CopyAnswer}"
@@ -204,7 +203,7 @@
                  TextAlignment="Center"
                  TextWrapping="Wrap"
                  Text="{Binding EmptyTitle}" />
-      <TextBlock Classes="paragraph"
+      <TextBlock Classes="t13 muted"
                  HorizontalAlignment="Center"
                  TextAlignment="Center"
                  Text="{Binding EmptyText}" />
@@ -222,9 +221,8 @@
                    FontWeight="{StaticResource FontWeight.BodyMedium}"
                    TextWrapping="Wrap"
                    Text="{Binding NoticeTitle}" />
-        <TextBlock Classes="body"
+        <TextBlock Classes="t13 graphite"
                    TextWrapping="Wrap"
-                   Foreground="{DynamicResource Brush.Graphite}"
                    Text="{Binding NoticeText}" />
         <Button Classes="outline"
                 HorizontalAlignment="Left"
@@ -237,7 +235,7 @@
     <!-- Composer and the disclaimer -->
     <Border Grid.Row="1"
             Classes="chatComposerArea">
-      <StackPanel Spacing="{StaticResource Space.10}">
+      <StackPanel Spacing="{StaticResource Space.8}">
         <Border Classes="chatComposer">
           <Grid ColumnDefinitions="*,Auto"
                 ColumnSpacing="{StaticResource Space.8}">
@@ -249,7 +247,7 @@
                      IsEnabled="{Binding CanEditQuestion}"
                      Text="{Binding Question}" />
             <Button Grid.Column="1"
-                    Classes="start send"
+                    Classes="start send chatSend"
                     VerticalAlignment="Bottom"
                     AutomationProperties.Name="{x:Static res:Strings.Chat_Send}"
                     ToolTip.Tip="{x:Static res:Strings.Chat_Send}"
@@ -275,7 +273,7 @@
             </Button>
           </Grid>
         </Border>
-        <TextBlock Classes="t12 muted"
+        <TextBlock Classes="t11 muted"
                    HorizontalAlignment="Center"
                    TextAlignment="Center"
                    Text="{x:Static res:Strings.Chat_Disclaimer}" />

@@ -1,45 +1,45 @@
 {
  "board": "OnbComponentsDark",
- "width": 1280,
- "height": 1600,
+ "width": 1100,
+ "height": 1160,
  "texts": [
   {
    "text": "Onboarding components · Dark",
    "lines": [
     {
-     "x": 56,
-     "y": 55,
-     "w": 503.41,
-     "h": 44
+     "x": 40,
+     "y": 39,
+     "w": 335.61,
+     "h": 29
     }
    ],
-   "baseline": 90,
+   "baseline": 62,
    "blockId": 0,
    "blockText": "Onboarding components · Dark",
    "fontFamily": "Inter, ui-sans-serif, system-ui, \"Segoe UI\", sans-serif",
-   "fontSize": 36,
+   "fontSize": 24,
    "fontWeight": 300,
-   "letterSpacing": "-0.72px",
-   "lineHeight": "42.12px",
+   "letterSpacing": "-0.48px",
+   "lineHeight": "28.08px",
    "color": "rgb(245, 243, 241)"
   },
   {
-   "text": "Dark-theme states for the Avalonia controls used across the five onboarding steps.",
+   "text": "Dark-theme states for the Avalonia controls used across the five onboarding steps. Sizes are real, at 100% Windows scale.",
    "lines": [
     {
-     "x": 56,
-     "y": 106.11,
-     "w": 558.98,
-     "h": 17
+     "x": 40,
+     "y": 74.08,
+     "w": 767.63,
+     "h": 16
     }
    ],
-   "baseline": 120.11,
+   "baseline": 87.08,
    "blockId": 1,
-   "blockText": "Dark-theme states for the Avalonia controls used across the five onboarding steps.",
+   "blockText": "Dark-theme states for the Avalonia controls used across the five onboarding steps. Sizes are real, at 100% Windows scale.",
    "fontFamily": "Inter, ui-sans-serif, system-ui, \"Segoe UI\", sans-serif",
-   "fontSize": 14,
+   "fontSize": 13,
    "fontWeight": 400,
-   "letterSpacing": "0.14px",
+   "letterSpacing": "0.13px",
    "lineHeight": "normal",
    "color": "rgb(165, 159, 151)"
   },
@@ -47,19 +47,19 @@
    "text": "Step indicator",
    "lines": [
     {
-     "x": 56,
-     "y": 196.11,
-     "w": 95.05,
-     "h": 17
+     "x": 40,
+     "y": 139.08,
+     "w": 88.25,
+     "h": 16
     }
    ],
-   "baseline": 210.11,
+   "baseline": 152.08,
    "blockId": 2,
    "blockText": "Step indicator + progress segments",
    "fontFamily": "Inter, ui-sans-serif, system-ui, \"Segoe UI\", sans-serif",
-   "fontSize": 14,
+   "fontSize": 13,
    "fontWeight": 500,
-   "letterSpacing": "0.14px",
+   "letterSpacing": "0.13px",
    "lineHeight": "normal",
    "color": "rgb(245, 243, 241)"
   },
@@ -67,19 +67,19 @@
    "text": "+ progress segments",
    "lines": [
     {
-     "x": 56,
-     "y": 213.11,
-     "w": 143.05,
-     "h": 17
+     "x": 40,
+     "y": 155.08,
+     "w": 132.83,
+     "h": 16
     }
    ],
-   "baseline": 227.11,
+   "baseline": 168.08,
    "blockId": 2,
    "blockText": "Step indicator + progress segments",
    "fontFamily": "Inter, ui-sans-serif, system-ui, \"Segoe UI\", sans-serif",
-   "fontSize": 14,
+   "fontSize": 13,
    "fontWeight": 400,
-   "letterSpacing": "0.14px",
+   "letterSpacing": "0.13px",
    "lineHeight": "normal",
    "color": "rgb(165, 159, 151)"
   },
@@ -87,19 +87,19 @@
    "text": "1 / 5",
    "lines": [
     {
-     "x": 296,
-     "y": 196.11,
-     "w": 39.7,
-     "h": 17
+     "x": 252,
+     "y": 139.08,
+     "w": 36.66,
+     "h": 16
     }
    ],
-   "baseline": 209.11,
+   "baseline": 151.08,
    "blockId": 3,
    "blockText": "1 / 5",
    "fontFamily": "\"Geist Mono\", ui-monospace, monospace",
-   "fontSize": 13,
+   "fontSize": 12,
    "fontWeight": 400,
-   "letterSpacing": "0.14px",
+   "letterSpacing": "0.13px",
    "lineHeight": "normal",
    "color": "rgb(165, 159, 151)"
   },
@@ -107,19 +107,19 @@
    "text": "Step 1",
    "lines": [
     {
-     "x": 296,
-     "y": 223.11,
-     "w": 34.95,
-     "h": 15
+     "x": 252,
+     "y": 163.08,
+     "w": 32.05,
+     "h": 14
     }
    ],
-   "baseline": 235.11,
+   "baseline": 174.08,
    "blockId": 4,
    "blockText": "Step 1",
    "fontFamily": "Inter, ui-sans-serif, system-ui, \"Segoe UI\", sans-serif",
-   "fontSize": 12,
+   "fontSize": 11,
    "fontWeight": 400,
-   "letterSpacing": "0.14px",
+   "letterSpacing": "0.13px",
    "lineHeight": "normal",
    "color": "rgb(165, 159, 151)"
   },
@@ -127,19 +127,19 @@
    "text": "3 / 5",
    "lines": [
     {
-     "x": 589.7,
-     "y": 196.11,
-     "w": 39.7,
-     "h": 17
+     "x": 476.66,
+     "y": 139.08,
+     "w": 36.66,
+     "h": 16
     }
    ],
-   "baseline": 209.11,
+   "baseline": 151.08,
    "blockId": 5,
    "blockText": "3 / 5",
    "fontFamily": "\"Geist Mono\", ui-monospace, monospace",
-   "fontSize": 13,
+   "fontSize": 12,
    "fontWeight": 400,
-   "letterSpacing": "0.14px",
+   "letterSpacing": "0.13px",
    "lineHeight": "normal",
    "color": "rgb(165, 159, 151)"
   },
@@ -147,19 +147,19 @@
    "text": "Step 3",
    "lines": [
     {
-     "x": 589.7,
-     "y": 223.11,
-     "w": 37.48,
-     "h": 15
+     "x": 476.66,
+     "y": 163.08,
+     "w": 34.38,
+     "h": 14
     }
    ],
-   "baseline": 235.11,
+   "baseline": 174.08,
    "blockId": 6,
    "blockText": "Step 3",
    "fontFamily": "Inter, ui-sans-serif, system-ui, \"Segoe UI\", sans-serif",
-   "fontSize": 12,
+   "fontSize": 11,
    "fontWeight": 400,
-   "letterSpacing": "0.14px",
+   "letterSpacing": "0.13px",
    "lineHeight": "normal",
    "color": "rgb(165, 159, 151)"
   },
@@ -167,19 +167,19 @@
    "text": "Done, current · #f5f3f1",
    "lines": [
     {
-     "x": 883.41,
-     "y": 217.11,
-     "w": 131.53,
-     "h": 15
+     "x": 701.31,
+     "y": 157.08,
+     "w": 120.61,
+     "h": 14
     }
    ],
-   "baseline": 229.11,
+   "baseline": 168.08,
    "blockId": 7,
    "blockText": "Done, current · #f5f3f1",
    "fontFamily": "Inter, ui-sans-serif, system-ui, \"Segoe UI\", sans-serif",
-   "fontSize": 12,
+   "fontSize": 11,
    "fontWeight": 400,
-   "letterSpacing": "0.14px",
+   "letterSpacing": "0.13px",
    "lineHeight": "normal",
    "color": "rgb(165, 159, 151)"
   },
@@ -187,19 +187,19 @@
    "text": "Upcoming · #2b2825",
    "lines": [
     {
-     "x": 1038.94,
-     "y": 217.11,
-     "w": 122.38,
-     "h": 15
+     "x": 841.92,
+     "y": 157.08,
+     "w": 112.2,
+     "h": 14
     }
    ],
-   "baseline": 229.11,
+   "baseline": 168.08,
    "blockId": 8,
    "blockText": "Upcoming · #2b2825",
    "fontFamily": "Inter, ui-sans-serif, system-ui, \"Segoe UI\", sans-serif",
-   "fontSize": 12,
+   "fontSize": 11,
    "fontWeight": 400,
-   "letterSpacing": "0.14px",
+   "letterSpacing": "0.13px",
    "lineHeight": "normal",
    "color": "rgb(165, 159, 151)"
   },
@@ -207,39 +207,59 @@
    "text": "Buttons",
    "lines": [
     {
-     "x": 56,
-     "y": 311.11,
-     "w": 52.36,
-     "h": 17
+     "x": 40,
+     "y": 226.08,
+     "w": 48.63,
+     "h": 16
     }
    ],
-   "baseline": 325.11,
+   "baseline": 239.08,
    "blockId": 9,
-   "blockText": "Buttons",
+   "blockText": "Buttons 36 primary · 32 secondary",
    "fontFamily": "Inter, ui-sans-serif, system-ui, \"Segoe UI\", sans-serif",
-   "fontSize": 14,
+   "fontSize": 13,
    "fontWeight": 500,
-   "letterSpacing": "0.14px",
+   "letterSpacing": "0.13px",
    "lineHeight": "normal",
    "color": "rgb(245, 243, 241)"
+  },
+  {
+   "text": "36 primary · 32 secondary",
+   "lines": [
+    {
+     "x": 40,
+     "y": 242.08,
+     "w": 165.91,
+     "h": 16
+    }
+   ],
+   "baseline": 255.08,
+   "blockId": 9,
+   "blockText": "Buttons 36 primary · 32 secondary",
+   "fontFamily": "Inter, ui-sans-serif, system-ui, \"Segoe UI\", sans-serif",
+   "fontSize": 13,
+   "fontWeight": 400,
+   "letterSpacing": "0.13px",
+   "lineHeight": "normal",
+   "color": "rgb(165, 159, 151)"
   },
   {
    "text": "Default",
    "lines": [
     {
-     "x": 440,
-     "y": 311.11,
-     "w": 41.73,
-     "h": 15
+     "x": 372,
+     "y": 226.08,
+     "w": 38.28,
+     "h": 14
     }
    ],
-   "baseline": 323.11,
+   "baseline": 237.08,
    "blockId": 10,
    "blockText": "Default",
    "fontFamily": "Inter, ui-sans-serif, system-ui, \"Segoe UI\", sans-serif",
-   "fontSize": 12,
+   "fontSize": 11,
    "fontWeight": 400,
-   "letterSpacing": "0.14px",
+   "letterSpacing": "0.13px",
    "lineHeight": "normal",
    "color": "rgb(165, 159, 151)"
   },
@@ -247,19 +267,19 @@
    "text": "Hover",
    "lines": [
     {
-     "x": 709.33,
-     "y": 311.11,
-     "w": 34.61,
-     "h": 15
+     "x": 608,
+     "y": 226.08,
+     "w": 31.73,
+     "h": 14
     }
    ],
-   "baseline": 323.11,
+   "baseline": 237.08,
    "blockId": 11,
    "blockText": "Hover",
    "fontFamily": "Inter, ui-sans-serif, system-ui, \"Segoe UI\", sans-serif",
-   "fontSize": 12,
+   "fontSize": 11,
    "fontWeight": 400,
-   "letterSpacing": "0.14px",
+   "letterSpacing": "0.13px",
    "lineHeight": "normal",
    "color": "rgb(165, 159, 151)"
   },
@@ -267,19 +287,19 @@
    "text": "Disabled",
    "lines": [
     {
-     "x": 978.66,
-     "y": 311.11,
-     "w": 50.36,
-     "h": 15
+     "x": 844,
+     "y": 226.08,
+     "w": 46.19,
+     "h": 14
     }
    ],
-   "baseline": 323.11,
+   "baseline": 237.08,
    "blockId": 12,
    "blockText": "Disabled",
    "fontFamily": "Inter, ui-sans-serif, system-ui, \"Segoe UI\", sans-serif",
-   "fontSize": 12,
+   "fontSize": 11,
    "fontWeight": 400,
-   "letterSpacing": "0.14px",
+   "letterSpacing": "0.13px",
    "lineHeight": "normal",
    "color": "rgb(165, 159, 151)"
   },
@@ -287,19 +307,19 @@
    "text": "Primary",
    "lines": [
     {
-     "x": 296,
-     "y": 360.11,
-     "w": 48.55,
-     "h": 16
+     "x": 252,
+     "y": 262.58,
+     "w": 44.83,
+     "h": 15
     }
    ],
-   "baseline": 373.11,
+   "baseline": 274.58,
    "blockId": 13,
    "blockText": "Primary",
    "fontFamily": "Inter, ui-sans-serif, system-ui, \"Segoe UI\", sans-serif",
-   "fontSize": 13,
+   "fontSize": 12,
    "fontWeight": 400,
-   "letterSpacing": "0.14px",
+   "letterSpacing": "0.13px",
    "lineHeight": "normal",
    "color": "rgb(214, 209, 203)"
   },
@@ -307,17 +327,17 @@
    "text": "Continue",
    "lines": [
     {
-     "x": 464,
-     "y": 359.61,
-     "w": 60.52,
-     "h": 17
+     "x": 390,
+     "y": 262.08,
+     "w": 56.19,
+     "h": 16
     }
    ],
-   "baseline": 373.61,
+   "baseline": 275.08,
    "blockId": 14,
    "blockText": "Continue",
    "fontFamily": "Inter, ui-sans-serif, system-ui, \"Segoe UI\", sans-serif",
-   "fontSize": 14,
+   "fontSize": 13,
    "fontWeight": 500,
    "letterSpacing": "normal",
    "lineHeight": "normal",
@@ -327,17 +347,17 @@
    "text": "Continue",
    "lines": [
     {
-     "x": 733.33,
-     "y": 359.61,
-     "w": 60.52,
-     "h": 17
+     "x": 626,
+     "y": 262.08,
+     "w": 56.19,
+     "h": 16
     }
    ],
-   "baseline": 373.61,
+   "baseline": 275.08,
    "blockId": 15,
    "blockText": "Continue",
    "fontFamily": "Inter, ui-sans-serif, system-ui, \"Segoe UI\", sans-serif",
-   "fontSize": 14,
+   "fontSize": 13,
    "fontWeight": 500,
    "letterSpacing": "normal",
    "lineHeight": "normal",
@@ -347,17 +367,17 @@
    "text": "Continue",
    "lines": [
     {
-     "x": 1002.66,
-     "y": 359.61,
-     "w": 60.52,
-     "h": 17
+     "x": 862,
+     "y": 262.08,
+     "w": 56.19,
+     "h": 16
     }
    ],
-   "baseline": 373.61,
+   "baseline": 275.08,
    "blockId": 16,
    "blockText": "Continue",
    "fontFamily": "Inter, ui-sans-serif, system-ui, \"Segoe UI\", sans-serif",
-   "fontSize": 14,
+   "fontSize": 13,
    "fontWeight": 500,
    "letterSpacing": "normal",
    "lineHeight": "normal",
@@ -367,19 +387,19 @@
    "text": "Secondary",
    "lines": [
     {
-     "x": 296,
-     "y": 424.11,
-     "w": 67.75,
-     "h": 16
+     "x": 252,
+     "y": 308.58,
+     "w": 62.55,
+     "h": 15
     }
    ],
-   "baseline": 437.11,
+   "baseline": 320.58,
    "blockId": 17,
    "blockText": "Secondary",
    "fontFamily": "Inter, ui-sans-serif, system-ui, \"Segoe UI\", sans-serif",
-   "fontSize": 13,
+   "fontSize": 12,
    "fontWeight": 400,
-   "letterSpacing": "0.14px",
+   "letterSpacing": "0.13px",
    "lineHeight": "normal",
    "color": "rgb(214, 209, 203)"
   },
@@ -387,17 +407,17 @@
    "text": "Change",
    "lines": [
     {
-     "x": 461,
-     "y": 423.61,
-     "w": 51.97,
-     "h": 17
+     "x": 389,
+     "y": 308.08,
+     "w": 48.25,
+     "h": 16
     }
    ],
-   "baseline": 437.61,
+   "baseline": 321.08,
    "blockId": 18,
    "blockText": "Change",
    "fontFamily": "Inter, ui-sans-serif, system-ui, \"Segoe UI\", sans-serif",
-   "fontSize": 14,
+   "fontSize": 13,
    "fontWeight": 500,
    "letterSpacing": "normal",
    "lineHeight": "normal",
@@ -407,17 +427,17 @@
    "text": "Change",
    "lines": [
     {
-     "x": 730.33,
-     "y": 423.61,
-     "w": 51.97,
-     "h": 17
+     "x": 625,
+     "y": 308.08,
+     "w": 48.25,
+     "h": 16
     }
    ],
-   "baseline": 437.61,
+   "baseline": 321.08,
    "blockId": 19,
    "blockText": "Change",
    "fontFamily": "Inter, ui-sans-serif, system-ui, \"Segoe UI\", sans-serif",
-   "fontSize": 14,
+   "fontSize": 13,
    "fontWeight": 500,
    "letterSpacing": "normal",
    "lineHeight": "normal",
@@ -427,17 +447,17 @@
    "text": "Change",
    "lines": [
     {
-     "x": 999.66,
-     "y": 423.61,
-     "w": 51.97,
-     "h": 17
+     "x": 861,
+     "y": 308.08,
+     "w": 48.25,
+     "h": 16
     }
    ],
-   "baseline": 437.61,
+   "baseline": 321.08,
    "blockId": 20,
    "blockText": "Change",
    "fontFamily": "Inter, ui-sans-serif, system-ui, \"Segoe UI\", sans-serif",
-   "fontSize": 14,
+   "fontSize": 13,
    "fontWeight": 500,
    "letterSpacing": "normal",
    "lineHeight": "normal",
@@ -447,19 +467,19 @@
    "text": "Text",
    "lines": [
     {
-     "x": 296,
-     "y": 488.11,
-     "w": 26.83,
-     "h": 16
+     "x": 252,
+     "y": 352.58,
+     "w": 24.78,
+     "h": 15
     }
    ],
-   "baseline": 501.11,
+   "baseline": 364.58,
    "blockId": 21,
    "blockText": "Text",
    "fontFamily": "Inter, ui-sans-serif, system-ui, \"Segoe UI\", sans-serif",
-   "fontSize": 13,
+   "fontSize": 12,
    "fontWeight": 400,
-   "letterSpacing": "0.14px",
+   "letterSpacing": "0.13px",
    "lineHeight": "normal",
    "color": "rgb(214, 209, 203)"
   },
@@ -467,17 +487,17 @@
    "text": "Back",
    "lines": [
     {
-     "x": 456,
-     "y": 487.61,
-     "w": 33.06,
-     "h": 17
+     "x": 384,
+     "y": 352.08,
+     "w": 30.7,
+     "h": 16
     }
    ],
-   "baseline": 501.61,
+   "baseline": 365.08,
    "blockId": 22,
    "blockText": "Back",
    "fontFamily": "Inter, ui-sans-serif, system-ui, \"Segoe UI\", sans-serif",
-   "fontSize": 14,
+   "fontSize": 13,
    "fontWeight": 500,
    "letterSpacing": "normal",
    "lineHeight": "normal",
@@ -487,17 +507,17 @@
    "text": "Back",
    "lines": [
     {
-     "x": 725.33,
-     "y": 487.61,
-     "w": 33.06,
-     "h": 17
+     "x": 620,
+     "y": 352.08,
+     "w": 30.7,
+     "h": 16
     }
    ],
-   "baseline": 501.61,
+   "baseline": 365.08,
    "blockId": 23,
    "blockText": "Back",
    "fontFamily": "Inter, ui-sans-serif, system-ui, \"Segoe UI\", sans-serif",
-   "fontSize": 14,
+   "fontSize": 13,
    "fontWeight": 500,
    "letterSpacing": "normal",
    "lineHeight": "normal",
@@ -507,17 +527,17 @@
    "text": "Back",
    "lines": [
     {
-     "x": 994.66,
-     "y": 487.61,
-     "w": 33.06,
-     "h": 17
+     "x": 856,
+     "y": 352.08,
+     "w": 30.7,
+     "h": 16
     }
    ],
-   "baseline": 501.61,
+   "baseline": 365.08,
    "blockId": 24,
    "blockText": "Back",
    "fontFamily": "Inter, ui-sans-serif, system-ui, \"Segoe UI\", sans-serif",
-   "fontSize": 14,
+   "fontSize": 13,
    "fontWeight": 500,
    "letterSpacing": "normal",
    "lineHeight": "normal",
@@ -527,19 +547,19 @@
    "text": "Device dropdown",
    "lines": [
     {
-     "x": 56,
-     "y": 591.11,
-     "w": 119.59,
-     "h": 17
+     "x": 40,
+     "y": 425.08,
+     "w": 111.05,
+     "h": 16
     }
    ],
-   "baseline": 605.11,
+   "baseline": 438.08,
    "blockId": 25,
    "blockText": "Device dropdown + level meter",
    "fontFamily": "Inter, ui-sans-serif, system-ui, \"Segoe UI\", sans-serif",
-   "fontSize": 14,
+   "fontSize": 13,
    "fontWeight": 500,
-   "letterSpacing": "0.14px",
+   "letterSpacing": "0.13px",
    "lineHeight": "normal",
    "color": "rgb(245, 243, 241)"
   },
@@ -547,19 +567,19 @@
    "text": "+ level meter",
    "lines": [
     {
-     "x": 56,
-     "y": 608.11,
-     "w": 87.69,
-     "h": 17
+     "x": 40,
+     "y": 441.08,
+     "w": 81.44,
+     "h": 16
     }
    ],
-   "baseline": 622.11,
+   "baseline": 454.08,
    "blockId": 25,
    "blockText": "Device dropdown + level meter",
    "fontFamily": "Inter, ui-sans-serif, system-ui, \"Segoe UI\", sans-serif",
-   "fontSize": 14,
+   "fontSize": 13,
    "fontWeight": 400,
-   "letterSpacing": "0.14px",
+   "letterSpacing": "0.13px",
    "lineHeight": "normal",
    "color": "rgb(165, 159, 151)"
   },
@@ -567,19 +587,19 @@
    "text": "Default",
    "lines": [
     {
-     "x": 296,
-     "y": 591.11,
-     "w": 41.73,
-     "h": 15
+     "x": 252,
+     "y": 425.08,
+     "w": 38.28,
+     "h": 14
     }
    ],
-   "baseline": 603.11,
+   "baseline": 436.08,
    "blockId": 26,
    "blockText": "Default",
    "fontFamily": "Inter, ui-sans-serif, system-ui, \"Segoe UI\", sans-serif",
-   "fontSize": 12,
+   "fontSize": 11,
    "fontWeight": 400,
-   "letterSpacing": "0.14px",
+   "letterSpacing": "0.13px",
    "lineHeight": "normal",
    "color": "rgb(165, 159, 151)"
   },
@@ -587,17 +607,17 @@
    "text": "Microphone (USB Audio Device)",
    "lines": [
     {
-     "x": 309,
-     "y": 625.61,
-     "w": 213.28,
-     "h": 17
+     "x": 263,
+     "y": 453.08,
+     "w": 198.05,
+     "h": 16
     }
    ],
-   "baseline": 639.61,
+   "baseline": 466.08,
    "blockId": 27,
    "blockText": "Microphone (USB Audio Device)",
    "fontFamily": "Inter, ui-sans-serif, system-ui, \"Segoe UI\", sans-serif",
-   "fontSize": 14,
+   "fontSize": 13,
    "fontWeight": 400,
    "letterSpacing": "normal",
    "lineHeight": "normal",
@@ -607,19 +627,19 @@
    "text": "Open",
    "lines": [
     {
-     "x": 296,
-     "y": 674.11,
-     "w": 31.17,
-     "h": 15
+     "x": 252,
+     "y": 493.08,
+     "w": 28.59,
+     "h": 14
     }
    ],
-   "baseline": 686.11,
+   "baseline": 504.08,
    "blockId": 28,
    "blockText": "Open",
    "fontFamily": "Inter, ui-sans-serif, system-ui, \"Segoe UI\", sans-serif",
-   "fontSize": 12,
+   "fontSize": 11,
    "fontWeight": 400,
-   "letterSpacing": "0.14px",
+   "letterSpacing": "0.13px",
    "lineHeight": "normal",
    "color": "rgb(165, 159, 151)"
   },
@@ -627,17 +647,17 @@
    "text": "Microphone (USB Audio Device)",
    "lines": [
     {
-     "x": 309,
-     "y": 708.61,
-     "w": 213.28,
-     "h": 17
+     "x": 263,
+     "y": 521.08,
+     "w": 198.05,
+     "h": 16
     }
    ],
-   "baseline": 722.61,
+   "baseline": 534.08,
    "blockId": 29,
    "blockText": "Microphone (USB Audio Device)",
    "fontFamily": "Inter, ui-sans-serif, system-ui, \"Segoe UI\", sans-serif",
-   "fontSize": 14,
+   "fontSize": 13,
    "fontWeight": 400,
    "letterSpacing": "normal",
    "lineHeight": "normal",
@@ -647,19 +667,19 @@
    "text": "Microphone (USB Audio Device)",
    "lines": [
     {
-     "x": 311,
-     "y": 757.61,
-     "w": 217.34,
-     "h": 17
+     "x": 265,
+     "y": 560.08,
+     "w": 201.83,
+     "h": 16
     }
    ],
-   "baseline": 771.61,
+   "baseline": 573.08,
    "blockId": 30,
    "blockText": "Microphone (USB Audio Device)",
    "fontFamily": "Inter, ui-sans-serif, system-ui, \"Segoe UI\", sans-serif",
-   "fontSize": 14,
+   "fontSize": 13,
    "fontWeight": 400,
-   "letterSpacing": "0.14px",
+   "letterSpacing": "0.13px",
    "lineHeight": "normal",
    "color": "rgb(245, 243, 241)"
   },
@@ -667,19 +687,19 @@
    "text": "Headset Microphone (Bluetooth)",
    "lines": [
     {
-     "x": 311,
-     "y": 793.61,
-     "w": 219.8,
-     "h": 17
+     "x": 265,
+     "y": 588.08,
+     "w": 204.09,
+     "h": 16
     }
    ],
-   "baseline": 807.61,
+   "baseline": 601.08,
    "blockId": 31,
    "blockText": "Headset Microphone (Bluetooth)",
    "fontFamily": "Inter, ui-sans-serif, system-ui, \"Segoe UI\", sans-serif",
-   "fontSize": 14,
+   "fontSize": 13,
    "fontWeight": 400,
-   "letterSpacing": "0.14px",
+   "letterSpacing": "0.13px",
    "lineHeight": "normal",
    "color": "rgb(245, 243, 241)"
   },
@@ -687,19 +707,19 @@
    "text": "Microphone Array (Realtek Audio)",
    "lines": [
     {
-     "x": 311,
-     "y": 829.61,
-     "w": 228.59,
-     "h": 17
+     "x": 265,
+     "y": 616.08,
+     "w": 212.27,
+     "h": 16
     }
    ],
-   "baseline": 843.61,
+   "baseline": 629.08,
    "blockId": 32,
    "blockText": "Microphone Array (Realtek Audio)",
    "fontFamily": "Inter, ui-sans-serif, system-ui, \"Segoe UI\", sans-serif",
-   "fontSize": 14,
+   "fontSize": 13,
    "fontWeight": 400,
-   "letterSpacing": "0.14px",
+   "letterSpacing": "0.13px",
    "lineHeight": "normal",
    "color": "rgb(245, 243, 241)"
   },
@@ -707,19 +727,19 @@
    "text": "Level meter – idle",
    "lines": [
     {
-     "x": 776,
-     "y": 591.11,
-     "w": 101.59,
-     "h": 15
+     "x": 668,
+     "y": 425.08,
+     "w": 93.16,
+     "h": 14
     }
    ],
-   "baseline": 603.11,
+   "baseline": 436.08,
    "blockId": 33,
    "blockText": "Level meter – idle",
    "fontFamily": "Inter, ui-sans-serif, system-ui, \"Segoe UI\", sans-serif",
-   "fontSize": 12,
+   "fontSize": 11,
    "fontWeight": 400,
-   "letterSpacing": "0.14px",
+   "letterSpacing": "0.13px",
    "lineHeight": "normal",
    "color": "rgb(165, 159, 151)"
   },
@@ -727,79 +747,99 @@
    "text": "Level meter – live",
    "lines": [
     {
-     "x": 776,
-     "y": 666.11,
-     "w": 100.77,
-     "h": 15
+     "x": 668,
+     "y": 485.08,
+     "w": 92.39,
+     "h": 14
     }
    ],
-   "baseline": 678.11,
+   "baseline": 496.08,
    "blockId": 34,
    "blockText": "Level meter – live",
    "fontFamily": "Inter, ui-sans-serif, system-ui, \"Segoe UI\", sans-serif",
-   "fontSize": 12,
+   "fontSize": 11,
    "fontWeight": 400,
-   "letterSpacing": "0.14px",
+   "letterSpacing": "0.13px",
    "lineHeight": "normal",
    "color": "rgb(165, 159, 151)"
   },
   {
-   "text": "40 bars · 3 px gap · #f5f3f1 · idle bars #2b2825 at 3 px",
+   "text": "40 bars · 2 px gap · 24 px tall · #f5f3f1 · idle bars #2b2825 at 2 px",
    "lines": [
     {
-     "x": 776,
-     "y": 743.11,
-     "w": 317.03,
-     "h": 15
+     "x": 668,
+     "y": 546.08,
+     "w": 349.06,
+     "h": 14
     }
    ],
-   "baseline": 755.11,
+   "baseline": 557.08,
    "blockId": 35,
-   "blockText": "40 bars · 3 px gap · #f5f3f1 · idle bars #2b2825 at 3 px",
+   "blockText": "40 bars · 2 px gap · 24 px tall · #f5f3f1 · idle bars #2b2825 at 2 px",
    "fontFamily": "Inter, ui-sans-serif, system-ui, \"Segoe UI\", sans-serif",
-   "fontSize": 12,
+   "fontSize": 11,
    "fontWeight": 400,
-   "letterSpacing": "0.14px",
-   "lineHeight": "19.2px",
+   "letterSpacing": "0.13px",
+   "lineHeight": "17.6px",
    "color": "rgb(165, 159, 151)"
   },
   {
    "text": "Model card",
    "lines": [
     {
-     "x": 56,
-     "y": 934.11,
-     "w": 76.75,
-     "h": 17
+     "x": 40,
+     "y": 692.08,
+     "w": 71.27,
+     "h": 16
     }
    ],
-   "baseline": 948.11,
+   "baseline": 705.08,
    "blockId": 36,
-   "blockText": "Model card",
+   "blockText": "Model card radius 16 · radio 16",
    "fontFamily": "Inter, ui-sans-serif, system-ui, \"Segoe UI\", sans-serif",
-   "fontSize": 14,
+   "fontSize": 13,
    "fontWeight": 500,
-   "letterSpacing": "0.14px",
+   "letterSpacing": "0.13px",
    "lineHeight": "normal",
    "color": "rgb(245, 243, 241)"
+  },
+  {
+   "text": "radius 16 · radio 16",
+   "lines": [
+    {
+     "x": 40,
+     "y": 708.08,
+     "w": 116.63,
+     "h": 16
+    }
+   ],
+   "baseline": 721.08,
+   "blockId": 36,
+   "blockText": "Model card radius 16 · radio 16",
+   "fontFamily": "Inter, ui-sans-serif, system-ui, \"Segoe UI\", sans-serif",
+   "fontSize": 13,
+   "fontWeight": 400,
+   "letterSpacing": "0.13px",
+   "lineHeight": "normal",
+   "color": "rgb(165, 159, 151)"
   },
   {
    "text": "Default",
    "lines": [
     {
-     "x": 296,
-     "y": 934.11,
-     "w": 41.73,
-     "h": 15
+     "x": 252,
+     "y": 692.08,
+     "w": 38.28,
+     "h": 14
     }
    ],
-   "baseline": 946.11,
+   "baseline": 703.08,
    "blockId": 37,
    "blockText": "Default",
    "fontFamily": "Inter, ui-sans-serif, system-ui, \"Segoe UI\", sans-serif",
-   "fontSize": 12,
+   "fontSize": 11,
    "fontWeight": 400,
-   "letterSpacing": "0.14px",
+   "letterSpacing": "0.13px",
    "lineHeight": "normal",
    "color": "rgb(165, 159, 151)"
   },
@@ -807,17 +847,17 @@
    "text": "Gemma 4 26B",
    "lines": [
     {
-     "x": 351,
-     "y": 978.11,
-     "w": 101.58,
-     "h": 19
+     "x": 297,
+     "y": 727.08,
+     "w": 88.03,
+     "h": 16
     }
    ],
-   "baseline": 993.11,
+   "baseline": 740.08,
    "blockId": 38,
    "blockText": "Gemma 4 26B",
    "fontFamily": "Inter, ui-sans-serif, system-ui, \"Segoe UI\", sans-serif",
-   "fontSize": 15,
+   "fontSize": 13,
    "fontWeight": 500,
    "letterSpacing": "normal",
    "lineHeight": "normal",
@@ -827,17 +867,17 @@
    "text": "Best quality, needs GPU",
    "lines": [
     {
-     "x": 351,
-     "y": 1001.11,
-     "w": 147.75,
-     "h": 16
+     "x": 297,
+     "y": 745.08,
+     "w": 136.38,
+     "h": 15
     }
    ],
-   "baseline": 1014.11,
+   "baseline": 757.08,
    "blockId": 39,
    "blockText": "Best quality, needs GPU",
    "fontFamily": "Inter, ui-sans-serif, system-ui, \"Segoe UI\", sans-serif",
-   "fontSize": 13,
+   "fontSize": 12,
    "fontWeight": 400,
    "letterSpacing": "normal",
    "lineHeight": "normal",
@@ -847,17 +887,17 @@
    "text": "[XX] GB",
    "lines": [
     {
-     "x": 674.39,
-     "y": 978.11,
-     "w": 54.61,
-     "h": 17
+     "x": 582.59,
+     "y": 727.08,
+     "w": 50.41,
+     "h": 16
     }
    ],
-   "baseline": 991.11,
+   "baseline": 739.08,
    "blockId": 40,
    "blockText": "[XX] GB",
    "fontFamily": "\"Geist Mono\", ui-monospace, monospace",
-   "fontSize": 13,
+   "fontSize": 12,
    "fontWeight": 400,
    "letterSpacing": "normal",
    "lineHeight": "normal",
@@ -867,19 +907,19 @@
    "text": "Selected",
    "lines": [
     {
-     "x": 768,
-     "y": 934.11,
-     "w": 50.73,
-     "h": 15
+     "x": 662,
+     "y": 692.08,
+     "w": 46.52,
+     "h": 14
     }
    ],
-   "baseline": 946.11,
+   "baseline": 703.08,
    "blockId": 41,
    "blockText": "Selected",
    "fontFamily": "Inter, ui-sans-serif, system-ui, \"Segoe UI\", sans-serif",
-   "fontSize": 12,
+   "fontSize": 11,
    "fontWeight": 400,
-   "letterSpacing": "0.14px",
+   "letterSpacing": "0.13px",
    "lineHeight": "normal",
    "color": "rgb(165, 159, 151)"
   },
@@ -887,17 +927,17 @@
    "text": "Gemma 4 E4B",
    "lines": [
     {
-     "x": 823,
-     "y": 978.11,
-     "w": 101.78,
-     "h": 19
+     "x": 707,
+     "y": 727.08,
+     "w": 88.2,
+     "h": 16
     }
    ],
-   "baseline": 993.11,
+   "baseline": 740.08,
    "blockId": 42,
    "blockText": "Gemma 4 E4B",
    "fontFamily": "Inter, ui-sans-serif, system-ui, \"Segoe UI\", sans-serif",
-   "fontSize": 15,
+   "fontSize": 13,
    "fontWeight": 500,
    "letterSpacing": "normal",
    "lineHeight": "normal",
@@ -907,17 +947,17 @@
    "text": "Recommended for your PC",
    "lines": [
     {
-     "x": 823,
-     "y": 1001.11,
-     "w": 165.83,
-     "h": 16
+     "x": 707,
+     "y": 745.08,
+     "w": 153.08,
+     "h": 15
     }
    ],
-   "baseline": 1014.11,
+   "baseline": 757.08,
    "blockId": 43,
    "blockText": "Recommended for your PC",
    "fontFamily": "Inter, ui-sans-serif, system-ui, \"Segoe UI\", sans-serif",
-   "fontSize": 13,
+   "fontSize": 12,
    "fontWeight": 400,
    "letterSpacing": "normal",
    "lineHeight": "normal",
@@ -927,17 +967,17 @@
    "text": "[X.X] GB",
    "lines": [
     {
-     "x": 1138.59,
-     "y": 978.11,
-     "w": 62.41,
-     "h": 17
+     "x": 985.39,
+     "y": 727.08,
+     "w": 57.61,
+     "h": 16
     }
    ],
-   "baseline": 991.11,
+   "baseline": 739.08,
    "blockId": 44,
    "blockText": "[X.X] GB",
    "fontFamily": "\"Geist Mono\", ui-monospace, monospace",
-   "fontSize": 13,
+   "fontSize": 12,
    "fontWeight": 400,
    "letterSpacing": "normal",
    "lineHeight": "normal",
@@ -947,19 +987,19 @@
    "text": "Downloading",
    "lines": [
     {
-     "x": 296,
-     "y": 1054.11,
-     "w": 75.75,
-     "h": 15
+     "x": 252,
+     "y": 787.08,
+     "w": 69.47,
+     "h": 14
     }
    ],
-   "baseline": 1066.11,
+   "baseline": 798.08,
    "blockId": 45,
    "blockText": "Downloading",
    "fontFamily": "Inter, ui-sans-serif, system-ui, \"Segoe UI\", sans-serif",
-   "fontSize": 12,
+   "fontSize": 11,
    "fontWeight": 400,
-   "letterSpacing": "0.14px",
+   "letterSpacing": "0.13px",
    "lineHeight": "normal",
    "color": "rgb(165, 159, 151)"
   },
@@ -967,19 +1007,19 @@
    "text": "Parakeet v3",
    "lines": [
     {
-     "x": 319,
-     "y": 1098.11,
-     "w": 86.67,
-     "h": 19
+     "x": 269,
+     "y": 822.08,
+     "w": 75.22,
+     "h": 16
     }
    ],
-   "baseline": 1113.11,
+   "baseline": 835.08,
    "blockId": 46,
    "blockText": "Parakeet v3",
    "fontFamily": "Inter, ui-sans-serif, system-ui, \"Segoe UI\", sans-serif",
-   "fontSize": 15,
+   "fontSize": 13,
    "fontWeight": 500,
-   "letterSpacing": "0.14px",
+   "letterSpacing": "0.13px",
    "lineHeight": "normal",
    "color": "rgb(245, 243, 241)"
   },
@@ -987,19 +1027,19 @@
    "text": "0.67 GB",
    "lines": [
     {
-     "x": 673.41,
-     "y": 1098.11,
-     "w": 55.59,
-     "h": 17
+     "x": 581.69,
+     "y": 822.08,
+     "w": 51.31,
+     "h": 16
     }
    ],
-   "baseline": 1111.11,
+   "baseline": 834.08,
    "blockId": 47,
    "blockText": "0.67 GB",
    "fontFamily": "\"Geist Mono\", ui-monospace, monospace",
-   "fontSize": 13,
+   "fontSize": 12,
    "fontWeight": 400,
-   "letterSpacing": "0.14px",
+   "letterSpacing": "0.13px",
    "lineHeight": "normal",
    "color": "rgb(214, 209, 203)"
   },
@@ -1007,19 +1047,19 @@
    "text": "Downloading…",
    "lines": [
     {
-     "x": 319,
-     "y": 1145.11,
-     "w": 93.31,
-     "h": 16
+     "x": 269,
+     "y": 857.08,
+     "w": 86.14,
+     "h": 15
     }
    ],
-   "baseline": 1158.11,
+   "baseline": 869.08,
    "blockId": 48,
    "blockText": "Downloading…",
    "fontFamily": "Inter, ui-sans-serif, system-ui, \"Segoe UI\", sans-serif",
-   "fontSize": 13,
+   "fontSize": 12,
    "fontWeight": 400,
-   "letterSpacing": "0.14px",
+   "letterSpacing": "0.13px",
    "lineHeight": "normal",
    "color": "rgb(165, 159, 151)"
   },
@@ -1027,19 +1067,19 @@
    "text": "0.31 / 0.67 GB",
    "lines": [
     {
-     "x": 617.83,
-     "y": 1145.11,
-     "w": 111.17,
-     "h": 17
+     "x": 530.38,
+     "y": 857.08,
+     "w": 102.63,
+     "h": 16
     }
    ],
-   "baseline": 1158.11,
+   "baseline": 869.08,
    "blockId": 49,
    "blockText": "0.31 / 0.67 GB",
    "fontFamily": "\"Geist Mono\", ui-monospace, monospace",
-   "fontSize": 13,
+   "fontSize": 12,
    "fontWeight": 400,
-   "letterSpacing": "0.14px",
+   "letterSpacing": "0.13px",
    "lineHeight": "normal",
    "color": "rgb(165, 159, 151)"
   },
@@ -1047,19 +1087,19 @@
    "text": "Done",
    "lines": [
     {
-     "x": 768,
-     "y": 1054.11,
-     "w": 30.52,
-     "h": 15
+     "x": 662,
+     "y": 787.08,
+     "w": 27.97,
+     "h": 14
     }
    ],
-   "baseline": 1066.11,
+   "baseline": 798.08,
    "blockId": 50,
    "blockText": "Done",
    "fontFamily": "Inter, ui-sans-serif, system-ui, \"Segoe UI\", sans-serif",
-   "fontSize": 12,
+   "fontSize": 11,
    "fontWeight": 400,
-   "letterSpacing": "0.14px",
+   "letterSpacing": "0.13px",
    "lineHeight": "normal",
    "color": "rgb(165, 159, 151)"
   },
@@ -1067,19 +1107,19 @@
    "text": "Parakeet v3",
    "lines": [
     {
-     "x": 791,
-     "y": 1101.61,
-     "w": 86.67,
-     "h": 19
+     "x": 679,
+     "y": 825.08,
+     "w": 75.22,
+     "h": 16
     }
    ],
-   "baseline": 1116.61,
+   "baseline": 838.08,
    "blockId": 51,
    "blockText": "Parakeet v3",
    "fontFamily": "Inter, ui-sans-serif, system-ui, \"Segoe UI\", sans-serif",
-   "fontSize": 15,
+   "fontSize": 13,
    "fontWeight": 500,
-   "letterSpacing": "0.14px",
+   "letterSpacing": "0.13px",
    "lineHeight": "normal",
    "color": "rgb(245, 243, 241)"
   },
@@ -1087,19 +1127,19 @@
    "text": "0.67 GB",
    "lines": [
     {
-     "x": 1059.7,
-     "y": 1102.61,
-     "w": 55.59,
-     "h": 17
+     "x": 919.03,
+     "y": 825.08,
+     "w": 51.31,
+     "h": 16
     }
    ],
-   "baseline": 1115.61,
+   "baseline": 837.08,
    "blockId": 52,
    "blockText": "0.67 GB",
    "fontFamily": "\"Geist Mono\", ui-monospace, monospace",
-   "fontSize": 13,
+   "fontSize": 12,
    "fontWeight": 400,
-   "letterSpacing": "0.14px",
+   "letterSpacing": "0.13px",
    "lineHeight": "normal",
    "color": "rgb(214, 209, 203)"
   },
@@ -1107,19 +1147,19 @@
    "text": "Ready",
    "lines": [
     {
-     "x": 1154.3,
-     "y": 1103.61,
-     "w": 36.7,
-     "h": 15
+     "x": 1001.34,
+     "y": 826.08,
+     "w": 33.66,
+     "h": 14
     }
    ],
-   "baseline": 1115.61,
+   "baseline": 837.08,
    "blockId": 53,
    "blockText": "Ready",
    "fontFamily": "Inter, ui-sans-serif, system-ui, \"Segoe UI\", sans-serif",
-   "fontSize": 12,
+   "fontSize": 11,
    "fontWeight": 500,
-   "letterSpacing": "0.14px",
+   "letterSpacing": "0.13px",
    "lineHeight": "normal",
    "color": "rgb(245, 243, 241)"
   },
@@ -1127,19 +1167,19 @@
    "text": "Toggle, hotkey field,",
    "lines": [
     {
-     "x": 56,
-     "y": 1256.11,
-     "w": 138.83,
-     "h": 17
+     "x": 40,
+     "y": 937.08,
+     "w": 128.91,
+     "h": 16
     }
    ],
-   "baseline": 1270.11,
+   "baseline": 950.08,
    "blockId": 54,
    "blockText": "Toggle, hotkey field, timestamp chip",
    "fontFamily": "Inter, ui-sans-serif, system-ui, \"Segoe UI\", sans-serif",
-   "fontSize": 14,
+   "fontSize": 13,
    "fontWeight": 500,
-   "letterSpacing": "0.14px",
+   "letterSpacing": "0.13px",
    "lineHeight": "normal",
    "color": "rgb(245, 243, 241)"
   },
@@ -1147,19 +1187,19 @@
    "text": "timestamp chip",
    "lines": [
     {
-     "x": 56,
-     "y": 1273.11,
-     "w": 104.75,
-     "h": 17
+     "x": 40,
+     "y": 953.08,
+     "w": 97.27,
+     "h": 16
     }
    ],
-   "baseline": 1287.11,
+   "baseline": 966.08,
    "blockId": 54,
    "blockText": "Toggle, hotkey field, timestamp chip",
    "fontFamily": "Inter, ui-sans-serif, system-ui, \"Segoe UI\", sans-serif",
-   "fontSize": 14,
+   "fontSize": 13,
    "fontWeight": 500,
-   "letterSpacing": "0.14px",
+   "letterSpacing": "0.13px",
    "lineHeight": "normal",
    "color": "rgb(245, 243, 241)"
   },
@@ -1167,19 +1207,19 @@
    "text": "Off",
    "lines": [
     {
-     "x": 352,
-     "y": 1261.61,
-     "w": 18.02,
-     "h": 15
+     "x": 298,
+     "y": 940.08,
+     "w": 16.52,
+     "h": 14
     }
    ],
-   "baseline": 1273.61,
+   "baseline": 951.08,
    "blockId": 55,
    "blockText": "Off",
    "fontFamily": "Inter, ui-sans-serif, system-ui, \"Segoe UI\", sans-serif",
-   "fontSize": 12,
+   "fontSize": 11,
    "fontWeight": 400,
-   "letterSpacing": "0.14px",
+   "letterSpacing": "0.13px",
    "lineHeight": "normal",
    "color": "rgb(165, 159, 151)"
   },
@@ -1187,39 +1227,39 @@
    "text": "On",
    "lines": [
     {
-     "x": 352,
-     "y": 1301.61,
-     "w": 16.55,
-     "h": 15
+     "x": 298,
+     "y": 970.08,
+     "w": 15.17,
+     "h": 14
     }
    ],
-   "baseline": 1313.61,
+   "baseline": 981.08,
    "blockId": 56,
    "blockText": "On",
    "fontFamily": "Inter, ui-sans-serif, system-ui, \"Segoe UI\", sans-serif",
-   "fontSize": 12,
+   "fontSize": 11,
    "fontWeight": 400,
-   "letterSpacing": "0.14px",
+   "letterSpacing": "0.13px",
    "lineHeight": "normal",
    "color": "rgb(165, 159, 151)"
   },
   {
-   "text": "Disabled",
+   "text": "Disabled · 36×20, knob 14",
    "lines": [
     {
-     "x": 352,
-     "y": 1341.61,
-     "w": 50.36,
-     "h": 15
+     "x": 298,
+     "y": 1000.08,
+     "w": 138.81,
+     "h": 14
     }
    ],
-   "baseline": 1353.61,
+   "baseline": 1011.08,
    "blockId": 57,
-   "blockText": "Disabled",
+   "blockText": "Disabled · 36×20, knob 14",
    "fontFamily": "Inter, ui-sans-serif, system-ui, \"Segoe UI\", sans-serif",
-   "fontSize": 12,
+   "fontSize": 11,
    "fontWeight": 400,
-   "letterSpacing": "0.14px",
+   "letterSpacing": "0.13px",
    "lineHeight": "normal",
    "color": "rgb(165, 159, 151)"
   },
@@ -1227,19 +1267,19 @@
    "text": "Default",
    "lines": [
     {
-     "x": 568,
-     "y": 1256.11,
-     "w": 41.73,
-     "h": 15
+     "x": 487.11,
+     "y": 937.08,
+     "w": 38.28,
+     "h": 14
     }
    ],
-   "baseline": 1268.11,
+   "baseline": 948.08,
    "blockId": 58,
    "blockText": "Default",
    "fontFamily": "Inter, ui-sans-serif, system-ui, \"Segoe UI\", sans-serif",
-   "fontSize": 12,
+   "fontSize": 11,
    "fontWeight": 400,
-   "letterSpacing": "0.14px",
+   "letterSpacing": "0.13px",
    "lineHeight": "normal",
    "color": "rgb(165, 159, 151)"
   },
@@ -1247,19 +1287,19 @@
    "text": "Ctrl",
    "lines": [
     {
-     "x": 585,
-     "y": 1288.61,
-     "w": 31.77,
-     "h": 17
+     "x": 499.11,
+     "y": 965.08,
+     "w": 29.33,
+     "h": 16
     }
    ],
-   "baseline": 1301.61,
+   "baseline": 977.08,
    "blockId": 59,
    "blockText": "Ctrl",
    "fontFamily": "\"Geist Mono\", ui-monospace, monospace",
-   "fontSize": 13,
+   "fontSize": 12,
    "fontWeight": 400,
-   "letterSpacing": "0.14px",
+   "letterSpacing": "0.13px",
    "lineHeight": "normal",
    "color": "rgb(245, 243, 241)"
   },
@@ -1267,19 +1307,19 @@
    "text": "+",
    "lines": [
     {
-     "x": 630.77,
-     "y": 1288.61,
-     "w": 7.95,
-     "h": 17
+     "x": 539.44,
+     "y": 965.08,
+     "w": 7.34,
+     "h": 16
     }
    ],
-   "baseline": 1301.61,
+   "baseline": 977.08,
    "blockId": 60,
    "blockText": "+",
    "fontFamily": "\"Geist Mono\", ui-monospace, monospace",
-   "fontSize": 13,
+   "fontSize": 12,
    "fontWeight": 400,
-   "letterSpacing": "0.14px",
+   "letterSpacing": "0.13px",
    "lineHeight": "normal",
    "color": "rgb(165, 159, 151)"
   },
@@ -1287,19 +1327,19 @@
    "text": "Shift",
    "lines": [
     {
-     "x": 652.72,
-     "y": 1288.61,
-     "w": 39.7,
-     "h": 17
+     "x": 557.78,
+     "y": 965.08,
+     "w": 36.66,
+     "h": 16
     }
    ],
-   "baseline": 1301.61,
+   "baseline": 977.08,
    "blockId": 61,
    "blockText": "Shift",
    "fontFamily": "\"Geist Mono\", ui-monospace, monospace",
-   "fontSize": 13,
+   "fontSize": 12,
    "fontWeight": 400,
-   "letterSpacing": "0.14px",
+   "letterSpacing": "0.13px",
    "lineHeight": "normal",
    "color": "rgb(245, 243, 241)"
   },
@@ -1307,19 +1347,19 @@
    "text": "+",
    "lines": [
     {
-     "x": 706.42,
-     "y": 1288.61,
-     "w": 7.95,
-     "h": 17
+     "x": 605.44,
+     "y": 965.08,
+     "w": 7.34,
+     "h": 16
     }
    ],
-   "baseline": 1301.61,
+   "baseline": 977.08,
    "blockId": 62,
    "blockText": "+",
    "fontFamily": "\"Geist Mono\", ui-monospace, monospace",
-   "fontSize": 13,
+   "fontSize": 12,
    "fontWeight": 400,
-   "letterSpacing": "0.14px",
+   "letterSpacing": "0.13px",
    "lineHeight": "normal",
    "color": "rgb(165, 159, 151)"
   },
@@ -1327,19 +1367,19 @@
    "text": "R",
    "lines": [
     {
-     "x": 728.38,
-     "y": 1288.61,
-     "w": 7.95,
-     "h": 17
+     "x": 623.78,
+     "y": 965.08,
+     "w": 7.34,
+     "h": 16
     }
    ],
-   "baseline": 1301.61,
+   "baseline": 977.08,
    "blockId": 63,
    "blockText": "R",
    "fontFamily": "\"Geist Mono\", ui-monospace, monospace",
-   "fontSize": 13,
+   "fontSize": 12,
    "fontWeight": 400,
-   "letterSpacing": "0.14px",
+   "letterSpacing": "0.13px",
    "lineHeight": "normal",
    "color": "rgb(245, 243, 241)"
   },
@@ -1347,19 +1387,19 @@
    "text": "Capturing",
    "lines": [
     {
-     "x": 568,
-     "y": 1331.11,
-     "w": 57.13,
-     "h": 15
+     "x": 487.11,
+     "y": 1001.08,
+     "w": 52.39,
+     "h": 14
     }
    ],
-   "baseline": 1343.11,
+   "baseline": 1012.08,
    "blockId": 64,
    "blockText": "Capturing",
    "fontFamily": "Inter, ui-sans-serif, system-ui, \"Segoe UI\", sans-serif",
-   "fontSize": 12,
+   "fontSize": 11,
    "fontWeight": 400,
-   "letterSpacing": "0.14px",
+   "letterSpacing": "0.13px",
    "lineHeight": "normal",
    "color": "rgb(165, 159, 151)"
   },
@@ -1367,19 +1407,19 @@
    "text": "Press a new shortcut…",
    "lines": [
     {
-     "x": 581,
-     "y": 1363.61,
-     "w": 154.13,
-     "h": 17
+     "x": 498.11,
+     "y": 1029.08,
+     "w": 143.13,
+     "h": 16
     }
    ],
-   "baseline": 1377.61,
+   "baseline": 1042.08,
    "blockId": 65,
    "blockText": "Press a new shortcut… Esc to cancel",
    "fontFamily": "Inter, ui-sans-serif, system-ui, \"Segoe UI\", sans-serif",
-   "fontSize": 14,
+   "fontSize": 13,
    "fontWeight": 400,
-   "letterSpacing": "0.14px",
+   "letterSpacing": "0.13px",
    "lineHeight": "normal",
    "color": "rgb(165, 159, 151)"
   },
@@ -1387,19 +1427,19 @@
    "text": "Esc to cancel",
    "lines": [
     {
-     "x": 843.58,
-     "y": 1364.11,
-     "w": 95.42,
-     "h": 16
+     "x": 726.38,
+     "y": 1030.08,
+     "w": 87.5,
+     "h": 14
     }
    ],
-   "baseline": 1376.11,
+   "baseline": 1041.08,
    "blockId": 66,
    "blockText": "Esc to cancel",
    "fontFamily": "\"Geist Mono\", ui-monospace, monospace",
-   "fontSize": 12,
+   "fontSize": 11,
    "fontWeight": 400,
-   "letterSpacing": "0.14px",
+   "letterSpacing": "0.13px",
    "lineHeight": "normal",
    "color": "rgb(165, 159, 151)"
   },
@@ -1407,19 +1447,19 @@
    "text": "00:03",
    "lines": [
     {
-     "x": 1004,
-     "y": 1259.11,
-     "w": 36.7,
-     "h": 16
+     "x": 866.88,
+     "y": 940.08,
+     "w": 33.66,
+     "h": 14
     }
    ],
-   "baseline": 1271.11,
+   "baseline": 951.08,
    "blockId": 67,
    "blockText": "00:03",
    "fontFamily": "\"Geist Mono\", ui-monospace, monospace",
-   "fontSize": 12,
+   "fontSize": 11,
    "fontWeight": 400,
-   "letterSpacing": "0.14px",
+   "letterSpacing": "0.13px",
    "lineHeight": "normal",
    "color": "rgb(245, 243, 241)"
   },
@@ -1427,19 +1467,19 @@
    "text": "Default",
    "lines": [
     {
-     "x": 1060.7,
-     "y": 1259.61,
-     "w": 41.73,
-     "h": 15
+     "x": 917.53,
+     "y": 940.08,
+     "w": 38.28,
+     "h": 14
     }
    ],
-   "baseline": 1271.61,
+   "baseline": 951.08,
    "blockId": 68,
    "blockText": "Default",
    "fontFamily": "Inter, ui-sans-serif, system-ui, \"Segoe UI\", sans-serif",
-   "fontSize": 12,
+   "fontSize": 11,
    "fontWeight": 400,
-   "letterSpacing": "0.14px",
+   "letterSpacing": "0.13px",
    "lineHeight": "normal",
    "color": "rgb(165, 159, 151)"
   },
@@ -1447,19 +1487,19 @@
    "text": "00:03",
    "lines": [
     {
-     "x": 1004,
-     "y": 1295.11,
-     "w": 36.7,
-     "h": 16
+     "x": 866.88,
+     "y": 970.08,
+     "w": 33.66,
+     "h": 14
     }
    ],
-   "baseline": 1307.11,
+   "baseline": 981.08,
    "blockId": 69,
    "blockText": "00:03",
    "fontFamily": "\"Geist Mono\", ui-monospace, monospace",
-   "fontSize": 12,
+   "fontSize": 11,
    "fontWeight": 400,
-   "letterSpacing": "0.14px",
+   "letterSpacing": "0.13px",
    "lineHeight": "normal",
    "color": "rgb(245, 243, 241)"
   },
@@ -1467,19 +1507,19 @@
    "text": "Hover",
    "lines": [
     {
-     "x": 1060.7,
-     "y": 1295.61,
-     "w": 34.61,
-     "h": 15
+     "x": 917.53,
+     "y": 970.08,
+     "w": 31.73,
+     "h": 14
     }
    ],
-   "baseline": 1307.61,
+   "baseline": 981.08,
    "blockId": 70,
    "blockText": "Hover",
    "fontFamily": "Inter, ui-sans-serif, system-ui, \"Segoe UI\", sans-serif",
-   "fontSize": 12,
+   "fontSize": 11,
    "fontWeight": 400,
-   "letterSpacing": "0.14px",
+   "letterSpacing": "0.13px",
    "lineHeight": "normal",
    "color": "rgb(165, 159, 151)"
   }

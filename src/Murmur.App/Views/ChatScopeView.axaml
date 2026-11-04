@@ -12,10 +12,10 @@
     <Button Classes="chatScope"
             Command="{Binding PickLibraryCommand}">
       <StackPanel Orientation="Horizontal"
-                  Spacing="{StaticResource Space.8}">
+                  Spacing="{StaticResource Space.6}">
         <Ellipse Classes="chipDot"
                  IsVisible="{Binding IsLibrary}" />
-        <TextBlock Classes="t13 medium plain"
+        <TextBlock Classes="t12 medium plain"
                    Foreground="{Binding $parent[ContentPresenter].Foreground}"
                    Text="{Binding LibraryText}" />
       </StackPanel>
@@ -24,10 +24,10 @@
             IsVisible="{Binding HasSession}"
             Command="{Binding PickSessionCommand}">
       <StackPanel Orientation="Horizontal"
-                  Spacing="{StaticResource Space.8}">
+                  Spacing="{StaticResource Space.6}">
         <Ellipse Classes="chipDot"
                  IsVisible="{Binding IsSession}" />
-        <TextBlock Classes="t13 medium plain"
+        <TextBlock Classes="t12 medium plain"
                    Foreground="{Binding $parent[ContentPresenter].Foreground}"
                    Text="{Binding SessionTitle}" />
       </StackPanel>

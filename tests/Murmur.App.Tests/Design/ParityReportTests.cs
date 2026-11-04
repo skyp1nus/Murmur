@@ -50,7 +50,7 @@ public sealed class ParityReportTests
 
             var rows = report.Split('\n').Where(l => l.StartsWith("| ", StringComparison.Ordinal) && !l.StartsWith("| Board", StringComparison.Ordinal) && !l.StartsWith("| ---", StringComparison.Ordinal)).ToArray();
             Assert.Equal(DesignBoards.All.Count, rows.Length);
-            Assert.StartsWith("| Main | 1440x1406 | not rendered", rows[0], StringComparison.Ordinal);
+            Assert.StartsWith("| Main | 1100x1014 | not rendered", rows[0], StringComparison.Ordinal);
             Assert.Contains(rows, r => r.StartsWith("| Chat | 1440x1080 | 33.25 | 20.00 | 10.00 | 75.0 (30/40) | 7 | 10 | 5.00 / 80.0 / 3 | 40.00 |", StringComparison.Ordinal));
             Assert.Contains("OnbComponents", report, StringComparison.Ordinal);
             Assert.Contains("[VERSION] placeholder", report, StringComparison.Ordinal);

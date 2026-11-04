@@ -213,7 +213,7 @@ public sealed class TextGeometryTests
     {
         var texts = ReferenceTexts.Load("Main");
 
-        Assert.Contains(texts, t => t.Text == "What are we recording today?" && t.FontSize == 36 && t.FontWeight == 300 && !t.Mono);
+        Assert.Contains(texts, t => t.Text == "What are we recording today?" && t.FontSize == 24 && t.FontWeight == 300 && !t.Mono);
         Assert.Contains(texts, t => t.Text == "47:12" && t.Mono);
         var placeholder = texts.Single(t => t.Text == "Search titles and text");
         Assert.True(placeholder.Placeholder);

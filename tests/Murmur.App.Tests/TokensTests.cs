@@ -47,7 +47,7 @@ public sealed partial class TokensTests
 
         Assert.Contains("<CornerRadius x:Key=\"Radius.Pill\">9999</CornerRadius>", axaml, StringComparison.Ordinal);
         Assert.Contains("<x:Double x:Key=\"LetterSpacing.Display\">-0.96</x:Double>", axaml, StringComparison.Ordinal);
-        Assert.Contains("<x:Double x:Key=\"LineHeight.Mono\">21.97</x:Double>", axaml, StringComparison.Ordinal);
+        Assert.Contains("<x:Double x:Key=\"LineHeight.Mono\">20.28</x:Double>", axaml, StringComparison.Ordinal);
         Assert.Contains("0 0 1 0 #66000000, 0 1 1 0 #0A000000, 0 2 4 0 #0A000000", axaml, StringComparison.Ordinal);
     }
 
@@ -66,10 +66,10 @@ public sealed partial class TokensTests
             Assert.Contains($"x:Key=\"{key}\"", axaml, StringComparison.Ordinal);
         }
 
-        Assert.Contains("<x:Double x:Key=\"LineHeight.PageTitle\">42</x:Double>", axaml, StringComparison.Ordinal);
-        Assert.Contains("<x:Double x:Key=\"LetterSpacing.Wordmark\">-0.17</x:Double>", axaml, StringComparison.Ordinal);
-        Assert.Contains("<x:Double x:Key=\"LetterSpacing.Meta\">0.14</x:Double>", axaml, StringComparison.Ordinal);
-        Assert.Contains("<CornerRadius x:Key=\"Radius.CardTop\">20,20,0,0</CornerRadius>", axaml, StringComparison.Ordinal);
+        Assert.Contains("<x:Double x:Key=\"LineHeight.PageTitle\">28.8</x:Double>", axaml, StringComparison.Ordinal);
+        Assert.Contains("<x:Double x:Key=\"LetterSpacing.Wordmark\">-0.15</x:Double>", axaml, StringComparison.Ordinal);
+        Assert.Contains("<x:Double x:Key=\"LetterSpacing.Meta\">0.13</x:Double>", axaml, StringComparison.Ordinal);
+        Assert.Contains("<CornerRadius x:Key=\"Radius.CardTop\">16,16,0,0</CornerRadius>", axaml, StringComparison.Ordinal);
         Assert.Contains("<Color x:Key=\"Orb.Cream\">#fff1e8</Color>", axaml, StringComparison.Ordinal);
         Assert.Contains("<Color x:Key=\"Orb.Violet\">#0447ff</Color>", axaml, StringComparison.Ordinal);
     }
@@ -80,6 +80,7 @@ public sealed partial class TokensTests
         // D-044: the values of the canvas live in tokens.json and are generated; a style or view file only names the sizes of its own
         // components (Size.*, Margin.*, ...). The few older insets below predate the decision and move to tokens with their screens.
         var generated = new[] { "FontSize.", "LineHeight.", "LetterSpacing.", "Radius.", "Space.", "Inset.", "Orb.", "Glass.", "Font.", "FontWeight.", "Shadow.", "Hairline." };
+        var typeMetricSuffixes = new[] { "Line", "LineHeight", "FontSize", "LetterSpacing", "Tracking", "Leading" };
         var offenders = new List<string>();
         var files = Directory.EnumerateFiles(Path.Combine(RepoPaths.AppDirectory, "Styles"), "*.axaml")
             .Concat(Directory.EnumerateFiles(Path.Combine(RepoPaths.AppDirectory, "Views"), "*.axaml"))
@@ -88,7 +89,9 @@ public sealed partial class TokensTests
         {
             foreach (var key in XDocument.Load(path).Descendants().Select(e => (string?)e.Attribute(Xaml + "Key")).Where(k => k is not null))
             {
-                if (generated.Any(prefix => key!.StartsWith(prefix, StringComparison.Ordinal)) && !AllowedHandWritten.Contains(Path.GetFileName(path) + ": " + key))
+                // Any prefix: a hand-written type metric (Rec.NoteLine) is a type-scale step that belongs in tokens.json, whatever its key starts with.
+                var looksLikeTypeMetric = typeMetricSuffixes.Any(suffix => key!.EndsWith(suffix, StringComparison.Ordinal));
+                if ((looksLikeTypeMetric || generated.Any(prefix => key!.StartsWith(prefix, StringComparison.Ordinal))) && !AllowedHandWritten.Contains(Path.GetFileName(path) + ": " + key))
                 {
                     offenders.Add(Path.GetFileName(path) + ": " + key);
                 }
@@ -213,14 +216,16 @@ public sealed partial class TokensTests
     {
         var axaml = TokenGenerator.Generate(File.ReadAllText(RepoPaths.TokensJson));
 
-        // (step, size, line height, letter spacing) as the screens had them before they moved to the scale.
+        // (step, size, line height, letter spacing) of the real-size canvas: the page sets 0.01 em once on 13 px, so every run inherits 0.13 px.
         foreach (var (step, size, line, spacing) in new[]
         {
-            ("Hero", "44", "48.4", "-0.88"), ("Timer", "48", "48", "-0.96"), ("WordmarkSm", "15", "19", "-0.15"),
-            ("Lead", "16", "24", "0.14"), ("Transcript", "16", "24.8", "0.14"), ("Message", "13", "20.15", "0.14"),
-            ("Note", "12", "19.2", "0.14"), ("BodyTight", "16", "20", "0.14"), ("BodySmTight", "14", "17", "0.14"),
-            ("MetaTight", "13", "16", "0.14"), ("SmallTight", "12", "15", "0.14"), ("RowTitleTight", "15", "19", "0.14"),
-            ("Tag", "11", "14", "0.14"),
+            ("Hero", "44", "48.4", "-0.88"), ("Timer", "44", "44", "-0.88"), ("WordmarkSm", "14", "17", "-0.14"), ("Wordmark", "15", "19", "-0.15"),
+            ("Lead", "16", "24", "0.13"), ("Transcript", "16", "24.8", "0.13"), ("Message", "13", "20.15", "0.13"),
+            ("Note", "12", "19.2", "0.13"), ("BodyTight", "16", "20", "0.13"), ("BodySmTight", "14", "17", "0.13"),
+            ("MetaTight", "13", "16", "0.13"), ("SmallTight", "12", "15", "0.13"), ("RowTitleTight", "15", "19", "0.13"),
+            ("Tag", "11", "14", "0.13"), ("MicroNote", "11", "15.95", "0.13"), ("PageTitle", "24", "28.8", "-0.48"),
+            ("CardTitle", "18", "21", "-0.36"), ("OnbTitle", "28", "33.6", "-0.56"), ("MonoRow", "12", "16", "0.13"),
+            ("MonoSmall", "11", "14", "0.13"),
         })
         {
             Assert.Contains($"<x:Double x:Key=\"FontSize.{step}\">{size}</x:Double>", axaml, StringComparison.Ordinal);
@@ -241,8 +246,9 @@ public sealed partial class TokensTests
             .ToDictionary(e => (string)e.Attribute(Xaml + "Key")!, e => e.Value, StringComparer.Ordinal);
         var steps = values.Keys.Where(k => k.StartsWith("FontSize.", StringComparison.Ordinal)).Select(k => k["FontSize.".Length..]).ToArray();
 
+        // A Geist Mono step (Mono*) may have the metrics of the Inter step of its size: the family is part of the key (a style class sets it).
         var duplicates = steps
-            .GroupBy(s => (values["FontSize." + s], values["LineHeight." + s], values.GetValueOrDefault("LetterSpacing." + s)))
+            .GroupBy(s => (s.StartsWith("Mono", StringComparison.Ordinal), values["FontSize." + s], values["LineHeight." + s], values.GetValueOrDefault("LetterSpacing." + s)))
             .Where(g => g.Count() > 1)
             .Select(g => string.Join(" = ", g));
 
@@ -269,25 +275,25 @@ public sealed partial class TokensTests
         var dark = Numbers(ThemeDictionary(document, "Dark"));
         var fixedNumbers = Numbers(document.Root!);
 
-        Assert.Equal("28", light["Glass.Recording.HaloBlur"]);
-        Assert.Equal("32", dark["Glass.Recording.HaloBlur"]);
+        Assert.Equal("18", light["Glass.Recording.HaloBlur"]);
+        Assert.Equal("21", dark["Glass.Recording.HaloBlur"]);
         Assert.Equal("0.35", light["Glass.Recording.Glow"]);
         Assert.Equal("0.25", dark["Glass.Recording.Glow"]);
-        Assert.Equal("30", light["Glass.Welcome.HaloBlur"]);
-        Assert.Equal("34", dark["Glass.Welcome.HaloBlur"]);
+        Assert.Equal("18", light["Glass.Welcome.HaloBlur"]);
+        Assert.Equal("20", dark["Glass.Welcome.HaloBlur"]);
         Assert.Equal("0.3", light["Glass.Voice.HaloOpacity"]);
         Assert.Equal("0.45", dark["Glass.Voice.HaloOpacity"]);
         Assert.Equal("1", light["Glass.Welcome.HaloOpacity"]);
 
         // The sizes, the body fractions (with their five decimals) and the inner glow blur are the same in both themes.
-        Assert.Equal("320", fixedNumbers["Glass.Recording.Size"]);
-        Assert.Equal("0.775", fixedNumbers["Glass.Recording.Body"]);
-        Assert.Equal("40", fixedNumbers["Glass.Recording.GlowBlur"]);
-        Assert.Equal("300", fixedNumbers["Glass.Welcome.Size"]);
-        Assert.Equal("0.77333", fixedNumbers["Glass.Welcome.Body"]);
-        Assert.Equal("168", fixedNumbers["Glass.Voice.Size"]);
+        Assert.Equal("206", fixedNumbers["Glass.Recording.Size"]);
+        Assert.Equal("0.7767", fixedNumbers["Glass.Recording.Body"]);
+        Assert.Equal("26", fixedNumbers["Glass.Recording.GlowBlur"]);
+        Assert.Equal("180", fixedNumbers["Glass.Welcome.Size"]);
+        Assert.Equal("0.77778", fixedNumbers["Glass.Welcome.Body"]);
+        Assert.Equal("140", fixedNumbers["Glass.Voice.Size"]);
         Assert.Equal("0.78571", fixedNumbers["Glass.Voice.Body"]);
-        Assert.Equal("28", fixedNumbers["Glass.Voice.GlowBlur"]);
+        Assert.Equal("22", fixedNumbers["Glass.Voice.GlowBlur"]);
         Assert.DoesNotContain(light.Keys, k => k.EndsWith(".Size", StringComparison.Ordinal) || k.EndsWith(".Body", StringComparison.Ordinal));
     }
 
@@ -295,7 +301,7 @@ public sealed partial class TokensTests
     public void TheGenerator_RefusesAGlassOrbWithoutItsDarkValue()
     {
         var json = File.ReadAllText(RepoPaths.TokensJson);
-        var broken = json.Replace("\"haloBlurDark\": 32,", string.Empty, StringComparison.Ordinal);
+        var broken = json.Replace("\"haloBlurDark\": 21,", string.Empty, StringComparison.Ordinal);
         Assert.NotEqual(json, broken);
 
         var error = Assert.Throws<InvalidOperationException>(() => TokenGenerator.Generate(broken));
@@ -309,11 +315,11 @@ public sealed partial class TokensTests
     {
         var json = File.ReadAllText(RepoPaths.TokensJson);
 
-        var noSize = json.Replace("\"size\": 320,", string.Empty, StringComparison.Ordinal);
+        var noSize = json.Replace("\"size\": 206,", string.Empty, StringComparison.Ordinal);
         Assert.NotEqual(json, noSize);
         Assert.Contains("size", Assert.Throws<InvalidOperationException>(() => TokenGenerator.Generate(noSize)).Message, StringComparison.Ordinal);
 
-        var typo = json.Replace("\"glowBlur\": 40,", "\"glowBlurr\": 40,", StringComparison.Ordinal);
+        var typo = json.Replace("\"glowBlur\": 26,", "\"glowBlurr\": 26,", StringComparison.Ordinal);
         Assert.NotEqual(json, typo);
         Assert.Contains("glowBlurr", Assert.Throws<InvalidOperationException>(() => TokenGenerator.Generate(typo)).Message, StringComparison.Ordinal);
     }
