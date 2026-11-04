@@ -293,18 +293,52 @@ public sealed class ChapterTests : IDisposable
     }
 
     [Fact]
-    public async Task ARecordingShorterThanTheMinimum_IsNotSentToTheGenerator()
+    public async Task ARecordingShorterThanTheMinimum_StillAsksTheGenerator_ButGivesTheWholeBarToTheSummary()
     {
+        _chapters.Put(_fixture.Record.Id, FakeChapterGenerator.Sample);
+        _summaries.Put(FakeSummarizer.Sample(_fixture.Record.Id));
         var vm = await LoadAsync();
         _generator.MinimumDuration = TimeSpan.FromHours(2);
+        _generator.Result = [];
+        _summarizer.ProgressSteps = [0.5];
+        _summarizer.Gate = new TaskCompletionSource();
 
         vm.SummarizeCommand.Execute(null);
+        for (var i = 0; i < 200 && vm.SummaryProgress < 50; i++)
+        {
+            await Task.Delay(5, Ct);
+        }
+
+        // The generator answers [] for a short recording by itself; the summary is all of the bar.
+        Assert.Equal(50, vm.SummaryProgress, 6);
+        _summarizer.Gate.SetResult();
         await vm.SummaryTask;
 
-        Assert.Equal(0, _generator.Calls);
+        Assert.Equal(1, _generator.Calls);
         Assert.Equal(SummaryStatus.Ready, vm.SummaryState);
-        Assert.Empty(_chapters.Saved);
         Assert.False(vm.HasChapters);
+    }
+
+    [Fact]
+    public async Task WithAnUnknownDuration_TheChaptersKeepTheirShareOfTheBar()
+    {
+        var record = _fixture.Record with { Duration = TimeSpan.Zero };
+        _fixture.Player.Duration = TimeSpan.Zero;
+        var vm = Create(record: record);
+        await vm.LoadAsync();
+        _summarizer.ProgressSteps = [1];
+        _generator.Gate = new TaskCompletionSource();
+
+        vm.SummarizeCommand.Execute(null);
+        for (var i = 0; i < 200 && vm.SummaryProgress < 70; i++)
+        {
+            await Task.Delay(5, Ct);
+        }
+
+        Assert.Equal(70, vm.SummaryProgress, 6);
+        _generator.Gate.SetResult();
+        await vm.SummaryTask;
+        Assert.True(vm.HasChapters);
     }
 
     [Fact]
@@ -382,11 +416,36 @@ public sealed class ChapterTests : IDisposable
     }
 
     [Fact]
-    public async Task Stopping_WhileTheChaptersAreMade_KeepsTheOldSummaryAndChapters()
+    public async Task TheSummary_IsSavedAsSoonAsItIsWritten_BeforeTheChaptersAreDone()
+    {
+        var vm = await LoadAsync();
+        _generator.Gate = new TaskCompletionSource();
+
+        vm.SummarizeCommand.Execute(null);
+        for (var i = 0; i < 200 && _generator.Calls == 0; i++)
+        {
+            await Task.Delay(5, Ct);
+        }
+
+        Assert.Single(_summaries.Saved);
+        Assert.Empty(_chapters.Saved);
+        Assert.Equal(SummaryStatus.Working, vm.SummaryState);
+
+        _generator.Gate.SetResult();
+        await vm.SummaryTask;
+
+        Assert.Single(_summaries.Saved);
+        Assert.Single(_chapters.Saved);
+        Assert.Equal(SummaryStatus.Ready, vm.SummaryState);
+    }
+
+    [Fact]
+    public async Task Stopping_WhileTheChaptersAreMade_KeepsTheNewSummary_AndTheOldChapters()
     {
         _chapters.Put(_fixture.Record.Id, [new Chapter("Old", TimeSpan.Zero)]);
         _summaries.Put(FakeSummarizer.Sample(_fixture.Record.Id));
         var vm = await LoadAsync();
+        _summarizer.Result = FakeSummarizer.Sample(_fixture.Record.Id) with { Overview = "The new summary." };
         _generator.Gate = new TaskCompletionSource();
 
         vm.SummarizeCommand.Execute(null);
@@ -399,7 +458,25 @@ public sealed class ChapterTests : IDisposable
         await vm.SummaryTask;
 
         Assert.Equal(SummaryStatus.Ready, vm.SummaryState);
-        Assert.Empty(_summaries.Saved);
+        Assert.Equal("The new summary.", vm.SummaryOverview);
+        Assert.Equal("The new summary.", _summaries.Saved.Single().Overview);
+        Assert.Empty(_chapters.Saved);
+        Assert.Equal(["Old"], vm.Chapters.Select(c => c.Title));
+    }
+
+    [Fact]
+    public async Task ACancellationThatIsNotStop_FromTheModelHost_FailsOnlyTheChapters()
+    {
+        _chapters.Put(_fixture.Record.Id, [new Chapter("Old", TimeSpan.Zero)]);
+        var vm = await LoadAsync();
+        _generator.Failure = new OperationCanceledException("the model was unloaded while loading");
+
+        vm.SummarizeCommand.Execute(null);
+        await vm.SummaryTask;
+
+        Assert.Equal(SummaryStatus.Ready, vm.SummaryState);
+        Assert.Single(_summaries.Saved);
+        Assert.Contains("Walked the client", vm.SummaryOverview);
         Assert.Empty(_chapters.Saved);
         Assert.Equal(["Old"], vm.Chapters.Select(c => c.Title));
     }
@@ -544,5 +621,71 @@ public sealed class ChapterTests : IDisposable
 
         Assert.True(new FileInfo(path).Length > 10_000, "Screenshot looks empty.");
         Assert.Equal("PDF export", shell.Session!.CurrentChapter?.Title);
+    }
+
+    private static List<Chapter> Twelve() =>
+        Enumerable.Range(0, 12).Select(i => new Chapter(i % 2 == 0 ? "A rather long chapter title number " + i : "Short " + i, i < 11 ? S(i * 300) : new TimeSpan(100, 2, 5))).ToList();
+
+    [Theory]
+    [InlineData(900, 600, false, false)]
+    [InlineData(500, 600, true, true)]
+    public async Task TwelveChapters_InASmallWindow_NeverOverflowTheirSegments(int width, int height, bool strippedDown, bool timeHidden)
+    {
+        _chapters.Put(_fixture.Record.Id, Twelve());
+        var harness = new UiHarness();
+        harness.Store.Add(_fixture.Record);
+        var shell = harness.CreateShell(_ => Create(), _fixture.Processing);
+        await shell.Library.LoadAsync();
+        shell.Library.SelectedSession = shell.Library.Sessions[0];
+        await shell.SessionLoadTask;
+
+        var (count, overflows, timesVisible, narrowest) = await Session.Dispatch(
+            () =>
+            {
+                // 900 x 600 is the smallest window of the app. A strip narrower than that (the segments below 56 px) is hosted on its own.
+                Window window = strippedDown
+                    ? new Window { Width = width, Height = height, Content = new ChapterStripView { DataContext = shell.Session } }
+                    : UiHarness.Show(shell);
+                window.Width = width;
+                window.Height = height;
+                if (strippedDown)
+                {
+                    window.Show();
+                }
+
+                UiHarness.Pump(6);
+                var strip = window.GetVisualDescendants().OfType<ChapterStripView>().Single();
+                var segments = strip.GetVisualDescendants().OfType<Button>().ToArray();
+                var padding = segments[0].Padding;
+                var over = new List<string>();
+                var visibleTimes = 0;
+                foreach (var segment in segments)
+                {
+                    foreach (var text in segment.GetVisualDescendants().OfType<TextBlock>().Where(t => t.IsVisible))
+                    {
+                        if (text.Classes.Contains("chapterTime"))
+                        {
+                            visibleTimes++;
+                        }
+
+                        // A text block is measured no wider than the room it is given, so overflow cannot be seen in its size: it is the missing
+                        // ellipsis that lets a long text run past its segment (the clip then cuts it mid-letter).
+                        if (text.TextTrimming == Avalonia.Media.TextTrimming.None || text.Bounds.Width > segment.Bounds.Width - padding.Left - padding.Right + 0.5)
+                        {
+                            over.Add(text.Text + " " + text.Bounds.Width + " in " + segment.Bounds.Width);
+                        }
+                    }
+                }
+
+                var result = (segments.Length, over, visibleTimes, segments.Min(b => b.Bounds.Width));
+                window.Close();
+                return result;
+            },
+            Ct);
+
+        Assert.Equal(12, count);
+        Assert.Empty(overflows);
+        Assert.True(timeHidden == (timesVisible == 0), $"times visible {timesVisible}, narrowest {narrowest}");
+        Assert.Equal(!timeHidden, narrowest >= ChapterStripView.CompactWidth);
     }
 }

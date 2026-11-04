@@ -152,7 +152,18 @@ public sealed partial class ChapterGenerator : IChapterGenerator
         }
 
         // Stable by time: two chapters on the same segment keep the model's order, and the first of them wins.
-        var ordered = snapped.Select((chapter, index) => (chapter, index)).OrderBy(x => x.chapter.Start).ThenBy(x => x.index).Select(x => x.chapter).ToList();
+        var ordered = new List<Chapter>(snapped.Count);
+        foreach (var chapter in snapped)
+        {
+            var at = ordered.Count;
+            while (at > 0 && ordered[at - 1].Start > chapter.Start)
+            {
+                at--;
+            }
+
+            ordered.Insert(at, chapter);
+        }
+
         var result = new List<Chapter>(ordered.Count);
         foreach (var chapter in ordered)
         {

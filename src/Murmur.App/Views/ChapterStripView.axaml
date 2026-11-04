@@ -11,19 +11,12 @@
     8 px apart. The one the playhead is in is filled with Ink; a click on a segment seeks there. The view that hosts it hides it
     while the recording has no chapters.
   -->
-  <UserControl.Resources>
-    <ResourceDictionary>
-      <x:Double x:Key="ChapterStrip.Height">40</x:Double>
-      <Thickness x:Key="ChapterStrip.Padding">8,0</Thickness>
-    </ResourceDictionary>
-  </UserControl.Resources>
-
   <UserControl.Styles>
     <Style Selector="Button.chapter">
-      <Setter Property="Height" Value="{StaticResource ChapterStrip.Height}" />
+      <Setter Property="Height" Value="{StaticResource Size.ChapterStrip}" />
       <Setter Property="MinHeight" Value="0" />
       <Setter Property="MinWidth" Value="0" />
-      <Setter Property="Padding" Value="{StaticResource ChapterStrip.Padding}" />
+      <Setter Property="Padding" Value="{StaticResource Margin.ChapterSegment}" />
       <Setter Property="HorizontalAlignment" Value="Stretch" />
       <Setter Property="HorizontalContentAlignment" Value="Left" />
       <Setter Property="VerticalContentAlignment" Value="Center" />
@@ -68,6 +61,12 @@
       <Setter Property="LineHeight" Value="{StaticResource LineHeight.MonoRow}" />
       <Setter Property="LetterSpacing" Value="{StaticResource LetterSpacing.MonoRow}" />
       <Setter Property="Foreground" Value="{DynamicResource Brush.Smoke}" />
+      <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+      <Setter Property="TextWrapping" Value="NoWrap" />
+    </Style>
+    <!-- Segments narrower than ChapterStripView.CompactWidth (a dozen chapters in a narrow window): the title keeps the room, the time goes first. -->
+    <Style Selector="ItemsControl.compact TextBlock.chapterTime">
+      <Setter Property="IsVisible" Value="False" />
     </Style>
     <Style Selector="Button.chapter.current TextBlock.chapterTime">
       <Setter Property="Foreground" Value="{DynamicResource Brush.Canvas}" />
