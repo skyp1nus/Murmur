@@ -1529,4 +1529,40 @@
   <data name="Session_AskAi" xml:space="preserve">
     <value>Ask AI about this recording</value>
   </data>
+  <data name="Activity_Title" xml:space="preserve">
+    <value>Activity</value>
+  </data>
+  <data name="Activity_Scope" xml:space="preserve">
+    <value>All on this PC</value>
+  </data>
+  <data name="Activity_Empty" xml:space="preserve">
+    <value>Nothing running.</value>
+  </data>
+  <data name="Activity_Queued" xml:space="preserve">
+    <value>Queued</value>
+  </data>
+  <data name="Activity_Recording" xml:space="preserve">
+    <value>Recording</value>
+  </data>
+  <data name="Activity_Transcribing" xml:space="preserve">
+    <value>Transcribing</value>
+  </data>
+  <data name="Activity_Indexing" xml:space="preserve">
+    <value>Indexing</value>
+  </data>
+  <data name="Activity_Summarizing" xml:space="preserve">
+    <value>Summarizing</value>
+  </data>
+  <data name="Activity_Downloading" xml:space="preserve">
+    <value>Downloading</value>
+  </data>
+  <data name="Status_UpToDate" xml:space="preserve">
+    <value>Up to date</value>
+  </data>
+  <data name="Status_AllLocal" xml:space="preserve">
+    <value>All local</value>
+  </data>
+  <data name="Status_QueuedCount" xml:space="preserve">
+    <value>Queued {0}</value>
+  </data>
 </root>

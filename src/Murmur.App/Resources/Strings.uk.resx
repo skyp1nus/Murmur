@@ -1520,4 +1520,40 @@
   <data name="Session_AskAi" xml:space="preserve">
     <value>Запитати AI про цей запис</value>
   </data>
+  <data name="Activity_Title" xml:space="preserve">
+    <value>Активність</value>
+  </data>
+  <data name="Activity_Scope" xml:space="preserve">
+    <value>Усе на цьому ПК</value>
+  </data>
+  <data name="Activity_Empty" xml:space="preserve">
+    <value>Нічого не виконується.</value>
+  </data>
+  <data name="Activity_Queued" xml:space="preserve">
+    <value>У черзі</value>
+  </data>
+  <data name="Activity_Recording" xml:space="preserve">
+    <value>Запис</value>
+  </data>
+  <data name="Activity_Transcribing" xml:space="preserve">
+    <value>Транскрибується</value>
+  </data>
+  <data name="Activity_Indexing" xml:space="preserve">
+    <value>Індексується</value>
+  </data>
+  <data name="Activity_Summarizing" xml:space="preserve">
+    <value>Підсумовується</value>
+  </data>
+  <data name="Activity_Downloading" xml:space="preserve">
+    <value>Завантажується</value>
+  </data>
+  <data name="Status_UpToDate" xml:space="preserve">
+    <value>Усе актуально</value>
+  </data>
+  <data name="Status_AllLocal" xml:space="preserve">
+    <value>Усе локально</value>
+  </data>
+  <data name="Status_QueuedCount" xml:space="preserve">
+    <value>У черзі: {0}</value>
+  </data>
 </root>

@@ -1,0 +1,90 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Murmur.App.ViewModels"
+             xmlns:views="using:Murmur.App.Views"
+             xmlns:controls="using:Murmur.App.Controls"
+             x:Class="Murmur.App.Views.StatusBarView"
+             x:DataType="vm:StatusBarViewModel">
+
+  <!-- The 28 px bar at the bottom of the window (Idea5Activity.dc.html): the recording on the left, the summary of what runs in the middle, "All local" on the right. Facts only. -->
+  <Border Classes="statusBar">
+    <DockPanel LastChildFill="False">
+
+      <StackPanel DockPanel.Dock="Right"
+                  Orientation="Horizontal"
+                  VerticalAlignment="Center"
+                  Spacing="{StaticResource Space.6}">
+        <controls:IconControl Width="{StaticResource Size.StatusLock}"
+                              Height="{StaticResource Size.StatusLock}"
+                              VerticalAlignment="Center"
+                              TextElement.Foreground="{DynamicResource Brush.Smoke}"
+                              Data="{StaticResource Icon.Lock}" />
+        <TextBlock Classes="statusText muted"
+                   Text="{Binding AllLocalText}" />
+      </StackPanel>
+
+      <StackPanel DockPanel.Dock="Left"
+                  Orientation="Horizontal"
+                  VerticalAlignment="Center"
+                  Spacing="{StaticResource Space.4}">
+
+        <!-- Only while recording; leads to the Recording screen. -->
+        <Button x:Name="RecordingButton"
+                Classes="statusItem"
+                IsVisible="{Binding IsRecording}"
+                Command="{Binding ShowRecordingCommand}">
+          <StackPanel Orientation="Horizontal"
+                      Spacing="{StaticResource Space.6}">
+            <controls:SpinningOrb Width="{StaticResource Size.StatusOrb}"
+                                  Height="{StaticResource Size.StatusOrb}"
+                                  VerticalAlignment="Center" />
+            <TextBlock Classes="statusText graphite"
+                       Text="{Binding RecordingText}" />
+            <TextBlock x:Name="ElapsedLabel"
+                       Classes="statusMono graphite"
+                       Text="{Binding ElapsedText}" />
+          </StackPanel>
+        </Button>
+
+        <!-- What runs; opens the Activity popover above it. -->
+        <Button x:Name="ActivityButton"
+                Classes="statusItem"
+                AutomationProperties.Name="{Binding ActivityName}">
+          <Button.Flyout>
+            <Flyout Placement="TopEdgeAlignedLeft"
+                    VerticalOffset="{StaticResource Size.ActivityGap}"
+                    FlyoutPresenterClasses="activityPopover">
+              <views:ActivityPopoverView DataContext="{Binding Activity}" />
+            </Flyout>
+          </Button.Flyout>
+          <Panel>
+            <TextBlock Classes="statusText"
+                       IsVisible="{Binding IsUpToDate}"
+                       Text="{Binding UpToDateText}" />
+            <ItemsControl IsVisible="{Binding !IsUpToDate}"
+                          ItemsSource="{Binding SummaryParts}">
+              <ItemsControl.ItemsPanel>
+                <ItemsPanelTemplate>
+                  <StackPanel Orientation="Horizontal"
+                              Spacing="{StaticResource Space.4}" />
+                </ItemsPanelTemplate>
+              </ItemsControl.ItemsPanel>
+              <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="vm:StatusSummaryPart">
+                  <StackPanel Orientation="Horizontal"
+                              Spacing="{StaticResource Space.4}">
+                    <TextBlock Classes="statusText"
+                               Text="{Binding Label}" />
+                    <TextBlock Classes="statusMono"
+                               IsVisible="{Binding HasPercent}"
+                               Text="{Binding Percent}" />
+                  </StackPanel>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+          </Panel>
+        </Button>
+      </StackPanel>
+    </DockPanel>
+  </Border>
+</UserControl>

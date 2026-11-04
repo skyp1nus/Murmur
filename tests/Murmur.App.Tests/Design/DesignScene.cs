@@ -46,10 +46,14 @@ internal sealed class DesignScene : IDisposable
     /// Builds the board. Must run on the UI thread of the headless session. The UI language is English for the whole life of
     /// the scene (the scope is undone by <see cref="Dispose"/>).
     /// </summary>
-    public static async Task<DesignScene> BuildAsync(DesignBoard board, string language = "en")
+    /// <param name="statusBar">
+    /// The window has the 28 px status bar. Off for the parity boards, which do not show it (docs/design/README.md, "design parity");
+    /// the window-fit tests turn it on.
+    /// </param>
+    public static async Task<DesignScene> BuildAsync(DesignBoard board, string language = "en", bool statusBar = false)
     {
         var culture = UiCulture.Override(language);
-        var rig = new DesignRig(board.IsOnboarding);
+        var rig = new DesignRig(board.IsOnboarding, statusBar);
         var notes = new List<string>();
         MainWindow window;
         if (board.IsOnboarding)

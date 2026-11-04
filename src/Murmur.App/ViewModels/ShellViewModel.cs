@@ -47,6 +47,7 @@ public sealed partial class ShellViewModel : ObservableObject
     /// <param name="chatStore">The saved chats of Ask AI (the sidebar's Chats list); <c>null</c> = chats are not saved.</param>
     /// <param name="sessionStore">Names the recording a saved chat is scoped to.</param>
     /// <param name="chatModelChip">The model chip of the Ask AI header.</param>
+    /// <param name="statusBar">The status bar at the bottom of the window; <c>null</c> = none (the design parity boards do not show it).</param>
     public ShellViewModel(
         LibraryViewModel library,
         RecordingViewModel recording,
@@ -60,7 +61,8 @@ public sealed partial class ShellViewModel : ObservableObject
         Action<Action>? post = null,
         IChatStore? chatStore = null,
         ISessionStore? sessionStore = null,
-        ChatModelChipViewModel? chatModelChip = null)
+        ChatModelChipViewModel? chatModelChip = null,
+        StatusBarViewModel? statusBar = null)
     {
         ArgumentNullException.ThrowIfNull(library);
         ArgumentNullException.ThrowIfNull(recording);
@@ -97,6 +99,12 @@ public sealed partial class ShellViewModel : ObservableObject
             settingsStore.Changed += OnHotkeySettingsChanged;
         }
 
+        StatusBar = statusBar;
+        if (statusBar is not null)
+        {
+            statusBar.RecordingRequested += OnStatusBarRecordingRequested;
+        }
+
         UpdateHint();
         UpdateTopBar(library);
 
@@ -117,6 +125,9 @@ public sealed partial class ShellViewModel : ObservableObject
     public LibraryViewModel Library { get; }
 
     public RecordingViewModel Recording { get; }
+
+    /// <summary>The 28 px status bar under the page (what runs, the Activity popover), or <c>null</c> without one.</summary>
+    public StatusBarViewModel? StatusBar { get; }
 
     /// <summary>The Settings screen, or <c>null</c> when none is configured.</summary>
     public SettingsViewModel? Settings { get; }
@@ -224,7 +235,17 @@ public sealed partial class ShellViewModel : ObservableObject
             new TrialSessionCleaner(services.Sessions, processing),
             chatStore: services.Chats,
             sessionStore: services.Sessions,
-            chatModelChip: new ChatModelChipViewModel(() => ActiveChatModelName(services, store), ai?.AccelerationSource));
+            chatModelChip: new ChatModelChipViewModel(() => ActiveChatModelName(services, store), ai?.AccelerationSource),
+            statusBar: services.Activity is { } activity ? new StatusBarViewModel(activity, services.Recorder) : null);
+    }
+
+    /// <summary>"Recording 12:48" in the status bar leads to the Recording screen (not out of the onboarding, whose trial recording has its own page).</summary>
+    private void OnStatusBarRecordingRequested()
+    {
+        if (!_closed && CurrentPage is not OnboardingViewModel)
+        {
+            ShowRecording();
+        }
     }
 
     /// <summary>The name of the chat model that answers: the active one on disk, else the saved choice, else the first installed one.</summary>
@@ -780,6 +801,7 @@ public sealed partial class ShellViewModel : ObservableObject
         }
 
         _onboarding?.Suspend();
+        StatusBar?.Dispose();
 
         // The app ends with its window: release what the screens subscribed to.
         Settings?.Dispose();

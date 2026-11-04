@@ -2,6 +2,7 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
 using Avalonia.VisualTree;
+using Murmur.App.Views;
 
 namespace Murmur.App.Tests.Design;
 
@@ -33,21 +34,45 @@ public sealed class WindowSizeFitTests
         return data;
     }
 
+    /// <summary>The same screens in the real app, with the 28 px status bar under the page (its widest content): they still fit.</summary>
+    public static TheoryData<string, bool, int, int> StatusBarCases()
+    {
+        var data = new TheoryData<string, bool, int, int>();
+        foreach (var name in Boards)
+        {
+            foreach (var dark in new[] { false, true })
+            {
+                data.Add(name, dark, 900, 600);
+                data.Add(name, dark, 1100, 720);
+            }
+        }
+
+        return data;
+    }
+
     private static Rect InWindow(Visual visual, Visual window) => new(visual.TranslatePoint(default, window) ?? default, visual.Bounds.Size);
 
     [Theory]
     [MemberData(nameof(Cases))]
-    public async Task Screen_FitsTheWindow_WithoutClippingOrOverlap(string name, bool dark, int width, int height)
+    public Task Screen_FitsTheWindow_WithoutClippingOrOverlap(string name, bool dark, int width, int height) =>
+        CheckAsync(name, dark, width, height, statusBar: false);
+
+    [Theory]
+    [MemberData(nameof(StatusBarCases))]
+    public Task Screen_WithTheStatusBar_FitsTheWindow_WithoutClippingOrOverlap(string name, bool dark, int width, int height) =>
+        CheckAsync(name, dark, width, height, statusBar: true);
+
+    private static async Task CheckAsync(string name, bool dark, int width, int height, bool statusBar)
     {
         var board = DesignBoards.Get(name + (dark ? "Dark" : "")) with { Width = width, Height = height };
         var dir = Environment.GetEnvironmentVariable("MURMUR_SIZEFIT_DIR") is { Length: > 0 } d ? d : Path.Combine(Path.GetTempPath(), "murmur-sizefit");
-        var png = Path.Combine(dir, $"{board.Name}-{width}x{height}.png");
+        var png = Path.Combine(dir, $"{board.Name}-{width}x{height}{(statusBar ? "-statusbar" : "")}.png");
 
         var problems = await UiHarness.Session.Dispatch(
             async () =>
             {
                 var found = new List<string>();
-                using var scene = await DesignScene.BuildAsync(board);
+                using var scene = await DesignScene.BuildAsync(board, statusBar: statusBar);
                 var window = scene.Window;
                 UiHarness.Save(window, png);
 
@@ -116,6 +141,43 @@ public sealed class WindowSizeFitTests
                         if (overlap.Width > 1 && overlap.Height > 1)
                         {
                             found.Add($"{all[i].GetType().Name} '{all[i].Name}' overlaps {all[j].GetType().Name} '{all[j].Name}' by {overlap}");
+                        }
+                    }
+                }
+
+                if (statusBar)
+                {
+                    // The bar is 28 px high, at the bottom edge, shows its three parts, and nothing of the page reaches into it.
+                    var bar = window.GetVisualDescendants().OfType<StatusBarView>().SingleOrDefault();
+                    if (bar is null)
+                    {
+                        found.Add("the status bar is missing");
+                    }
+                    else
+                    {
+                        var rect = InWindow(bar, window);
+                        if (Math.Abs(rect.Height - 28) > 0.5 || Math.Abs(rect.Bottom - height) > 0.5 || Math.Abs(rect.Right - width) > 0.5)
+                        {
+                            found.Add($"the status bar is at {rect}, expected a 28 px bar on the bottom edge");
+                        }
+
+                        foreach (var name2 in new[] { "RecordingButton", "ActivityButton" })
+                        {
+                            if (bar.FindControl<Button>(name2) is not { IsEffectivelyVisible: true, Bounds.Width: > 0 })
+                            {
+                                found.Add(name2 + " is not shown in the status bar");
+                            }
+                        }
+
+                        foreach (var control in window.GetVisualDescendants().OfType<Control>()
+                            .Where(c => c.IsEffectivelyVisible && c.Bounds.Width > 0 && c.Bounds.Height > 0 && !bar.IsVisualAncestorOf(c) && c != bar
+                                && (c is Button || c is TextBox || c is TextBlock) && c.FindAncestorOfType<ScrollViewer>() is null))
+                        {
+                            var overlap = InWindow(control, window).Intersect(rect);
+                            if (overlap.Width > 1 && overlap.Height > 1)
+                            {
+                                found.Add($"{control.GetType().Name} '{control.Name}' reaches into the status bar by {overlap}");
+                            }
                         }
                     }
                 }

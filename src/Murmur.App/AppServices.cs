@@ -1,4 +1,5 @@
 using Murmur.App.Services;
+using Murmur.Core.Activity;
 using Murmur.Core.Capture;
 using Murmur.Core.Input;
 using Murmur.Core.Models;
@@ -55,6 +56,7 @@ namespace Murmur.App;
 /// <c>null</c> = motion is never reduced.
 /// </param>
 /// <param name="Summaries">Keeps the summary of a recording between visits; <c>null</c> = a summary lives only while the recording is open.</param>
+/// <param name="Activity">What runs or waits (recording, transcribing, indexing, model downloads) for the status bar; <c>null</c> = no status bar.</param>
 public sealed record AppServices(
     IRecorder Recorder,
     ICapture Capture,
@@ -75,4 +77,5 @@ public sealed record AppServices(
     IActivationRequests? Activation = null,
     IMotionPreference? Motion = null,
     ISummaryStore? Summaries = null,
-    IChatStore? Chats = null);
+    IChatStore? Chats = null,
+    IActivityFeed? Activity = null);
