@@ -75,7 +75,7 @@ public interface ISearchIndex
 }
 
 /// <summary>Everything persisted: session metadata, transcripts, summaries, saved chats, search index and session files.</summary>
-public interface IStorage : ISessionStore, ITranscriptStore, ISearchIndex, ISummaryStore, IChatStore
+public interface IStorage : ISessionStore, ITranscriptStore, ISearchIndex, ISummaryStore, IChatStore, IChapterStore
 {
     /// <summary>Folder that contains the database and every session folder.</summary>
     string RootDirectory { get; }

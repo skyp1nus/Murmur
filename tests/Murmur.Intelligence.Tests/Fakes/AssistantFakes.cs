@@ -95,6 +95,10 @@ internal sealed class FakeStorage : IStorage
     public ValueTask SaveSummaryAsync(SessionSummary summary, CancellationToken cancellationToken) => throw new NotSupportedException();
 
     public ValueTask DeleteSummaryAsync(SessionId session, CancellationToken cancellationToken) => throw new NotSupportedException();
+
+    public ValueTask SaveChaptersAsync(SessionId session, IReadOnlyList<Chapter> chapters, CancellationToken cancellationToken) => throw new NotSupportedException();
+
+    public ValueTask<IReadOnlyList<Chapter>> GetChaptersAsync(SessionId session, CancellationToken cancellationToken) => throw new NotSupportedException();
 }
 
 /// <summary>Embeds "…{n}" style inputs deterministically and records every batch.</summary>

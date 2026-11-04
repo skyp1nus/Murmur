@@ -32,6 +32,9 @@ public enum SummaryStatus
 /// </summary>
 public sealed partial class SessionViewModel
 {
+    /// <summary>When chapters follow the summary, the summary is this share of the progress bar (the summary is the longer step).</summary>
+    private const double SummaryShareOfRun = 0.7;
+
     private CancellationTokenSource? _summaryRun;
     private SessionSummary? _stored;
 
@@ -213,11 +216,33 @@ public sealed partial class SessionViewModel
         SummaryProgressText = UiText.Format(Strings.Common_Percent, 0);
         SummaryState = SummaryStatus.Working;
         RefreshSummaryAvailability();
-        var progress = new PostedProgress(value => _post(() => ShowSummaryProgress(run, value)));
+        // The progress bar covers both steps: the summary first, then (for a recording long enough) the chapters.
+        var generator = _services.ChapterGenerator is { } chapterGenerator && Duration >= chapterGenerator.MinimumDuration ? chapterGenerator : null;
+        var summaryShare = generator is null ? 1.0 : SummaryShareOfRun;
+        var progress = new PostedProgress(value => _post(() => ShowSummaryProgress(run, value * summaryShare)));
+        var chapterProgress = new PostedProgress(value => _post(() => ShowSummaryProgress(run, summaryShare + (value * (1 - summaryShare)))));
         try
         {
             // The model works on the thread pool: the first request starts llama-server and reads the transcript.
-            var summary = await Task.Run(async () => await summarizer.SummarizeAsync(Id, progress, run.Token).ConfigureAwait(false), run.Token).ConfigureAwait(true);
+            var (summary, chapters) = await Task.Run(async () =>
+            {
+                var written = await summarizer.SummarizeAsync(Id, progress, run.Token).ConfigureAwait(false);
+                IReadOnlyList<Chapter>? split = null;
+                if (generator is not null)
+                {
+                    try
+                    {
+                        split = await generator.GenerateChaptersAsync(Id, chapterProgress, run.Token).ConfigureAwait(false);
+                    }
+                    catch (Exception ex) when (ex is not OperationCanceledException)
+                    {
+                        // The summary is the point of this run: without chapters it still counts, and the earlier chapters stay.
+                        Console.Error.WriteLine($"Chapters of session {Id} failed: {ex.Message}");
+                    }
+                }
+
+                return (written, split);
+            }, run.Token).ConfigureAwait(true);
             if (_disposed || run.IsCancellationRequested)
             {
                 // "Stop" came while the result was on its way: the user asked to stop, so what was shown before comes back.
@@ -239,6 +264,23 @@ public sealed partial class SessionViewModel
                 {
                     // Not kept for the next visit, but it is shown now.
                 }
+            }
+
+            if (chapters is not null)
+            {
+                if (_services.Chapters is { } chapterStore)
+                {
+                    try
+                    {
+                        await chapterStore.SaveChaptersAsync(Id, chapters, CancellationToken.None).ConfigureAwait(true);
+                    }
+                    catch (Exception)
+                    {
+                        // Not kept for the next visit, but they are shown now.
+                    }
+                }
+
+                ShowChapters(chapters);
             }
 
             DisplaySummary(summary);

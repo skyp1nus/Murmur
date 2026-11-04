@@ -8,7 +8,7 @@ public sealed partial class SqliteStorage
 {
     /// <summary>
     /// Replaces the transcript of a session (segments, words and the FTS5 index rows) in one transaction. Times are
-    /// stored with millisecond precision. The summary of the session, made from the earlier transcript, is deleted. Throws <see cref="KeyNotFoundException"/> for an unknown session.
+    /// stored with millisecond precision. The summary and the chapters of the session, made from the earlier transcript, are deleted. Throws <see cref="KeyNotFoundException"/> for an unknown session.
     /// </summary>
     public ValueTask SaveTranscriptAsync(Transcript transcript, CancellationToken cancellationToken)
     {
@@ -67,7 +67,7 @@ public sealed partial class SqliteStorage
         {
             // A summary describes the transcript it was made from: a new transcript makes it stale, so it goes in the same transaction.
             stale.Transaction = transaction;
-            stale.CommandText = "DELETE FROM summaries WHERE session_id = $id";
+            stale.CommandText = "DELETE FROM summaries WHERE session_id = $id; DELETE FROM chapters WHERE session_id = $id";
             stale.Parameters.AddWithValue("$id", session);
             stale.ExecuteNonQuery();
         }

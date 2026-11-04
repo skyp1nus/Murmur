@@ -273,6 +273,7 @@ public sealed partial class SessionViewModel : ObservableObject, IDisposable, IF
         await LoadPeaksAsync().ConfigureAwait(true);
         await LoadTranscriptAsync().ConfigureAwait(true);
         await LoadSummaryAsync().ConfigureAwait(true);
+        await LoadChaptersAsync().ConfigureAwait(true);
     }
 
     /// <summary>Stops following the player and the pipeline and releases the player.</summary>
@@ -754,6 +755,7 @@ public sealed partial class SessionViewModel : ObservableObject, IDisposable, IF
 
         // A new transcript made the summary of the old one stale: the store dropped it, so the tab shows what is stored now.
         await LoadSummaryAsync().ConfigureAwait(true);
+        await LoadChaptersAsync().ConfigureAwait(true);
     }
 
     // Player events -----------------------------------------------------------------------------------------------
@@ -795,6 +797,7 @@ public sealed partial class SessionViewModel : ObservableObject, IDisposable, IF
     {
         PositionText = UiFormat.Clock(value);
         OnPropertyChanged(nameof(PositionFraction));
+        UpdateCurrentChapter(value);
     }
 
     partial void OnDurationChanged(TimeSpan value)
