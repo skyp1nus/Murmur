@@ -37,6 +37,18 @@ public sealed class WasapiAudioSessionMonitorTests
     }
 
     [Fact]
+    public void MurmursOwnRecording_NeverMakesTheMicInUse()
+    {
+        // Murmur records the mic (an active capture session of its own) while Teams plays: that alone is no call.
+        var recordingAlone = AudioSessionActivity.Build([Capture(Own), Render(10)], Own, Name);
+        Assert.False(recordingAlone.MicrophoneInUse);
+        Assert.Equal([new RenderingProcess(10, "p10")], recordingAlone.Rendering);
+
+        // Teams' own capture session still counts while Murmur records.
+        Assert.True(AudioSessionActivity.Build([Capture(Own), Capture(10), Render(10)], Own, Name).MicrophoneInUse);
+    }
+
+    [Fact]
     public void MurmursOwnSessions_SystemSounds_AndCrossProcessSessions_NeverCount()
     {
         var snapshot = AudioSessionActivity.Build([Capture(Own), Render(Own), Render(0), Render(50, system: true)], Own, Name);

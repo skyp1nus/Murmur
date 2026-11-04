@@ -33,7 +33,13 @@ internal static class AudioSessionActivity
         var rendering = new List<RenderingProcess>();
         foreach (var reading in readings)
         {
-            if (reading.State != StateActive || reading.IsSystemSounds || reading.ProcessId <= 0 || reading.ProcessId == ownProcessId)
+            if (reading.State != StateActive || reading.IsSystemSounds || reading.ProcessId <= 0)
+            {
+                continue;
+            }
+
+            // Murmur's own sessions never count: its recording does not make the mic "in use", its playback is no call audio.
+            if (reading.ProcessId == ownProcessId)
             {
                 continue;
             }
