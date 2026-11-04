@@ -43,9 +43,10 @@
       <x:Double x:Key="Session.StatusWidth">480</x:Double>
       <!-- The playhead sticks out 3 px above and below the 42 px of bars. -->
       <Thickness x:Key="Session.WaveformMargin">0,-3</Thickness>
-      <Thickness x:Key="Session.TimeShift">0</Thickness>
+      <!-- The canvas lines are 20.15 px and its rows add up to 2 px more than the whole-pixel lines of the app over the 14 lines of the demo; one pixel down
+           splits that drift between the first and the last row (fitted at 100 % scale). -->
+      <Thickness x:Key="Session.TranscriptShift">0,1,0,0</Thickness>
       <Thickness x:Key="Session.RowGap">0,0,0,2</Thickness>
-      <Thickness x:Key="Session.TimeNudge">0</Thickness>
       <Thickness x:Key="Session.RowPadding">10,8</Thickness>
       <Thickness x:Key="Session.TimePadding">5,0</Thickness>
       <Thickness x:Key="Session.VideoMargin">10</Thickness>
@@ -356,9 +357,9 @@
       <Setter Property="Foreground" Value="{DynamicResource Brush.Ink}" />
     </Style>
     <Style Selector="controls|TranscriptTextControl.sessionText">
-      <Setter Property="FontSize" Value="{StaticResource FontSize.Message}" />
-      <Setter Property="LineHeight" Value="{StaticResource LineHeight.Message}" />
-      <Setter Property="LetterSpacing" Value="{StaticResource LetterSpacing.Message}" />
+      <Setter Property="FontSize" Value="{StaticResource FontSize.MessageLine}" />
+      <Setter Property="LineHeight" Value="{StaticResource LineHeight.MessageLine}" />
+      <Setter Property="LetterSpacing" Value="{StaticResource LetterSpacing.MessageLine}" />
       <Setter Property="MarkBrush" Value="{DynamicResource Brush.Ink}" />
       <Setter Property="MarkForeground" Value="{DynamicResource Brush.Canvas}" />
       <Setter Property="MarkCornerRadius" Value="{StaticResource Radius.Input}" />
@@ -391,7 +392,6 @@
       <Setter Property="BorderThickness" Value="0" />
       <Setter Property="Foreground" Value="{DynamicResource Brush.Smoke}" />
       <Setter Property="VerticalAlignment" Value="Center" />
-      <Setter Property="Margin" Value="{StaticResource Session.TimeNudge}" />
     </Style>
     <Style Selector="Button.sessionTime /template/ ContentPresenter#PART_ContentPresenter">
       <Setter Property="Background" Value="Transparent" />
@@ -489,6 +489,7 @@
           <TextBlock Classes="sessionTitle"
                      TextTrimming="CharacterEllipsis"
                      Text="{Binding Title}" />
+          <!-- parity-only: the canvas packs the fractional-width runs of this line without rounding; layout rounding widens each run and "Parakeet TDT v3" lands 2.3 px right. -->
           <ItemsControl Classes="sessionMetaList"
                         UseLayoutRounding="False"
                         ItemsSource="{Binding Meta}">
@@ -579,11 +580,14 @@
                 <TextBlock Grid.Column="1"
                            Classes="sessionMeta mono"
                            VerticalAlignment="Center"
-                           Margin="{StaticResource Session.TimeShift}"
                            Foreground="{DynamicResource Brush.Ink}">
                   <Run Text="{Binding PositionText, StringFormat='{}{0} '}" /><Run Text="{Binding DurationText, StringFormat='/ {0}'}" Foreground="{DynamicResource Brush.Smoke}" />
                 </TextBlock>
-                <!-- Spacing 2: the pills end up 4 px apart in the render (measured against the reference). -->
+                <!--
+                  The canvas gap is 4 px. The pills are 43.78, 60.67 and 35.2 px wide in the canvas; layout rounding rounds each of them (and its text)
+                  up to whole pixels, which makes the group about 2 px wider than the canvas's. There is no margin or border to remove, so the gap
+                  gives the 2 px back: the group ends where the canvas's does (fitted at 100 % scale).
+                -->
                 <StackPanel Grid.Column="2"
                             Orientation="Horizontal"
                             Spacing="{StaticResource Space.2}">
@@ -690,11 +694,11 @@
 
             <ScrollViewer x:Name="TranscriptScroller"
                           Grid.Row="1"
+                          Margin="{StaticResource Session.TranscriptShift}"
                           HorizontalScrollBarVisibility="Disabled"
                           VerticalScrollBarVisibility="Auto"
                           IsVisible="{Binding ShowTranscriptList}">
               <ItemsControl x:Name="Transcript"
-                            UseLayoutRounding="False"
                             ItemsSource="{Binding Segments}">
                 <ItemsControl.ItemsPanel>
                   <ItemsPanelTemplate>

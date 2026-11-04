@@ -80,6 +80,7 @@ public sealed partial class TokensTests
         // D-044: the values of the canvas live in tokens.json and are generated; a style or view file only names the sizes of its own
         // components (Size.*, Margin.*, ...). The few older insets below predate the decision and move to tokens with their screens.
         var generated = new[] { "FontSize.", "LineHeight.", "LetterSpacing.", "Radius.", "Space.", "Inset.", "Orb.", "Glass.", "Font.", "FontWeight.", "Shadow.", "Hairline." };
+        var typeMetricSuffixes = new[] { "Line", "LineHeight", "FontSize", "LetterSpacing", "Tracking", "Leading" };
         var offenders = new List<string>();
         var files = Directory.EnumerateFiles(Path.Combine(RepoPaths.AppDirectory, "Styles"), "*.axaml")
             .Concat(Directory.EnumerateFiles(Path.Combine(RepoPaths.AppDirectory, "Views"), "*.axaml"))
@@ -88,7 +89,9 @@ public sealed partial class TokensTests
         {
             foreach (var key in XDocument.Load(path).Descendants().Select(e => (string?)e.Attribute(Xaml + "Key")).Where(k => k is not null))
             {
-                if (generated.Any(prefix => key!.StartsWith(prefix, StringComparison.Ordinal)) && !AllowedHandWritten.Contains(Path.GetFileName(path) + ": " + key))
+                // Any prefix: a hand-written type metric (Rec.NoteLine) is a type-scale step that belongs in tokens.json, whatever its key starts with.
+                var looksLikeTypeMetric = typeMetricSuffixes.Any(suffix => key!.EndsWith(suffix, StringComparison.Ordinal));
+                if ((looksLikeTypeMetric || generated.Any(prefix => key!.StartsWith(prefix, StringComparison.Ordinal))) && !AllowedHandWritten.Contains(Path.GetFileName(path) + ": " + key))
                 {
                     offenders.Add(Path.GetFileName(path) + ": " + key);
                 }
@@ -243,10 +246,9 @@ public sealed partial class TokensTests
             .ToDictionary(e => (string)e.Attribute(Xaml + "Key")!, e => e.Value, StringComparer.Ordinal);
         var steps = values.Keys.Where(k => k.StartsWith("FontSize.", StringComparison.Ordinal)).Select(k => k["FontSize.".Length..]).ToArray();
 
-        // The Geist Mono steps (Mono*) have the metrics of the Inter step of their size on purpose: they differ by the family, which a class sets.
+        // A Geist Mono step (Mono*) may have the metrics of the Inter step of its size: the family is part of the key (a style class sets it).
         var duplicates = steps
-            .Where(step => !step.StartsWith("Mono", StringComparison.Ordinal))
-            .GroupBy(s => (values["FontSize." + s], values["LineHeight." + s], values.GetValueOrDefault("LetterSpacing." + s)))
+            .GroupBy(s => (s.StartsWith("Mono", StringComparison.Ordinal), values["FontSize." + s], values["LineHeight." + s], values.GetValueOrDefault("LetterSpacing." + s)))
             .Where(g => g.Count() > 1)
             .Select(g => string.Join(" = ", g));
 

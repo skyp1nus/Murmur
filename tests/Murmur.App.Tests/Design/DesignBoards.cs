@@ -131,8 +131,8 @@ internal static class DesignBoards
             var shift = dark ? 2 : 0;
 
             // The canvas is drawn for the real window, 1100 x 720 (docs/design/README.md); the sizes are those of docs/design/reference/*.png.
-            // Library: the gates of the screen. Every other board is report-only until its real-size stage (stage B) restores its gates.
-            boards.Add(new("Main" + suffix, BoardScreen.Library, dark, 1100, 1014, [], MaxShapeMismatchPercent: dark ? 1.5 : 1.0, MinTextMatchedPercent: 100, MaxTextGeometryErrors: 2));
+            // Every board has its gates. The sidebar is the shell's, so every board that shows it (the main screens) gates it explicitly; the onboarding has none.
+            boards.Add(new("Main" + suffix, BoardScreen.Library, dark, 1100, 1014, [], MaxShapeMismatchPercent: dark ? 1.5 : 1.0, MinTextMatchedPercent: 100, MaxTextGeometryErrors: 2, MaxSidebarShapePercent: SidebarShapeLimit));
             boards.Add(new(
                 "Recording" + suffix,
                 BoardScreen.Recording,
@@ -232,8 +232,7 @@ internal static class DesignBoards
             boards.Add(new("Onb5FirstRecording" + suffix, BoardScreen.Onboarding5FirstRecording, dark, 1100, 720, [], MaxShapeMismatchPercent: 3.5, MinTextMatchedPercent: 95, MaxTextGeometryErrors: 0));
         }
 
-        // The sidebar is the shell's: every main board has to match it, whatever its content does (stage A: Library only).
-        return [.. boards.Select(b => b.Screen is BoardScreen.Library ? b with { MaxSidebarShapePercent = SidebarShapeLimit } : b)];
+        return boards;
     }
 
     private const double SidebarShapeLimit = 1.0;

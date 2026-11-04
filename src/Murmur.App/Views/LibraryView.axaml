@@ -344,7 +344,7 @@
                 Margin="{StaticResource Margin.GroupTop}">
           <StackPanel Spacing="{StaticResource Space.24}"
                       HorizontalAlignment="Center"
-                      MaxWidth="{StaticResource Size.SettingsWrap}">
+                      MaxWidth="{StaticResource Size.LibraryEmptyWidth}">
             <TextBlock Classes="headingSm"
                        HorizontalAlignment="Center"
                        TextAlignment="Center"

@@ -43,7 +43,7 @@
            Page frame: 28 at the sides (24 on the two last steps, which the canvas draws that way), the bars fix the height. -->
       <Thickness x:Key="Margin.OnbPage">28,0</Thickness>
       <Thickness x:Key="Margin.OnbPageDense">24,0</Thickness>
-      <!-- The welcome orb sits one pixel lower than the stack puts it: the canvas centres a fractional height and Avalonia snaps the orb up. -->
+      <!-- The welcome orb sits one pixel lower than the stack puts it: the canvas centres a fractional height and Avalonia snaps the orb up (fitted at 100 % scale). -->
       <Thickness x:Key="Margin.OnbOrbLift">0,1,0,0</Thickness>
       <Thickness x:Key="Margin.OnbBack">10,0,14,0</Thickness>
       <Thickness x:Key="Margin.OnbBackDense">12,0</Thickness>
@@ -182,7 +182,7 @@
   </Style>
 
   <!-- The frame of the page: the bars and the step indicator. The canvas draws the last two steps with a 24 px frame, a 12 px
-       gap in the step indicator and tighter footer buttons ("dense", set by OnboardingView from the step). -->
+       gap in the step indicator, a tighter skip button and 2 px wider padding of the footer buttons ("dense", set by OnboardingView from the step). -->
   <Style Selector="Grid.onbFrame">
     <Setter Property="Margin" Value="{StaticResource Margin.OnbPage}" />
   </Style>

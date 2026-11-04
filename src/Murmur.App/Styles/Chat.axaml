@@ -62,11 +62,15 @@
       <Thickness x:Key="Chat.BubbleInset">14,8</Thickness>
       <Thickness x:Key="Chat.ChipInset">6,1.5</Thickness>
       <!--
-        An embedded control rests on the baseline and a taller one pushes the text of its line down. The canvas draws the 22 px chip from 17 px
-        above the baseline to 5 px below it (vertical-align: 1px): it is laid out 18 px high (2 px down, 6 px short at the bottom) and drawn in full.
+        An embedded control rests on the baseline and a taller one pushes the text of its line down. The chip is drawn 17 px tall (the 14 px mono
+        line and 1.5 px above and below it); the margin takes 3.3 px above and 3.7 px below out of its layout, so it is laid out 10 px high, never
+        makes its line taller, and is still drawn in full (ClipToBounds is off). The numbers place it like the canvas's chip (vertical-align: 1px).
       -->
       <Thickness x:Key="Chat.ChipMargin">-1.5,-3.3,0,-3.7</Thickness>
-      <!-- The answer lines are 20 px (the canvas has 20.15, which the layout would round up): 0.3 px per line is added under a paragraph of two lines. -->
+      <!--
+        The answer lines are 20 px (the canvas has 20.15, which the layout would round up): 0.3 px per line is added under a paragraph of two lines.
+        The value is fixed, not derived per line: it fits the two-line answers of the Chat / ChatDark boards only, any other paragraph is 0.6 px taller.
+      -->
       <Thickness x:Key="Chat.AnswerGrow">0,0,0,0.6</Thickness>
       <Thickness x:Key="Chat.ModelChipInset">10,0</Thickness>
       <Thickness x:Key="Chat.SourceInset">12,10</Thickness>
@@ -144,9 +148,9 @@
   </Style>
   <Style Selector="TextBlock.chatBubbleText">
     <Setter Property="FontFamily" Value="{StaticResource Font.Body}" />
-    <Setter Property="FontSize" Value="{StaticResource FontSize.ChatText}" />
-    <Setter Property="LineHeight" Value="{StaticResource LineHeight.ChatText}" />
-    <Setter Property="LetterSpacing" Value="{StaticResource LetterSpacing.ChatText}" />
+    <Setter Property="FontSize" Value="{StaticResource FontSize.MessageLine}" />
+    <Setter Property="LineHeight" Value="{StaticResource LineHeight.MessageLine}" />
+    <Setter Property="LetterSpacing" Value="{StaticResource LetterSpacing.MessageLine}" />
     <Setter Property="TextWrapping" Value="Wrap" />
   </Style>
 
@@ -165,9 +169,9 @@
   </Style>
   <Style Selector="TextBlock.chatAnswerText">
     <Setter Property="FontFamily" Value="{StaticResource Font.Body}" />
-    <Setter Property="FontSize" Value="{StaticResource FontSize.ChatText}" />
-    <Setter Property="LineHeight" Value="{StaticResource LineHeight.ChatText}" />
-    <Setter Property="LetterSpacing" Value="{StaticResource LetterSpacing.ChatText}" />
+    <Setter Property="FontSize" Value="{StaticResource FontSize.MessageLine}" />
+    <Setter Property="LineHeight" Value="{StaticResource LineHeight.MessageLine}" />
+    <Setter Property="LetterSpacing" Value="{StaticResource LetterSpacing.MessageLine}" />
     <Setter Property="Foreground" Value="{DynamicResource Brush.Ink}" />
     <Setter Property="TextWrapping" Value="Wrap" />
     <Setter Property="Margin" Value="{StaticResource Chat.AnswerGrow}" />
