@@ -257,6 +257,8 @@ jobs:
             --bpe-vocab artifacts/confidence/bpe.vocab \
             --out artifacts/confidence/word-confidence.json > /dev/null
           cat artifacts/confidence/word-confidence.md >> "$GITHUB_STEP_SUMMARY"
+          # Also in the log: artifacts and step summaries are not readable from every environment.
+          cat artifacts/confidence/word-confidence.md
 
       - name: Upload measurement
         if: always()
