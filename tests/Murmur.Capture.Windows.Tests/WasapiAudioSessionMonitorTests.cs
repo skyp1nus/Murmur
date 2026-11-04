@@ -119,6 +119,63 @@ public sealed class WasapiAudioSessionMonitorTests
     }
 
     [Fact]
+    public void StopNeverWaits_AndAStartRightAfterGetsANewRunner()
+    {
+        // Runs anywhere: off Windows the runner's thread fails to join COM and ends by itself; Stop and Start never wait for it.
+        using var monitor = new WasapiAudioSessionMonitor(Own);
+        var watch = System.Diagnostics.Stopwatch.StartNew();
+        for (var i = 0; i < 50; i++)
+        {
+            monitor.Start();
+            Assert.True(monitor.IsRunning);
+            monitor.Stop();
+            Assert.False(monitor.IsRunning);
+        }
+
+        monitor.Start();
+        monitor.Start();
+        Assert.True(monitor.IsRunning);
+        monitor.Stop();
+        monitor.Stop();
+
+        Assert.True(watch.Elapsed < TimeSpan.FromSeconds(5), $"50 start/stop cycles took {watch.Elapsed}.");
+        Assert.False(monitor.Snapshot().MicrophoneInUse);
+        Assert.Empty(monitor.Snapshot().Rendering);
+    }
+
+    [Fact]
+    public void AfterDispose_StartThrows()
+    {
+        var monitor = new WasapiAudioSessionMonitor(Own);
+        monitor.Dispose();
+
+        Assert.Throws<ObjectDisposedException>(monitor.Start);
+    }
+
+    [Fact]
+    [Trait("Category", "Windows")]
+    public void OnWindows_StopAndStart_FromAChangedHandler_DoNotDeadlock()
+    {
+        Assert.SkipUnless(OperatingSystem.IsWindows(), "The audio sessions are read only on Windows.");
+        using var monitor = new WasapiAudioSessionMonitor(Own);
+        using var handled = new ManualResetEventSlim();
+        monitor.Changed += () =>
+        {
+            // On the monitor's own thread, like a call handler that turns detection off and on again.
+            monitor.Stop();
+            monitor.Start();
+            handled.Set();
+        };
+
+        monitor.Start();
+        var raised = handled.Wait(TimeSpan.FromSeconds(3), TestContext.Current.CancellationToken);
+        monitor.Stop();
+
+        // Without any active session on this PC there may be no change at all; when there is one, the handler returned.
+        Assert.True(!raised || handled.IsSet);
+    }
+
+    [Fact]
     [Trait("Category", "Windows")]
     public void OnWindows_TheMonitorStartsReadsAndStops_WithoutACall()
     {
