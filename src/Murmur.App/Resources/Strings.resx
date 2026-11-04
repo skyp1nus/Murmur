@@ -1529,4 +1529,13 @@
   <data name="Session_AskAi" xml:space="preserve">
     <value>Ask AI about this recording</value>
   </data>
+  <data name="Recording_Mark" xml:space="preserve">
+    <value>Mark</value>
+  </data>
+  <data name="Recording_Marked" xml:space="preserve">
+    <value>Marked</value>
+  </data>
+  <data name="Hotkeys_Mark" xml:space="preserve">
+    <value>Mark moment</value>
+  </data>
 </root>

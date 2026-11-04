@@ -29,6 +29,11 @@
       <x:Double x:Key="Rec.Icon">14</x:Double>
       <x:Double x:Key="Rec.PauseIcon">13</x:Double>
       <x:Double x:Key="Rec.StopIcon">11</x:Double>
+      <!-- Mark button (16 px flag, #45) and its feedback chip "Marked 12:41": 28 px pill, 10 px flag. -->
+      <x:Double x:Key="Rec.MarkIcon">16</x:Double>
+      <x:Double x:Key="Rec.MarkChipHeight">28</x:Double>
+      <x:Double x:Key="Rec.MarkChipIcon">10</x:Double>
+      <Thickness x:Key="Rec.MarkChipPadding">12,0</Thickness>
       <!-- Rectangle radii are plain numbers, so the chip's radius cannot be the Radius.Pill CornerRadius (9999 would not clamp to a pill there). -->
       <x:Double x:Key="Rec.ChipRadius">14</x:Double>
       <Thickness x:Key="Rec.PagePadding">24,16,24,32</Thickness>
@@ -254,6 +259,26 @@
       <Setter Property="Background" Value="{DynamicResource Brush.Canvas}" />
     </Style>
 
+    <!-- The feedback chip of a mark: a pill with the Surface fill; its time is Geist Mono. -->
+    <Style Selector="TextBlock.recMarkText">
+      <Setter Property="FontFamily" Value="{StaticResource Font.Body}" />
+      <Setter Property="FontWeight" Value="{StaticResource FontWeight.Body}" />
+      <Setter Property="FontSize" Value="{StaticResource FontSize.Small}" />
+      <Setter Property="Foreground" Value="{DynamicResource Brush.Ink}" />
+    </Style>
+    <Style Selector="TextBlock.recMono.recMarkText">
+      <Setter Property="FontFamily" Value="{StaticResource Font.Mono}" />
+      <Setter Property="FontWeight" Value="{StaticResource FontWeight.Mono}" />
+      <Setter Property="FontSize" Value="{StaticResource FontSize.MonoRow}" />
+    </Style>
+    <Style Selector="Border.markChip">
+      <Setter Property="Height" Value="{StaticResource Rec.MarkChipHeight}" />
+      <Setter Property="Padding" Value="{StaticResource Rec.MarkChipPadding}" />
+      <Setter Property="CornerRadius" Value="{StaticResource Radius.Pill}" />
+      <Setter Property="Background" Value="{DynamicResource Brush.Surface}" />
+      <Setter Property="TextElement.Foreground" Value="{DynamicResource Brush.Ink}" />
+    </Style>
+
     <!-- Cards of the right column: Surface (Tracks) or a hairline (Let people know), both 16 px round, no shadow. -->
     <Style Selector="Border.recSurface">
       <Setter Property="Background" Value="{DynamicResource Brush.Surface}" />
@@ -462,6 +487,32 @@
           </StackPanel>
         </Grid>
 
+        <!-- Feedback of a mark from any source (the Mark button, the hotkey): a pill above the controls for about 2 s. The slot keeps
+             its height, so the controls do not jump. -->
+        <Panel Height="{StaticResource Rec.MarkChipHeight}"
+               IsVisible="{Binding IsMarkVisible}">
+          <Border x:Name="MarkFeedbackChip"
+                  Classes="markChip"
+                  HorizontalAlignment="Center"
+                  IsVisible="{Binding IsMarkChipShown}">
+            <StackPanel Orientation="Horizontal"
+                        Spacing="{StaticResource Space.6}">
+              <controls:IconControl Width="{StaticResource Rec.MarkChipIcon}"
+                                    Height="{StaticResource Rec.MarkChipIcon}"
+                                    VerticalAlignment="Center"
+                                    Data="{StaticResource Icon.Mark}"
+                                    IsFilled="True" />
+              <TextBlock Classes="recMarkText"
+                         VerticalAlignment="Center"
+                         Text="{Binding MarkChipLabel}" />
+              <TextBlock x:Name="MarkChipTime"
+                         Classes="recMono recMarkText"
+                         VerticalAlignment="Center"
+                         Text="{Binding MarkChipTime}" />
+            </StackPanel>
+          </Border>
+        </Panel>
+
         <StackPanel Orientation="Horizontal"
                     HorizontalAlignment="Center"
                     Spacing="{StaticResource Space.8}">
@@ -485,6 +536,22 @@
               <TextBlock VerticalAlignment="Center"
                          Foreground="{Binding $parent[Button].Foreground}"
                          Text="{Binding PauseLabel}" />
+            </StackPanel>
+          </Button>
+          <Button x:Name="RecordingMarkButton"
+                  Classes="outline rec"
+                  Command="{Binding MarkCommand}"
+                  IsVisible="{Binding IsMarkVisible}"
+                  AutomationProperties.Name="{x:Static res:Strings.Hotkeys_Mark}">
+            <StackPanel Orientation="Horizontal"
+                        Spacing="{StaticResource Space.6}">
+              <controls:IconControl Width="{StaticResource Rec.MarkIcon}"
+                                    Height="{StaticResource Rec.MarkIcon}"
+                                    VerticalAlignment="Center"
+                                    Data="{StaticResource Icon.Mark}" />
+              <TextBlock VerticalAlignment="Center"
+                         Foreground="{Binding $parent[Button].Foreground}"
+                         Text="{x:Static res:Strings.Recording_Mark}" />
             </StackPanel>
           </Button>
           <Button x:Name="StartStopButton"

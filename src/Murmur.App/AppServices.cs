@@ -47,6 +47,7 @@ namespace Murmur.App;
 /// frame and follows their changes; the composition root owns and disposes it. <c>null</c> = no global hotkeys.
 /// </param>
 /// <param name="Chats">The saved chats of Ask AI (the sidebar's Chats list); <c>null</c> = chats are not saved.</param>
+/// <param name="Marks">The marks of the running recording (the Mark button, the Mark hotkey); <c>null</c> = marking does nothing.</param>
 /// <param name="Activation">
 /// Another start of the program asked this one to show its window (single instance). Raised on any thread; <c>null</c> = never.
 /// </param>
@@ -75,4 +76,5 @@ public sealed record AppServices(
     IActivationRequests? Activation = null,
     IMotionPreference? Motion = null,
     ISummaryStore? Summaries = null,
-    IChatStore? Chats = null);
+    IChatStore? Chats = null,
+    IRecordingMarks? Marks = null);

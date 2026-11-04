@@ -26,11 +26,34 @@ public sealed partial class HotkeysSettingsViewModel : ObservableObject
             new HotkeyRowViewModel(HotkeyAction.TogglePause, Strings.Hotkeys_Pause, null, this),
             new HotkeyRowViewModel(HotkeyAction.ToggleScreen, Strings.Hotkeys_ToggleScreen, null, this),
             new HotkeyRowViewModel(HotkeyAction.ShowApp, Strings.Hotkeys_ShowApp, null, this),
+            new HotkeyRowViewModel(HotkeyAction.Mark, Strings.Hotkeys_Mark, null, this),
         ];
         Refresh();
     }
 
     public IReadOnlyList<HotkeyRowViewModel> Rows { get; }
+
+    /// <summary>
+    /// The "Mark moment" row is listed. The design demo scene switches it off: the Settings parity board shows the four base
+    /// hotkeys, and the Mark feature (#45) is drawn in docs/design/features, not on the boards (docs/design/README.md).
+    /// </summary>
+    public bool ShowMark
+    {
+        get;
+        set
+        {
+            if (SetProperty(ref field, value))
+            {
+                foreach (var row in Rows)
+                {
+                    if (row.Action == HotkeyAction.Mark)
+                    {
+                        row.IsShown = value;
+                    }
+                }
+            }
+        }
+    } = true;
 
     /// <summary>The row waiting for a key combination, or <c>null</c>.</summary>
     public HotkeyRowViewModel? Capturing
@@ -204,6 +227,7 @@ public sealed partial class HotkeysSettingsViewModel : ObservableObject
         HotkeyAction.ToggleRecording => settings.RecordHotkey,
         HotkeyAction.ToggleScreen => settings.ToggleScreenHotkey,
         HotkeyAction.TogglePause => settings.PauseHotkey,
+        HotkeyAction.Mark => settings.MarkHotkey,
         _ => settings.ShowAppHotkey,
     };
 
@@ -212,6 +236,7 @@ public sealed partial class HotkeysSettingsViewModel : ObservableObject
         HotkeyAction.ToggleRecording => settings with { RecordHotkey = gesture },
         HotkeyAction.ToggleScreen => settings with { ToggleScreenHotkey = gesture },
         HotkeyAction.TogglePause => settings with { PauseHotkey = gesture },
+        HotkeyAction.Mark => settings with { MarkHotkey = gesture },
         _ => settings with { ShowAppHotkey = gesture },
     };
 }

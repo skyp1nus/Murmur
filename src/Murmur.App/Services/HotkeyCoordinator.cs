@@ -5,7 +5,7 @@ using Murmur.Core.Settings;
 namespace Murmur.App.Services;
 
 /// <summary>
-/// Connects the system-wide hotkeys to the app: registers the gestures of the settings (record, screen, show the window, pause),
+/// Connects the system-wide hotkeys to the app: registers the gestures of the settings (record, screen, show the window, pause, mark),
 /// keeps them in step with later settings changes and runs the action of a press on the UI thread.
 /// </summary>
 /// <remarks>
@@ -26,7 +26,7 @@ namespace Murmur.App.Services;
 /// </remarks>
 internal sealed class HotkeyCoordinator : IDisposable
 {
-    private static readonly HotkeyAction[] Actions = [HotkeyAction.ToggleRecording, HotkeyAction.ToggleScreen, HotkeyAction.ShowApp, HotkeyAction.TogglePause];
+    private static readonly HotkeyAction[] Actions = [HotkeyAction.ToggleRecording, HotkeyAction.ToggleScreen, HotkeyAction.ShowApp, HotkeyAction.TogglePause, HotkeyAction.Mark];
 
     private readonly IGlobalHotkeys _hotkeys;
     private readonly ISettingsStore _settings;
@@ -198,8 +198,8 @@ internal sealed class HotkeyCoordinator : IDisposable
     private void Apply(AppSettings settings)
     {
         string?[] wanted = _suspended
-            ? [null, null, null, null]
-            : [settings.RecordHotkey, settings.ToggleScreenHotkey, settings.ShowAppHotkey, settings.PauseHotkey];
+            ? [null, null, null, null, null]
+            : [settings.RecordHotkey, settings.ToggleScreenHotkey, settings.ShowAppHotkey, settings.PauseHotkey, settings.MarkHotkey];
         var changed = new List<int>(Actions.Length);
         for (var i = 0; i < Actions.Length; i++)
         {
@@ -306,6 +306,9 @@ internal sealed class HotkeyCoordinator : IDisposable
                 break;
             case HotkeyAction.TogglePause:
                 _ = _shell.TogglePauseFromHotkeyAsync();
+                break;
+            case HotkeyAction.Mark:
+                _shell.MarkFromHotkey();
                 break;
         }
     }

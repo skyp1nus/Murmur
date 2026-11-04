@@ -75,6 +75,13 @@ internal sealed class DesignRig : IDisposable
             path => DesignDemoData.OnboardingFreeBytes);
         Library = new LibraryViewModel(SessionStore, Time, Processing, action => action(), keywordSearch: new FakeSearchIndex(), assistant: Assistant, recorder: Recorder, transcripts: Transcripts, settings: Store);
         Recording = new RecordingViewModel(Recorder, Capture, SessionStore, action => action(), Store);
+
+        // The 22 boards show the base screens. The Mark feature (#45: the Mark button and chip of the Recording screen, the "Mark moment"
+        // row of Settings) is drawn in docs/design/features/Idea1Autopilot.dc.html, so the demo scene switches it off with these two explicit
+        // switches instead of ignoring rectangles (docs/design/README.md, "Features outside the boards").
+        Recording.ShowMark = false;
+        Settings.Hotkeys.ShowMark = false;
+
         Shell = new ShellViewModel(
             Library,
             Recording,

@@ -78,6 +78,14 @@ internal sealed class FakeStorage : IStorage
 
     public SessionFiles GetFiles(SessionId id) => throw new NotSupportedException();
 
+    public ValueTask<IReadOnlyList<Bookmark>> AddBookmarksAsync(SessionId session, IReadOnlyList<NewBookmark> bookmarks, CancellationToken cancellationToken) => throw new NotSupportedException();
+
+    public ValueTask<IReadOnlyList<Bookmark>> GetBookmarksAsync(SessionId session, CancellationToken cancellationToken) => throw new NotSupportedException();
+
+    public ValueTask UpdateBookmarkNoteAsync(long id, string note, CancellationToken cancellationToken) => throw new NotSupportedException();
+
+    public ValueTask DeleteBookmarkAsync(long id, CancellationToken cancellationToken) => throw new NotSupportedException();
+
     public ValueTask<IReadOnlyList<ChatThread>> ListThreadsAsync(int limit, CancellationToken cancellationToken) => throw new NotSupportedException();
 
     public ValueTask<ChatThread> CreateThreadAsync(string title, SessionId? scope, CancellationToken cancellationToken) => throw new NotSupportedException();

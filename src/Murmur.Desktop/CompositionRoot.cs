@@ -31,6 +31,7 @@ internal sealed class CompositionRoot : IDisposable
     private JobQueue? _queue;
     private SessionProcessor? _processor;
     private RecordingActivity? _activity;
+    private RecordingMarks? _marks;
     private RecordingHeapTrimmer? _heapTrimmer;
     private LocalLlm? _llm;
     private Assistant? _assistant;
@@ -86,6 +87,11 @@ internal sealed class CompositionRoot : IDisposable
         var storage = _storage;
         var capture = CreateCapture();
         var recorder = new Recorder(capture, storage, TimeProvider.System, RecorderSettings.Default);
+
+        // The marks of the running recording (hotkey, Recording screen): kept in memory, saved with the session when it stops.
+        _marks?.Dispose();
+        var marks = _marks = new RecordingMarks(recorder, storage);
+        marks.FlushFailed += static (session, ex) => Console.Error.WriteLine($"The marks of session {session} were not saved: {ex.Message}");
 
         // While a recording runs the UI's short-lived garbage is collected every 30 s instead of piling up in the working
         // set until the (cache-sized, up to ~50 MB) gen0 budget runs out.
@@ -185,7 +191,8 @@ internal sealed class CompositionRoot : IDisposable
             _instance,
             _motion ??= CreateMotionPreference(),
             storage,
-            Chats: storage);
+            Chats: storage,
+            Marks: marks);
     }
 
     public void Dispose()
@@ -196,6 +203,7 @@ internal sealed class CompositionRoot : IDisposable
         _hotkeys?.Dispose();
         (_motion as IDisposable)?.Dispose();
         _heapTrimmer?.Dispose();
+        _marks?.Dispose();
         _reindex?.Dispose();
         _processor?.Dispose();
         _queue?.DisposeAsync().AsTask().GetAwaiter().GetResult();
@@ -207,6 +215,8 @@ internal sealed class CompositionRoot : IDisposable
 
         // Stops running model downloads (their partial files are kept for the next start).
         _modelManager?.Dispose();
+        // Marks of a recording that ended with the window are still being written.
+        _marks?.PendingFlush.Wait(TimeSpan.FromSeconds(3));
         _storage?.Dispose();
     }
 

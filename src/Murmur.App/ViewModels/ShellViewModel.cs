@@ -214,7 +214,7 @@ public sealed partial class ShellViewModel : ObservableObject
 
         return new ShellViewModel(
             new LibraryViewModel(services.Sessions, services.Time, processing, keywordSearch: services.Search, assistant: ai?.Assistant, recorder: services.Recorder, transcripts: services.Transcripts, settings: store),
-            new RecordingViewModel(services.Recorder, services.Capture, services.Sessions, settings: store),
+            new RecordingViewModel(services.Recorder, services.Capture, services.Sessions, settings: store, marks: services.Marks),
             services.Startup,
             sessionFactory,
             CreateSavedChat,
@@ -363,6 +363,15 @@ public sealed partial class ShellViewModel : ObservableObject
     /// <summary>The pause hotkey: pauses the running recording or resumes the paused one; nothing otherwise (not during the onboarding's trial).</summary>
     internal Task TogglePauseFromHotkeyAsync() =>
         CurrentPage is OnboardingViewModel ? Task.CompletedTask : Recording.TogglePauseFromHotkeyAsync();
+
+    /// <summary>The Mark hotkey: marks the running recording (any screen but the onboarding); does nothing when idle.</summary>
+    internal void MarkFromHotkey()
+    {
+        if (CurrentPage is not OnboardingViewModel)
+        {
+            Recording.MarkFromHotkey();
+        }
+    }
 
     public void ShowRecording()
     {

@@ -1520,4 +1520,13 @@
   <data name="Session_AskAi" xml:space="preserve">
     <value>Запитати AI про цей запис</value>
   </data>
+  <data name="Recording_Mark" xml:space="preserve">
+    <value>Позначити</value>
+  </data>
+  <data name="Recording_Marked" xml:space="preserve">
+    <value>Позначено</value>
+  </data>
+  <data name="Hotkeys_Mark" xml:space="preserve">
+    <value>Позначити момент</value>
+  </data>
 </root>
