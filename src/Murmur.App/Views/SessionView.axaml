@@ -50,6 +50,8 @@
       <Thickness x:Key="Session.RowPadding">10,8</Thickness>
       <Thickness x:Key="Session.TimePadding">5,0</Thickness>
       <Thickness x:Key="Session.VideoMargin">10</Thickness>
+      <!-- The chapter strip sits 8 px below the facts (the header stack adds its 6 px gap; 14 px in all, like the canvas's column). -->
+      <Thickness x:Key="Session.ChapterMargin">0,8,0,0</Thickness>
 
       <!-- Filled glyphs of the play button (24 x 24 grid, like the canvas SVGs). -->
       <StreamGeometry x:Key="Session.PlayGlyph">M8 5v14l11-7z</StreamGeometry>
@@ -510,6 +512,9 @@
           <TextBlock Classes="sessionNote"
                      IsVisible="{Binding HasActionMessage}"
                      Text="{Binding ActionMessage}" />
+          <!-- Chapters of a long recording; hidden (no space) while there are none. -->
+          <views:ChapterStripView Margin="{StaticResource Session.ChapterMargin}"
+                                  IsVisible="{Binding HasChapters}" />
         </StackPanel>
 
         <!-- Left: the video and the player -->

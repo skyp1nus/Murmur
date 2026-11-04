@@ -116,6 +116,17 @@ internal static class SchemaMigrator
             PRIMARY KEY (thread_id, idx)
         );
         """,
+
+        // 6: the chapters of a session (Gemma's split of a long transcript), in timeline order; they go with the session through ON DELETE CASCADE.
+        """
+        CREATE TABLE chapters (
+            session_id TEXT    NOT NULL REFERENCES sessions (id) ON DELETE CASCADE,
+            idx        INTEGER NOT NULL,
+            title      TEXT    NOT NULL,
+            start_ms   INTEGER NOT NULL,
+            PRIMARY KEY (session_id, idx)
+        );
+        """,
     ];
 
     public static int LatestVersion => Migrations.Length;
