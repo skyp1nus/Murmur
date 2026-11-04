@@ -109,7 +109,7 @@ jobs:
       - uses: actions/setup-dotnet@v5
         with:
           global-json-file: global.json
-          dotnet-version: 11.0.100-rc.2.26504.105
+          dotnet-version: 11.0.100-rc.3.26522.148
 
       - name: Verify SDK matches global.json
         run: test "$(dotnet --version)" = "$(jq -r .sdk.version global.json)"
@@ -187,7 +187,7 @@ jobs:
       - uses: actions/setup-dotnet@v5
         with:
           global-json-file: global.json
-          dotnet-version: 11.0.100-rc.2.26504.105
+          dotnet-version: 11.0.100-rc.3.26522.148
 
       - name: Verify SDK matches global.json
         run: |
@@ -423,7 +423,7 @@ jobs:
       - uses: actions/setup-dotnet@v5
         with:
           global-json-file: global.json
-          dotnet-version: 11.0.100-rc.2.26504.105
+          dotnet-version: 11.0.100-rc.3.26522.148
 
       - name: Verify SDK matches global.json
         run: |
@@ -559,7 +559,7 @@ jobs:
       - uses: actions/setup-dotnet@v5
         with:
           global-json-file: global.json
-          dotnet-version: 11.0.100-rc.2.26504.105
+          dotnet-version: 11.0.100-rc.3.26522.148
 
       - name: Verify SDK matches global.json
         run: |
