@@ -18,8 +18,8 @@ public sealed record LibraryFiltersEntry(LibraryViewModel Library);
 /// <summary>A day heading above its card of rows ("Today", "Yesterday", "This week", "Mon, Oct 5").</summary>
 public sealed record LibraryGroupEntry(string Title);
 
-/// <summary>A line of text between the filters and the rows (the inline error, "Searching…").</summary>
-public sealed record LibraryNoticeEntry(string Text);
+/// <summary>A line of text between the filters and the rows (the inline error, "Searching…"); with <paramref name="Dismiss"/> it has a button that removes it.</summary>
+public sealed record LibraryNoticeEntry(string Text, CommunityToolkit.Mvvm.Input.IRelayCommand? Dismiss = null);
 
 /// <summary>The card that stands in for the rows: nothing recorded yet, or nothing matches.</summary>
 public sealed record LibraryEmptyEntry(LibraryViewModel Library, bool NoMatches)

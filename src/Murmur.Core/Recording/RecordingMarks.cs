@@ -11,7 +11,7 @@ namespace Murmur.Core.Recording;
 /// <see cref="IBookmarkStore"/> in one transaction when the recording ends (the recorder returns to
 /// <see cref="RecorderState.Idle"/>), for the session that was recorded. They are cleared when a new recording starts and
 /// after they have been handed to the store. A failed write never throws into the recorder: it is raised through
-/// <see cref="FlushFailed"/> and the marks of that recording are lost (crash recovery of marks is out of scope).</para>
+/// <see cref="SaveFailed"/> and the marks of that recording are lost (crash recovery of marks is out of scope).</para>
 /// </remarks>
 public sealed class RecordingMarks : IRecordingMarks, IDisposable
 {
@@ -21,6 +21,7 @@ public sealed class RecordingMarks : IRecordingMarks, IDisposable
     private readonly List<TimeSpan> _marks = [];
     private SessionId? _session;
     private Task _pendingFlush = Task.CompletedTask;
+    private bool _accepting;
     private int _disposed;
 
     /// <param name="recorder">The recorder whose timeline the marks are on.</param>
@@ -31,6 +32,7 @@ public sealed class RecordingMarks : IRecordingMarks, IDisposable
         ArgumentNullException.ThrowIfNull(store);
         _recorder = recorder;
         _store = store;
+        _accepting = recorder.State is RecorderState.Recording or RecorderState.Paused;
         _recorder.StateChanged += OnStateChanged;
     }
 
@@ -38,10 +40,10 @@ public sealed class RecordingMarks : IRecordingMarks, IDisposable
     public event Action<TimeSpan>? Marked;
 
     /// <summary>
-    /// The marks of a finished recording could not be saved (raised on a thread-pool thread). Like the recorder's non-fatal warnings it
+    /// The marks of a finished recording could not be saved (raised off the UI thread). Like the recorder's non-fatal warnings it
     /// never stops anything; the marks of that recording are gone.
     /// </summary>
-    public event Action<SessionId?, Exception>? FlushFailed;
+    public event Action<SessionId?, Exception>? SaveFailed;
 
     /// <inheritdoc />
     public IReadOnlyList<TimeSpan> Current
@@ -76,9 +78,16 @@ public sealed class RecordingMarks : IRecordingMarks, IDisposable
             return false;
         }
 
-        var position = _recorder.Elapsed;
+        TimeSpan position;
         lock (_gate)
         {
+            // Checked again under the lock: a stop that began after the state check above has closed the recording's marks.
+            if (!_accepting)
+            {
+                return false;
+            }
+
+            position = _recorder.Elapsed;
             _session ??= _recorder.Current?.Id;
             _marks.Add(position);
         }
@@ -103,15 +112,25 @@ public sealed class RecordingMarks : IRecordingMarks, IDisposable
             case RecorderState.Starting:
                 lock (_gate)
                 {
+                    _accepting = false;
                     _marks.Clear();
                     _session = null;
                 }
 
                 break;
             case RecorderState.Recording:
+            case RecorderState.Paused:
                 lock (_gate)
                 {
+                    _accepting = true;
                     _session ??= _recorder.Current?.Id;
+                }
+
+                break;
+            case RecorderState.Stopping:
+                lock (_gate)
+                {
+                    _accepting = false;
                 }
 
                 break;
@@ -128,6 +147,7 @@ public sealed class RecordingMarks : IRecordingMarks, IDisposable
         Task previous;
         lock (_gate)
         {
+            _accepting = false;
             if (_marks.Count == 0)
             {
                 _session = null;
@@ -146,7 +166,7 @@ public sealed class RecordingMarks : IRecordingMarks, IDisposable
             _session = null;
         }
 
-        // Outside the lock: the save may complete (and raise FlushFailed) before it returns.
+        // Outside the lock: the save may complete (and raise SaveFailed) before it returns.
         var saving = SaveAsync(session, pending, previous);
         lock (_gate)
         {
@@ -171,7 +191,7 @@ public sealed class RecordingMarks : IRecordingMarks, IDisposable
         {
             try
             {
-                FlushFailed?.Invoke(session, ex);
+                SaveFailed?.Invoke(session, ex);
             }
             catch (Exception)
             {

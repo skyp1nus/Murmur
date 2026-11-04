@@ -91,7 +91,7 @@ internal sealed class CompositionRoot : IDisposable
         // The marks of the running recording (hotkey, Recording screen): kept in memory, saved with the session when it stops.
         _marks?.Dispose();
         var marks = _marks = new RecordingMarks(recorder, storage);
-        marks.FlushFailed += static (session, ex) => Console.Error.WriteLine($"The marks of session {session} were not saved: {ex.Message}");
+        marks.SaveFailed += static (session, ex) => Console.Error.WriteLine($"The marks of session {session} were not saved: {ex.Message}");
 
         // While a recording runs the UI's short-lived garbage is collected every 30 s instead of piling up in the working
         // set until the (cache-sized, up to ~50 MB) gen0 budget runs out.

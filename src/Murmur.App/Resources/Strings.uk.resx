@@ -1529,4 +1529,10 @@
   <data name="Hotkeys_Mark" xml:space="preserve">
     <value>Позначити момент</value>
   </data>
+  <data name="Library_MarksNotSaved" xml:space="preserve">
+    <value>Позначки цього запису не вдалося зберегти.</value>
+  </data>
+  <data name="Library_DismissNotice" xml:space="preserve">
+    <value>Закрити</value>
+  </data>
 </root>

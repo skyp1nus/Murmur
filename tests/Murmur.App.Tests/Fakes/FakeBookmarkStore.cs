@@ -9,6 +9,9 @@ internal sealed class FakeBookmarkStore : IBookmarkStore
     private readonly List<Bookmark> _all = [];
     private long _nextId = 1;
 
+    /// <summary>When set, <see cref="AddBookmarksAsync"/> throws it (a locked or full database).</summary>
+    public Exception? Failure { get; set; }
+
     public IReadOnlyList<Bookmark> All
     {
         get
@@ -22,6 +25,11 @@ internal sealed class FakeBookmarkStore : IBookmarkStore
 
     public ValueTask<IReadOnlyList<Bookmark>> AddBookmarksAsync(SessionId session, IReadOnlyList<NewBookmark> bookmarks, CancellationToken cancellationToken)
     {
+        if (Failure is { } failure)
+        {
+            throw failure;
+        }
+
         lock (_gate)
         {
             foreach (var bookmark in bookmarks)

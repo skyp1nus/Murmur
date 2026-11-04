@@ -1538,4 +1538,10 @@
   <data name="Hotkeys_Mark" xml:space="preserve">
     <value>Mark moment</value>
   </data>
+  <data name="Library_MarksNotSaved" xml:space="preserve">
+    <value>Marks of this recording could not be saved.</value>
+  </data>
+  <data name="Library_DismissNotice" xml:space="preserve">
+    <value>Dismiss</value>
+  </data>
 </root>

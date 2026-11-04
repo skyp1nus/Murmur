@@ -332,10 +332,19 @@
 
       <!-- An inline error or "Searching…" -->
       <DataTemplate DataType="vm:LibraryNoticeEntry">
-        <TextBlock Classes="t13 muted"
-                   Margin="{StaticResource Margin.FiltersTop}"
-                   TextWrapping="Wrap"
-                   Text="{Binding Text}" />
+        <Grid ColumnDefinitions="*,Auto"
+              Margin="{StaticResource Margin.FiltersTop}"
+              ColumnSpacing="{StaticResource Space.12}">
+          <TextBlock Classes="t13 muted"
+                     VerticalAlignment="Center"
+                     TextWrapping="Wrap"
+                     Text="{Binding Text}" />
+          <Button Grid.Column="1"
+                  Classes="outline compact"
+                  Command="{Binding Dismiss}"
+                  IsVisible="{Binding Dismiss, Converter={x:Static ObjectConverters.IsNotNull}}"
+                  Content="{x:Static res:Strings.Library_DismissNotice}" />
+        </Grid>
       </DataTemplate>
 
       <!-- Nothing recorded yet, or nothing matches -->

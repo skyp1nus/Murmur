@@ -1,3 +1,4 @@
+using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.VisualTree;
@@ -228,6 +229,111 @@ public sealed class RecordingMarkTests : IDisposable
         Assert.True(chipAfter);
         Assert.Contains("Marked", label, StringComparison.Ordinal);
         Assert.Contains("00:00", label, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task InTheSmallestWindow_TheMarkAndStopButtonsAreInsideTheViewport_WithoutScrolling()
+    {
+        using var english = UiCulture.Override("en");
+        var harness = new UiHarness();
+        var marks = new RecordingMarks(harness.Recorder, _bookmarks);
+        var vm = new RecordingViewModel(harness.Recorder, harness.Capture, harness.Store, action => action(), time: harness.Time, marks: marks);
+        var shell = new ShellViewModel(harness.CreateShell().Library, vm);
+        shell.ShowRecording();
+
+        var problems = await UiHarness.Session.Dispatch(
+            async () =>
+            {
+                var window = new MainWindow { DataContext = shell, Width = 900, Height = 600 };
+                window.Show();
+                UiHarness.Pump();
+                await vm.StartStopAsync();
+                vm.MarkCommand.Execute(null); // the chip is shown: the tallest state
+                UiHarness.Pump();
+                var found = new List<string>();
+                var view = window.GetVisualDescendants().OfType<RecordingView>().Single();
+                var scroller = view.GetVisualDescendants().OfType<ScrollViewer>().First(s => s.IsEffectivelyVisible);
+                foreach (var name in new[] { "RecordingMarkButton", "StartStopButton" })
+                {
+                    var button = view.GetVisualDescendants().OfType<Button>().Single(b => b.Name == name);
+                    var top = button.TranslatePoint(default, scroller) ?? default;
+                    var rect = new Rect(top, button.Bounds.Size);
+                    if (!button.IsEffectivelyVisible || rect.Top < -0.5 || rect.Bottom > scroller.Viewport.Height + 0.5 || rect.Right > scroller.Viewport.Width + 0.5)
+                    {
+                        found.Add($"{name} at {rect} is outside the {scroller.Viewport} viewport (offset {scroller.Offset})");
+                    }
+                }
+
+                if (scroller.Offset.Y != 0)
+                {
+                    found.Add("the page scrolled by itself");
+                }
+
+                window.Close();
+                return found;
+            },
+            Ct);
+
+        Assert.Empty(problems);
+    }
+
+    [Fact]
+    public async Task AFailedSaveOfTheMarks_ShowsADismissibleNoticeInTheLibrary_ThatAReloadKeeps()
+    {
+        var harness = new UiHarness();
+        var marks = new RecordingMarks(harness.Recorder, _bookmarks);
+        var vm = new RecordingViewModel(harness.Recorder, harness.Capture, harness.Store, action => action(), time: harness.Time, marks: marks);
+        var shell = new ShellViewModel(harness.CreateShell().Library, vm, post: action => action());
+        await shell.Library.LoadAsync();
+        _bookmarks.Failure = new IOException("database is locked");
+        await vm.StartStopAsync();
+        vm.MarkCommand.Execute(null);
+
+        await vm.StartStopAsync();
+        await marks.PendingFlush;
+
+        Assert.Equal(Strings.Library_MarksNotSaved, shell.Library.Notice);
+        var entry = shell.Library.Entries.OfType<LibraryNoticeEntry>().Single(n => n.Text == Strings.Library_MarksNotSaved);
+        Assert.NotNull(entry.Dismiss);
+        await shell.Library.LoadAsync();
+        Assert.Equal(Strings.Library_MarksNotSaved, shell.Library.Notice);
+
+        entry.Dismiss!.Execute(null);
+
+        Assert.Null(shell.Library.Notice);
+        Assert.DoesNotContain(shell.Library.Entries.OfType<LibraryNoticeEntry>(), n => n.Text == Strings.Library_MarksNotSaved);
+    }
+
+    [Fact]
+    public async Task ASuccessfulSave_ShowsNoNotice()
+    {
+        var harness = new UiHarness();
+        var marks = new RecordingMarks(harness.Recorder, _bookmarks);
+        var vm = new RecordingViewModel(harness.Recorder, harness.Capture, harness.Store, action => action(), time: harness.Time, marks: marks);
+        var shell = new ShellViewModel(harness.CreateShell().Library, vm, post: action => action());
+        await vm.StartStopAsync();
+        vm.MarkCommand.Execute(null);
+
+        await vm.StartStopAsync();
+        await marks.PendingFlush;
+
+        Assert.Null(shell.Library.Notice);
+    }
+
+    [Fact]
+    public void TheNoticeTextsExistInBothLanguages()
+    {
+        foreach (var key in new[] { nameof(Strings.Library_MarksNotSaved), nameof(Strings.Library_DismissNotice) })
+        {
+            using (UiCulture.Override("uk"))
+            {
+                var uk = Strings.Get(key);
+                using (UiCulture.Override("en"))
+                {
+                    Assert.NotEqual(Strings.Get(key), uk);
+                }
+            }
+        }
     }
 
     // ---- the hotkey ---------------------------------------------------------------------------------------------------------

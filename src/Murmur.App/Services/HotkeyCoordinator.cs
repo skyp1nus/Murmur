@@ -1,5 +1,6 @@
 using Murmur.App.ViewModels;
 using Murmur.Core.Input;
+using Murmur.Core.Recording;
 using Murmur.Core.Settings;
 
 namespace Murmur.App.Services;
@@ -22,6 +23,10 @@ namespace Murmur.App.Services;
 /// <para><b>Capturing.</b> While a Settings (or onboarding) row waits for a key combination every registration is released, so
 /// the combination reaches the field instead of triggering its action; when the capture ends they are registered again. Notes
 /// stay as they were during the capture.</para>
+/// <para><b>The Mark hotkey is held only while a recording runs</b> (D-051): with a <c>recorder</c> its gesture is registered when the recorder
+/// is Recording or Paused and released when it goes Idle (Starting and Stopping count as not recording), so a gesture another program
+/// uses (AltGr+M, "Insert comment" in Word, "Extract Method" in JetBrains) is taken only for the length of a recording. The Settings row
+/// captures, clears and conflict-checks it as always; its "taken" note can only appear during a recording.</para>
 /// <para><b>Presses are ignored</b> while a row captures and once the window is closing.</para>
 /// </remarks>
 internal sealed class HotkeyCoordinator : IDisposable
@@ -35,6 +40,8 @@ internal sealed class HotkeyCoordinator : IDisposable
     private readonly Func<bool> _isClosing;
     private readonly Action<Action> _post;
     private readonly Action<Action> _runBackground;
+    private readonly IRecorder? _recorder;
+    private int _recording;
 
     // What the UI thread hands to the background pass (short lock, never held across a Register).
     private readonly Lock _input = new();
@@ -58,6 +65,7 @@ internal sealed class HotkeyCoordinator : IDisposable
     /// <param name="post">Marshals to the UI thread; the UI dispatcher by default.</param>
     /// <param name="runBackground">Runs registrations off the UI thread; the thread pool by default (tests run them inline).</param>
     /// <param name="isClosing">The window has started closing: no action runs any more. <c>null</c> = never.</param>
+    /// <param name="recorder">Tells when a recording runs, for the Mark hotkey; <c>null</c> = the Mark hotkey is registered like the others.</param>
     public HotkeyCoordinator(
         IGlobalHotkeys hotkeys,
         ISettingsStore settings,
@@ -65,7 +73,8 @@ internal sealed class HotkeyCoordinator : IDisposable
         Action showApp,
         Action<Action>? post = null,
         Action<Action>? runBackground = null,
-        Func<bool>? isClosing = null)
+        Func<bool>? isClosing = null,
+        IRecorder? recorder = null)
     {
         ArgumentNullException.ThrowIfNull(hotkeys);
         ArgumentNullException.ThrowIfNull(settings);
@@ -78,6 +87,7 @@ internal sealed class HotkeyCoordinator : IDisposable
         _isClosing = isClosing ?? (() => false);
         _post = post ?? (action => Avalonia.Threading.Dispatcher.UIThread.Post(action));
         _runBackground = runBackground ?? (action => Task.Run(action));
+        _recorder = recorder;
         Array.Fill(_registrations, HotkeyRegistration.Cleared);
     }
 
@@ -106,6 +116,12 @@ internal sealed class HotkeyCoordinator : IDisposable
         _started = true;
         _hotkeys.Pressed += OnPressed;
         _settings.Changed += OnSettingsChanged;
+        if (_recorder is not null)
+        {
+            Volatile.Write(ref _recording, IsRecordingState(_recorder.State) ? 1 : 0);
+            _recorder.StateChanged += OnRecorderStateChanged;
+        }
+
         if (_shell.Settings?.Hotkeys is { } rows)
         {
             rows.CapturingChanged += OnCapturingChanged;
@@ -124,6 +140,11 @@ internal sealed class HotkeyCoordinator : IDisposable
 
         _hotkeys.Pressed -= OnPressed;
         _settings.Changed -= OnSettingsChanged;
+        if (_recorder is not null)
+        {
+            _recorder.StateChanged -= OnRecorderStateChanged;
+        }
+
         if (_shell.Settings?.Hotkeys is { } rows)
         {
             rows.CapturingChanged -= OnCapturingChanged;
@@ -137,6 +158,18 @@ internal sealed class HotkeyCoordinator : IDisposable
     }
 
     private void OnSettingsChanged(AppSettings settings) => Queue(settings);
+
+    private static bool IsRecordingState(RecorderState state) => state is RecorderState.Recording or RecorderState.Paused;
+
+    /// <summary>Any thread: a recording began or ended, so the Mark hotkey is registered or released by the next background pass.</summary>
+    private void OnRecorderStateChanged(RecorderState state)
+    {
+        var now = IsRecordingState(state) ? 1 : 0;
+        if (Interlocked.Exchange(ref _recording, now) != now && !IsDisposed)
+        {
+            Queue(_settings.Current);
+        }
+    }
 
     private void OnCapturingChanged(bool capturing)
     {
@@ -199,7 +232,7 @@ internal sealed class HotkeyCoordinator : IDisposable
     {
         string?[] wanted = _suspended
             ? [null, null, null, null, null]
-            : [settings.RecordHotkey, settings.ToggleScreenHotkey, settings.ShowAppHotkey, settings.PauseHotkey, settings.MarkHotkey];
+            : [settings.RecordHotkey, settings.ToggleScreenHotkey, settings.ShowAppHotkey, settings.PauseHotkey, MarkHeld() ? settings.MarkHotkey : null];
         var changed = new List<int>(Actions.Length);
         for (var i = 0; i < Actions.Length; i++)
         {
@@ -255,6 +288,9 @@ internal sealed class HotkeyCoordinator : IDisposable
             _registrations[i] = registration;
         }
     }
+
+    /// <summary>The Mark gesture is registered now: a recording runs (always, without a recorder to ask).</summary>
+    private bool MarkHeld() => _recorder is null || Volatile.Read(ref _recording) != 0;
 
     private HotkeyRegistration TryRegister(HotkeyAction action, string? gesture)
     {

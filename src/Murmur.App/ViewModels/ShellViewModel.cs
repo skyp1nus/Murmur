@@ -90,6 +90,7 @@ public sealed partial class ShellViewModel : ObservableObject
         library.PropertyChanged += OnLibraryPropertyChanged;
         recording.BackRequested += ShowLibrary;
         recording.Stopped += OnRecordingStopped;
+        recording.MarksSaveFailed += OnMarksSaveFailed;
         recording.PropertyChanged += OnRecordingPropertyChanged;
         _settingsStore = settingsStore;
         if (settingsStore is not null)
@@ -768,6 +769,9 @@ public sealed partial class ShellViewModel : ObservableObject
     }
 
     private void OnRecordingStopped(SessionRecord session) => ShowLibrary();
+
+    /// <summary>The marks of a stopped recording were lost: a dismissible line in the Library (a reload of the list keeps it).</summary>
+    private void OnMarksSaveFailed() => Library.Notice = Strings.Library_MarksNotSaved;
 
     /// <summary>A trial recording of the onboarding was removed: the library list on screen drops it.</summary>
     private void OnTrialSessionDeleted()

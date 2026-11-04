@@ -136,6 +136,16 @@ public sealed partial class LibraryViewModel : ObservableObject, IDisposable, IF
     [ObservableProperty]
     public partial string? Error { get; set; }
 
+    /// <summary>
+    /// A dismissible one-line note about something that went wrong in the background (the marks of a recording could not be saved). Unlike
+    /// <see cref="Error"/> a reload of the list does not clear it; only the user does, with <see cref="DismissNoticeCommand"/>.
+    /// </summary>
+    [ObservableProperty]
+    public partial string? Notice { get; set; }
+
+    [RelayCommand]
+    private void DismissNotice() => Notice = null;
+
     /// <summary>The row the user clicked. Setting it opens the session and clears the selection again, so a row can be clicked twice.</summary>
     [ObservableProperty]
     public partial SessionItemViewModel? SelectedSession { get; set; }
@@ -654,6 +664,8 @@ public sealed partial class LibraryViewModel : ObservableObject, IDisposable, IF
         RefreshEntries();
     }
 
+    partial void OnNoticeChanged(string? value) => RefreshEntries();
+
     partial void OnErrorChanged(string? value)
     {
         OnPropertyChanged(nameof(HasError));
@@ -817,6 +829,11 @@ public sealed partial class LibraryViewModel : ObservableObject, IDisposable, IF
         if (Error is { } error)
         {
             tail.Add(new LibraryNoticeEntry(error));
+        }
+
+        if (Notice is { } notice)
+        {
+            tail.Add(new LibraryNoticeEntry(notice, DismissNoticeCommand));
         }
 
         if (ShowSearchResults)

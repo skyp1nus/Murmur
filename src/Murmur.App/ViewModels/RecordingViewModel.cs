@@ -78,6 +78,7 @@ public sealed partial class RecordingViewModel : ObservableObject, ILevelSource,
         if (marks is not null)
         {
             marks.Marked += OnMarked;
+            marks.SaveFailed += OnMarksSaveFailed;
         }
     }
 
@@ -460,15 +461,22 @@ public sealed partial class RecordingViewModel : ObservableObject, ILevelSource,
     /// <summary>The Mark hotkey. Does nothing when no recording runs; the chip shows only while this screen is visible.</summary>
     internal void MarkFromHotkey() => _marks?.TryMark(out _);
 
+    /// <summary>The marks of a stopped recording could not be saved (raised on the UI thread). The shell tells the user in the Library.</summary>
+    public event Action? MarksSaveFailed;
+
+    private void OnMarksSaveFailed(SessionId? session, Exception error) => _post(() => MarksSaveFailed?.Invoke());
+
     private void OnMarked(TimeSpan at) => _post(() => ShowMarkChip(at));
 
     private void ShowMarkChip(TimeSpan at)
     {
         MarkChipTime = UiFormat.Clock(at);
         IsMarkChipShown = true;
-        _markChipReset?.Cancel();
-        _markChipReset = new CancellationTokenSource();
-        _ = HideMarkChipAsync(_markChipReset.Token);
+        var chipReset = new CancellationTokenSource();
+        var previous = Interlocked.Exchange(ref _markChipReset, chipReset);
+        previous?.Cancel();
+        previous?.Dispose();
+        _ = HideMarkChipAsync(chipReset.Token);
     }
 
     private async Task HideMarkChipAsync(CancellationToken token)
@@ -622,9 +630,11 @@ public sealed partial class RecordingViewModel : ObservableObject, ILevelSource,
         Error = null;
 
         MessageCopied = true;
-        _copiedReset?.Cancel();
-        _copiedReset = new CancellationTokenSource();
-        _ = ResetCopiedAsync(_copiedReset.Token);
+        var copiedReset = new CancellationTokenSource();
+        var previousCopied = Interlocked.Exchange(ref _copiedReset, copiedReset);
+        previousCopied?.Cancel();
+        previousCopied?.Dispose();
+        _ = ResetCopiedAsync(copiedReset.Token);
     }
 
     private async Task ResetCopiedAsync(CancellationToken token)
@@ -917,7 +927,9 @@ public sealed partial class RecordingViewModel : ObservableObject, ILevelSource,
         OnPropertyChanged(nameof(IsMarkVisible));
         if (value is RecorderState.Idle)
         {
-            _markChipReset?.Cancel();
+            var chipReset = Interlocked.Exchange(ref _markChipReset, null);
+            chipReset?.Cancel();
+            chipReset?.Dispose();
             IsMarkChipShown = false;
         }
 

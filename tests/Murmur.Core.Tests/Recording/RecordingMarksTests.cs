@@ -177,7 +177,7 @@ public sealed class RecordingMarksTests
     {
         using var marks = Create();
         var reported = new List<(SessionId? Session, Exception Error)>();
-        marks.FlushFailed += (session, error) => reported.Add((session, error));
+        marks.SaveFailed += (session, error) => reported.Add((session, error));
         _store.Failure = new IOException("database is locked");
         var first = _recorder.Start();
         marks.TryMark(out _);
@@ -219,6 +219,56 @@ public sealed class RecordingMarksTests
 
         Assert.Single(await _store.GetBookmarksAsync(first.Id, Ct));
         Assert.Single(await _store.GetBookmarksAsync(second.Id, Ct));
+    }
+
+    [Fact]
+    public async Task AMarkThatRacesTheStop_IsNeverLeftBehindUnsaved_AndCurrentIsEmptyOnceIdle()
+    {
+        using var marks = Create();
+        var session = _recorder.Start();
+        _recorder.Elapsed = S(1);
+        marks.TryMark(out _);
+        var started = new ManualResetEventSlim();
+        var marking = Task.Run(() =>
+        {
+            started.Set();
+            var accepted = 0;
+            for (var i = 0; i < 20_000; i++)
+            {
+                if (marks.TryMark(out _))
+                {
+                    accepted++;
+                }
+            }
+
+            return accepted;
+        }, Ct);
+        started.Wait(Ct);
+
+        _recorder.Stop();
+        var accepted = await marking;
+        await marks.PendingFlush;
+
+        // Whatever was accepted before the stop was saved; nothing is waiting for a recording that is over.
+        var saved = await _store.GetBookmarksAsync(session.Id, Ct);
+        Assert.Equal(accepted + 1, saved.Count);
+        Assert.Empty(marks.Current);
+        Assert.False(marks.TryMark(out _));
+        Assert.Empty(marks.Current);
+    }
+
+    [Fact]
+    public async Task APauseAfterAStopRequest_DoesNotReopenTheMarks()
+    {
+        using var marks = Create();
+        _recorder.Start();
+        _recorder.Force(RecorderState.Stopping);
+
+        Assert.False(marks.TryMark(out _));
+        _recorder.Force(RecorderState.Idle);
+        await marks.PendingFlush;
+
+        Assert.Equal(0, _store.Adds);
     }
 
     [Fact]
