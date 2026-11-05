@@ -189,6 +189,9 @@ internal sealed class DesignRig : IDisposable
         {
             // The Session boards do not show the speaker chips of Idea4Transcript (#55); like ShowMark, an explicit switch instead of an ignore rectangle.
             ShowSpeakers = false,
+            // Nor the "Follow along" switch of Idea4Transcript (#56), and with it off the board has no word chip and no auto-scroll.
+            ShowFollowAlong = false,
+            FollowAlong = false,
         };
     }
 

@@ -365,6 +365,23 @@
       <Setter Property="MarkBrush" Value="{DynamicResource Brush.Ink}" />
       <Setter Property="MarkForeground" Value="{DynamicResource Brush.Canvas}" />
       <Setter Property="MarkCornerRadius" Value="{StaticResource Radius.Input}" />
+      <!-- Follow along: the spoken word is white on an Ink chip (radius 4), the rest of the line still to be said is Ash. -->
+      <Setter Property="HighlightBrush" Value="{DynamicResource Brush.Ink}" />
+      <Setter Property="HighlightBorderBrush" Value="{x:Null}" />
+      <Setter Property="HighlightForeground" Value="{DynamicResource Brush.Canvas}" />
+      <Setter Property="UpcomingForeground" Value="{DynamicResource Brush.Ash}" />
+      <Setter Property="HighlightPadding" Value="{StaticResource Size.WordChipPadding}" />
+    </Style>
+
+    <!-- "Follow along" in the transcript header: 12 px Graphite beside the switch. -->
+    <Style Selector="TextBlock.followAlongLabel">
+      <Setter Property="FontFamily" Value="{StaticResource Font.Body}" />
+      <Setter Property="FontWeight" Value="{StaticResource FontWeight.Body}" />
+      <Setter Property="FontSize" Value="{StaticResource FontSize.Small}" />
+      <Setter Property="LineHeight" Value="{StaticResource LineHeight.Small}" />
+      <Setter Property="LetterSpacing" Value="{StaticResource LetterSpacing.Small}" />
+      <Setter Property="Foreground" Value="{DynamicResource Brush.Graphite}" />
+      <Setter Property="VerticalAlignment" Value="Center" />
     </Style>
 
     <!-- The avatar of a speaker: the ink for the microphone, Stone for the other side. -->
@@ -676,7 +693,30 @@
             <!-- The speaker chips (hidden, no space, while nothing can be renamed), then the search box. -->
             <StackPanel Grid.Row="0"
                         Spacing="{StaticResource Space.8}">
-              <views:SpeakerChipsView IsVisible="{Binding ShowSpeakerChips}" />
+              <!-- The header (Idea4Transcript.dc.html): the chips on the left, "Follow along" and its switch on the right. -->
+              <Grid ColumnDefinitions="*,Auto"
+                    ColumnSpacing="{StaticResource Space.10}">
+                <Grid.IsVisible>
+                  <MultiBinding Converter="{x:Static BoolConverters.Or}">
+                    <Binding Path="ShowSpeakerChips" />
+                    <Binding Path="ShowFollowAlongSwitch" />
+                  </MultiBinding>
+                </Grid.IsVisible>
+                <views:SpeakerChipsView Grid.Column="0"
+                                        IsVisible="{Binding ShowSpeakerChips}" />
+                <StackPanel Grid.Column="1"
+                            Orientation="Horizontal"
+                            Spacing="{StaticResource Space.6}"
+                            VerticalAlignment="Center"
+                            IsVisible="{Binding ShowFollowAlongSwitch}">
+                  <TextBlock Classes="followAlongLabel"
+                             Text="{x:Static res:Strings.Session_FollowAlong}" />
+                  <ToggleButton x:Name="FollowAlongSwitch"
+                                Classes="switch"
+                                AutomationProperties.Name="{x:Static res:Strings.Session_FollowAlong}"
+                                IsChecked="{Binding FollowAlong, Mode=TwoWay}" />
+                </StackPanel>
+              </Grid>
               <Border Classes="searchBox"
                       IsVisible="{Binding ShowTranscriptList}">
                 <Grid ColumnDefinitions="Auto,*"

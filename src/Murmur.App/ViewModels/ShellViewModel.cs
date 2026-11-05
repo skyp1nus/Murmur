@@ -187,6 +187,8 @@ public sealed partial class ShellViewModel : ObservableObject
         ChatViewModel CreateSavedChat(SessionId? scope) =>
             new(ai?.Assistant, ai?.Llm, services.Recorder, scope, ai?.ModelsDirectory, store: services.Chats, sessions: services.Sessions, time: services.Time);
 
+        // Without a store from the composition root (designer, tests) the settings live in memory for the run.
+        var store = services.Settings ?? new InMemorySettingsStore();
         Func<SessionRecord, SessionViewModel>? sessionFactory = null;
         if (services.Transcripts is { } transcripts && services.Playback is { } playback)
         {
@@ -199,11 +201,9 @@ public sealed partial class ShellViewModel : ObservableObject
                 services.Time,
                 chat: CreateSavedChat(record.Id),
                 videoPlayback: services.VideoPlayback,
-                services: new SessionServices(ai?.Summarizer, services.Summaries, services.Sessions, SystemFolderLauncher.Instance, playback.CreatePlayer, ai?.ChapterGenerator, services.ChapterStore, services.SpeakerNames));
+                services: new SessionServices(ai?.Summarizer, services.Summaries, services.Sessions, SystemFolderLauncher.Instance, playback.CreatePlayer, ai?.ChapterGenerator, services.ChapterStore, services.SpeakerNames, store));
         }
 
-        // Without a store from the composition root (designer, tests) the settings live in memory for the run.
-        var store = services.Settings ?? new InMemorySettingsStore();
         var settings = new SettingsViewModel(
             store,
             services.Capture,

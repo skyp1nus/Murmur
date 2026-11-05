@@ -1,5 +1,6 @@
 using Murmur.Core.Intelligence;
 using Murmur.Core.Sessions;
+using Murmur.Core.Settings;
 
 namespace Murmur.App.Services;
 
@@ -14,6 +15,7 @@ namespace Murmur.App.Services;
 /// <param name="ChapterGenerator">Splits the transcript into chapters with the local model, right after each summary; <c>null</c> = no chapters are made.</param>
 /// <param name="Chapters">Keeps the chapters between visits; <c>null</c> = the strip shows none.</param>
 /// <param name="SpeakerNames">Keeps the names of the two speakers of the recording; <c>null</c> = the speaker chips are not offered.</param>
+/// <param name="Settings">Keeps the choices that belong to every recording (the "Follow along" switch); <c>null</c> = the choice lives only while the view is open.</param>
 /// <param name="CreatePlayer">Makes a new audio player; used to bring the playback back when deleting the recording failed (the first one was released for the delete). <c>null</c> = the playback stays closed then.</param>
 public sealed record SessionServices(
     ISessionSummarizer? Summarizer = null,
@@ -23,4 +25,5 @@ public sealed record SessionServices(
     Func<Core.Capture.IAudioPlayer>? CreatePlayer = null,
     IChapterGenerator? ChapterGenerator = null,
     IChapterStore? Chapters = null,
-    ISpeakerNameStore? SpeakerNames = null);
+    ISpeakerNameStore? SpeakerNames = null,
+    ISettingsStore? Settings = null);
