@@ -129,7 +129,6 @@
           <TextBlock x:Name="ChipTimeText"
                      Classes="orbChipText orbMono"
                      VerticalAlignment="Center"
-                     IsVisible="{Binding HasChipTime}"
                      Text="{Binding ChipTime}" />
         </StackPanel>
       </StackPanel>

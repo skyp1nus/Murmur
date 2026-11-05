@@ -79,7 +79,6 @@ public sealed partial class FloatingOrbViewModel : ObservableObject, IDisposable
         if (marks is not null)
         {
             marks.Marked += OnMarked;
-            marks.SaveFailed += OnMarksSaveFailed;
         }
 
         if (motion is not null)
@@ -117,13 +116,8 @@ public sealed partial class FloatingOrbViewModel : ObservableObject, IDisposable
     [ObservableProperty]
     public partial string ChipTime { get; set; } = string.Empty;
 
-    /// <summary>"Marked", the word before <see cref="ChipTime"/>; the short error text while the chip reports a failed save of the marks.</summary>
-    [ObservableProperty]
-    public partial string ChipLabel { get; set; } = Strings.Recording_Marked;
-
-    /// <summary>The chip shows a time (a mark was made); false for the error chip.</summary>
-    [ObservableProperty]
-    public partial bool HasChipTime { get; set; } = true;
+    /// <summary>"Marked", the word before <see cref="ChipTime"/>.</summary>
+    public string ChipLabel => Strings.Recording_Marked;
 
     /// <summary>Recording or paused: a session is open.</summary>
     public bool IsRunning => State is RecorderState.Recording or RecorderState.Paused;
@@ -268,12 +262,7 @@ public sealed partial class FloatingOrbViewModel : ObservableObject, IDisposable
         {
             // The recording is over: the pill and the chip do not wait for the next one.
             IsPillOpen = false;
-
-            // A mark chip does not outlive the recording; the error chip of a failed save of the marks may arrive just before this and keeps its two seconds.
-            if (HasChipTime)
-            {
-                HideChip();
-            }
+            HideChip();
         }
     });
 
@@ -293,23 +282,9 @@ public sealed partial class FloatingOrbViewModel : ObservableObject, IDisposable
         }
     });
 
-    /// <summary>The marks of a stopped recording could not be saved (raised off the UI thread): a short error chip for a moment.</summary>
-    private void OnMarksSaveFailed(Murmur.Core.Sessions.SessionId? session, Exception error) => _post(() =>
-    {
-        if (Volatile.Read(ref _disposed) == 0)
-        {
-            ChipLabel = Strings.FloatingOrb_MarksNotSaved;
-            ChipTime = string.Empty;
-            HasChipTime = false;
-            StartChipTimer();
-        }
-    });
-
     private void ShowChip(TimeSpan at)
     {
-        ChipLabel = Strings.Recording_Marked;
         ChipTime = UiFormat.Clock(at);
-        HasChipTime = true;
         StartChipTimer();
     }
 
@@ -370,7 +345,6 @@ public sealed partial class FloatingOrbViewModel : ObservableObject, IDisposable
         if (_marks is not null)
         {
             _marks.Marked -= OnMarked;
-            _marks.SaveFailed -= OnMarksSaveFailed;
         }
 
         if (_motion is not null)

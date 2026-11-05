@@ -1,3 +1,4 @@
+using System.Runtime.InteropServices;
 using Murmur.Core.Platform;
 
 namespace Murmur.Capture.Windows.Platform;
@@ -29,19 +30,36 @@ internal sealed class WindowsFloatingWindowStyle : IFloatingWindowStyle
             return;
         }
 
+        // x86 is not supported: the *LongPtrW entry points do not exist in the 32-bit user32 (EntryPointNotFoundException, caught below);
+        // the app ships for x64 only.
         try
         {
+            Marshal.SetLastPInvokeError(0);
             var current = FloatingWindowNativeMethods.GetWindowLongPtrW(nativeHandle, FloatingWindowNativeMethods.GwlExStyle);
+            if (current == 0 && Marshal.GetLastPInvokeError() is var readError and not 0)
+            {
+                // A style that could not be read is not "no style": writing only the new bits would strip every other one.
+                Console.Error.WriteLine($"Reading the floating window's style failed (Win32 error {readError}).");
+                return;
+            }
+
             var wanted = NonActivatingStyle(current);
             if (wanted == current)
             {
                 return;
             }
 
-            FloatingWindowNativeMethods.SetWindowLongPtrW(nativeHandle, FloatingWindowNativeMethods.GwlExStyle, wanted);
+            Marshal.SetLastPInvokeError(0);
+            var previous = FloatingWindowNativeMethods.SetWindowLongPtrW(nativeHandle, FloatingWindowNativeMethods.GwlExStyle, wanted);
+            if (previous == 0 && Marshal.GetLastPInvokeError() is var writeError and not 0)
+            {
+                Console.Error.WriteLine($"Making the floating window non-activating failed (Win32 error {writeError}).");
+                return;
+            }
+
             FloatingWindowNativeMethods.SetWindowPos(nativeHandle, 0, 0, 0, 0, 0, FrameChangeOnly);
         }
-        catch (Exception ex) when (ex is DllNotFoundException or EntryPointNotFoundException or System.ComponentModel.Win32Exception)
+        catch (Exception ex) when (ex is DllNotFoundException or EntryPointNotFoundException)
         {
             Console.Error.WriteLine($"Making the floating window non-activating failed: {ex.Message}");
         }

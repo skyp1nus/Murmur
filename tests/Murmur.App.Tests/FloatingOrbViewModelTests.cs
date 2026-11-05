@@ -493,30 +493,6 @@ public sealed class FloatingOrbViewModelTests : IDisposable
         Assert.Empty(_marks.Current);
     }
 
-    [Fact]
-    public async Task MarksThatCouldNotBeSaved_ShowAShortErrorChipForTwoSeconds()
-    {
-        var orb = await RecordingAwayAsync();
-        _bookmarks.Failure = new IOException("database is locked");
-        orb.MarkCommand.Execute(null);
-        await _recorder.StopAsync(Ct);
-        await _marks.PendingFlush;
-
-        Assert.True(orb.IsChipShown);
-        Assert.Equal("Marks could not be saved", orb.ChipLabel);
-        Assert.False(orb.HasChipTime);
-
-        _time.Advance(TimeSpan.FromMilliseconds(2100));
-        Assert.False(orb.IsChipShown);
-
-        // The next mark is a normal chip again.
-        await _recorder.StartAsync(new RecordingOptions(), Ct);
-        _recorder.Elapsed = TimeSpan.FromSeconds(5);
-        _marks.TryMark(out _);
-        Assert.Equal("Marked", orb.ChipLabel);
-        Assert.True(orb.HasChipTime);
-    }
-
     // ---- the position ----------------------------------------------------------------------------------------------------------
 
     private static readonly WorkArea Primary = new(0, 0, 1920, 1040, 1.0);

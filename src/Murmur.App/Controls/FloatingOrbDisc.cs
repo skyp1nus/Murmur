@@ -57,7 +57,6 @@ public sealed class FloatingOrbDisc : Panel
         Children.Add(_orb);
         _timer = new DispatcherTimer(DispatcherPriority.Render) { Interval = FrameInterval };
         _timer.Tick += (_, _) => Tick();
-        _ping.Opacity = 0;
         _pingAtRest = true;
     }
 
@@ -134,6 +133,12 @@ public sealed class FloatingOrbDisc : Panel
         _ping.Arrange(rect);
         _orb.Arrange(rect);
         Centre(finalSize);
+
+        // The ring is hidden on its composition visual (the control's own opacity stays 1), as soon as the visual exists.
+        if (_pingAtRest && ElementComposition.GetElementVisual(_ping) is { } ring)
+        {
+            ring.Opacity = 0;
+        }
         return finalSize;
     }
 
@@ -168,6 +173,11 @@ public sealed class FloatingOrbDisc : Panel
     protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
     {
         base.OnAttachedToVisualTree(e);
+        if (_pingAtRest && ElementComposition.GetElementVisual(_ping) is { } ring)
+        {
+            ring.Opacity = 0;
+        }
+
         Update();
     }
 
