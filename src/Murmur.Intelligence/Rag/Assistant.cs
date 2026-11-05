@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Runtime.CompilerServices;
 using System.Text;
 using Microsoft.Extensions.AI;
@@ -33,6 +34,10 @@ public sealed class Assistant : IAssistant
     private readonly AssistantOptions _options;
     private readonly TranscriptChunker _chunker;
 
+    // Per session with speaker names: how its chunks and segments look with them. Dropped when the session is indexed again.
+    private readonly ConcurrentDictionary<SessionId, Relabeler> _relabelers = new();
+    private const int MaxCachedRelabelers = 64;
+
     public Assistant(ILlm llm, IStorage storage, AssistantOptions? options = null)
     {
         ArgumentNullException.ThrowIfNull(llm);
@@ -49,6 +54,7 @@ public sealed class Assistant : IAssistant
             ?? throw new InvalidOperationException($"Session {session} has no transcript to index.");
         // New indexing labels the lines with the names the user gave the speakers. Chunks indexed before a rename keep their old label in the
         // index until the next index run; search and answers relabel them on the way out (SearchAsync).
+        _relabelers.TryRemove(session, out _);
         var names = await _storage.GetSpeakerNamesAsync(session, cancellationToken).ConfigureAwait(false);
         var chunks = _chunker.Chunk(transcript, names);
         var embeddings = new List<ReadOnlyMemory<float>>(chunks.Count);
@@ -223,6 +229,7 @@ public sealed class Assistant : IAssistant
     /// </summary>
     internal static string? SpeakerNote(string title, SpeakerNames names)
     {
+        names = names.ForModel();
         if (names.Me is null && names.Others is null)
         {
             return null;
@@ -243,8 +250,10 @@ public sealed class Assistant : IAssistant
     }
 
     /// <summary>
-    /// Puts the current speaker names into the hits: a chunk is rebuilt from the transcript with the names (so chunks indexed before a
-    /// rename show the new label), a single segment found by keyword gets its speaker's name in front. Hits of sessions without names are untouched.
+    /// Puts the current speaker names into the hits of the sessions that have names: a chunk is shown as the transcript would chunk it with the
+    /// names (so chunks indexed before a rename show the new label), a single segment found by keyword gets its speaker's label in front (the
+    /// name, or the default label of the speaker who has none). Hits of sessions without names are untouched. Best effort: a session whose names or
+    /// transcript cannot be read keeps its hits as they are.
     /// </summary>
     private async ValueTask<IReadOnlyList<SearchHit>> ApplySpeakerNamesAsync(IReadOnlyList<SearchHit> hits, CancellationToken cancellationToken)
     {
@@ -260,7 +269,7 @@ public sealed class Assistant : IAssistant
             var chunk = hits[i].Chunk;
             if (!relabelers.TryGetValue(chunk.Session, out var relabeler))
             {
-                relabeler = await LoadRelabelerAsync(chunk.Session, cancellationToken).ConfigureAwait(false);
+                relabeler = await TryGetRelabelerAsync(chunk.Session, cancellationToken).ConfigureAwait(false);
                 relabelers[chunk.Session] = relabeler;
             }
 
@@ -274,28 +283,59 @@ public sealed class Assistant : IAssistant
         return result ?? hits;
     }
 
-    private async ValueTask<Relabeler?> LoadRelabelerAsync(SessionId session, CancellationToken cancellationToken)
+    /// <summary>
+    /// The relabeler of a session with names: one query for the names on every search, the transcript only when the cached relabeler was made for
+    /// other names (so a search does not read and chunk the transcripts again). <c>null</c> without names or when something cannot be read.
+    /// </summary>
+    private async ValueTask<Relabeler?> TryGetRelabelerAsync(SessionId session, CancellationToken cancellationToken)
     {
-        var names = await _storage.GetSpeakerNamesAsync(session, cancellationToken).ConfigureAwait(false);
-        if (names.Me is null && names.Others is null)
+        try
+        {
+            var names = (await _storage.GetSpeakerNamesAsync(session, cancellationToken).ConfigureAwait(false)).ForModel();
+            if (names.Me is null && names.Others is null)
+            {
+                _relabelers.TryRemove(session, out _);
+                return null;
+            }
+
+            if (_relabelers.TryGetValue(session, out var cached) && cached.Names == names)
+            {
+                return cached;
+            }
+
+            var transcript = await _storage.GetTranscriptAsync(session, cancellationToken).ConfigureAwait(false);
+            if (transcript is null)
+            {
+                return null;
+            }
+
+            var relabeler = new Relabeler(names, transcript, _chunker);
+            if (_relabelers.Count >= MaxCachedRelabelers)
+            {
+                _relabelers.Clear();
+            }
+
+            _relabelers[session] = relabeler;
+            return relabeler;
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
         {
             return null;
         }
-
-        var transcript = await _storage.GetTranscriptAsync(session, cancellationToken).ConfigureAwait(false);
-        return transcript is null ? null : new Relabeler(names, transcript, _chunker);
     }
 
-    /// <summary>The chunks and segments of one transcript with the current names, found by their start (and end) in whole milliseconds, as the index stores them.</summary>
+    /// <summary>
+    /// The chunks and segments of one transcript with the names of one moment, found by their start (and end) in whole milliseconds, as the
+    /// index stores them. Kept per session (see <see cref="TryGetRelabelerAsync"/>), so it holds only what a hit needs: text and speaker.
+    /// </summary>
     private sealed class Relabeler
     {
-        private readonly SpeakerNames _names;
         private readonly Dictionary<(long Start, long End), string> _chunks = [];
-        private readonly Dictionary<long, TranscriptSegment> _segments = [];
+        private readonly Dictionary<long, (Speaker Speaker, string Text)> _segments = [];
 
         public Relabeler(SpeakerNames names, Transcript transcript, TranscriptChunker chunker)
         {
-            _names = names;
+            Names = names;
             foreach (var chunk in chunker.Chunk(transcript, names))
             {
                 _chunks[(Ms(chunk.Start), Ms(chunk.End))] = chunk.Text;
@@ -303,11 +343,14 @@ public sealed class Assistant : IAssistant
 
             foreach (var segment in transcript.Segments)
             {
-                _segments.TryAdd(Ms(segment.Start), segment);
+                _segments.TryAdd(Ms(segment.Start), (segment.Speaker, segment.Text.Trim()));
             }
         }
 
-        /// <summary>The hit's text with the names, or <c>null</c> when it matches neither a chunk nor a named segment.</summary>
+        /// <summary>The names this relabeler was made for.</summary>
+        public SpeakerNames Names { get; }
+
+        /// <summary>The hit's text with the names, or <c>null</c> when it matches neither a chunk nor a segment.</summary>
         public string? Relabel(TextChunk hit)
         {
             if (_chunks.TryGetValue((Ms(hit.Start), Ms(hit.End)), out var text))
@@ -315,11 +358,9 @@ public sealed class Assistant : IAssistant
                 return text;
             }
 
-            if (_segments.TryGetValue(Ms(hit.Start), out var segment)
-                && _names[segment.Speaker] is { } name
-                && segment.Text.Trim() == hit.Text.Trim())
+            if (_segments.TryGetValue(Ms(hit.Start), out var segment) && segment.Text == hit.Text.Trim())
             {
-                return name + ": " + hit.Text.Trim();
+                return TranscriptChunker.Label(segment.Speaker, Names) + ": " + segment.Text;
             }
 
             return null;

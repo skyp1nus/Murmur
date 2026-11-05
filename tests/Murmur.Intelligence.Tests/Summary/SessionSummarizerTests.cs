@@ -109,6 +109,23 @@ public sealed class SessionSummarizerTests
     }
 
     [Fact]
+    public async Task QuotesInAName_AreNotPassedToTheModel_AndTwoEqualNamesFallBackToTheDefaults()
+    {
+        var quoted = new ScriptedLlm(_ => Answer);
+        var storage = StorageWith(Roadmap());
+        storage.SpeakerNames[Id] = new SpeakerNames("Ol\"ena\"", "Marek");
+        await new SessionSummarizer(quoted, storage, null, new FixedTime(Now), storage).SummarizeAsync(Id, null, Ct);
+        Assert.Contains("[11:52] Ol'ena': Okay", quoted.Requests[0].User);
+        Assert.Contains("\"Ol'ena'\" is the user", quoted.Requests[0].System);
+
+        var same = new ScriptedLlm(_ => Answer);
+        storage.SpeakerNames[Id] = new SpeakerNames("Anna", "anna");
+        await new SessionSummarizer(same, storage, null, new FixedTime(Now), storage).SummarizeAsync(Id, null, Ct);
+        Assert.Contains("[11:52] Me: Okay", same.Requests[0].User);
+        Assert.Contains("[12:08] Others: Does", same.Requests[0].User);
+    }
+
+    [Fact]
     public async Task ASpeakerWithoutAName_KeepsMeOrOthers_InThePrompt()
     {
         var llm = new ScriptedLlm(_ => Answer);

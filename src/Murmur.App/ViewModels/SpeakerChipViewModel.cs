@@ -50,7 +50,7 @@ public sealed partial class SpeakerChipViewModel : ObservableObject
     [ObservableProperty]
     public partial string Initial { get; private set; }
 
-    /// <summary>"Updates all 14 lines in this recording" (the singular for one line).</summary>
+    /// <summary>"Applies to 14 lines in this recording" (the singular for one line).</summary>
     public string HintText { get; }
 
     /// <summary>The name box limits the text to this many characters.</summary>

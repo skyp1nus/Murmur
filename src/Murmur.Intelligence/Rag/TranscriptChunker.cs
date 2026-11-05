@@ -39,6 +39,7 @@ public sealed class TranscriptChunker
     public IReadOnlyList<TextChunk> Chunk(Transcript transcript, SpeakerNames? names)
     {
         ArgumentNullException.ThrowIfNull(transcript);
+        names = names.ForModel();
         var chunks = new List<TextChunk>();
         var current = new List<TranscriptSegment>();
         var start = TimeSpan.Zero;

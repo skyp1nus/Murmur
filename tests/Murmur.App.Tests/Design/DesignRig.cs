@@ -170,7 +170,11 @@ internal sealed class DesignRig : IDisposable
             action => action(),
             new ChatViewModel(Assistant, Llm, Recorder, record.Id, "/models", action => action(), ChatStore, SessionStore, Time),
             new FakeVideoPlayback(VideoPlayer),
-            new SessionServices(Summarizer, SummaryStore, SessionStore, Folders));
+            new SessionServices(Summarizer, SummaryStore, SessionStore, Folders))
+        {
+            // The Session boards do not show the speaker chips of Idea4Transcript (#55); like ShowMark, an explicit switch instead of an ignore rectangle.
+            ShowSpeakers = false,
+        };
     }
 
     public FakeSummarizer Summarizer { get; } = new();

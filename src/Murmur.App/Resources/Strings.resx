@@ -1594,6 +1594,7 @@
   </data>
   <data name="Calls_TryIt" xml:space="preserve">
     <value>Try it</value>
+  </data>
   <data name="Speakers_Title" xml:space="preserve">
     <value>Speakers</value>
     <comment>the label of the row of speaker chips above the transcript</comment>
@@ -1611,11 +1612,11 @@
     <comment>{0} = speaker name; tooltip of a speaker chip</comment>
   </data>
   <data name="Speakers_HintOne" xml:space="preserve">
-    <value>Updates {0} line in this recording</value>
+    <value>Applies to {0} line in this recording</value>
     <comment>{0} = number of lines of the speaker (1)</comment>
   </data>
   <data name="Speakers_HintMany" xml:space="preserve">
-    <value>Updates all {0} lines in this recording</value>
+    <value>Applies to {0} lines in this recording</value>
     <comment>{0} = number of lines of the speaker (not 1)</comment>
   </data>
   <data name="Speakers_RenameFailed" xml:space="preserve">

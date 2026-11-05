@@ -132,8 +132,8 @@ public sealed class SpeakerNamesTests : IDisposable
     {
         var vm = await LoadAsync();
 
-        Assert.Equal("Updates all 3 lines in this recording", vm.SpeakerChips[0].HintText);
-        Assert.Equal("Updates all 2 lines in this recording", vm.SpeakerChips[1].HintText);
+        Assert.Equal("Applies to 3 lines in this recording", vm.SpeakerChips[0].HintText);
+        Assert.Equal("Applies to 2 lines in this recording", vm.SpeakerChips[1].HintText);
     }
 
     [Fact]
@@ -143,7 +143,7 @@ public sealed class SpeakerNamesTests : IDisposable
         var vm = new SessionViewModel(_fixture.Record, _fixture.Files, _fixture.Transcripts, _fixture.Player, _fixture.Processing, _fixture.Time, action => action(), services: new SessionServices(SpeakerNames: _names));
         await vm.LoadAsync();
 
-        Assert.Equal("Updates 1 line in this recording", vm.SpeakerChips[0].HintText);
+        Assert.Equal("Applies to 1 line in this recording", vm.SpeakerChips[0].HintText);
     }
 
     [Fact]
@@ -236,10 +236,26 @@ public sealed class SpeakerNamesTests : IDisposable
     }
 
     [Fact]
-    public async Task AStoreThatFails_KeepsTheOldName_AndSaysSo()
+    public async Task TheRow_IsHidden_WhenTheDemoSceneSwitchesItOff()
     {
         var vm = await LoadAsync();
-        _names.SetFailure = new IOException("disk full");
+        Assert.True(vm.ShowSpeakers);
+        Assert.True(vm.ShowSpeakerChips);
+
+        vm.ShowSpeakers = false;
+
+        Assert.False(vm.ShowSpeakerChips);
+        Assert.Equal(2, vm.SpeakerChips.Count);
+    }
+
+    [Theory]
+    [InlineData(typeof(IOException), "disk full")]
+    [InlineData(typeof(TimeoutException), "database is locked")]
+    [InlineData(typeof(InvalidOperationException), "closed")]
+    public async Task AStoreThatFails_KeepsTheOldName_AndSaysSo_WhateverTheErrorIs(Type error, string message)
+    {
+        var vm = await LoadAsync();
+        _names.SetFailure = (Exception)Activator.CreateInstance(error, message)!;
         var chip = vm.SpeakerChips[0];
 
         chip.BeginEditCommand.Execute(null);
@@ -248,7 +264,7 @@ public sealed class SpeakerNamesTests : IDisposable
 
         Assert.Equal("You", chip.Label);
         Assert.All(vm.Segments.Where(s => s.Speaker == Speaker.Me), s => Assert.Equal("You", s.SpeakerLabel));
-        Assert.Equal("Couldn’t save the speaker name: disk full", vm.ActionMessage);
+        Assert.Equal("Couldn’t save the speaker name: " + message, vm.ActionMessage);
     }
 
     [Fact]
@@ -405,6 +421,7 @@ public sealed class SpeakerNamesTests : IDisposable
                 window.Width = width;
                 window.Height = height;
                 window.RequestedThemeVariant = theme == "Dark" ? Avalonia.Styling.ThemeVariant.Dark : Avalonia.Styling.ThemeVariant.Light;
+                UiHarness.Pump(4);
                 shell.Session!.SpeakerChips[1].BeginEditCommand.Execute(null);
                 UiHarness.Pump(6);
                 UiHarness.Save(window, path);
@@ -413,6 +430,115 @@ public sealed class SpeakerNamesTests : IDisposable
             Ct);
 
         Assert.True(new FileInfo(path).Length > 10_000, "Screenshot looks empty.");
+    }
+
+    [Fact]
+    public async Task TheOpenChip_HasTheInkOutlineAndThePencil_TheClosedOneHasNeither()
+    {
+        var shell = await OpenShellAsync();
+
+        var (closed, open) = await Session.Dispatch(
+            () =>
+            {
+                var window = UiHarness.Show(shell);
+                var chip = window.GetVisualDescendants().OfType<Button>().First(b => b.Classes.Contains("speakerChip"));
+                var pencil = chip.GetVisualDescendants().OfType<Murmur.App.Controls.IconControl>().Single();
+                var before = (chip.Classes.Contains("editing"), pencil.IsVisible, chip.BorderThickness.Left);
+                shell.Session!.SpeakerChips[0].BeginEditCommand.Execute(null);
+                UiHarness.Pump(4);
+                var after = (chip.Classes.Contains("editing"), pencil.IsVisible, chip.BorderThickness.Left);
+                window.Close();
+                return (before, after);
+            },
+            Ct);
+
+        Assert.Equal((false, false, 1d), closed);
+        Assert.Equal((true, true, 1.5d), open);
+    }
+
+    [Fact]
+    public async Task ThePopover_SitsTenPixelsUnderTheChip_LeftEdgesAligned_WithoutAnOutline()
+    {
+        var shell = await OpenShellAsync();
+
+        var (dx, gap, outline) = await Session.Dispatch(
+            () =>
+            {
+                var window = UiHarness.Show(shell);
+                shell.Session!.SpeakerChips[1].BeginEditCommand.Execute(null);
+                UiHarness.Pump(6);
+                var chip = window.GetVisualDescendants().OfType<Button>().Where(b => b.Classes.Contains("speakerChip")).ElementAt(1);
+                var popup = window.GetVisualDescendants().OfType<Popup>().First(p => p.IsOpen);
+                var card = (Border)popup.Child!;
+                var chipAt = chip.TranslatePoint(default, window)!.Value;
+                var cardAt = card.TranslatePoint(default, window)!.Value;
+                var result = (cardAt.X - chipAt.X, cardAt.Y - (chipAt.Y + chip.Bounds.Height), card.BorderThickness.Left);
+                window.Close();
+                return result;
+            },
+            Ct);
+
+        Assert.Equal(0, dx, 1);
+        Assert.Equal(10, gap, 1);
+        Assert.Equal(0, outline);
+    }
+
+    [Fact]
+    public async Task ALongName_MakesTheChipEllipsize_At200Pixels()
+    {
+        _names.Put(_fixture.Record.Id, new SpeakerNames(new string('W', 40), null));
+        var shell = await OpenShellAsync();
+
+        var width = await Session.Dispatch(
+            () =>
+            {
+                var window = UiHarness.Show(shell);
+                var chip = window.GetVisualDescendants().OfType<Button>().First(b => b.Classes.Contains("speakerChip"));
+                var result = chip.Bounds.Width;
+                window.Close();
+                return result;
+            },
+            Ct);
+
+        Assert.Equal(200, width, 1);
+    }
+
+    [Fact]
+    public async Task Escape_ClosesThePopover_FromAnyElementInIt_AndTheFocusGoesBackToTheChip()
+    {
+        var shell = await OpenShellAsync();
+
+        var (closed, onChip, saved) = await Session.Dispatch(
+            async () =>
+            {
+                var window = UiHarness.Show(shell);
+                var chip = window.GetVisualDescendants().OfType<Button>().First(b => b.Classes.Contains("speakerChip"));
+                var vmChip = shell.Session!.SpeakerChips[0];
+                chip.Focus();
+                window.KeyPressQwerty(PhysicalKey.Enter, RawInputModifiers.None);
+                window.KeyReleaseQwerty(PhysicalKey.Enter, RawInputModifiers.None);
+                UiHarness.Pump(6);
+
+                // The focus is on the Cancel button, not in the name box: Esc must still close the popover.
+                var popup = window.GetVisualDescendants().OfType<Popup>().First(p => p.IsOpen);
+                popup.Child!.GetVisualDescendants().OfType<TextBox>().Single().Text = "Typed";
+                var cancel = popup.Child!.GetVisualDescendants().OfType<Button>().First(b => b.Classes.Contains("outline"));
+                cancel.Focus();
+                window.KeyPressQwerty(PhysicalKey.Escape, RawInputModifiers.None);
+                window.KeyReleaseQwerty(PhysicalKey.Escape, RawInputModifiers.None);
+                UiHarness.Pump(6);
+                await Task.Delay(50, Ct);
+                UiHarness.Pump(3);
+
+                var result = (!vmChip.IsEditing && !popup.IsOpen, chip.IsFocused, _names.Writes.Count);
+                window.Close();
+                return result;
+            },
+            Ct);
+
+        Assert.True(closed);
+        Assert.True(onChip);
+        Assert.Equal(0, saved);
     }
 
     private static TextBox? FindInPopups(Window window) =>

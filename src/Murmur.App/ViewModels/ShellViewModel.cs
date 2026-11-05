@@ -215,7 +215,7 @@ public sealed partial class ShellViewModel : ObservableObject
             services.Time);
 
         return new ShellViewModel(
-            new LibraryViewModel(services.Sessions, services.Time, processing, keywordSearch: services.Search, assistant: ai?.Assistant, recorder: services.Recorder, transcripts: services.Transcripts, settings: store),
+            new LibraryViewModel(services.Sessions, services.Time, processing, keywordSearch: services.Search, assistant: ai?.Assistant, recorder: services.Recorder, transcripts: services.Transcripts, settings: store, speakerNames: services.SpeakerNames),
             new RecordingViewModel(services.Recorder, services.Capture, services.Sessions, settings: store, marks: services.Marks),
             services.Startup,
             sessionFactory,

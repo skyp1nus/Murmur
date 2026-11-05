@@ -9,8 +9,8 @@ namespace Murmur.App.ViewModels;
 /// Speaker names (Idea4Transcript.dc.html, "Idea 4 / Speakers"): the chips above the transcript, one per speaker who has lines, and what a
 /// rename changes: the label and the avatar letter of every line of this recording, and the labels of an export. The names are kept by
 /// <see cref="ISpeakerNameStore"/> (the AI reads them from there). The row is offered only while the store is wired (<c>null</c> = the lines
-/// say "You" / "Others" and nothing can be renamed): the design demo scene builds the Session boards without it, because the boards do not
-/// show the row (see "design parity" in docs/design/README.md).
+/// say "You" / "Others" and nothing can be renamed) and <see cref="ShowSpeakers"/> is on; the design demo scene turns it off, because the
+/// Session boards do not show the row (see "design parity" in docs/design/README.md).
 /// </summary>
 public sealed partial class SessionViewModel
 {
@@ -21,8 +21,16 @@ public sealed partial class SessionViewModel
     [NotifyPropertyChangedFor(nameof(ShowSpeakerChips))]
     public partial IReadOnlyList<SpeakerChipViewModel> SpeakerChips { get; private set; } = [];
 
-    /// <summary>The row of chips is on screen: the transcript list is, and there is a store to keep the names.</summary>
-    public bool ShowSpeakerChips => _services.SpeakerNames is not null && ShowTranscriptList && SpeakerChips.Count > 0;
+    /// <summary>
+    /// The row of chips may be shown. Always on, except in the design demo scene: the Session boards (Session.dc.html) do not have the row,
+    /// so the harness sets it to <c>false</c> (the same kind of switch as <c>RecordingViewModel.ShowMark</c>).
+    /// </summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ShowSpeakerChips))]
+    public partial bool ShowSpeakers { get; set; } = true;
+
+    /// <summary>The row of chips is on screen: it is switched on, the transcript list is on screen, and there is a store to keep the names.</summary>
+    public bool ShowSpeakerChips => ShowSpeakers && _services.SpeakerNames is not null && ShowTranscriptList && SpeakerChips.Count > 0;
 
     /// <summary>The names of the speakers of this recording (the defaults until the user chooses).</summary>
     internal SpeakerNames SpeakerNames => _speakerNames;
@@ -92,8 +100,9 @@ public sealed partial class SessionViewModel
             await store.SetSpeakerNameAsync(Id, speaker, name, CancellationToken.None).ConfigureAwait(true);
             _speakerNames = await store.GetSpeakerNamesAsync(Id, CancellationToken.None).ConfigureAwait(true);
         }
-        catch (Exception ex) when (ex is KeyNotFoundException or IOException or InvalidOperationException)
+        catch (Exception ex) when (ex is not OperationCanceledException)
         {
+            // The store is SQLite: its errors (SqliteException, a locked file, a full disk) must not take the app down.
             ActionMessage = UiText.Format(Strings.Speakers_RenameFailed, ex.Message);
             return;
         }

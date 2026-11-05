@@ -12,10 +12,12 @@ internal sealed class FakeSpeakerNameStore : ISpeakerNameStore
 
     public Exception? SetFailure { get; set; }
 
+    public Exception? GetFailure { get; set; }
+
     public void Put(SessionId session, SpeakerNames names) => _names[session] = names;
 
     public ValueTask<SpeakerNames> GetSpeakerNamesAsync(SessionId session, CancellationToken cancellationToken) =>
-        ValueTask.FromResult(_names.GetValueOrDefault(session) ?? SpeakerNames.Default);
+        GetFailure is { } failure ? throw failure : ValueTask.FromResult(_names.GetValueOrDefault(session) ?? SpeakerNames.Default);
 
     public ValueTask SetSpeakerNameAsync(SessionId session, Speaker speaker, string? name, CancellationToken cancellationToken)
     {

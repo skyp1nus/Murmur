@@ -127,14 +127,63 @@ public sealed class SpeakerNameLabelTests
     }
 
     [Fact]
-    public async Task Search_LeavesASegmentOfASpeakerWithoutANameAsItIs()
+    public async Task Search_LabelsEverySegmentOfANamedSession_TheSpeakerWithoutANameWithTheDefaultLabel()
     {
         _storage.Transcripts[S1] = Talk(S1);
         _storage.SpeakerNames[S1] = new SpeakerNames(null, "Marek W.");
-        _storage.KeywordHits = [Hit(S1, 0, 10, SearchSource.Keyword, "Привіт")];
+        _storage.KeywordHits = [Hit(S1, 0, 10, SearchSource.Keyword, "Привіт"), Hit(S1, 10, 20, SearchSource.Keyword, "Добрий день")];
         _llm.Status = LlmStatus.NotInstalled;
 
-        Assert.Equal("Привіт", Assert.Single(await Create().SearchAsync("привіт", null, 5, Ct)).Chunk.Text);
+        var hits = await Create().SearchAsync("привіт", null, 5, Ct);
+
+        Assert.Equal(["Marek W.: Добрий день", "Я: Привіт"], hits.Select(h => h.Chunk.Text).Order(StringComparer.Ordinal));
+    }
+
+    [Fact]
+    public async Task Search_DoesNotReadTheTranscriptAgain_WhileTheNamesStayTheSame()
+    {
+        _storage.Transcripts[S1] = Talk(S1);
+        _storage.SpeakerNames[S1] = new SpeakerNames("Олена", "Marek W.");
+        _storage.VectorHits = [Hit(S1, 0, 30, SearchSource.Vector, DefaultChunk)];
+        var assistant = Create();
+
+        await assistant.SearchAsync("привіт", null, 5, Ct);
+        await assistant.SearchAsync("день", null, 5, Ct);
+        var third = Assert.Single(await assistant.SearchAsync("починаємо", null, 5, Ct));
+
+        Assert.Equal(1, _storage.TranscriptReads);
+        Assert.StartsWith("Олена: Привіт", third.Chunk.Text, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Search_FollowsARename_AndTheCacheIsDroppedWhenTheSessionIsIndexed()
+    {
+        _storage.Transcripts[S1] = Talk(S1);
+        _storage.SpeakerNames[S1] = new SpeakerNames("Олена", null);
+        _storage.VectorHits = [Hit(S1, 0, 30, SearchSource.Vector, DefaultChunk)];
+        var assistant = Create();
+        await assistant.SearchAsync("привіт", null, 5, Ct);
+
+        _storage.SpeakerNames[S1] = new SpeakerNames("Ірина", null);
+        var renamed = Assert.Single(await assistant.SearchAsync("привіт", null, 5, Ct));
+        await assistant.IndexSessionAsync(S1, Ct);
+        await assistant.SearchAsync("привіт", null, 5, Ct);
+
+        Assert.StartsWith("Ірина: Привіт", renamed.Chunk.Text, StringComparison.Ordinal);
+        Assert.Equal(1 + 1 + 1 + 1, _storage.TranscriptReads); // first search, the rename, the index run, the search after it
+    }
+
+    [Fact]
+    public async Task Search_KeepsTheHitsAsTheyAre_WhenTheTranscriptCannotBeRead()
+    {
+        _storage.Transcripts[S1] = Talk(S1);
+        _storage.SpeakerNames[S1] = new SpeakerNames("Олена", null);
+        _storage.TranscriptFailure = new InvalidDataException("broken");
+        _storage.VectorHits = [Hit(S1, 0, 30, SearchSource.Vector, DefaultChunk)];
+
+        var hit = Assert.Single(await Create().SearchAsync("привіт", null, 5, Ct));
+
+        Assert.Equal(DefaultChunk, hit.Chunk.Text);
     }
 
     [Fact]
@@ -209,6 +258,17 @@ public sealed class SpeakerNameLabelTests
         var prompt = _llm.Chat.LastMessages[^1].Text;
         Assert.DoesNotContain("У записі", prompt, StringComparison.Ordinal);
         Assert.Contains("Я: Привіт", prompt, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Quotes_InANameCannotCloseTheQuotation_AndTwoEqualNamesFallBackToTheDefaults()
+    {
+        var quoted = new TranscriptChunker().Chunk(Talk(S1), new SpeakerNames("A\" «B»", "Marek")).Single().Text;
+
+        Assert.StartsWith("A' 'B': Привіт\nMarek: Добрий день", quoted, StringComparison.Ordinal);
+        Assert.Equal(DefaultChunk, new TranscriptChunker().Chunk(Talk(S1), new SpeakerNames("Same", "same")).Single().Text);
+        Assert.Equal("У записі «T» «A' 'B'» — користувач.", Assistant.SpeakerNote("T", new SpeakerNames("A\" «B»", null)));
+        Assert.Null(Assistant.SpeakerNote("T", new SpeakerNames("Same", "SAME")));
     }
 
     [Fact]

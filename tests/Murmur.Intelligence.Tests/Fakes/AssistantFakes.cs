@@ -49,8 +49,17 @@ internal sealed class FakeStorage : IStorage
         return ValueTask.CompletedTask;
     }
 
-    public ValueTask<Transcript?> GetTranscriptAsync(SessionId id, CancellationToken cancellationToken) =>
-        ValueTask.FromResult(Transcripts.GetValueOrDefault(id));
+    /// <summary>How many times a transcript was read.</summary>
+    public int TranscriptReads { get; private set; }
+
+    /// <summary>Thrown by <see cref="GetTranscriptAsync"/> when set.</summary>
+    public Exception? TranscriptFailure { get; set; }
+
+    public ValueTask<Transcript?> GetTranscriptAsync(SessionId id, CancellationToken cancellationToken)
+    {
+        TranscriptReads++;
+        return TranscriptFailure is { } failure ? throw failure : ValueTask.FromResult(Transcripts.GetValueOrDefault(id));
+    }
 
     public ValueTask<IReadOnlyList<TranscriptSummary>> GetTranscriptSummariesAsync(IReadOnlyList<SessionId> sessions, CancellationToken cancellationToken) =>
         ValueTask.FromResult<IReadOnlyList<TranscriptSummary>>(

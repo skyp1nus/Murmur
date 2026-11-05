@@ -48,6 +48,7 @@ public sealed partial class SessionSummarizer : ISessionSummarizer
         var transcript = await _transcripts.GetTranscriptAsync(session, cancellationToken).ConfigureAwait(false)
             ?? throw new InvalidOperationException($"Session {session} has no transcript to summarise.");
         var names = _speakerNames is null ? SpeakerNames.Default : await _speakerNames.GetSpeakerNamesAsync(session, cancellationToken).ConfigureAwait(false);
+        names = names.ForModel();
         var lines = BuildLines(transcript, _options.ChunkCharacters, names);
         if (lines.Count == 0)
         {
@@ -135,8 +136,9 @@ public sealed partial class SessionSummarizer : ISessionSummarizer
     /// <summary>The model's input: one line per segment, <c>[12:34] Me: text</c>; very long segments are cut at word boundaries.</summary>
     internal static List<string> BuildLines(Transcript transcript, int chunkCharacters, SpeakerNames? names = null)
     {
-        var meLabel = names?.Me ?? MeLabel;
-        var othersLabel = names?.Others ?? OthersLabel;
+        names = names.ForModel();
+        var meLabel = names.Me ?? MeLabel;
+        var othersLabel = names.Others ?? OthersLabel;
         var lines = new List<string>(transcript.Segments.Count);
         foreach (var segment in transcript.Segments)
         {
@@ -484,6 +486,19 @@ public sealed partial class SessionSummarizer : ISessionSummarizer
         }
     }
 
+    /// <summary>
+    /// The sentence of a system prompt that says how the transcript lines look and who the speakers are: <c>"[12:34] Me: text"</c>, with the
+    /// names the user gave the speakers (as <see cref="SpeakerNamesForModel.ForModel"/> makes them) in place of "Me" / "Others".
+    /// </summary>
+    internal static string SpeakerIntro(SpeakerNames? names)
+    {
+        names = names.ForModel();
+        var me = names.Me ?? MeLabel;
+        var others = names.Others ?? OthersLabel;
+        return "The transcript lines look like \"[12:34] " + me + ": text\" or \"[12:34] " + others + ": text\": "
+            + "\"" + me + "\" is the user, \"" + others + "\" stands for the other people on the call.";
+    }
+
     /// <summary>The prompts. Model input, not UI text.</summary>
     private static class Prompts
     {
@@ -495,10 +510,7 @@ public sealed partial class SessionSummarizer : ISessionSummarizer
 
         public static string System(string language, SpeakerNames names)
         {
-            var me = names.Me ?? MeLabel;
-            var others = names.Others ?? OthersLabel;
-            return "You write meeting summaries for the Murmur recorder. The transcript lines look like \"[12:34] " + me + ": text\" or \"[12:34] " + others + ": text\": "
-                + "\"" + me + "\" is the user, \"" + others + "\" stands for the other people on the call. Use only what the transcript says; invent nothing. "
+            return "You write meeting summaries for the Murmur recorder. " + SpeakerIntro(names) + " Use only what the transcript says; invent nothing. "
                 + (language.Length > 0
                     ? "Write the summary in " + language + ", the language of the transcript."
                     : "Write the summary in the language of the transcript (English or Ukrainian).");

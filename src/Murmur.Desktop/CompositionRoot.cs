@@ -184,7 +184,7 @@ internal sealed class CompositionRoot : IDisposable
             storage,
             new AiServices(assistant, llm, models.ModelsDirectory, AccelerationProbe, llm, AccelerationRuntimeIds(modelManager),
                 new SessionSummarizer(llm, storage, SummarizerOptions.ForContext(new LocalLlmOptions().ContextSize), speakerNames: storage),
-                new ChapterGenerator(llm, storage, SummarizerOptions.ForContext(new LocalLlmOptions().ContextSize))),
+                new ChapterGenerator(llm, storage, SummarizerOptions.ForContext(new LocalLlmOptions().ContextSize), speakerNames: storage)),
             settings,
             aiModels,
             modelManager.ActiveModelId,
