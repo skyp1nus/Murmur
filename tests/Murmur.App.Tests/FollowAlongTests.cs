@@ -93,6 +93,66 @@ public sealed class FollowAlongTests : IDisposable
         Assert.Equal(Math.Min(expected, 3), vm.Segments[0].VisibleWord);
     }
 
+    [Theory]
+    [InlineData(0.5)]
+    [InlineData(0.75)]
+    [InlineData(1)]
+    [InlineData(1.5)]
+    [InlineData(2)]
+    public async Task TheMarkedWord_NeverLagsTheAudioByMoreThan100ms_WhenPolledAt33ms(double speed)
+    {
+        // AC: "matches the audio within 100 ms ... at every speed". The view polls every 33 ms of wall time (SessionView.PollInterval);
+        // the player reports media time, so one wall millisecond is `speed` media milliseconds.
+        const int pollMs = 33;
+        const int toleranceMs = 100;
+        var vm = await LoadAsync(words: 240);
+        var timeline = new TranscriptTimeline(_fixture.Transcripts.Transcript!.Segments);
+        vm.PlayPauseCommand.Execute(null);
+
+        int Shown()
+        {
+            for (var i = 0; i < vm.Segments.Count; i++)
+            {
+                if (vm.Segments[i].VisibleWord >= 0)
+                {
+                    return vm.Segments[i].FirstWord + vm.Segments[i].VisibleWord;
+                }
+            }
+
+            return -1;
+        }
+
+        var wallEnd = (int)(30_000 / speed);
+        for (var wall = 0; wall <= wallEnd; wall++)
+        {
+            if (wall % pollMs == 0)
+            {
+                _fixture.Player.Position = TimeSpan.FromMilliseconds(wall * speed);
+                vm.Tick();
+            }
+
+            if (wall < toleranceMs)
+            {
+                continue;
+            }
+
+            var shown = Shown();
+            var spokenNow = timeline.FindWord(TimeSpan.FromMilliseconds(wall * speed));
+            var spokenThen = timeline.FindWord(TimeSpan.FromMilliseconds((wall - toleranceMs) * speed));
+
+            // The shown word is the one spoken now, or one spoken at most 100 ms (of wall time) ago; never one that is still to come.
+            if (spokenNow >= 0)
+            {
+                Assert.True(shown <= spokenNow, $"Wall {wall} ms at {speed}x: the mark ({shown}) runs ahead of the audio ({spokenNow}).");
+            }
+
+            if (spokenThen >= 0)
+            {
+                Assert.True(shown >= spokenThen, $"Wall {wall} ms at {speed}x: the mark ({shown}) lags the audio ({spokenNow}) by more than {toleranceMs} ms.");
+            }
+        }
+    }
+
     [Fact]
     public async Task ASeek_MovesTheMarkAtOnce_AlsoWhilePaused()
     {
@@ -466,8 +526,12 @@ public sealed class FollowAlongTests : IDisposable
         Assert.Equal(0, allocated);
     }
 
+    // The playhead is set outside the measured region: only the highlight update itself is measured.
+    [System.Runtime.CompilerServices.UnsafeAccessor(System.Runtime.CompilerServices.UnsafeAccessorKind.Method, Name = "set_Position")]
+    private static extern void SetPosition(SessionViewModel vm, TimeSpan position);
+
     [Fact]
-    public async Task MovingTheMark_ToTheNextWord_AllocatesNoMoreThanATickInsideAWord()
+    public async Task MovingTheMark_ToAnotherWord_AllocatesNothing()
     {
         var vm = await LoadAsync(words: 3_000);
         vm.PlayPauseCommand.Execute(null);
@@ -480,37 +544,57 @@ public sealed class FollowAlongTests : IDisposable
             }
         }
 
-        // The tick also builds the clock text of the player (the same bytes every time while it is "mm:ss"); that is not the highlight.
-        // So compare a tick that moves to another word with a tick that stays inside one: the highlight must add nothing.
-        void Tick(TimeSpan position)
+        // Warm up: JIT, first-time paths, lazily created caches.
+        for (var round = 0; round < 2; round++)
         {
-            _fixture.Player.Position = position;
-            vm.Tick();
+            for (var i = 0; i < positions.Count; i++)
+            {
+                SetPosition(vm, positions[i]);
+                vm.UpdateCurrent(forceScroll: false);
+            }
         }
 
-        var start = positions.Count / 4;
-        var count = positions.Count / 2;
-        for (var i = start; i < start + count; i++)
+        // Exact count, not a comparison of two runs: the allocation counter of this thread only moves for this thread's own allocations.
+        long allocated = 0;
+        for (var i = 0; i < positions.Count; i++)
         {
-            Tick(positions[i]);
+            SetPosition(vm, positions[i]);
+            var before = GC.GetAllocatedBytesForCurrentThread();
+            vm.UpdateCurrent(forceScroll: false);
+            allocated += GC.GetAllocatedBytesForCurrentThread() - before;
         }
 
-        var before = GC.GetAllocatedBytesForCurrentThread();
-        for (var i = start; i < start + count; i++)
-        {
-            Tick(positions[i]);
-        }
+        Assert.Equal(0, allocated);
+    }
 
-        var moving = GC.GetAllocatedBytesForCurrentThread() - before;
+    [Fact]
+    public async Task AWordChange_BuildsExactlyOneTextLayout_AndTheSameWordNone()
+    {
+        await Session.Dispatch(
+            () =>
+            {
+                var control = Chip(-1);
+                control.Measure(new Size(400, double.PositiveInfinity));
+                control.Arrange(new Rect(control.DesiredSize));
+                var (starts, _) = Words(Line);
 
-        before = GC.GetAllocatedBytesForCurrentThread();
-        for (var i = 0; i < count; i++)
-        {
-            Tick(positions[start] + TimeSpan.FromMilliseconds(i % 300));
-        }
+                var previous = control.CurrentLayout;
+                for (var word = 0; word < starts.Length; word++)
+                {
+                    control.ActiveWord = word;
+                    var built = control.CurrentLayout;
+                    Assert.NotSame(previous, built);
 
-        var staying = GC.GetAllocatedBytesForCurrentThread() - before;
-        Assert.True(moving <= staying, $"Moving through {count} words allocated {moving} B, ticks inside one word {staying} B.");
+                    // Measuring, arranging, hit-testing and drawing again reuse that layout; the same word is no change at all.
+                    control.Measure(new Size(400, double.PositiveInfinity));
+                    control.Arrange(new Rect(control.DesiredSize));
+                    _ = control.WordAt(new Point(1, 1));
+                    control.ActiveWord = word;
+                    Assert.Same(built, control.CurrentLayout);
+                    previous = built;
+                }
+            },
+            TestContext.Current.CancellationToken);
     }
 
     // The control: the chip --------------------------------------------------------------------------------------
