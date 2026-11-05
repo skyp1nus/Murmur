@@ -1552,4 +1552,47 @@
     <value>Go to chapter "{0}"</value>
     <comment>{0} = chapter title; tooltip of a chapter segment, which jumps there</comment>
   </data>
+  <!-- Call detection (#44) -->
+  <data name="Calls_DetectedTitle" xml:space="preserve">
+    <value>Call detected</value>
+  </data>
+  <data name="Calls_DetectedBody" xml:space="preserve">
+    <value>{0} is playing call audio.</value>
+  </data>
+  <data name="Calls_Record" xml:space="preserve">
+    <value>Record</value>
+  </data>
+  <data name="Calls_NotNow" xml:space="preserve">
+    <value>Not now</value>
+  </data>
+  <data name="Calls_AlwaysRecord" xml:space="preserve">
+    <value>Always record calls from this app</value>
+  </data>
+  <data name="Calls_AutoTitle" xml:space="preserve">
+    <value>Recording {0} call</value>
+  </data>
+  <data name="Calls_AutoBody" xml:space="preserve">
+    <value>Started automatically: calls from this app are always recorded.</value>
+  </data>
+  <data name="Calls_Open" xml:space="preserve">
+    <value>Open</value>
+  </data>
+  <data name="Calls_Stop" xml:space="preserve">
+    <value>Stop</value>
+  </data>
+  <data name="Calls_Dismiss" xml:space="preserve">
+    <value>Dismiss</value>
+  </data>
+  <data name="Calls_SampleApp" xml:space="preserve">
+    <value>Microsoft Teams</value>
+  </data>
+  <data name="Calls_DetectTitle" xml:space="preserve">
+    <value>Detect calls</value>
+  </data>
+  <data name="Calls_DetectText" xml:space="preserve">
+    <value>Offer to record when a call starts. Detection runs on this PC only.</value>
+  </data>
+  <data name="Calls_TryIt" xml:space="preserve">
+    <value>Try it</value>
+  </data>
 </root>

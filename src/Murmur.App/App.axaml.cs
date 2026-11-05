@@ -8,6 +8,7 @@ using Murmur.App.Localization;
 using Murmur.App.Services;
 using Murmur.App.ViewModels;
 using Murmur.App.Views;
+using Murmur.Core.Calls;
 using Murmur.Core.Input;
 
 namespace Murmur.App;
@@ -117,6 +118,12 @@ public partial class App : Application
                 AttachHotkeys(window, shell, services, hotkeys);
             }
 
+            if (services.Calls is { } calls && !probing && !autoRecording)
+            {
+                // Diagnostic runs never watch for calls either: nothing may start a recording or open a toast behind them.
+                AttachCallDetection(window, shell, services, calls);
+            }
+
             if (autoRecording && autoRecord is not null)
             {
                 window.Opened += (_, _) => _ = RunAutoRecordAsync(desktop, shell, services, autoRecord);
@@ -144,6 +151,39 @@ public partial class App : Application
         }
 
         var coordinator = new HotkeyCoordinator(hotkeys, settings, shell, window.BringToFront, isClosing: () => window.IsClosing, recorder: services.Recorder);
+        window.Opened += (_, _) => window.RequestAnimationFrame(_ => coordinator.Start());
+        window.Closed += (_, _) => coordinator.Dispose();
+    }
+
+    /// <summary>
+    /// Call detection (#44): the coordinator starts the detector after the first frame (like the hotkeys, outside the start-up
+    /// budget) while Detect calls is on, and answers a call with a toast or an automatic recording through the Recording flow.
+    /// </summary>
+    private static void AttachCallDetection(MainWindow window, ShellViewModel shell, AppServices services, ICallDetector calls)
+    {
+        if (services.Settings is not { } settings)
+        {
+            return;
+        }
+
+        var actions = new CallActions(
+            StartRecording: () => shell.Recording.RecorderIsIdle ? shell.ToggleRecordingFromHotkeyAsync() : Task.CompletedTask,
+            StopRecording: () => shell.Recording.StopAsync(),
+            OpenApp: () =>
+            {
+                window.BringToFront();
+                if (!shell.IsOnboarding)
+                {
+                    shell.ShowRecording();
+                }
+            },
+            CanRecord: () => !shell.IsOnboarding && !window.IsClosing);
+        var coordinator = new CallCoordinator(calls, settings, services.Recorder, new CallToastWindowHost(services.Motion), actions);
+        if (shell.Settings is { } settingsPage)
+        {
+            settingsPage.SampleCallToastRequested += coordinator.ShowSample;
+        }
+
         window.Opened += (_, _) => window.RequestAnimationFrame(_ => coordinator.Start());
         window.Closed += (_, _) => coordinator.Dispose();
     }
