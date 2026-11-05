@@ -36,7 +36,7 @@ public sealed record SessionProcessingStatus(SessionId Session, SessionProcessin
 /// </summary>
 /// <remarks>
 /// <para><b>When.</b> After every recording that stops in <see cref="SessionState.Recorded"/> (via
-/// <see cref="IRecorder.StateChanged"/>), for <see cref="EnqueueAsync"/> (manual retry, any state but Recording) and,
+/// <see cref="IRecorder.StateChanged"/>), for <see cref="EnqueueAsync"/> (manual retry or an imported file, any state but Recording) and,
 /// at start-up, <see cref="ResumePendingAsync"/>. The work runs as a <see cref="JobPriority.Transcription"/> job on the
 /// shared <see cref="JobQueue"/>; the processor pauses that queue for as long as the recorder is not idle (a running
 /// job is pre-empted and restarted after the recording) and stops the ASR worker so no model is in memory while
@@ -83,6 +83,7 @@ public sealed class SessionProcessor : IDisposable
     private readonly JobQueue _queue;
     private readonly Func<SessionId, CancellationToken, Task>? _indexer;
     private readonly Func<bool>? _isAiInstalled;
+    private readonly Func<SessionId, string?>? _languageOf;
     private readonly object _gate = new();
     private readonly HashSet<SessionId> _needsIndex = [];
     private readonly Dictionary<SessionId, SessionProcessingStatus> _statuses = [];
@@ -96,7 +97,10 @@ public sealed class SessionProcessor : IDisposable
     /// <param name="indexer">Phase 3 hook (<c>IAssistant.IndexSessionAsync</c>), run as an <see cref="JobPriority.Indexing"/> job.</param>
     /// <param name="isAiInstalled">Whether the AI models are installed (checked every time, so installing them later takes
     /// effect without a restart); <c>null</c> = always installed. Ignored without an <paramref name="indexer"/>.</param>
-    public SessionProcessor(IRecorder recorder, ISessionStore sessions, ITranscriptStore transcripts, IAsr asr, JobQueue queue, Func<SessionId, CancellationToken, Task>? indexer = null, Func<bool>? isAiInstalled = null)
+    /// <param name="languageOf">The spoken language of a session (the language chosen for an imported file), read when its
+    /// transcription starts and passed to the ASR as <see cref="AsrRequest.Language"/>; <c>null</c> (or a <c>null</c>
+    /// result) = auto-detect.</param>
+    public SessionProcessor(IRecorder recorder, ISessionStore sessions, ITranscriptStore transcripts, IAsr asr, JobQueue queue, Func<SessionId, CancellationToken, Task>? indexer = null, Func<bool>? isAiInstalled = null, Func<SessionId, string?>? languageOf = null)
     {
         ArgumentNullException.ThrowIfNull(recorder);
         ArgumentNullException.ThrowIfNull(sessions);
@@ -110,6 +114,7 @@ public sealed class SessionProcessor : IDisposable
         _queue = queue;
         _indexer = indexer;
         _isAiInstalled = isAiInstalled;
+        _languageOf = languageOf;
 
         _recorder.StateChanged += OnRecorderStateChanged;
         OnRecorderStateChanged(_recorder.State);
@@ -490,6 +495,7 @@ public sealed class SessionProcessor : IDisposable
             var paths = tracks.ConvertAll(t => t.Path);
             await Task.Run(() => PeaksBuilder.Build(paths, files.Peaks, cancellationToken), cancellationToken).ConfigureAwait(false);
 
+            var language = _languageOf?.Invoke(id);
             var seconds = paths.ConvertAll(TrackSeconds);
             var totalSeconds = Math.Max(seconds.Sum(), 1e-9);
             var doneSeconds = 0.0;
@@ -504,7 +510,7 @@ public sealed class SessionProcessor : IDisposable
                     var processed = Math.Clamp(p.Processed.TotalSeconds, 0, trackSeconds);
                     SetStatus(id, SessionProcessingStage.Transcribing, PeaksWeight + ((1 - PeaksWeight - SaveWeight) * Math.Clamp((offset + processed) / totalSeconds, 0, 1)));
                 });
-                await foreach (var segment in _asr.TranscribeAsync(new AsrRequest(tracks[i].Path, tracks[i].Speaker), reporter, cancellationToken).ConfigureAwait(false))
+                await foreach (var segment in _asr.TranscribeAsync(new AsrRequest(tracks[i].Path, tracks[i].Speaker, language), reporter, cancellationToken).ConfigureAwait(false))
                 {
                     segments.Add(segment);
                 }

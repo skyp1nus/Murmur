@@ -8,7 +8,9 @@ namespace Murmur.Core.Recording;
 /// Run once at app start, before anything records: every session still in <see cref="SessionState.Recording"/>
 /// belongs to a process that died. Its WAV headers are repaired from the real file lengths, the duration is taken from
 /// the WAVs and the session becomes <see cref="SessionState.Interrupted"/> (or <see cref="SessionState.Failed"/> when
-/// no audio could be recovered at all: every track file is missing or not a valid WAV).
+/// no audio could be recovered at all: every track file is missing or not a valid WAV). Imported sessions
+/// (<see cref="SessionSource.Imported"/>) are left alone: one still in Recording is a half-made import, which the import
+/// queue restarts or deletes.
 /// </summary>
 /// <remarks>
 /// Right after a crash an antivirus scan, the indexer or the dying process itself can still hold a track file. A busy
@@ -83,7 +85,9 @@ public sealed class RecoveryService
 
             foreach (var session in sessions)
             {
-                if (session.State != SessionState.Recording)
+                // An imported session in Recording is a half-made import, not a dead recording: the import queue owns it
+                // (it restarts or deletes it at start-up).
+                if (session.State != SessionState.Recording || session.Source == SessionSource.Imported)
                 {
                     continue;
                 }
