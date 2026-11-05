@@ -139,6 +139,15 @@ internal static class SchemaMigrator
         );
         CREATE INDEX ix_bookmarks_session_at ON bookmarks (session_id, at_ms, id);
         """,
+
+        // 8: the names the user gave the two speakers of a session (NULL = the default label); they go with the session through ON DELETE CASCADE.
+        """
+        CREATE TABLE speaker_names (
+            session_id TEXT PRIMARY KEY NOT NULL REFERENCES sessions (id) ON DELETE CASCADE,
+            me         TEXT,
+            others     TEXT
+        );
+        """,
     ];
 
     public static int LatestVersion => Migrations.Length;

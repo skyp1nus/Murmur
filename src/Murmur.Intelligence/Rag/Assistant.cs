@@ -3,6 +3,7 @@ using System.Text;
 using Microsoft.Extensions.AI;
 using Murmur.Core.Intelligence;
 using Murmur.Core.Sessions;
+using Murmur.Core.Transcription;
 using ChatMessage = Microsoft.Extensions.AI.ChatMessage;
 
 namespace Murmur.Intelligence.Rag;
@@ -46,7 +47,10 @@ public sealed class Assistant : IAssistant
     {
         var transcript = await _storage.GetTranscriptAsync(session, cancellationToken).ConfigureAwait(false)
             ?? throw new InvalidOperationException($"Session {session} has no transcript to index.");
-        var chunks = _chunker.Chunk(transcript);
+        // New indexing labels the lines with the names the user gave the speakers. Chunks indexed before a rename keep their old label in the
+        // index until the next index run; search and answers relabel them on the way out (SearchAsync).
+        var names = await _storage.GetSpeakerNamesAsync(session, cancellationToken).ConfigureAwait(false);
+        var chunks = _chunker.Chunk(transcript, names);
         var embeddings = new List<ReadOnlyMemory<float>>(chunks.Count);
         if (chunks.Count > 0)
         {
@@ -89,6 +93,12 @@ public sealed class Assistant : IAssistant
             return [];
         }
 
+        var hits = await SearchCoreAsync(query, scope, limit, cancellationToken).ConfigureAwait(false);
+        return await ApplySpeakerNamesAsync(hits, cancellationToken).ConfigureAwait(false);
+    }
+
+    private async ValueTask<IReadOnlyList<SearchHit>> SearchCoreAsync(string query, SessionId? scope, int limit, CancellationToken cancellationToken)
+    {
         var keyword = await _storage.SearchKeywordAsync(query, scope, _options.KeywordCandidates, cancellationToken).ConfigureAwait(false);
         var queryEmbedding = await TryEmbedQueryAsync(query, cancellationToken).ConfigureAwait(false);
         if (queryEmbedding is not { } embedding)
@@ -157,6 +167,7 @@ public sealed class Assistant : IAssistant
         }
 
         var titles = new Dictionary<SessionId, string>();
+        var speakerNotes = new List<string>();
         var prompt = new StringBuilder();
         if (excerpts.Count == 0)
         {
@@ -164,18 +175,38 @@ public sealed class Assistant : IAssistant
         }
         else
         {
+            foreach (var excerpt in excerpts)
+            {
+                if (titles.ContainsKey(excerpt.Session))
+                {
+                    continue;
+                }
+
+                var session = await _storage.GetSessionAsync(excerpt.Session, cancellationToken).ConfigureAwait(false);
+                var title = string.IsNullOrWhiteSpace(session?.Title) ? UntitledSession : session.Title;
+                titles[excerpt.Session] = title;
+                var names = await _storage.GetSpeakerNamesAsync(excerpt.Session, cancellationToken).ConfigureAwait(false);
+                if (SpeakerNote(title, names) is { } note)
+                {
+                    speakerNotes.Add(note);
+                }
+            }
+
             prompt.Append("Уривки із записів:\n\n");
+            if (speakerNotes.Count > 0)
+            {
+                foreach (var note in speakerNotes)
+                {
+                    prompt.Append(note).Append('\n');
+                }
+
+                prompt.Append('\n');
+            }
+
             for (var i = 0; i < excerpts.Count; i++)
             {
                 var excerpt = excerpts[i];
-                if (!titles.TryGetValue(excerpt.Session, out var title))
-                {
-                    var session = await _storage.GetSessionAsync(excerpt.Session, cancellationToken).ConfigureAwait(false);
-                    title = string.IsNullOrWhiteSpace(session?.Title) ? UntitledSession : session.Title;
-                    titles[excerpt.Session] = title;
-                }
-
-                prompt.Append("Уривок ").Append(i + 1).Append(" — «").Append(title).Append("», ")
+                prompt.Append("Уривок ").Append(i + 1).Append(" — «").Append(titles[excerpt.Session]).Append("», ")
                     .Append(Timestamps.FormatRange(excerpt.Start, excerpt.End)).Append(":\n")
                     .Append(excerpt.Text.Trim()).Append("\n\n");
             }
@@ -184,6 +215,117 @@ public sealed class Assistant : IAssistant
         prompt.Append("Запитання: ").Append(request.Question.Trim());
         messages.Add(new ChatMessage(ChatRole.User, prompt.ToString()));
         return messages;
+    }
+
+    /// <summary>
+    /// Model input: the names the user gave the speakers of a recording, so that "Anna:" in an excerpt is known to be the user.
+    /// <c>null</c> when the recording has no names.
+    /// </summary>
+    internal static string? SpeakerNote(string title, SpeakerNames names)
+    {
+        if (names.Me is null && names.Others is null)
+        {
+            return null;
+        }
+
+        var note = new StringBuilder("У записі «").Append(title).Append("» ");
+        if (names.Me is not null)
+        {
+            note.Append('«').Append(names.Me).Append("» — користувач");
+        }
+
+        if (names.Others is not null)
+        {
+            note.Append(names.Me is not null ? ", " : string.Empty).Append('«').Append(names.Others).Append("» — інші учасники розмови");
+        }
+
+        return note.Append('.').ToString();
+    }
+
+    /// <summary>
+    /// Puts the current speaker names into the hits: a chunk is rebuilt from the transcript with the names (so chunks indexed before a
+    /// rename show the new label), a single segment found by keyword gets its speaker's name in front. Hits of sessions without names are untouched.
+    /// </summary>
+    private async ValueTask<IReadOnlyList<SearchHit>> ApplySpeakerNamesAsync(IReadOnlyList<SearchHit> hits, CancellationToken cancellationToken)
+    {
+        if (hits.Count == 0)
+        {
+            return hits;
+        }
+
+        var relabelers = new Dictionary<SessionId, Relabeler?>();
+        SearchHit[]? result = null;
+        for (var i = 0; i < hits.Count; i++)
+        {
+            var chunk = hits[i].Chunk;
+            if (!relabelers.TryGetValue(chunk.Session, out var relabeler))
+            {
+                relabeler = await LoadRelabelerAsync(chunk.Session, cancellationToken).ConfigureAwait(false);
+                relabelers[chunk.Session] = relabeler;
+            }
+
+            if (relabeler?.Relabel(chunk) is { } text && text != chunk.Text)
+            {
+                result ??= [.. hits];
+                result[i] = hits[i] with { Chunk = chunk with { Text = text } };
+            }
+        }
+
+        return result ?? hits;
+    }
+
+    private async ValueTask<Relabeler?> LoadRelabelerAsync(SessionId session, CancellationToken cancellationToken)
+    {
+        var names = await _storage.GetSpeakerNamesAsync(session, cancellationToken).ConfigureAwait(false);
+        if (names.Me is null && names.Others is null)
+        {
+            return null;
+        }
+
+        var transcript = await _storage.GetTranscriptAsync(session, cancellationToken).ConfigureAwait(false);
+        return transcript is null ? null : new Relabeler(names, transcript, _chunker);
+    }
+
+    /// <summary>The chunks and segments of one transcript with the current names, found by their start (and end) in whole milliseconds, as the index stores them.</summary>
+    private sealed class Relabeler
+    {
+        private readonly SpeakerNames _names;
+        private readonly Dictionary<(long Start, long End), string> _chunks = [];
+        private readonly Dictionary<long, TranscriptSegment> _segments = [];
+
+        public Relabeler(SpeakerNames names, Transcript transcript, TranscriptChunker chunker)
+        {
+            _names = names;
+            foreach (var chunk in chunker.Chunk(transcript, names))
+            {
+                _chunks[(Ms(chunk.Start), Ms(chunk.End))] = chunk.Text;
+            }
+
+            foreach (var segment in transcript.Segments)
+            {
+                _segments.TryAdd(Ms(segment.Start), segment);
+            }
+        }
+
+        /// <summary>The hit's text with the names, or <c>null</c> when it matches neither a chunk nor a named segment.</summary>
+        public string? Relabel(TextChunk hit)
+        {
+            if (_chunks.TryGetValue((Ms(hit.Start), Ms(hit.End)), out var text))
+            {
+                return text;
+            }
+
+            if (_segments.TryGetValue(Ms(hit.Start), out var segment)
+                && _names[segment.Speaker] is { } name
+                && segment.Text.Trim() == hit.Text.Trim())
+            {
+                return name + ": " + hit.Text.Trim();
+            }
+
+            return null;
+        }
+
+        private static long Ms(TimeSpan time) => (long)time.TotalMilliseconds;
     }
 
     private async ValueTask<ReadOnlyMemory<float>?> TryEmbedQueryAsync(string query, CancellationToken cancellationToken)

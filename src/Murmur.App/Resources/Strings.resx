@@ -1594,5 +1594,32 @@
   </data>
   <data name="Calls_TryIt" xml:space="preserve">
     <value>Try it</value>
+  <data name="Speakers_Title" xml:space="preserve">
+    <value>Speakers</value>
+    <comment>the label of the row of speaker chips above the transcript</comment>
+  </data>
+  <data name="Speakers_RenameTitle" xml:space="preserve">
+    <value>Rename speaker</value>
+    <comment>title of the popover that renames a speaker</comment>
+  </data>
+  <data name="Speakers_NameLabel" xml:space="preserve">
+    <value>Speaker name</value>
+    <comment>accessible name of the name box</comment>
+  </data>
+  <data name="Speakers_ChipTip" xml:space="preserve">
+    <value>Rename {0}</value>
+    <comment>{0} = speaker name; tooltip of a speaker chip</comment>
+  </data>
+  <data name="Speakers_HintOne" xml:space="preserve">
+    <value>Updates {0} line in this recording</value>
+    <comment>{0} = number of lines of the speaker (1)</comment>
+  </data>
+  <data name="Speakers_HintMany" xml:space="preserve">
+    <value>Updates all {0} lines in this recording</value>
+    <comment>{0} = number of lines of the speaker (not 1)</comment>
+  </data>
+  <data name="Speakers_RenameFailed" xml:space="preserve">
+    <value>Couldn’t save the speaker name: {0}</value>
+    <comment>{0} = error message</comment>
   </data>
 </root>

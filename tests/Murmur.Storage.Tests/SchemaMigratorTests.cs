@@ -51,7 +51,7 @@ public sealed class SchemaMigratorTests
 
         var version = SchemaMigrator.Apply(connection, SchemaMigrator.Migrations);
 
-        Assert.Equal(7, version);
+        Assert.Equal(8, version);
         Assert.Equal(SchemaMigrator.LatestVersion, version);
         using var count = connection.CreateCommand();
         count.CommandText =

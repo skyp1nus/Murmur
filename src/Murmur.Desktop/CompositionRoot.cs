@@ -183,7 +183,7 @@ internal sealed class CompositionRoot : IDisposable
             new SessionProcessingAdapter(processor, models),
             storage,
             new AiServices(assistant, llm, models.ModelsDirectory, AccelerationProbe, llm, AccelerationRuntimeIds(modelManager),
-                new SessionSummarizer(llm, storage, SummarizerOptions.ForContext(new LocalLlmOptions().ContextSize)),
+                new SessionSummarizer(llm, storage, SummarizerOptions.ForContext(new LocalLlmOptions().ContextSize), speakerNames: storage),
                 new ChapterGenerator(llm, storage, SummarizerOptions.ForContext(new LocalLlmOptions().ContextSize))),
             settings,
             aiModels,
@@ -199,7 +199,8 @@ internal sealed class CompositionRoot : IDisposable
             ChapterStore: storage,
             Marks: marks,
             AudioSessions: _audioSessions ??= CreateAudioSessionMonitor(),
-            Calls: _calls ??= new CallDetector(_audioSessions, TimeProvider.System));
+            Calls: _calls ??= new CallDetector(_audioSessions, TimeProvider.System),
+            SpeakerNames: storage);
     }
 
     public void Dispose()

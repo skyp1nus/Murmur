@@ -107,6 +107,13 @@ internal sealed class FakeStorage : IStorage
     public ValueTask SaveChaptersAsync(SessionId session, IReadOnlyList<Chapter> chapters, CancellationToken cancellationToken) => throw new NotSupportedException();
 
     public ValueTask<IReadOnlyList<Chapter>> GetChaptersAsync(SessionId session, CancellationToken cancellationToken) => throw new NotSupportedException();
+
+    public Dictionary<SessionId, SpeakerNames> SpeakerNames { get; } = [];
+
+    public ValueTask<SpeakerNames> GetSpeakerNamesAsync(SessionId session, CancellationToken cancellationToken) =>
+        ValueTask.FromResult(SpeakerNames.GetValueOrDefault(session) ?? Murmur.Core.Sessions.SpeakerNames.Default);
+
+    public ValueTask SetSpeakerNameAsync(SessionId session, Speaker speaker, string? name, CancellationToken cancellationToken) => throw new NotSupportedException();
 }
 
 /// <summary>Embeds "…{n}" style inputs deterministically and records every batch.</summary>

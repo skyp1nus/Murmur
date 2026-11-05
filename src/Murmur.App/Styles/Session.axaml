@@ -16,6 +16,11 @@
       <x:Double x:Key="Size.SessionMenuWidth">220</x:Double>
       <x:Double x:Key="Size.SessionRenameWidth">280</x:Double>
 
+      <!-- The speaker chips above the transcript (Idea4Transcript.dc.html, "Idea 4 / Speakers"): the chip, its avatar and the padding around them. -->
+      <x:Double x:Key="Size.SpeakerChip">28</x:Double>
+      <x:Double x:Key="Size.SpeakerAvatar">22</x:Double>
+      <Thickness x:Key="Margin.SpeakerChip">3,0,10,0</Thickness>
+
       <!-- The chapter strip above the player: the height of a segment and its side padding (Idea4Transcript.dc.html, "Idea 4 / Chapters"). -->
       <x:Double x:Key="Size.ChapterStrip">40</x:Double>
       <Thickness x:Key="Margin.ChapterSegment">8,0</Thickness>

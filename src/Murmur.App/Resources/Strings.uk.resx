@@ -1585,5 +1585,32 @@
   </data>
   <data name="Calls_TryIt" xml:space="preserve">
     <value>Спробувати</value>
+  <data name="Speakers_Title" xml:space="preserve">
+    <value>Мовці</value>
+    <comment>the label of the row of speaker chips above the transcript</comment>
+  </data>
+  <data name="Speakers_RenameTitle" xml:space="preserve">
+    <value>Перейменувати мовця</value>
+    <comment>title of the popover that renames a speaker</comment>
+  </data>
+  <data name="Speakers_NameLabel" xml:space="preserve">
+    <value>Імʼя мовця</value>
+    <comment>accessible name of the name box</comment>
+  </data>
+  <data name="Speakers_ChipTip" xml:space="preserve">
+    <value>Перейменувати: {0}</value>
+    <comment>{0} = speaker name; tooltip of a speaker chip</comment>
+  </data>
+  <data name="Speakers_HintOne" xml:space="preserve">
+    <value>Оновить {0} рядок у цьому записі</value>
+    <comment>{0} = number of lines of the speaker (1)</comment>
+  </data>
+  <data name="Speakers_HintMany" xml:space="preserve">
+    <value>Оновить усі рядки ({0}) у цьому записі</value>
+    <comment>{0} = number of lines of the speaker (not 1)</comment>
+  </data>
+  <data name="Speakers_RenameFailed" xml:space="preserve">
+    <value>Не вдалося зберегти імʼя мовця: {0}</value>
+    <comment>{0} = error message</comment>
   </data>
 </root>
