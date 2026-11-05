@@ -611,8 +611,8 @@ public sealed class SettingsViewModelTests : IDisposable
         var rig = new Rig();
         var rows = rig.Vm.Hotkeys.Rows;
 
-        Assert.Equal(["Ctrl Shift R", "Ctrl Shift P", "Ctrl Shift S", "Ctrl Shift M"], rows.Select(r => r.DisplayText));
-        Assert.Equal([HotkeyAction.ToggleRecording, HotkeyAction.TogglePause, HotkeyAction.ToggleScreen, HotkeyAction.ShowApp], rows.Select(r => r.Action));
+        Assert.Equal(["Ctrl Shift R", "Ctrl Shift P", "Ctrl Shift S", "Ctrl Shift M", "Ctrl Alt M"], rows.Select(r => r.DisplayText));
+        Assert.Equal([HotkeyAction.ToggleRecording, HotkeyAction.TogglePause, HotkeyAction.ToggleScreen, HotkeyAction.ShowApp, HotkeyAction.Mark], rows.Select(r => r.Action));
     }
 
     [Fact]

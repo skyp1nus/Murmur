@@ -1,5 +1,6 @@
 using Murmur.App.Tests.Fakes;
 using Murmur.App.ViewModels;
+using Murmur.Core.Recording;
 using Murmur.Core.Settings;
 
 namespace Murmur.App.Tests;
@@ -26,7 +27,8 @@ internal sealed class OnboardingRig : IDisposable
             action => action(),
             path => FreeBytes);
         var library = new LibraryViewModel(Sessions, Time, null, action => action());
-        var recording = new RecordingViewModel(Recorder, Capture, Sessions, action => action(), Store);
+        Marks = new RecordingMarks(Recorder, Bookmarks);
+        var recording = new RecordingViewModel(Recorder, Capture, Sessions, action => action(), Store, marks: Marks);
         Shell = new ShellViewModel(
             library,
             recording,
@@ -45,6 +47,12 @@ internal sealed class OnboardingRig : IDisposable
     public FakeCapture Devices => Capture.Inner;
 
     public FakeRecorder Recorder { get; } = new();
+
+    /// <summary>Where the marks of a stopped recording are saved.</summary>
+    public FakeBookmarkStore Bookmarks { get; } = new();
+
+    /// <summary>The marks of the running recording (the Mark button and hotkey of the Recording screen).</summary>
+    public RecordingMarks Marks { get; }
 
     public FakeSessionStore Sessions { get; }
 

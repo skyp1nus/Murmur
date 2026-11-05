@@ -37,7 +37,11 @@ public sealed record WorkerRequest
     public string? Language { get; init; }
 }
 
-public sealed record WorkerWord(string Text, double Start, double End);
+/// <param name="Confidence">
+/// Word confidence 0..1 (D-052: the least certain token of the word, punctuation excluded), or null when the worker
+/// does not report it; omitted from the JSON when null, so old and new apps and workers understand each other.
+/// </param>
+public sealed record WorkerWord(string Text, double Start, double End, float? Confidence = null);
 
 /// <param name="Start">Seconds from the beginning of the audio file.</param>
 public sealed record WorkerSegment(double Start, double End, string Text, IReadOnlyList<WorkerWord> Words);

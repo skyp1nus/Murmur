@@ -32,6 +32,9 @@ public enum SummaryStatus
 /// </summary>
 public sealed partial class SessionViewModel
 {
+    /// <summary>When chapters follow the summary, the summary is this share of the progress bar (the summary is the longer step).</summary>
+    private const double SummaryShareOfRun = 0.7;
+
     private CancellationTokenSource? _summaryRun;
     private SessionSummary? _stored;
 
@@ -191,7 +194,7 @@ public sealed partial class SessionViewModel
         SummaryTask = RunSummaryAsync(summarizer, run);
     }
 
-    /// <summary>"Stop": the model stops and the tab goes back to what it showed before.</summary>
+    /// <summary>"Stop": the model stops and the tab goes back to what it showed before (the new summary, when it was already written and only the chapters were stopped).</summary>
     [RelayCommand]
     private void CancelSummaryRun() => _summaryRun?.Cancel();
 
@@ -213,7 +216,12 @@ public sealed partial class SessionViewModel
         SummaryProgressText = UiText.Format(Strings.Common_Percent, 0);
         SummaryState = SummaryStatus.Working;
         RefreshSummaryAvailability();
-        var progress = new PostedProgress(value => _post(() => ShowSummaryProgress(run, value)));
+        // The progress bar covers both steps: the summary first, then the chapters. A recording known to be too short for chapters
+        // (the generator then answers at once) gives the whole bar to the summary; with an unknown length the chapters keep their share.
+        var generator = _services.ChapterGenerator;
+        var summaryShare = generator is null || (Duration > TimeSpan.Zero && Duration < generator.MinimumDuration) ? 1.0 : SummaryShareOfRun;
+        var progress = new PostedProgress(value => _post(() => ShowSummaryProgress(run, value * summaryShare)));
+        var chapterProgress = new PostedProgress(value => _post(() => ShowSummaryProgress(run, summaryShare + (value * (1 - summaryShare)))));
         try
         {
             // The model works on the thread pool: the first request starts llama-server and reads the transcript.
@@ -229,6 +237,7 @@ public sealed partial class SessionViewModel
                 return;
             }
 
+            // The summary is the point of this run: it is kept as soon as it is written, so a failed or stopped chapter step cannot lose it.
             if (_services.Summaries is { } store)
             {
                 try
@@ -239,6 +248,50 @@ public sealed partial class SessionViewModel
                 {
                     // Not kept for the next visit, but it is shown now.
                 }
+            }
+
+            _stored = summary;
+
+            IReadOnlyList<Chapter>? chapters = null;
+            if (generator is not null)
+            {
+                try
+                {
+                    chapters = await Task.Run(async () => await generator.GenerateChaptersAsync(Id, chapterProgress, run.Token).ConfigureAwait(false), run.Token).ConfigureAwait(true);
+                }
+                catch (Exception ex) when (!run.Token.IsCancellationRequested)
+                {
+                    // Any failure that is not "Stop" (a cancellation the model host raised itself included): the summary still counts, and the earlier chapters stay.
+                    Console.Error.WriteLine($"Chapters of session {Id} failed: {ex.Message}");
+                }
+            }
+
+            if (_disposed || run.IsCancellationRequested)
+            {
+                // "Stop" during the chapters: the new summary is kept and shown, the earlier chapters stay.
+                if (!_disposed)
+                {
+                    RestoreAfterStop();
+                }
+
+                return;
+            }
+
+            if (chapters is not null)
+            {
+                if (_services.Chapters is { } chapterStore)
+                {
+                    try
+                    {
+                        await chapterStore.SaveChaptersAsync(Id, chapters, CancellationToken.None).ConfigureAwait(true);
+                    }
+                    catch (Exception)
+                    {
+                        // Not kept for the next visit, but they are shown now.
+                    }
+                }
+
+                ShowChapters(chapters);
             }
 
             DisplaySummary(summary);

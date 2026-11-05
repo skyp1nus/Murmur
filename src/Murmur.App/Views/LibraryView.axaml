@@ -11,7 +11,29 @@
     library only builds the rows on screen: the fixed blocks first (heading with the two cards, Recordings with its search box, the
     filters), then the day headings with their rows, the search results, or the empty card.
   -->
+  <Grid RowDefinitions="Auto,*">
+
+  <!-- A dismissible note about something that went wrong in the background (the marks of a recording were not saved): above the page, so it
+       is never below the fold; it takes no room while there is none. -->
+  <Border x:Name="LibraryNotice"
+          Classes="libraryNotice"
+          IsVisible="{Binding HasNotice}">
+    <DockPanel LastChildFill="True">
+      <Button DockPanel.Dock="Right"
+              Classes="outline compact"
+              VerticalAlignment="Center"
+              Margin="{StaticResource Margin.NoticeDismiss}"
+              Command="{Binding DismissNoticeCommand}"
+              Content="{x:Static res:Strings.Library_DismissNotice}" />
+      <TextBlock Classes="t13 muted"
+                 VerticalAlignment="Center"
+                 TextWrapping="Wrap"
+                 Text="{Binding Notice}" />
+    </DockPanel>
+  </Border>
+
   <ItemsControl x:Name="Page"
+                Grid.Row="1"
                 Classes="library"
                 ItemsSource="{Binding Entries}">
     <ItemsControl.Template>
@@ -468,4 +490,5 @@
       </DataTemplate>
     </ItemsControl.DataTemplates>
   </ItemsControl>
+  </Grid>
 </UserControl>

@@ -1565,4 +1565,27 @@
   <data name="Status_QueuedCount" xml:space="preserve">
     <value>Queued {0}</value>
   </data>
+  <data name="Recording_Mark" xml:space="preserve">
+    <value>Mark</value>
+  </data>
+  <data name="Recording_Marked" xml:space="preserve">
+    <value>Marked</value>
+  </data>
+  <data name="Hotkeys_Mark" xml:space="preserve">
+    <value>Mark moment</value>
+  </data>
+  <data name="Library_MarksNotSaved" xml:space="preserve">
+    <value>Marks of this recording could not be saved.</value>
+  </data>
+  <data name="Library_DismissNotice" xml:space="preserve">
+    <value>Dismiss</value>
+  </data>
+  <data name="Session_Chapters" xml:space="preserve">
+    <value>Chapters</value>
+    <comment>Name of the strip of chapters above the player (screen readers)</comment>
+  </data>
+  <data name="Session_ChapterTip" xml:space="preserve">
+    <value>Go to chapter "{0}"</value>
+    <comment>{0} = chapter title; tooltip of a chapter segment, which jumps there</comment>
+  </data>
 </root>

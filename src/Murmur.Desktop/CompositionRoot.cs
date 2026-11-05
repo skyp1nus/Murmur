@@ -33,6 +33,7 @@ internal sealed class CompositionRoot : IDisposable
     private SessionProcessor? _processor;
     private ActivityFeed? _activityFeed;
     private RecordingActivity? _activity;
+    private RecordingMarks? _marks;
     private RecordingHeapTrimmer? _heapTrimmer;
     private LocalLlm? _llm;
     private Assistant? _assistant;
@@ -88,6 +89,11 @@ internal sealed class CompositionRoot : IDisposable
         var storage = _storage;
         var capture = CreateCapture();
         var recorder = new Recorder(capture, storage, TimeProvider.System, RecorderSettings.Default);
+
+        // The marks of the running recording (hotkey, Recording screen): kept in memory, saved with the session when it stops.
+        _marks?.Dispose();
+        var marks = _marks = new RecordingMarks(recorder, storage);
+        marks.SaveFailed += static (session, ex) => Console.Error.WriteLine($"The marks of session {session} were not saved: {ex.Message}");
 
         // While a recording runs the UI's short-lived garbage is collected every 30 s instead of piling up in the working
         // set until the (cache-sized, up to ~50 MB) gen0 budget runs out.
@@ -179,7 +185,8 @@ internal sealed class CompositionRoot : IDisposable
             new SessionProcessingAdapter(processor, models),
             storage,
             new AiServices(assistant, llm, models.ModelsDirectory, AccelerationProbe, llm, AccelerationRuntimeIds(modelManager),
-                new SessionSummarizer(llm, storage, SummarizerOptions.ForContext(new LocalLlmOptions().ContextSize))),
+                new SessionSummarizer(llm, storage, SummarizerOptions.ForContext(new LocalLlmOptions().ContextSize)),
+                new ChapterGenerator(llm, storage, SummarizerOptions.ForContext(new LocalLlmOptions().ContextSize))),
             settings,
             aiModels,
             modelManager.ActiveModelId,
@@ -191,6 +198,8 @@ internal sealed class CompositionRoot : IDisposable
             _motion ??= CreateMotionPreference(),
             storage,
             Chats: storage,
+            ChapterStore: storage,
+            Marks: marks,
             Activity: activityFeed);
     }
 
@@ -202,6 +211,7 @@ internal sealed class CompositionRoot : IDisposable
         _hotkeys?.Dispose();
         (_motion as IDisposable)?.Dispose();
         _heapTrimmer?.Dispose();
+        _marks?.Dispose();
         _reindex?.Dispose();
         _activityFeed?.Dispose();
         _processor?.Dispose();
@@ -214,6 +224,8 @@ internal sealed class CompositionRoot : IDisposable
 
         // Stops running model downloads (their partial files are kept for the next start).
         _modelManager?.Dispose();
+        // Marks of a recording that ended with the window are still being written.
+        _marks?.PendingFlush.Wait(TimeSpan.FromSeconds(3));
         _storage?.Dispose();
     }
 

@@ -19,6 +19,21 @@ public sealed class WordsCodecTests
     }
 
     [Fact]
+    public void V1_DropsConfidence_TheWordComesBackWithConfidenceNull()
+    {
+        // The v1 blob has no confidence field (D-052). #58 introduces WordsCodec v2 (leading int32 -2, one confidence
+        // byte per word); until then a stored transcript loses the confidence and reads back as unknown.
+        TranscriptWord[] words = [W("hello", 0, 400) with { Confidence = 0.42f }, W("world", 400, 900)];
+
+        var blob = WordsCodec.Encode(words);
+        var decoded = WordsCodec.Decode(blob);
+
+        Assert.Equal(WordsCodec.Encode([W("hello", 0, 400), W("world", 400, 900)]), blob); // byte-identical to v1
+        Assert.Equal([words[0] with { Confidence = null }, words[1]], decoded);
+        Assert.All(decoded, w => Assert.Null(w.Confidence));
+    }
+
+    [Fact]
     public void EmptyList_RoundtripsToEmpty_AndEmptyBlobDecodesToEmpty()
     {
         var blob = WordsCodec.Encode([]);

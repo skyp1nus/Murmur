@@ -44,7 +44,7 @@ public sealed partial class SessionSummarizer : ISessionSummarizer
         cancellationToken.ThrowIfCancellationRequested();
         var transcript = await _transcripts.GetTranscriptAsync(session, cancellationToken).ConfigureAwait(false)
             ?? throw new InvalidOperationException($"Session {session} has no transcript to summarise.");
-        var lines = BuildLines(transcript);
+        var lines = BuildLines(transcript, _options.ChunkCharacters);
         if (lines.Count == 0)
         {
             throw new InvalidOperationException($"The transcript of session {session} has no speech to summarise.");
@@ -129,7 +129,7 @@ public sealed partial class SessionSummarizer : ISessionSummarizer
     }
 
     /// <summary>The model's input: one line per segment, <c>[12:34] Me: text</c>; very long segments are cut at word boundaries.</summary>
-    private List<string> BuildLines(Transcript transcript)
+    internal static List<string> BuildLines(Transcript transcript, int chunkCharacters)
     {
         var lines = new List<string>(transcript.Segments.Count);
         foreach (var segment in transcript.Segments)
@@ -141,7 +141,7 @@ public sealed partial class SessionSummarizer : ISessionSummarizer
             }
 
             var prefix = "[" + Timestamps.Format(segment.Start) + "] " + (segment.Speaker == Speaker.Me ? MeLabel : OthersLabel) + ": ";
-            var room = Math.Max(200, _options.ChunkCharacters - prefix.Length);
+            var room = Math.Max(200, chunkCharacters - prefix.Length);
             while (text.Length > room)
             {
                 var cut = text.LastIndexOf(' ', room);
@@ -161,7 +161,7 @@ public sealed partial class SessionSummarizer : ISessionSummarizer
     }
 
     /// <summary>Greedy packing of whole items into groups of at most <paramref name="limit"/> characters (an item longer than the limit is a group of its own).</summary>
-    private static List<string> Pack(List<string> items, int limit)
+    internal static List<string> Pack(List<string> items, int limit)
     {
         var groups = new List<string>();
         var current = new StringBuilder();
@@ -189,7 +189,7 @@ public sealed partial class SessionSummarizer : ISessionSummarizer
         return groups;
     }
 
-    private static int TotalLength(List<string> items)
+    internal static int TotalLength(List<string> items)
     {
         var total = 0;
         foreach (var item in items)
@@ -200,9 +200,9 @@ public sealed partial class SessionSummarizer : ISessionSummarizer
         return total;
     }
 
-    private static string Clip(string text, int limit) => text.Length <= limit ? text : text[..limit];
+    internal static string Clip(string text, int limit) => text.Length <= limit ? text : text[..limit];
 
-    private static string LanguageName(string? code)
+    internal static string LanguageName(string? code)
     {
         if (code is null)
         {
@@ -224,7 +224,7 @@ public sealed partial class SessionSummarizer : ISessionSummarizer
         return primary.Equals("en", StringComparison.OrdinalIgnoreCase) ? "English" : string.Empty;
     }
 
-    private static List<(TimeSpan Start, TimeSpan End)> SegmentSpans(Transcript transcript)
+    internal static List<(TimeSpan Start, TimeSpan End)> SegmentSpans(Transcript transcript)
     {
         var spans = new List<(TimeSpan, TimeSpan)>(transcript.Segments.Count);
         foreach (var segment in transcript.Segments)
@@ -299,7 +299,7 @@ public sealed partial class SessionSummarizer : ISessionSummarizer
     }
 
     /// <summary>Progress in [0, 1] that never goes back, even when condensing steps are added on the way.</summary>
-    private sealed class ProgressReporter(IProgress<double>? progress, int total)
+    internal sealed class ProgressReporter(IProgress<double>? progress, int total)
     {
         private int _done;
         private int _total = total;

@@ -183,7 +183,7 @@ internal static class Program
             {
                 Kind = WorkerKinds.Segment,
                 RequestId = id,
-                Segment = new WorkerSegment(start, end, text, [new WorkerWord(stem, start, mid), new WorkerWord(k.ToString(CultureInfo.InvariantCulture), mid, end)]),
+                Segment = new WorkerSegment(start, end, text, [new WorkerWord(stem, start, mid), new WorkerWord(k.ToString(CultureInfo.InvariantCulture), mid, end, 0.42f)]),
             });
             Write(stdout, new WorkerEvent { Kind = WorkerKinds.Progress, RequestId = id, ProcessedSeconds = end, TotalSeconds = duration });
 

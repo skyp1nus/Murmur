@@ -748,7 +748,8 @@
                             ItemsSource="{Binding Hotkeys.Rows}">
                 <ItemsControl.ItemTemplate>
                   <DataTemplate x:DataType="vm:HotkeyRowViewModel">
-                    <Border Classes="settingsRow hotkey">
+                    <Border Classes="settingsRow hotkey"
+                            IsVisible="{Binding IsShown}">
                       <Grid ColumnDefinitions="*,Auto"
                             RowDefinitions="Auto,Auto"
                             ColumnSpacing="{StaticResource Space.12}">

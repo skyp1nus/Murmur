@@ -92,6 +92,7 @@ public sealed partial class ShellViewModel : ObservableObject
         library.PropertyChanged += OnLibraryPropertyChanged;
         recording.BackRequested += ShowLibrary;
         recording.Stopped += OnRecordingStopped;
+        recording.MarksSaveFailed += OnMarksSaveFailed;
         recording.PropertyChanged += OnRecordingPropertyChanged;
         _settingsStore = settingsStore;
         if (settingsStore is not null)
@@ -198,7 +199,7 @@ public sealed partial class ShellViewModel : ObservableObject
                 services.Time,
                 chat: CreateSavedChat(record.Id),
                 videoPlayback: services.VideoPlayback,
-                services: new SessionServices(ai?.Summarizer, services.Summaries, services.Sessions, SystemFolderLauncher.Instance, playback.CreatePlayer));
+                services: new SessionServices(ai?.Summarizer, services.Summaries, services.Sessions, SystemFolderLauncher.Instance, playback.CreatePlayer, ai?.ChapterGenerator, services.ChapterStore));
         }
 
         // Without a store from the composition root (designer, tests) the settings live in memory for the run.
@@ -225,7 +226,7 @@ public sealed partial class ShellViewModel : ObservableObject
 
         return new ShellViewModel(
             new LibraryViewModel(services.Sessions, services.Time, processing, keywordSearch: services.Search, assistant: ai?.Assistant, recorder: services.Recorder, transcripts: services.Transcripts, settings: store),
-            new RecordingViewModel(services.Recorder, services.Capture, services.Sessions, settings: store),
+            new RecordingViewModel(services.Recorder, services.Capture, services.Sessions, settings: store, marks: services.Marks),
             services.Startup,
             sessionFactory,
             CreateSavedChat,
@@ -384,6 +385,15 @@ public sealed partial class ShellViewModel : ObservableObject
     /// <summary>The pause hotkey: pauses the running recording or resumes the paused one; nothing otherwise (not during the onboarding's trial).</summary>
     internal Task TogglePauseFromHotkeyAsync() =>
         CurrentPage is OnboardingViewModel ? Task.CompletedTask : Recording.TogglePauseFromHotkeyAsync();
+
+    /// <summary>The Mark hotkey: marks the running recording (any screen but the onboarding); does nothing when idle.</summary>
+    internal void MarkFromHotkey()
+    {
+        if (CurrentPage is not OnboardingViewModel)
+        {
+            Recording.MarkFromHotkey();
+        }
+    }
 
     public void ShowRecording()
     {
@@ -780,6 +790,9 @@ public sealed partial class ShellViewModel : ObservableObject
     }
 
     private void OnRecordingStopped(SessionRecord session) => ShowLibrary();
+
+    /// <summary>The marks of a stopped recording were lost: a dismissible line in the Library (a reload of the list keeps it).</summary>
+    private void OnMarksSaveFailed() => Library.Notice = Strings.Library_MarksNotSaved;
 
     /// <summary>A trial recording of the onboarding was removed: the library list on screen drops it.</summary>
     private void OnTrialSessionDeleted()

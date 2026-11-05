@@ -1556,4 +1556,27 @@
   <data name="Status_QueuedCount" xml:space="preserve">
     <value>У черзі: {0}</value>
   </data>
+  <data name="Recording_Mark" xml:space="preserve">
+    <value>Позначити</value>
+  </data>
+  <data name="Recording_Marked" xml:space="preserve">
+    <value>Позначено</value>
+  </data>
+  <data name="Hotkeys_Mark" xml:space="preserve">
+    <value>Позначити момент</value>
+  </data>
+  <data name="Library_MarksNotSaved" xml:space="preserve">
+    <value>Позначки цього запису не вдалося зберегти.</value>
+  </data>
+  <data name="Library_DismissNotice" xml:space="preserve">
+    <value>Закрити</value>
+  </data>
+  <data name="Session_Chapters" xml:space="preserve">
+    <value>Розділи</value>
+    <comment>Name of the strip of chapters above the player (screen readers)</comment>
+  </data>
+  <data name="Session_ChapterTip" xml:space="preserve">
+    <value>Перейти до розділу «{0}»</value>
+    <comment>{0} = chapter title; tooltip of a chapter segment, which jumps there</comment>
+  </data>
 </root>
