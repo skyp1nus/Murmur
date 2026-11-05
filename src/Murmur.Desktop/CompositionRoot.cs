@@ -112,7 +112,7 @@ internal sealed class CompositionRoot : IDisposable
         // recorder is busy, and the moment a recording starts its llama-server processes are killed.
         var activity = _activity ??= new RecordingActivity(recorder);
         var llm = _llm ??= CreateLlm(models.ModelsDirectory, activity, settings);
-        var assistant = _assistant ??= new Assistant(llm, storage);
+        var assistant = _assistant ??= new Assistant(llm, storage, displayLabel: static speaker => speaker == Speaker.Me ? Murmur.App.Resources.Strings.Segment_Me : Murmur.App.Resources.Strings.Segment_Others);
 
         // The model manager installs into the same folder the ASR and the AI read from. Its active-model lookup is handed
         // to the UI as a delegate because IModelManager does not expose it.

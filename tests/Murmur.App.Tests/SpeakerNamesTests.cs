@@ -248,14 +248,19 @@ public sealed class SpeakerNamesTests : IDisposable
         Assert.Equal(2, vm.SpeakerChips.Count);
     }
 
+    public static TheoryData<Func<Exception>, string> StoreFailures => new()
+    {
+        { () => new IOException("disk full"), "disk full" },
+        { () => new TimeoutException("database is locked"), "database is locked" },
+        { () => new InvalidOperationException("closed"), "closed" },
+    };
+
     [Theory]
-    [InlineData(typeof(IOException), "disk full")]
-    [InlineData(typeof(TimeoutException), "database is locked")]
-    [InlineData(typeof(InvalidOperationException), "closed")]
-    public async Task AStoreThatFails_KeepsTheOldName_AndSaysSo_WhateverTheErrorIs(Type error, string message)
+    [MemberData(nameof(StoreFailures))]
+    public async Task AStoreThatFails_KeepsTheOldName_AndSaysSo_WhateverTheErrorIs(Func<Exception> error, string message)
     {
         var vm = await LoadAsync();
-        _names.SetFailure = (Exception)Activator.CreateInstance(error, message)!;
+        _names.SetFailure = error();
         var chip = vm.SpeakerChips[0];
 
         chip.BeginEditCommand.Execute(null);

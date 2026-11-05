@@ -55,9 +55,15 @@ internal sealed class FakeStorage : IStorage
     /// <summary>Thrown by <see cref="GetTranscriptAsync"/> when set.</summary>
     public Exception? TranscriptFailure { get; set; }
 
+    /// <summary>Runs once, while a transcript is being read (after the read started, before it is answered): lets a test do something in between.</summary>
+    public Action? DuringNextTranscriptRead { get; set; }
+
     public ValueTask<Transcript?> GetTranscriptAsync(SessionId id, CancellationToken cancellationToken)
     {
         TranscriptReads++;
+        var hook = DuringNextTranscriptRead;
+        DuringNextTranscriptRead = null;
+        hook?.Invoke();
         return TranscriptFailure is { } failure ? throw failure : ValueTask.FromResult(Transcripts.GetValueOrDefault(id));
     }
 

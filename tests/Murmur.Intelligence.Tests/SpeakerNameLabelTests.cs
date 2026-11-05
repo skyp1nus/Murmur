@@ -174,6 +174,57 @@ public sealed class SpeakerNameLabelTests
     }
 
     [Fact]
+    public async Task ASearchThatReadTheTranscriptBeforeIndexing_DoesNotLeaveItsRelabelerInTheCache()
+    {
+        _storage.Transcripts[S1] = Talk(S1);
+        _storage.SpeakerNames[S1] = new SpeakerNames("Олена", null);
+        _storage.VectorHits = [Hit(S1, 0, 30, SearchSource.Vector, DefaultChunk)];
+        var assistant = Create();
+
+        // While the search holds the transcript it read, the session is indexed again (a new transcript was saved).
+        _storage.DuringNextTranscriptRead = () => assistant.IndexSessionAsync(S1, Ct).AsTask().GetAwaiter().GetResult();
+        await assistant.SearchAsync("привіт", null, 5, Ct);
+        var readsAfterTheRace = _storage.TranscriptReads;
+        await assistant.SearchAsync("привіт", null, 5, Ct);
+
+        Assert.Equal(readsAfterTheRace + 1, _storage.TranscriptReads); // the stale relabeler was not kept: the next search read the transcript
+        await assistant.SearchAsync("привіт", null, 5, Ct);
+        Assert.Equal(readsAfterTheRace + 1, _storage.TranscriptReads); // and its own relabeler is kept
+    }
+
+    [Fact]
+    public async Task Search_ShowsTheUiWordForASpeakerWithoutAName_ButTheModelGetsTheModelLabel()
+    {
+        _storage.AddSession(S1, "Ретро");
+        _storage.Transcripts[S1] = Talk(S1);
+        _storage.SpeakerNames[S1] = new SpeakerNames(null, "Marek W.");
+        _storage.VectorHits = [Hit(S1, 0, 30, SearchSource.Vector, DefaultChunk)];
+        _storage.KeywordHits = [Hit(S1, 20, 30, SearchSource.Keyword, "Починаємо")];
+        _llm.Chat.Pieces = ["ok"];
+        var assistant = new Assistant(_llm, _storage, displayLabel: speaker => speaker == Speaker.Me ? "You" : "Others");
+
+        var shown = await assistant.SearchAsync("привіт", null, 5, Ct);
+        await Collect(assistant.AskAsync(new AskRequest("Що вирішили?"), Ct));
+
+        Assert.Equal("You: Привіт\nMarek W.: Добрий день\nYou: Починаємо", Assert.Single(shown).Chunk.Text);
+        var prompt = _llm.Chat.LastMessages[^1].Text;
+        Assert.Contains("Я: Привіт\nMarek W.: Добрий день\nЯ: Починаємо", prompt, StringComparison.Ordinal);
+        Assert.DoesNotContain("You:", prompt, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Search_ShowsTheUiWord_InFrontOfASegmentFoundByKeyword()
+    {
+        _storage.Transcripts[S1] = Talk(S1);
+        _storage.SpeakerNames[S1] = new SpeakerNames(null, "Marek W.");
+        _storage.KeywordHits = [Hit(S1, 0, 10, SearchSource.Keyword, "Привіт")];
+        _llm.Status = LlmStatus.NotInstalled;
+        var assistant = new Assistant(_llm, _storage, displayLabel: speaker => speaker == Speaker.Me ? "You" : "Others");
+
+        Assert.Equal("You: Привіт", Assert.Single(await assistant.SearchAsync("привіт", null, 5, Ct)).Chunk.Text);
+    }
+
+    [Fact]
     public async Task Search_KeepsTheHitsAsTheyAre_WhenTheTranscriptCannotBeRead()
     {
         _storage.Transcripts[S1] = Talk(S1);
