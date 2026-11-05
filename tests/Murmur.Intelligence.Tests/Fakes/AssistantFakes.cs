@@ -1,5 +1,6 @@
 using System.Runtime.CompilerServices;
 using Microsoft.Extensions.AI;
+using Murmur.Core.Import;
 using Murmur.Core.Intelligence;
 using Murmur.Core.Sessions;
 using Murmur.Core.Transcription;
@@ -100,6 +101,12 @@ internal sealed class FakeStorage : IStorage
     public ValueTask UpdateBookmarkNoteAsync(long id, string note, CancellationToken cancellationToken) => throw new NotSupportedException();
 
     public ValueTask DeleteBookmarkAsync(long id, CancellationToken cancellationToken) => throw new NotSupportedException();
+
+    public ValueTask<ImportItem> SaveImportAsync(StoredImport import, CancellationToken cancellationToken) => throw new NotSupportedException();
+
+    public ValueTask<IReadOnlyList<StoredImport>> LoadImportsAsync(CancellationToken cancellationToken) => throw new NotSupportedException();
+
+    public ValueTask DeleteImportAsync(long id, CancellationToken cancellationToken) => throw new NotSupportedException();
 
     public ValueTask<IReadOnlyList<ChatThread>> ListThreadsAsync(int limit, CancellationToken cancellationToken) => throw new NotSupportedException();
 

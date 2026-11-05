@@ -1,3 +1,4 @@
+using Murmur.Core.Import;
 using Murmur.Core.Transcription;
 
 namespace Murmur.Core.Sessions;
@@ -74,8 +75,8 @@ public interface ISearchIndex
     ValueTask<IReadOnlyList<SearchHit>> SearchVectorAsync(ReadOnlyMemory<float> embedding, SessionId? scope, int limit, CancellationToken cancellationToken);
 }
 
-/// <summary>Everything persisted: session metadata, transcripts, summaries, saved chats, chapters, bookmarks, speaker names, search index and session files.</summary>
-public interface IStorage : ISessionStore, ITranscriptStore, ISearchIndex, ISummaryStore, IChatStore, IChapterStore, IBookmarkStore, ISpeakerNameStore
+/// <summary>Everything persisted: session metadata, transcripts, summaries, saved chats, chapters, bookmarks, speaker names, the import queue, search index and session files.</summary>
+public interface IStorage : ISessionStore, ITranscriptStore, ISearchIndex, ISummaryStore, IChatStore, IChapterStore, IBookmarkStore, ISpeakerNameStore, IImportStore
 {
     /// <summary>Folder that contains the database and every session folder.</summary>
     string RootDirectory { get; }

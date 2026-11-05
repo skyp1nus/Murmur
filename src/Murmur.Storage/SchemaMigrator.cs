@@ -148,6 +148,25 @@ internal static class SchemaMigrator
             others     TEXT
         );
         """,
+
+        // 9: imported files (#66). sessions.source is SessionSource (0 = recorded, 1 = imported) and original_path the imported
+        // file (inside the session folder when copied, else where the user keeps it). imports is the persisted import queue: one
+        // row per import, oldest first; a row goes with its session through ON DELETE CASCADE.
+        """
+        ALTER TABLE sessions ADD COLUMN source INTEGER NOT NULL DEFAULT 0;
+        ALTER TABLE sessions ADD COLUMN original_path TEXT;
+        CREATE TABLE imports (
+            id            INTEGER PRIMARY KEY,
+            path          TEXT    NOT NULL,
+            language      TEXT,
+            original_mode INTEGER NOT NULL,
+            state         INTEGER NOT NULL,
+            progress      REAL    NOT NULL DEFAULT 0,
+            session_id    TEXT    REFERENCES sessions (id) ON DELETE CASCADE,
+            error         TEXT
+        );
+        CREATE INDEX ix_imports_session ON imports (session_id);
+        """,
     ];
 
     public static int LatestVersion => Migrations.Length;

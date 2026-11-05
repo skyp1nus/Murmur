@@ -4,6 +4,7 @@ using Murmur.Core.Activity;
 using Murmur.Core.Calls;
 using Murmur.Core.Capture;
 using Murmur.Core.Capture.Synthetic;
+using Murmur.Core.Import;
 using Murmur.Core.Input;
 using Murmur.Core.Intelligence;
 using Murmur.Core.Jobs;
@@ -32,6 +33,7 @@ internal sealed class CompositionRoot : IDisposable
     private WorkerAsrClient? _asr;
     private JobQueue? _queue;
     private SessionProcessor? _processor;
+    private ImportQueue? _imports;
     private ActivityFeed? _activityFeed;
     private RecordingActivity? _activity;
     private RecordingMarks? _marks;
@@ -128,7 +130,11 @@ internal sealed class CompositionRoot : IDisposable
             asr,
             queue,
             indexer: (session, cancellationToken) => assistant.IndexSessionAsync(session, cancellationToken).AsTask(),
-            isAiInstalled: () => llm.IsInstalled);
+            isAiInstalled: () => llm.IsInstalled,
+            languageOf: session => _imports?.LanguageOf(session));
+
+        // Imported files become sessions on the same queue (so they wait while recording) and go through the same pipeline.
+        var imports = _imports ??= new ImportQueue(storage, storage, CreateMediaDecoder(), queue, processor);
 
         // The status bar's feed: what runs or waits, from the recorder, the pipeline and the model downloads.
         var activityFeed = _activityFeed ??= new ActivityFeed(recorder, storage, processor, modelManager);
@@ -178,6 +184,10 @@ internal sealed class CompositionRoot : IDisposable
                 // Tracks still held by an antivirus/indexer right after a crash: retry just those sessions later.
                 _recoveryRetry = new CancellationTokenSource();
                 _ = recovery.RetryBusyInBackgroundAsync(_recoveryRetry.Token);
+
+                // After the recovery (which would take a half-made import session for a crashed recording) and before the
+                // pipeline resumes (so an imported session's language is known when its transcription restarts).
+                await imports.StartAsync(cancellationToken).ConfigureAwait(false);
                 await processor.ResumePendingAsync(cancellationToken).ConfigureAwait(false);
 
                 // Sessions finished while the AI was not installed get their vectors now (a no-op without the models).
@@ -224,6 +234,7 @@ internal sealed class CompositionRoot : IDisposable
         _marks?.Dispose();
         _reindex?.Dispose();
         _activityFeed?.Dispose();
+        _imports?.Dispose();
         _processor?.Dispose();
         _queue?.DisposeAsync().AsTask().GetAwaiter().GetResult();
         _activity?.Dispose();
@@ -303,6 +314,12 @@ internal sealed class CompositionRoot : IDisposable
 
         return false;
     }
+
+    /// <summary>
+    /// The decoders of the import, tried in order by extension: the managed WAV decoder works everywhere; on Windows the Media
+    /// Foundation decoder of Murmur.Capture.Windows goes before it (follow-up of #66).
+    /// </summary>
+    private static IMediaDecoder CreateMediaDecoder() => new CompositeMediaDecoder(new WavMediaDecoder());
 
     private static IAccelerationProbe CreateAccelerationProbe()
     {

@@ -19,6 +19,12 @@ internal sealed class InMemorySessionStore : ISessionStore
 
     public string Root { get; }
 
+    /// <summary>When set and returning an exception for a session, <see cref="DeleteSessionAsync"/> throws it (a file held open).</summary>
+    public Func<SessionId, Exception?>? FailDelete { get; set; }
+
+    /// <summary>Raised after a session was deleted (lets a fake store cascade, like the foreign keys of the real one).</summary>
+    public event Action<SessionId>? Deleted;
+
     /// <summary>Every record passed to <see cref="UpdateSessionAsync"/>, in order.</summary>
     public IReadOnlyList<SessionRecord> Updates
     {
@@ -98,6 +104,11 @@ internal sealed class InMemorySessionStore : ISessionStore
 
     public ValueTask DeleteSessionAsync(SessionId id, CancellationToken cancellationToken)
     {
+        if (FailDelete?.Invoke(id) is { } error)
+        {
+            throw error;
+        }
+
         lock (_sessions)
         {
             _sessions.Remove(id);
@@ -109,6 +120,7 @@ internal sealed class InMemorySessionStore : ISessionStore
             Directory.Delete(dir, recursive: true);
         }
 
+        Deleted?.Invoke(id);
         return ValueTask.CompletedTask;
     }
 
