@@ -20,6 +20,10 @@ public sealed partial class HotkeyRowViewModel : ObservableObject
 
     public HotkeyAction Action { get; }
 
+    /// <summary>The row is listed. Only the design demo scene hides a row (see <see cref="HotkeysSettingsViewModel.ShowMark"/>).</summary>
+    [ObservableProperty]
+    public partial bool IsShown { get; set; } = true;
+
     public string Label { get; }
 
     /// <summary>The stored gesture (<c>Ctrl+Shift+R</c>), or <c>null</c> = none.</summary>

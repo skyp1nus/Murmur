@@ -27,6 +27,7 @@ public sealed partial class RecordingViewModel : ObservableObject, ILevelSource,
     private readonly Action<Action> _post;
     private readonly ISettingsStore? _settings;
     private readonly TimeProvider _time;
+    private readonly IRecordingMarks? _marks;
     private SessionId? _sessionId;
     private bool _stopRequested;
     private bool _pauseBusy;
@@ -37,6 +38,7 @@ public sealed partial class RecordingViewModel : ObservableObject, ILevelSource,
     private string _microphoneName = string.Empty;
     private string _systemAudioName = string.Empty;
     private CancellationTokenSource? _copiedReset;
+    private CancellationTokenSource? _markChipReset;
 
     /// <summary>The rename in flight (never faults: it reports its own failure); the stop waits for it.</summary>
     private Task _renameTask = Task.CompletedTask;
@@ -51,8 +53,9 @@ public sealed partial class RecordingViewModel : ObservableObject, ILevelSource,
     /// The user's defaults (devices, display, screen on/off) the screen starts with every time it is shown;
     /// <c>null</c> = system default devices and no screen.
     /// </param>
-    /// <param name="time">The clock for the default title ("Untitled — Oct 18, 01:12"); the system clock when <c>null</c>.</param>
-    public RecordingViewModel(IRecorder recorder, ICapture capture, ISessionStore store, Action<Action>? post = null, ISettingsStore? settings = null, TimeProvider? time = null)
+    /// <param name="time">The clock for the default title ("Untitled — Oct 18, 01:12") and for the Mark chip's 2 s; the system clock when <c>null</c>.</param>
+    /// <param name="marks">The marks of the running recording (the Mark button, and the chip for a mark from any source); <c>null</c> = the Mark button does nothing.</param>
+    public RecordingViewModel(IRecorder recorder, ICapture capture, ISessionStore store, Action<Action>? post = null, ISettingsStore? settings = null, TimeProvider? time = null, IRecordingMarks? marks = null)
     {
         ArgumentNullException.ThrowIfNull(recorder);
         ArgumentNullException.ThrowIfNull(capture);
@@ -63,6 +66,7 @@ public sealed partial class RecordingViewModel : ObservableObject, ILevelSource,
         _post = post ?? (action => Avalonia.Threading.Dispatcher.UIThread.Post(action));
         _settings = settings;
         _time = time ?? TimeProvider.System;
+        _marks = marks;
 
         ScreenAvailable = capture.Capabilities.Screen;
         RefreshDevices();
@@ -71,6 +75,11 @@ public sealed partial class RecordingViewModel : ObservableObject, ILevelSource,
         ApplyState(recorder.State);
         _recorder.StateChanged += OnRecorderStateChanged;
         _recorder.Warning += OnRecorderWarning;
+        if (marks is not null)
+        {
+            marks.Marked += OnMarked;
+            marks.SaveFailed += OnMarksSaveFailed;
+        }
     }
 
     [ObservableProperty]
@@ -113,6 +122,31 @@ public sealed partial class RecordingViewModel : ObservableObject, ILevelSource,
     /// clipboard belongs to the window). <c>null</c> = no clipboard at all, so <see cref="CopyMessageCommand"/> does nothing.
     /// </summary>
     public Func<string, Task<bool>>? ClipboardWriter { get; set; }
+
+    /// <summary>
+    /// The Mark button and its feedback chip are part of the screen. The design demo scene switches them off: the 22 parity boards
+    /// show the base screens, and the Mark feature (#45) is drawn in docs/design/features/Idea1Autopilot.dc.html, not on them.
+    /// </summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsMarkVisible))]
+    public partial bool ShowMark { get; set; } = true;
+
+    /// <summary>The chip "Marked 12:41" is on screen (for <see cref="MarkChipFor"/> after a mark).</summary>
+    [ObservableProperty]
+    public partial bool IsMarkChipShown { get; set; }
+
+    /// <summary>The time of the latest mark on the session timeline: <c>12:41</c>, or <c>1:02:03</c> from one hour on (shown in Geist Mono).</summary>
+    [ObservableProperty]
+    public partial string MarkChipTime { get; set; } = string.Empty;
+
+    /// <summary>"Marked", the word before <see cref="MarkChipTime"/>.</summary>
+    public string MarkChipLabel => Strings.Recording_Marked;
+
+    /// <summary>The Mark button and the slot of the chip are shown while the session is open.</summary>
+    public bool IsMarkVisible => ShowMark && IsRunning;
+
+    /// <summary>How long the chip "Marked 12:41" stays.</summary>
+    internal static readonly TimeSpan MarkChipFor = TimeSpan.FromSeconds(2);
 
     /// <summary>How long "Copied" stays on the button.</summary>
     internal static readonly TimeSpan CopiedFor = TimeSpan.FromSeconds(2);
@@ -417,6 +451,53 @@ public sealed partial class RecordingViewModel : ObservableObject, ILevelSource,
         return settled && PauseResumeCommand.CanExecute(null) ? PauseResumeCommand.ExecuteAsync(null) : Task.CompletedTask;
     }
 
+    /// <summary>The Mark button works while recording or paused (a mark made while paused gets the position of the pause).</summary>
+    public bool CanMark => _marks is not null && IsRunning;
+
+    /// <summary>Marks the current moment of the recording; the chip confirms it.</summary>
+    [RelayCommand(CanExecute = nameof(CanMark))]
+    private void Mark() => _marks?.TryMark(out _);
+
+    /// <summary>The Mark hotkey. Does nothing when no recording runs; the chip shows only while this screen is visible.</summary>
+    internal void MarkFromHotkey() => _marks?.TryMark(out _);
+
+    /// <summary>The marks of a stopped recording could not be saved (raised on the UI thread). The shell tells the user in the Library.</summary>
+    public event Action? MarksSaveFailed;
+
+    private void OnMarksSaveFailed(SessionId? session, Exception error) => _post(() => MarksSaveFailed?.Invoke());
+
+    private void OnMarked(TimeSpan at) => _post(() => ShowMarkChip(at));
+
+    private void ShowMarkChip(TimeSpan at)
+    {
+        MarkChipTime = UiFormat.Clock(at);
+        IsMarkChipShown = true;
+        var chipReset = new CancellationTokenSource();
+        var previous = Interlocked.Exchange(ref _markChipReset, chipReset);
+        previous?.Cancel();
+        previous?.Dispose();
+        _ = HideMarkChipAsync(chipReset.Token);
+    }
+
+    private async Task HideMarkChipAsync(CancellationToken token)
+    {
+        try
+        {
+            await Task.Delay(MarkChipFor, _time, token);
+            _post(() =>
+            {
+                if (!token.IsCancellationRequested)
+                {
+                    IsMarkChipShown = false;
+                }
+            });
+        }
+        catch (OperationCanceledException)
+        {
+            // Marked again: the newer timer owns the chip.
+        }
+    }
+
     /// <summary>Pauses the recording, or resumes it when it is paused.</summary>
     [RelayCommand(CanExecute = nameof(CanPauseResume))]
     public async Task PauseResumeAsync()
@@ -549,9 +630,11 @@ public sealed partial class RecordingViewModel : ObservableObject, ILevelSource,
         Error = null;
 
         MessageCopied = true;
-        _copiedReset?.Cancel();
-        _copiedReset = new CancellationTokenSource();
-        _ = ResetCopiedAsync(_copiedReset.Token);
+        var copiedReset = new CancellationTokenSource();
+        var previousCopied = Interlocked.Exchange(ref _copiedReset, copiedReset);
+        previousCopied?.Cancel();
+        previousCopied?.Dispose();
+        _ = ResetCopiedAsync(copiedReset.Token);
     }
 
     private async Task ResetCopiedAsync(CancellationToken token)
@@ -839,6 +922,17 @@ public sealed partial class RecordingViewModel : ObservableObject, ILevelSource,
         NotifyStateDependents();
         StartStopCommand.NotifyCanExecuteChanged();
         PauseResumeCommand.NotifyCanExecuteChanged();
+        MarkCommand.NotifyCanExecuteChanged();
+        OnPropertyChanged(nameof(CanMark));
+        OnPropertyChanged(nameof(IsMarkVisible));
+        if (value is RecorderState.Idle)
+        {
+            var chipReset = Interlocked.Exchange(ref _markChipReset, null);
+            chipReset?.Cancel();
+            chipReset?.Dispose();
+            IsMarkChipShown = false;
+        }
+
         BackCommand.NotifyCanExecuteChanged();
         if (value is RecorderState.Recording or RecorderState.Paused)
         {

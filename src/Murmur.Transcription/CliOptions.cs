@@ -9,6 +9,9 @@ internal enum WorkerCommand
     Serve,
     Bench,
     Transcribe,
+
+    /// <summary>Spike #53: word-confidence evaluation on clips with known transcripts.</summary>
+    ConfidenceEval,
 }
 
 /// <summary>Command line of the worker. Hand-written parser: no reflection, no extra dependency.</summary>
@@ -59,6 +62,20 @@ internal sealed record CliOptions
 
     public float? MinSilenceSeconds { get; init; }
 
+    /// <summary>Transcribe only: also print every word with its confidence (off by default).</summary>
+    public bool WordConfidence { get; init; }
+
+    /// <summary>Confidence eval: TSV manifest (language, wav, reference).</summary>
+    public string? ConfidenceManifest { get; init; }
+
+    public int BeamClips { get; init; } = 20;
+
+    public int MaxActivePaths { get; init; } = 4;
+
+    public string? BpeVocab { get; init; }
+
+    public float HotwordsScore { get; init; } = 1.5f;
+
     public static bool TryParse(IReadOnlyList<string> args, out CliOptions options, out string? error)
     {
         ArgumentNullException.ThrowIfNull(args);
@@ -98,6 +115,25 @@ internal sealed record CliOptions
                     case "--transcribe":
                         o = o with { Command = WorkerCommand.Transcribe, TranscribePath = Value() };
                         commands++;
+                        break;
+                    case "--confidence-eval":
+                        o = o with { Command = WorkerCommand.ConfidenceEval, ConfidenceManifest = Value() };
+                        commands++;
+                        break;
+                    case "--word-confidence":
+                        o = o with { WordConfidence = true };
+                        break;
+                    case "--beam-clips":
+                        o = o with { BeamClips = NonNegativeInt(a, Value()) };
+                        break;
+                    case "--max-active-paths":
+                        o = o with { MaxActivePaths = PositiveInt(a, Value()) };
+                        break;
+                    case "--bpe-vocab":
+                        o = o with { BpeVocab = Value() };
+                        break;
+                    case "--hotwords-score":
+                        o = o with { HotwordsScore = (float)Positive(a, Value()) };
                         break;
                     case "--model-dir":
                         o = o with { ModelDirectory = Value() };
@@ -156,7 +192,7 @@ internal sealed record CliOptions
         options = o;
         if (commands > 1)
         {
-            error = "use exactly one of --serve, --bench, --transcribe";
+            error = "use exactly one of --serve, --bench, --transcribe, --confidence-eval";
             return false;
         }
 
@@ -167,6 +203,12 @@ internal sealed record CliOptions
                 error = "--model-dir and --vad are required";
                 return false;
             }
+        }
+
+        if (o.Command == WorkerCommand.ConfidenceEval && string.IsNullOrEmpty(o.ModelDirectory))
+        {
+            error = "--model-dir is required";
+            return false;
         }
 
         if (o.Command == WorkerCommand.Bench && o.BenchWavs.Count == 0)
@@ -182,6 +224,11 @@ internal sealed record CliOptions
         int.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var v) && v > 0
             ? v
             : throw new FormatException($"{name} must be a positive integer, got '{value}'");
+
+    private static int NonNegativeInt(string name, string value) =>
+        int.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var v) && v >= 0
+            ? v
+            : throw new FormatException($"{name} must be a non-negative integer, got '{value}'");
 
     private static double Positive(string name, string value) =>
         double.TryParse(value, NumberStyles.Float, CultureInfo.InvariantCulture, out var v) && v > 0 && double.IsFinite(v)

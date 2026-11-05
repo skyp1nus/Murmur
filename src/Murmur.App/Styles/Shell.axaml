@@ -121,6 +121,7 @@
       <Thickness x:Key="Margin.HeroTop">0,16,0,0</Thickness>
       <Thickness x:Key="Margin.RecordingsTop">0,28,0,0</Thickness>
       <Thickness x:Key="Margin.FiltersTop">0,12,0,0</Thickness>
+      <Thickness x:Key="Margin.NoticeDismiss">12,0,0,0</Thickness>
       <Thickness x:Key="Margin.GroupTop">0,12,0,8</Thickness>
 
       <!-- Line icons of the canvas (24 x 24 grid), drawn by controls:IconControl. -->
@@ -338,6 +339,13 @@
   </Style>
 
   <!-- ==== Library =============================================================================================================== -->
+  <!-- The note above the Library page: as wide as the page, centred, 24 px at the sides like its rows. -->
+  <Style Selector="Border.libraryNotice">
+    <Setter Property="Margin" Value="{StaticResource Margin.FiltersTop}" />
+    <Setter Property="Padding" Value="{StaticResource Inset.LibraryItem}" />
+    <Setter Property="MaxWidth" Value="{StaticResource Size.LibraryPage}" />
+    <Setter Property="HorizontalAlignment" Value="Stretch" />
+  </Style>
   <Style Selector="ItemsControl.library">
     <Setter Property="Background" Value="Transparent" />
     <Setter Property="Padding" Value="{StaticResource Margin.LibraryEnd}" />

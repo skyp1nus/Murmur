@@ -1,0 +1,100 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Murmur.App.ViewModels"
+             xmlns:res="using:Murmur.App.Resources"
+             x:Class="Murmur.App.Views.ChapterStripView"
+             x:DataType="vm:SessionViewModel"
+             AutomationProperties.Name="{x:Static res:Strings.Session_Chapters}">
+
+  <!--
+    The chapters Gemma made of a long recording (Idea4Transcript.dc.html, "Idea 4 / Chapters"): one segment each, as wide as the others,
+    8 px apart. The one the playhead is in is filled with Ink; a click on a segment seeks there. The view that hosts it hides it
+    while the recording has no chapters.
+  -->
+  <UserControl.Styles>
+    <Style Selector="Button.chapter">
+      <Setter Property="Height" Value="{StaticResource Size.ChapterStrip}" />
+      <Setter Property="MinHeight" Value="0" />
+      <Setter Property="MinWidth" Value="0" />
+      <Setter Property="Padding" Value="{StaticResource Margin.ChapterSegment}" />
+      <Setter Property="HorizontalAlignment" Value="Stretch" />
+      <Setter Property="HorizontalContentAlignment" Value="Left" />
+      <Setter Property="VerticalContentAlignment" Value="Center" />
+      <Setter Property="CornerRadius" Value="{StaticResource Radius.Tile}" />
+      <Setter Property="BorderThickness" Value="0" />
+      <Setter Property="Background" Value="{DynamicResource Brush.Surface}" />
+      <Setter Property="Foreground" Value="{DynamicResource Brush.Ink}" />
+    </Style>
+    <Style Selector="Button.chapter:pointerover /template/ ContentPresenter#PART_ContentPresenter, Button.chapter:pressed /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="{DynamicResource Brush.Stone}" />
+      <Setter Property="Foreground" Value="{DynamicResource Brush.Ink}" />
+    </Style>
+    <!-- The current chapter keeps its fill under the pointer. -->
+    <Style Selector="Button.chapter.current">
+      <Setter Property="Background" Value="{DynamicResource Brush.Ink}" />
+      <Setter Property="Foreground" Value="{DynamicResource Brush.Canvas}" />
+    </Style>
+    <Style Selector="Button.chapter.current /template/ ContentPresenter#PART_ContentPresenter, Button.chapter.current:pointerover /template/ ContentPresenter#PART_ContentPresenter, Button.chapter.current:pressed /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="{DynamicResource Brush.Ink}" />
+      <Setter Property="Foreground" Value="{DynamicResource Brush.Canvas}" />
+    </Style>
+
+    <!-- The title: 13 px, one line. -->
+    <Style Selector="TextBlock.chapterTitle">
+      <Setter Property="FontFamily" Value="{StaticResource Font.Body}" />
+      <Setter Property="FontWeight" Value="{StaticResource FontWeight.BodyMedium}" />
+      <Setter Property="FontSize" Value="{StaticResource FontSize.MetaTight}" />
+      <Setter Property="LineHeight" Value="{StaticResource LineHeight.MetaTight}" />
+      <Setter Property="LetterSpacing" Value="0" />
+      <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+      <Setter Property="TextWrapping" Value="NoWrap" />
+      <Setter Property="Foreground" Value="{DynamicResource Brush.Ink}" />
+    </Style>
+    <Style Selector="Button.chapter.current TextBlock.chapterTitle">
+      <Setter Property="Foreground" Value="{DynamicResource Brush.Canvas}" />
+    </Style>
+    <!-- The start time: Geist Mono 12. -->
+    <Style Selector="TextBlock.chapterTime">
+      <Setter Property="FontFamily" Value="{StaticResource Font.Mono}" />
+      <Setter Property="FontWeight" Value="{StaticResource FontWeight.Mono}" />
+      <Setter Property="FontSize" Value="{StaticResource FontSize.MonoRow}" />
+      <Setter Property="LineHeight" Value="{StaticResource LineHeight.MonoRow}" />
+      <Setter Property="LetterSpacing" Value="{StaticResource LetterSpacing.MonoRow}" />
+      <Setter Property="Foreground" Value="{DynamicResource Brush.Smoke}" />
+      <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+      <Setter Property="TextWrapping" Value="NoWrap" />
+    </Style>
+    <!-- Segments narrower than ChapterStripView.CompactWidth (a dozen chapters in a narrow window): the title keeps the room, the time goes first. -->
+    <Style Selector="ItemsControl.compact TextBlock.chapterTime">
+      <Setter Property="IsVisible" Value="False" />
+    </Style>
+    <Style Selector="Button.chapter.current TextBlock.chapterTime">
+      <Setter Property="Foreground" Value="{DynamicResource Brush.Canvas}" />
+    </Style>
+  </UserControl.Styles>
+
+  <ItemsControl x:Name="Strip"
+                ItemsSource="{Binding Chapters}">
+    <ItemsControl.ItemsPanel>
+      <ItemsPanelTemplate>
+        <UniformGrid Rows="1"
+                     ColumnSpacing="{StaticResource Space.8}" />
+      </ItemsPanelTemplate>
+    </ItemsControl.ItemsPanel>
+    <ItemsControl.ItemTemplate>
+      <DataTemplate x:DataType="vm:ChapterViewModel">
+        <Button Classes="chapter"
+                Classes.current="{Binding IsCurrent}"
+                Command="{Binding SeekCommand}"
+                ToolTip.Tip="{Binding ToolTip}">
+          <StackPanel>
+            <TextBlock Classes="chapterTitle"
+                       Text="{Binding Title}" />
+            <TextBlock Classes="chapterTime"
+                       Text="{Binding StartText}" />
+          </StackPanel>
+        </Button>
+      </DataTemplate>
+    </ItemsControl.ItemTemplate>
+  </ItemsControl>
+</UserControl>

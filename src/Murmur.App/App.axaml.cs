@@ -150,7 +150,7 @@ public partial class App : Application
             return;
         }
 
-        var coordinator = new HotkeyCoordinator(hotkeys, settings, shell, window.BringToFront, isClosing: () => window.IsClosing);
+        var coordinator = new HotkeyCoordinator(hotkeys, settings, shell, window.BringToFront, isClosing: () => window.IsClosing, recorder: services.Recorder);
         window.Opened += (_, _) => window.RequestAnimationFrame(_ => coordinator.Start());
         window.Closed += (_, _) => coordinator.Dispose();
     }

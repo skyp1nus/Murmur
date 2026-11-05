@@ -14,6 +14,9 @@ public enum HotkeyAction
 
     /// <summary>Pause the running recording, or resume the paused one (<c>AppSettings.PauseHotkey</c>); does nothing when not recording.</summary>
     TogglePause,
+
+    /// <summary>Mark the current moment of the running recording (<c>AppSettings.MarkHotkey</c>); does nothing when not recording.</summary>
+    Mark,
 }
 
 [Flags]

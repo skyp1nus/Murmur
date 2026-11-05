@@ -101,6 +101,20 @@ public sealed class JsonSettingsStoreTests
     }
 
     [Fact]
+    public async Task MarkHotkey_IsStoredAndAnOlderFileWithoutOneGetsTheDefault()
+    {
+        using var root = new TempDataRoot();
+        Directory.CreateDirectory(root.Path);
+        File.WriteAllText(root.SettingsFile, """{ "recordHotkey": "Ctrl+Alt+R" }""");
+        var store = new JsonSettingsStore(new StoragePaths(root.Path));
+        Assert.Equal("Ctrl+Alt+M", store.Current.MarkHotkey);
+
+        await store.SaveAsync(store.Current with { MarkHotkey = null }, TestContext.Current.CancellationToken);
+
+        Assert.Null(new JsonSettingsStore(new StoragePaths(root.Path)).Current.MarkHotkey);
+    }
+
+    [Fact]
     public void NoFile_DefaultsToEnglish_AtTheCurrentSettingsVersion()
     {
         using var root = new TempDataRoot();

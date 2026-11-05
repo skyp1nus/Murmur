@@ -245,7 +245,10 @@ public sealed class WorkerAsrClient : IAsr, IAsyncDisposable
         for (var i = 0; i < words.Length; i++)
         {
             var w = segment.Words[i];
-            words[i] = new TranscriptWord(w.Text ?? string.Empty, TimeSpan.FromSeconds(w.Start), TimeSpan.FromSeconds(w.End));
+            words[i] = new TranscriptWord(w.Text ?? string.Empty, TimeSpan.FromSeconds(w.Start), TimeSpan.FromSeconds(w.End))
+            {
+                Confidence = w.Confidence is { } c && float.IsFinite(c) ? Math.Clamp(c, 0f, 1f) : null,
+            };
         }
 
         return new TranscriptSegment(speaker, TimeSpan.FromSeconds(segment.Start), TimeSpan.FromSeconds(segment.End), segment.Text ?? string.Empty, words);

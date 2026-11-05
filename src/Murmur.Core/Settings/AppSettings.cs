@@ -59,6 +59,9 @@ public sealed record AppSettings
     /// <summary>Global hotkey that pauses and resumes the running recording; <c>null</c> = none.</summary>
     public string? PauseHotkey { get; init; } = "Ctrl+Shift+P";
 
+    /// <summary>Global hotkey that marks the current moment of the running recording (D-051); <c>null</c> = none.</summary>
+    public string? MarkHotkey { get; init; } = "Ctrl+Alt+M";
+
     /// <summary>Display recorded when the screen is on; <c>null</c> = the primary display.</summary>
     public string? ScreenDisplayId { get; init; }
 

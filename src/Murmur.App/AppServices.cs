@@ -48,6 +48,7 @@ namespace Murmur.App;
 /// frame and follows their changes; the composition root owns and disposes it. <c>null</c> = no global hotkeys.
 /// </param>
 /// <param name="Chats">The saved chats of Ask AI (the sidebar's Chats list); <c>null</c> = chats are not saved.</param>
+/// <param name="Marks">The marks of the running recording (the Mark button, the Mark hotkey); <c>null</c> = marking does nothing.</param>
 /// <param name="Activation">
 /// Another start of the program asked this one to show its window (single instance). Raised on any thread; <c>null</c> = never.
 /// </param>
@@ -56,6 +57,7 @@ namespace Murmur.App;
 /// <c>null</c> = motion is never reduced.
 /// </param>
 /// <param name="Summaries">Keeps the summary of a recording between visits; <c>null</c> = a summary lives only while the recording is open.</param>
+/// <param name="ChapterStore">Keeps the chapters of a recording between visits; <c>null</c> = chapters live only while the recording is open.</param>
 /// <param name="AudioSessions">
 /// Watches the local audio sessions for call detection (#44); <c>null</c> or <see cref="IAudioSessionMonitor.IsSupported"/> false =
 /// no "Detect calls" setting.
@@ -82,5 +84,7 @@ public sealed record AppServices(
     IMotionPreference? Motion = null,
     ISummaryStore? Summaries = null,
     IChatStore? Chats = null,
+    IChapterStore? ChapterStore = null,
+    IRecordingMarks? Marks = null,
     IAudioSessionMonitor? AudioSessions = null,
     ICallDetector? Calls = null);

@@ -34,11 +34,22 @@ public sealed class AppSettingsTests
     }
 
     [Fact]
+    public void MarkHotkey_DefaultsToCtrlAltM_AndIsAGlobalGesture_ShowAppKeepsCtrlShiftM()
+    {
+        var settings = new AppSettings();
+
+        Assert.Equal("Ctrl+Alt+M", settings.MarkHotkey);
+        Assert.True(HotkeyGesture.TryParse(settings.MarkHotkey, out var gesture));
+        Assert.Equal(new HotkeyGesture(HotkeyModifiers.Ctrl | HotkeyModifiers.Alt, HotkeyKey.M), gesture);
+        Assert.Equal("Ctrl+Shift+M", settings.ShowAppHotkey);
+    }
+
+    [Fact]
     public void EveryDefaultHotkey_IsDifferent()
     {
         var settings = new AppSettings();
 
-        string?[] all = [settings.RecordHotkey, settings.ToggleScreenHotkey, settings.ShowAppHotkey, settings.PauseHotkey];
+        string?[] all = [settings.RecordHotkey, settings.ToggleScreenHotkey, settings.ShowAppHotkey, settings.PauseHotkey, settings.MarkHotkey];
         Assert.Equal(all.Length, all.Distinct().Count());
     }
 }
