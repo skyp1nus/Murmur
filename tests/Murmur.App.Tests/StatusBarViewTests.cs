@@ -92,7 +92,7 @@ public sealed class StatusBarViewTests
     }
 
     [Fact]
-    public async Task TheElapsedTime_IsPolledOncePerSecond_AndStopsWithTheRecording()
+    public async Task TheElapsedTime_IsPolled_WhileRecording_AndStopsWithTheRecording()
     {
         var (polling, stopped) = await Session.Dispatch(
             () =>
@@ -285,7 +285,7 @@ public sealed class StatusBarViewTests
                 orb.IsActive = true;
                 var turning = orb.IsSpinning;
                 orb.IsActive = false;
-                var r = (before, turning, !orb.IsSpinning, orb.RestAngle);
+                var r = (before, turning, !orb.IsSpinning, orb.Angle);
                 window.Close();
                 return r;
             },
@@ -295,6 +295,69 @@ public sealed class StatusBarViewTests
         Assert.True(active);
         Assert.True(stopped);
         Assert.Equal(0f, angle);
+    }
+
+    [Fact]
+    public async Task SpinningOrb_TurnsOnceInNineSeconds_AndGoesBackToRestWhenStopped()
+    {
+        var (quarter, half, wrapped, rest) = await Session.Dispatch(
+            () =>
+            {
+                var orb = new SpinningOrb { Width = 12, Height = 12, IsActive = true };
+                var window = HostOrb(orb, reduce: false);
+                var clock = new TestTime(UiHarness.Now);
+                orb.Clock = clock;
+                clock.Advance(TimeSpan.FromSeconds(2.25));
+                orb.Tick();
+                var a = orb.Angle;
+                clock.Advance(TimeSpan.FromSeconds(2.25));
+                orb.Tick();
+                var b = orb.Angle;
+                clock.Advance(TimeSpan.FromSeconds(4.5));
+                orb.Tick();
+                var c = orb.Angle;
+                orb.IsActive = false;
+                var r = (a, b, c, orb.Angle);
+                window.Close();
+                return r;
+            },
+            Ct);
+
+        Assert.Equal(MathF.PI / 2, quarter!.Value, 0.01f);
+        Assert.Equal(MathF.PI, half!.Value, 0.01f);
+        Assert.InRange(wrapped!.Value, 0f, 0.01f);
+        Assert.Equal(0f, rest);
+    }
+
+    [Fact]
+    public async Task ReopeningThePopover_TheRecordingOrbTurnsAgain()
+    {
+        var (first, closed, second) = await Session.Dispatch(
+            () =>
+            {
+                using var scope = UiCulture.Override("en");
+                using var rig = new DesignRig(statusBar: true);
+                var window = UiHarness.Show(rig.Shell);
+                var button = window.GetVisualDescendants().OfType<StatusBarView>().Single().FindControl<Button>("ActivityButton")!;
+                var flyout = (Flyout)button.Flyout!;
+                bool RowOrbSpins() => ((ActivityPopoverView)flyout.Content!).GetVisualDescendants().OfType<SpinningOrb>().Single(o => o.IsEffectivelyVisible).IsSpinning;
+
+                Click(button);
+                var a = RowOrbSpins();
+                flyout.Hide();
+                UiHarness.Pump(4);
+                var b = flyout.IsOpen;
+                Click(button);
+                var c = flyout.IsOpen && RowOrbSpins();
+                flyout.Hide();
+                window.Close();
+                return (a, b, c);
+            },
+            Ct);
+
+        Assert.True(first);
+        Assert.False(closed);
+        Assert.True(second);
     }
 
     [Fact]
@@ -351,7 +414,7 @@ public sealed class StatusBarViewTests
                 var window = HostOrb(orb, reduce: false);
                 Assert.True(orb.IsSpinning);
                 Motion.SetReduceMotion(window, true);
-                var r = (orb.IsSpinning, orb.RestAngle);
+                var r = (orb.IsSpinning, orb.Angle);
                 window.Close();
                 return r;
             },
@@ -385,10 +448,9 @@ public sealed class StatusBarViewTests
                 UiHarness.Pump(4);
                 var r3 = !barOrb.IsSpinning;
 
-                // A recording under reduced motion: neither turns (the popover has its own root, so it is set there too).
+                // A recording under reduced motion: neither turns. The setting is made on the window only; it reaches the popover's flyout through the visual tree.
                 rig.Activity.Set(DesignDemoData.ActivityItems);
                 Motion.SetReduceMotion(window, true);
-                Motion.SetReduceMotion((Control)content, true);
                 UiHarness.Pump(4);
                 var r4 = !barOrb.IsSpinning && !rowOrb.IsSpinning;
                 flyout.Hide();

@@ -1,8 +1,7 @@
 using Avalonia;
-using Avalonia.Animation.Easings;
 using Avalonia.Controls;
 using Avalonia.Rendering.Composition;
-using Avalonia.Rendering.Composition.Animations;
+using Avalonia.Threading;
 using Avalonia.VisualTree;
 
 namespace Murmur.App.Controls;
@@ -12,8 +11,9 @@ namespace Murmur.App.Controls;
 /// recording runs. It turns only while <see cref="IsActive"/>, attached and with motion allowed; otherwise it holds still at angle 0.
 /// </summary>
 /// <remarks>
-/// The turn is a repeating keyframe animation of the composition visual (<c>RotationAngle</c>): the compositor advances it, the UI thread
-/// does no work per frame and no timer runs. Under <see cref="Motion.ReduceMotionProperty"/> (or while not active) no animation exists.
+/// Like <see cref="OrbControl"/> it does not use the 60 Hz animation-frame loop (the bar is on screen for a whole recording, and the
+/// frame loop alone costs CPU): a 15 Hz timer sets the <c>RotationAngle</c> of the composition visual, so there is no layout, no
+/// drawing command and no allocation per tick. The timer runs only while active, attached and with motion allowed.
 /// </remarks>
 public sealed class SpinningOrb : Decorator
 {
@@ -23,15 +23,19 @@ public sealed class SpinningOrb : Decorator
     /// <summary>A full turn takes nine seconds, like the mockup.</summary>
     internal static readonly TimeSpan Period = TimeSpan.FromSeconds(9);
 
-    private const string AngleProperty = "RotationAngle";
+    private static readonly TimeSpan FrameInterval = TimeSpan.FromMilliseconds(1000.0 / 15);
 
-    private bool _spinning;
+    private readonly DispatcherTimer _timer;
+    private TimeProvider _clock = TimeProvider.System;
+    private long _start;
 
     public SpinningOrb()
     {
         IsHitTestVisible = false;
         Focusable = false;
         Child = new OrbDisc();
+        _timer = new DispatcherTimer(DispatcherPriority.Render) { Interval = FrameInterval };
+        _timer.Tick += (_, _) => Tick();
     }
 
     /// <summary>The orb belongs to something that is running (a recording): it turns. Bind it to the state; it stays still otherwise.</summary>
@@ -41,11 +45,32 @@ public sealed class SpinningOrb : Decorator
         set => SetValue(IsActiveProperty, value);
     }
 
-    /// <summary>The turn animation is running on the compositor (for tests).</summary>
-    internal bool IsSpinning => _spinning;
+    /// <summary>The 15 Hz timer runs (for tests).</summary>
+    internal bool IsSpinning => _timer.IsEnabled;
 
-    /// <summary>The disc is at rest (angle 0), as drawn without motion (for tests); <c>null</c> without a composition visual.</summary>
-    internal float? RestAngle => ElementComposition.GetElementVisual(this) is { } visual && !_spinning ? visual.RotationAngle : null;
+    /// <summary>The angle of the composition visual in radians (for tests); <c>null</c> without one.</summary>
+    internal float? Angle => ElementComposition.GetElementVisual(this)?.RotationAngle;
+
+    /// <summary>The clock of the turn; the system clock unless a test replaces it. A new clock restarts the turn.</summary>
+    internal TimeProvider Clock
+    {
+        get => _clock;
+        set
+        {
+            _clock = value;
+            _start = value.GetTimestamp();
+        }
+    }
+
+    /// <summary>One step: the angle for the time since the start (nine seconds per turn).</summary>
+    internal void Tick()
+    {
+        if (ElementComposition.GetElementVisual(this) is { } visual)
+        {
+            var turns = _clock.GetElapsedTime(_start).TotalSeconds / Period.TotalSeconds;
+            visual.RotationAngle = (float)((turns - Math.Floor(turns)) * (2 * Math.PI));
+        }
+    }
 
     protected override Size MeasureOverride(Size availableSize) =>
         new(double.IsNaN(Width) ? 0 : Width, double.IsNaN(Height) ? 0 : Height);
@@ -58,8 +83,6 @@ public sealed class SpinningOrb : Decorator
             visual.CenterPoint = new Vector3D(finalSize.Width / 2, finalSize.Height / 2, 0);
         }
 
-        // The composition visual may not exist yet when the orb is attached: start as soon as the first layout has it.
-        Update();
         return finalSize;
     }
 
@@ -95,34 +118,21 @@ public sealed class SpinningOrb : Decorator
     private void Update()
     {
         var run = IsActive && !Motion.GetReduceMotion(this) && ((Visual)this).IsAttachedToVisualTree();
-        if (run == _spinning)
+        if (run == _timer.IsEnabled)
         {
             return;
         }
 
-        var visual = ElementComposition.GetElementVisual(this);
         if (run)
         {
-            if (visual is null)
-            {
-                return;
-            }
-
-            visual.CenterPoint = new Vector3D(Bounds.Width / 2, Bounds.Height / 2, 0);
-            var turn = visual.Compositor.CreateScalarKeyFrameAnimation();
-            turn.InsertKeyFrame(0f, 0f);
-            turn.InsertKeyFrame(1f, MathF.Tau, new LinearEasing());
-            turn.Duration = Period;
-            turn.IterationBehavior = AnimationIterationBehavior.Forever;
-            visual.StartAnimation(AngleProperty, turn);
-            _spinning = true;
+            _start = _clock.GetTimestamp();
+            _timer.Start();
         }
         else
         {
-            _spinning = false;
-            if (visual is not null)
+            _timer.Stop();
+            if (ElementComposition.GetElementVisual(this) is { } visual)
             {
-                visual.StopAnimation(AngleProperty);
                 visual.RotationAngle = 0;
             }
         }
