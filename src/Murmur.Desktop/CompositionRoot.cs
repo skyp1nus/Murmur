@@ -1,5 +1,7 @@
 using Murmur.App;
 using Murmur.App.Services;
+using Murmur.Core.Activity;
+using Murmur.Core.Calls;
 using Murmur.Core.Capture;
 using Murmur.Core.Capture.Synthetic;
 using Murmur.Core.Input;
@@ -30,6 +32,7 @@ internal sealed class CompositionRoot : IDisposable
     private WorkerAsrClient? _asr;
     private JobQueue? _queue;
     private SessionProcessor? _processor;
+    private ActivityFeed? _activityFeed;
     private RecordingActivity? _activity;
     private RecordingMarks? _marks;
     private RecordingHeapTrimmer? _heapTrimmer;
@@ -42,6 +45,8 @@ internal sealed class CompositionRoot : IDisposable
     private CancellationTokenSource? _recoveryRetry;
     private IGlobalHotkeys? _hotkeys;
     private IMotionPreference? _motion;
+    private IAudioSessionMonitor? _audioSessions;
+    private CallDetector? _calls;
     private readonly SingleInstance? _instance;
 
     /// <param name="instance">The single-instance guard whose "a second start wants the window" signal goes to the app; <c>null</c> = none.</param>
@@ -125,6 +130,9 @@ internal sealed class CompositionRoot : IDisposable
             indexer: (session, cancellationToken) => assistant.IndexSessionAsync(session, cancellationToken).AsTask(),
             isAiInstalled: () => llm.IsInstalled);
 
+        // The status bar's feed: what runs or waits, from the recorder, the pipeline and the model downloads.
+        var activityFeed = _activityFeed ??= new ActivityFeed(recorder, storage, processor, modelManager);
+
         // AI installed in the app while it runs: sessions finished without it get their vectors now, not at the next start.
         if (_reindex is null)
         {
@@ -194,7 +202,10 @@ internal sealed class CompositionRoot : IDisposable
             storage,
             Chats: storage,
             ChapterStore: storage,
-            Marks: marks);
+            Marks: marks,
+            AudioSessions: _audioSessions ??= CreateAudioSessionMonitor(),
+            Calls: _calls ??= new CallDetector(_audioSessions, TimeProvider.System),
+            Activity: activityFeed);
     }
 
     public void Dispose()
@@ -204,9 +215,14 @@ internal sealed class CompositionRoot : IDisposable
         // The app (the hotkey coordinator) stopped using it when its window closed; this releases the hotkey thread.
         _hotkeys?.Dispose();
         (_motion as IDisposable)?.Dispose();
+
+        // The app stopped the detector when its window closed; this releases the audio-session monitor.
+        _calls?.Dispose();
+        _audioSessions?.Dispose();
         _heapTrimmer?.Dispose();
         _marks?.Dispose();
         _reindex?.Dispose();
+        _activityFeed?.Dispose();
         _processor?.Dispose();
         _queue?.DisposeAsync().AsTask().GetAwaiter().GetResult();
         _activity?.Dispose();
@@ -325,6 +341,12 @@ internal sealed class CompositionRoot : IDisposable
         return new FullMotionPreference();
 #endif
     }
+
+    /// <summary>
+    /// The audio sessions call detection watches (#44). Only the null monitor for now (not supported: the Detect calls setting is
+    /// hidden); the WASAPI monitor of Murmur.Capture.Windows replaces it on Windows.
+    /// </summary>
+    internal static IAudioSessionMonitor CreateAudioSessionMonitor() => new NullAudioSessionMonitor();
 
     private static IAudioPlayback CreatePlayback()
     {

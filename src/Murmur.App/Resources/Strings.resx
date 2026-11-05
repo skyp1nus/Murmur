@@ -1529,6 +1529,42 @@
   <data name="Session_AskAi" xml:space="preserve">
     <value>Ask AI about this recording</value>
   </data>
+  <data name="Activity_Title" xml:space="preserve">
+    <value>Activity</value>
+  </data>
+  <data name="Activity_Scope" xml:space="preserve">
+    <value>All on this PC</value>
+  </data>
+  <data name="Activity_Empty" xml:space="preserve">
+    <value>Nothing running.</value>
+  </data>
+  <data name="Activity_Queued" xml:space="preserve">
+    <value>Queued</value>
+  </data>
+  <data name="Activity_Recording" xml:space="preserve">
+    <value>Recording</value>
+  </data>
+  <data name="Activity_Transcribing" xml:space="preserve">
+    <value>Transcribing</value>
+  </data>
+  <data name="Activity_Indexing" xml:space="preserve">
+    <value>Indexing</value>
+  </data>
+  <data name="Activity_Summarizing" xml:space="preserve">
+    <value>Summarizing</value>
+  </data>
+  <data name="Activity_Downloading" xml:space="preserve">
+    <value>Downloading</value>
+  </data>
+  <data name="Status_UpToDate" xml:space="preserve">
+    <value>Up to date</value>
+  </data>
+  <data name="Status_AllLocal" xml:space="preserve">
+    <value>All local</value>
+  </data>
+  <data name="Status_QueuedCount" xml:space="preserve">
+    <value>Queued {0}</value>
+  </data>
   <data name="Recording_Mark" xml:space="preserve">
     <value>Mark</value>
   </data>
@@ -1563,5 +1599,48 @@
   <data name="FloatingOrb_Open" xml:space="preserve">
     <value>Open Murmur</value>
     <comment>Button of the floating orb that brings the main window to the Recording screen</comment>
+  </data>
+  <!-- Call detection (#44) -->
+  <data name="Calls_DetectedTitle" xml:space="preserve">
+    <value>Call detected</value>
+  </data>
+  <data name="Calls_DetectedBody" xml:space="preserve">
+    <value>{0} is playing call audio.</value>
+  </data>
+  <data name="Calls_Record" xml:space="preserve">
+    <value>Record</value>
+  </data>
+  <data name="Calls_NotNow" xml:space="preserve">
+    <value>Not now</value>
+  </data>
+  <data name="Calls_AlwaysRecord" xml:space="preserve">
+    <value>Always record calls from this app</value>
+  </data>
+  <data name="Calls_AutoTitle" xml:space="preserve">
+    <value>Recording {0} call</value>
+  </data>
+  <data name="Calls_AutoBody" xml:space="preserve">
+    <value>Started automatically: calls from this app are always recorded.</value>
+  </data>
+  <data name="Calls_Open" xml:space="preserve">
+    <value>Open</value>
+  </data>
+  <data name="Calls_Stop" xml:space="preserve">
+    <value>Stop</value>
+  </data>
+  <data name="Calls_Dismiss" xml:space="preserve">
+    <value>Dismiss</value>
+  </data>
+  <data name="Calls_SampleApp" xml:space="preserve">
+    <value>Microsoft Teams</value>
+  </data>
+  <data name="Calls_DetectTitle" xml:space="preserve">
+    <value>Detect calls</value>
+  </data>
+  <data name="Calls_DetectText" xml:space="preserve">
+    <value>Offer to record when a call starts. Detection runs on this PC only.</value>
+  </data>
+  <data name="Calls_TryIt" xml:space="preserve">
+    <value>Try it</value>
   </data>
 </root>

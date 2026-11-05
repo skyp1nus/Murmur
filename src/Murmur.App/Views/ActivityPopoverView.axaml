@@ -1,0 +1,108 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Murmur.App.ViewModels"
+             xmlns:controls="using:Murmur.App.Controls"
+             x:Class="Murmur.App.Views.ActivityPopoverView"
+             x:DataType="vm:ActivityPopoverViewModel">
+
+  <!-- The Activity popover (Idea5Activity.dc.html): a 320 px card above the summary button. Facts only: no settings, budgets or buttons. -->
+  <Border Classes="activityCard">
+    <StackPanel>
+
+      <Grid ColumnDefinitions="*,Auto"
+            Margin="{StaticResource Margin.ActivityHeader}">
+        <TextBlock Classes="t13 medium"
+                   VerticalAlignment="Center"
+                   Text="{Binding Title}" />
+        <TextBlock Grid.Column="1"
+                   Classes="t11 muted"
+                   VerticalAlignment="Center"
+                   Text="{Binding Scope}" />
+      </Grid>
+
+      <TextBlock Classes="t13 muted"
+                 Margin="{StaticResource Inset.8}"
+                 IsVisible="{Binding IsEmpty}"
+                 Text="{Binding EmptyText}" />
+
+      <ItemsControl ItemsSource="{Binding Rows}">
+        <ItemsControl.ItemTemplate>
+          <DataTemplate x:DataType="vm:ActivityRowViewModel">
+            <Grid ColumnDefinitions="Auto,*,Auto"
+                  Margin="{StaticResource Inset.8}">
+
+              <!-- The icon of the kind; the recording has the turning orb. -->
+              <Panel Width="{StaticResource Size.ActivityIcon}"
+                     Height="{StaticResource Size.ActivityIcon}"
+                     VerticalAlignment="Center">
+                <controls:SpinningOrb Width="{StaticResource Size.StatusOrb}"
+                                      Height="{StaticResource Size.StatusOrb}"
+                                      HorizontalAlignment="Center"
+                                      VerticalAlignment="Center"
+                                      IsActive="{Binding IsRecording}"
+                                      IsVisible="{Binding IsRecording}" />
+                <controls:IconControl Width="{StaticResource Size.ActivityIcon}"
+                                      Height="{StaticResource Size.ActivityIcon}"
+                                      IsVisible="{Binding ShowTranscriptIcon}"
+                                      Data="{StaticResource Icon.Transcript}" />
+                <controls:IconControl Width="{StaticResource Size.ActivityIcon}"
+                                      Height="{StaticResource Size.ActivityIcon}"
+                                      IsVisible="{Binding ShowSparkIcon}"
+                                      Data="{StaticResource Icon.Ai}" />
+                <controls:IconControl Width="{StaticResource Size.ActivityIcon}"
+                                      Height="{StaticResource Size.ActivityIcon}"
+                                      IsVisible="{Binding ShowDownloadIcon}"
+                                      Data="{StaticResource Icon.Download}" />
+                <controls:IconControl Width="{StaticResource Size.ActivityIcon}"
+                                      Height="{StaticResource Size.ActivityIcon}"
+                                      IsVisible="{Binding ShowClockIcon}"
+                                      TextElement.Foreground="{DynamicResource Brush.Smoke}"
+                                      Data="{StaticResource Icon.Clock}" />
+              </Panel>
+
+              <StackPanel Grid.Column="1"
+                          Margin="{StaticResource Margin.ActivityText}"
+                          VerticalAlignment="Center"
+                          Spacing="{StaticResource Space.4}">
+                <!-- A running row names its kind in the medium weight; a queued one is plain Graphite text, as in the design. -->
+                <Panel>
+                  <TextBlock Classes="t13"
+                             IsVisible="{Binding !IsQueued}"
+                             TextTrimming="CharacterEllipsis"
+                             TextWrapping="NoWrap">
+                    <Run Text="{Binding KindText}" FontWeight="{StaticResource FontWeight.BodyMedium}" /><Run Text="{Binding TitleSuffix}" />
+                  </TextBlock>
+                  <TextBlock Classes="t13 graphite"
+                             IsVisible="{Binding IsQueued}"
+                             TextTrimming="CharacterEllipsis"
+                             TextWrapping="NoWrap"
+                             Text="{Binding QueuedLine}" />
+                </Panel>
+                <ProgressBar Classes="activityBar"
+                             IsVisible="{Binding HasProgress}"
+                             Value="{Binding Percent}" />
+              </StackPanel>
+
+              <!-- The figure on the right: the percentage, "Queued", or the elapsed time of the recording. -->
+              <Panel Grid.Column="2"
+                     VerticalAlignment="Center">
+                <TextBlock Classes="monoMeta graphite"
+                           HorizontalAlignment="Right"
+                           IsVisible="{Binding HasProgress}"
+                           Text="{Binding PercentText}" />
+                <TextBlock Classes="monoMeta graphite"
+                           HorizontalAlignment="Right"
+                           IsVisible="{Binding IsRecording}"
+                           Text="{Binding ElapsedText}" />
+                <TextBlock Classes="t12 graphite"
+                           HorizontalAlignment="Right"
+                           IsVisible="{Binding IsQueued}"
+                           Text="{Binding QueuedText}" />
+              </Panel>
+            </Grid>
+          </DataTemplate>
+        </ItemsControl.ItemTemplate>
+      </ItemsControl>
+    </StackPanel>
+  </Border>
+</UserControl>
