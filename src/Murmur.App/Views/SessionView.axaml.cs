@@ -21,6 +21,7 @@ public partial class SessionView : UserControl
 
     private readonly DispatcherTimer _timer;
     private SessionViewModel? _viewModel;
+    private TopLevel? _keyHost;
 
     public SessionView()
     {
@@ -31,6 +32,8 @@ public partial class SessionView : UserControl
         Waveform.ScrubStarted += _ => _viewModel?.BeginScrub();
         Waveform.Scrubbed += fraction => _viewModel?.ScrubTo(fraction);
         Waveform.ScrubCompleted += fraction => _viewModel?.EndScrub(fraction);
+
+        BookmarkFlags.FlagActivated += index => _viewModel?.SeekToBookmarkFlag(index);
 
         // Wheel and scroll-bar drags are the user's scrolls; programmatic ScrollIntoView raises neither.
         TranscriptScroller.AddHandler(PointerWheelChangedEvent, OnUserScroll, RoutingStrategies.Tunnel | RoutingStrategies.Bubble, handledEventsToo: true);
@@ -44,6 +47,23 @@ public partial class SessionView : UserControl
 
         // The right column is as tall as the window leaves room for, so the transcript list scrolls inside it (and stays virtualised).
         PageScroller.PropertyChanged += OnPageScrollerPropertyChanged;
+    }
+
+    /// <summary>M (no modifiers) adds a bookmark at the playhead, unless a text box has the focus (the search box, a note, the chat).</summary>
+    private void OnBookmarkKeyDown(object? sender, KeyEventArgs e)
+    {
+        if (e.Key != Key.M || e.KeyModifiers != KeyModifiers.None || e.Handled || _viewModel is null)
+        {
+            return;
+        }
+
+        if (e.Source is TextBox || TopLevel.GetTopLevel(this)?.FocusManager?.GetFocusedElement() is TextBox)
+        {
+            return;
+        }
+
+        _viewModel.AddBookmarkAtPlayheadCommand.Execute(null);
+        e.Handled = true;
     }
 
     private void OnPointerReleasedForBack(object? sender, PointerReleasedEventArgs e)
@@ -95,12 +115,19 @@ public partial class SessionView : UserControl
     {
         base.OnLoaded(e);
         UpdateTimer();
+
+        // M adds a bookmark at the playhead. This is the one place the key is bound (the keyboard shortcuts, #61, can move it with the others). It
+        // listens on the window, not on this view: with nothing focused the key goes to the window and never passes through the view.
+        _keyHost = TopLevel.GetTopLevel(this);
+        _keyHost?.AddHandler(KeyDownEvent, OnBookmarkKeyDown, RoutingStrategies.Bubble);
     }
 
     protected override void OnUnloaded(RoutedEventArgs e)
     {
         base.OnUnloaded(e);
         _timer.Stop();
+        _keyHost?.RemoveHandler(KeyDownEvent, OnBookmarkKeyDown);
+        _keyHost = null;
     }
 
     private void OnViewModelPropertyChanged(object? sender, PropertyChangedEventArgs e)

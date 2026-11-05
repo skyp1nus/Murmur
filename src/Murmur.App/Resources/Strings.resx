@@ -1588,6 +1588,42 @@
     <value>Go to chapter "{0}"</value>
     <comment>{0} = chapter title; tooltip of a chapter segment, which jumps there</comment>
   </data>
+  <data name="Session_Bookmarks" xml:space="preserve">
+    <value>Bookmarks</value>
+    <comment>Title of the Bookmarks card under the player (#59)</comment>
+  </data>
+  <data name="Session_BookmarksHint" xml:space="preserve">
+    <value>Marked during the call</value>
+    <comment>Right side of the Bookmarks card title</comment>
+  </data>
+  <data name="Session_BookmarkPlaceholder" xml:space="preserve">
+    <value>Add a note</value>
+    <comment>Shown in a bookmark row that has no note; click to write one</comment>
+  </data>
+  <data name="Session_BookmarksEmpty" xml:space="preserve">
+    <value>No bookmarks yet. Press M to add one.</value>
+    <comment>Bookmarks card of a recording without bookmarks</comment>
+  </data>
+  <data name="Session_BookmarkTip" xml:space="preserve">
+    <value>Go to {0}</value>
+    <comment>{0} = time of the bookmark, e.g. 12:41; tooltip of a row and a pill, which jump there</comment>
+  </data>
+  <data name="Session_BookmarkName" xml:space="preserve">
+    <value>Bookmark {0}</value>
+    <comment>{0} = time of the bookmark; name of a bookmark row, pill and flag (screen readers)</comment>
+  </data>
+  <data name="Session_BookmarkEdit" xml:space="preserve">
+    <value>Edit note</value>
+    <comment>Tooltip of the pencil of a bookmark row</comment>
+  </data>
+  <data name="Session_BookmarkDelete" xml:space="preserve">
+    <value>Delete bookmark</value>
+    <comment>Tooltip of the cross of a bookmark row</comment>
+  </data>
+  <data name="Session_BookmarkNoteBox" xml:space="preserve">
+    <value>Bookmark note</value>
+    <comment>Name of the box where a bookmark's note is edited (screen readers)</comment>
+  </data>
   <!-- Call detection (#44) -->
   <data name="Calls_DetectedTitle" xml:space="preserve">
     <value>Call detected</value>

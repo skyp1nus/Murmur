@@ -575,6 +575,10 @@
 
           <Border Classes="sessionPlayer">
             <StackPanel Spacing="{StaticResource Space.12}">
+              <!-- Bookmark flags (#59): a band over the waveform, there only while the recording has bookmarks. -->
+              <controls:BookmarkFlagsControl x:Name="BookmarkFlags"
+                                             IsVisible="{Binding HasBookmarks}"
+                                             Flags="{Binding BookmarkFlags}" />
               <controls:WaveformControl x:Name="Waveform"
                                         Height="{StaticResource Session.WaveformHeight}"
                                         Margin="{StaticResource Session.WaveformMargin}"
@@ -641,6 +645,9 @@
                          Text="{Binding PlayerError}" />
             </StackPanel>
           </Border>
+
+          <!-- Bookmarks (#59): hidden, with no space, when the recording has no bookmark store (the design demo). -->
+          <views:BookmarksCardView IsVisible="{Binding ShowBookmarksCard}" />
         </StackPanel>
 
         <!-- Right: the tabs and what they show -->
@@ -756,42 +763,61 @@
                 </ItemsControl.ItemsPanel>
                 <ItemsControl.ItemTemplate>
                   <DataTemplate x:DataType="vm:SegmentViewModel">
-                    <Button Classes="sessionRow"
-                            Classes.current="{Binding IsCurrent}"
-                            Classes.dimmed="{Binding IsDimmed}"
-                            Command="{Binding SeekCommand}">
-                      <Grid ColumnDefinitions="Auto,*"
-                            ColumnSpacing="{StaticResource Space.10}">
-                        <Border Grid.Column="0"
-                                Classes="sessionAvatar"
-                                Classes.me="{Binding IsMe}"
-                                VerticalAlignment="Top">
-                          <TextBlock Classes="sessionAvatarText"
-                                     Text="{Binding Initial}" />
-                        </Border>
-                        <StackPanel Grid.Column="1"
-                                    Spacing="{StaticResource Space.2}">
-                          <StackPanel Orientation="Horizontal"
-                                      Spacing="{StaticResource Space.8}">
-                            <TextBlock Classes="sessionName"
-                                       VerticalAlignment="Center"
-                                       Text="{Binding SpeakerLabel}" />
-                            <Button Classes="sessionTime"
-                                    Command="{Binding SeekCommand}">
-                              <TextBlock Classes="sessionTime"
-                                         Text="{Binding TimeText}" />
-                            </Button>
+                    <!-- A row of the list: the line and, under it, the bookmark pills of its span (#59); a pill is a row of its own, so no word moves. -->
+                    <StackPanel>
+                      <ItemsControl IsVisible="{Binding HasMarksBefore}"
+                                    ItemsSource="{Binding MarksBefore}">
+                        <ItemsControl.ItemTemplate>
+                          <DataTemplate x:DataType="vm:BookmarkViewModel">
+                            <views:BookmarkPillView />
+                          </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                      </ItemsControl>
+                      <Button Classes="sessionRow"
+                              Classes.current="{Binding IsCurrent}"
+                              Classes.dimmed="{Binding IsDimmed}"
+                              Command="{Binding SeekCommand}">
+                        <Grid ColumnDefinitions="Auto,*"
+                              ColumnSpacing="{StaticResource Space.10}">
+                          <Border Grid.Column="0"
+                                  Classes="sessionAvatar"
+                                  Classes.me="{Binding IsMe}"
+                                  VerticalAlignment="Top">
+                            <TextBlock Classes="sessionAvatarText"
+                                       Text="{Binding Initial}" />
+                          </Border>
+                          <StackPanel Grid.Column="1"
+                                      Spacing="{StaticResource Space.2}">
+                            <StackPanel Orientation="Horizontal"
+                                        Spacing="{StaticResource Space.8}">
+                              <TextBlock Classes="sessionName"
+                                         VerticalAlignment="Center"
+                                         Text="{Binding SpeakerLabel}" />
+                              <Button Classes="sessionTime"
+                                      Command="{Binding SeekCommand}">
+                                <TextBlock Classes="sessionTime"
+                                           Text="{Binding TimeText}" />
+                              </Button>
+                            </StackPanel>
+                            <controls:TranscriptTextControl Classes="sessionText"
+                                                            Text="{Binding Text}"
+                                                            WordStarts="{Binding WordStarts}"
+                                                            WordLengths="{Binding WordLengths}"
+                                                            ActiveWord="{Binding VisibleWord}"
+                                                            HighlightTerm="{Binding HighlightTerm}"
+                                                            Command="{Binding SeekWordCommand}" />
                           </StackPanel>
-                          <controls:TranscriptTextControl Classes="sessionText"
-                                                          Text="{Binding Text}"
-                                                          WordStarts="{Binding WordStarts}"
-                                                          WordLengths="{Binding WordLengths}"
-                                                          ActiveWord="{Binding VisibleWord}"
-                                                          HighlightTerm="{Binding HighlightTerm}"
-                                                          Command="{Binding SeekWordCommand}" />
-                        </StackPanel>
-                      </Grid>
-                    </Button>
+                        </Grid>
+                      </Button>
+                      <ItemsControl IsVisible="{Binding HasMarksAfter}"
+                                    ItemsSource="{Binding MarksAfter}">
+                        <ItemsControl.ItemTemplate>
+                          <DataTemplate x:DataType="vm:BookmarkViewModel">
+                            <views:BookmarkPillView />
+                          </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                      </ItemsControl>
+                    </StackPanel>
                   </DataTemplate>
                 </ItemsControl.ItemTemplate>
               </ItemsControl>
