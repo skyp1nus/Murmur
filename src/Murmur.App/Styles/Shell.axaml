@@ -130,6 +130,21 @@
       <StreamGeometry x:Key="Icon.Calendar">M5 5h14a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2z M3 10h18M8 3v4M16 3v4</StreamGeometry>
       <StreamGeometry x:Key="Icon.Chevron">M9 6l6 6-6 6</StreamGeometry>
       <StreamGeometry x:Key="Icon.ArrowUp">M12 19V5M6 11l6-6 6 6</StreamGeometry>
+
+      <!-- Status bar and Activity popover (Idea5Activity.dc.html, at the real window size). -->
+      <x:Double x:Key="Size.StatusBar">28</x:Double>
+      <x:Double x:Key="Size.StatusItem">22</x:Double>
+      <x:Double x:Key="Size.StatusOrb">12</x:Double>
+      <x:Double x:Key="Size.StatusLock">14</x:Double>
+      <x:Double x:Key="Size.ActivityWidth">320</x:Double>
+      <x:Double x:Key="Size.ActivityIcon">16</x:Double>
+      <!-- The popover card floats 8 px above the bar: the flyout is placed from the top of the 22 px button, which sits 3 px inside the bar (negative: upwards). -->
+      <x:Double x:Key="Size.ActivityGap">-11</x:Double>
+      <Thickness x:Key="Margin.StatusBar">10,0</Thickness>
+      <!-- The design pads an item 0/7; the scale has 6 and 8, the nearer-to-fit 6 is taken. -->
+      <Thickness x:Key="Margin.StatusItem">6,0</Thickness>
+      <Thickness x:Key="Margin.ActivityHeader">8,6,8,4</Thickness>
+      <Thickness x:Key="Margin.ActivityText">10,0</Thickness>
     </ResourceDictionary>
   </Styles.Resources>
 
@@ -669,5 +684,76 @@
   </Style>
   <Style Selector="CalendarDayButton:inactive">
     <Setter Property="Foreground" Value="{DynamicResource Brush.Ash}" />
+  </Style>
+
+  <!-- ==== Status bar and Activity popover ======================================================================================== -->
+  <Style Selector="Border.statusBar">
+    <Setter Property="Height" Value="{StaticResource Size.StatusBar}" />
+    <Setter Property="Padding" Value="{StaticResource Margin.StatusBar}" />
+    <Setter Property="Background" Value="{DynamicResource Brush.Canvas}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource Brush.Hairline}" />
+    <Setter Property="BorderThickness" Value="{StaticResource Hairline.Top}" />
+  </Style>
+  <Style Selector="TextBlock.statusText">
+    <Setter Property="FontFamily" Value="{StaticResource Font.Body}" />
+    <Setter Property="FontSize" Value="{StaticResource FontSize.Tag}" />
+    <Setter Property="LetterSpacing" Value="{StaticResource LetterSpacing.Tag}" />
+    <Setter Property="VerticalAlignment" Value="Center" />
+  </Style>
+  <Style Selector="TextBlock.statusMono">
+    <Setter Property="FontFamily" Value="{StaticResource Font.Mono}" />
+    <Setter Property="FontWeight" Value="{StaticResource FontWeight.Mono}" />
+    <Setter Property="FontSize" Value="{StaticResource FontSize.MonoSmall}" />
+    <Setter Property="LetterSpacing" Value="{StaticResource LetterSpacing.MonoSmall}" />
+    <Setter Property="VerticalAlignment" Value="Center" />
+  </Style>
+  <!-- The bar's two buttons: 6 px radius (the design's .sb), no border, they fill with the hover colour; the summary stays Stone while its popover is open. -->
+  <Style Selector="Button.statusItem">
+    <Setter Property="Height" Value="{StaticResource Size.StatusItem}" />
+    <Setter Property="MinHeight" Value="0" />
+    <Setter Property="MinWidth" Value="0" />
+    <Setter Property="Padding" Value="{StaticResource Margin.StatusItem}" />
+    <Setter Property="CornerRadius" Value="{StaticResource Radius.Key}" />
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="BorderThickness" Value="0" />
+    <Setter Property="VerticalAlignment" Value="Center" />
+    <Setter Property="VerticalContentAlignment" Value="Center" />
+  </Style>
+  <Style Selector="Button.statusItem /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="Transparent" />
+  </Style>
+  <Style Selector="Button.statusItem:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="{DynamicResource Brush.FillHover}" />
+  </Style>
+  <Style Selector="Button.statusItem:pressed /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="{DynamicResource Brush.FillPressed}" />
+  </Style>
+  <Style Selector="Button.statusItem:flyout-open /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="{DynamicResource Brush.Stone}" />
+  </Style>
+
+  <!-- The popover: the presenter is only a transparent frame of 320 px; the card inside draws the surface, the hairline and the shadow. -->
+  <Style Selector="FlyoutPresenter.activityPopover">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="BorderThickness" Value="0" />
+    <Setter Property="Padding" Value="0" />
+    <Setter Property="MinWidth" Value="0" />
+    <Setter Property="MaxWidth" Value="{StaticResource Size.ActivityWidth}" />
+    <Setter Property="Width" Value="{StaticResource Size.ActivityWidth}" />
+  </Style>
+  <Style Selector="Border.activityCard">
+    <Setter Property="Background" Value="{DynamicResource Brush.Canvas}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource Brush.Hairline}" />
+    <Setter Property="BorderThickness" Value="{StaticResource Hairline.Thickness}" />
+    <Setter Property="CornerRadius" Value="{StaticResource Radius.Card}" />
+    <Setter Property="BoxShadow" Value="{StaticResource Shadow.Subtle}" />
+    <Setter Property="Padding" Value="{StaticResource Inset.6}" />
+  </Style>
+  <Style Selector="ProgressBar.activityBar">
+    <Setter Property="Height" Value="{StaticResource Size.Progress}" />
+    <Setter Property="MinHeight" Value="0" />
+    <Setter Property="MinWidth" Value="0" />
+    <Setter Property="Minimum" Value="0" />
+    <Setter Property="Maximum" Value="100" />
   </Style>
 </Styles>

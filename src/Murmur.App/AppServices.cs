@@ -1,4 +1,5 @@
 using Murmur.App.Services;
+using Murmur.Core.Activity;
 using Murmur.Core.Calls;
 using Murmur.Core.Capture;
 using Murmur.Core.Input;
@@ -63,6 +64,7 @@ namespace Murmur.App;
 /// no "Detect calls" setting.
 /// </param>
 /// <param name="Calls">Detects calls from <paramref name="AudioSessions"/>; the app starts it while Detect calls is on. <c>null</c> = no call detection.</param>
+/// <param name="Activity">What runs or waits (recording, transcribing, indexing, model downloads) for the status bar; <c>null</c> = no status bar.</param>
 public sealed record AppServices(
     IRecorder Recorder,
     ICapture Capture,
@@ -87,4 +89,5 @@ public sealed record AppServices(
     IChapterStore? ChapterStore = null,
     IRecordingMarks? Marks = null,
     IAudioSessionMonitor? AudioSessions = null,
-    ICallDetector? Calls = null);
+    ICallDetector? Calls = null,
+    IActivityFeed? Activity = null);

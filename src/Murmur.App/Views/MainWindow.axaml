@@ -34,6 +34,9 @@
     <DataTemplate DataType="vm:OnboardingViewModel">
       <views:OnboardingView />
     </DataTemplate>
+    <DataTemplate DataType="vm:StatusBarViewModel">
+      <views:StatusBarView />
+    </DataTemplate>
 
     <!-- The top bar's two sides: a screen puts any of these (or its own template, added here) in TopBar.Leading / TopBar.Trailing. -->
     <DataTemplate DataType="vm:BreadcrumbViewModel">
@@ -60,7 +63,7 @@
                     Content="{Binding Sidebar}" />
 
     <Grid Grid.Column="1"
-          RowDefinitions="Auto,*">
+          RowDefinitions="Auto,*,Auto">
       <!-- The 48 px top bar of the main screens -->
       <Border Grid.Row="0"
               IsVisible="{Binding !IsOnboarding}">
@@ -75,6 +78,11 @@
                       HorizontalContentAlignment="Stretch"
                       VerticalContentAlignment="Stretch"
                       Content="{Binding CurrentPage}" />
+
+      <!-- The 28 px status bar under every page; nothing when the shell has none. -->
+      <ContentControl Grid.Row="2"
+                      HorizontalContentAlignment="Stretch"
+                      Content="{Binding StatusBar}" />
     </Grid>
   </Grid>
 </Window>
