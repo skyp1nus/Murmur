@@ -7,6 +7,7 @@ using Murmur.Core.Processing;
 using Murmur.Core.Recording;
 using Murmur.Core.Sessions;
 using Murmur.Core.Settings;
+using Murmur.Core.Transcription;
 
 namespace Murmur.App.ViewModels;
 
@@ -54,6 +55,7 @@ public sealed partial class LibraryViewModel : ObservableObject, IDisposable, IF
     private readonly Action<Action> _post;
     private readonly IRecorder? _recorder;
     private readonly ITranscriptStore? _transcripts;
+    private readonly ISpeakerNameStore? _speakerNames;
     private readonly SettingsWriter? _settings;
     private readonly ISettingsStore? _settingsStore;
     private readonly Dictionary<SessionId, (string? Language, string? FirstLine)> _details = [];
@@ -86,7 +88,8 @@ public sealed partial class LibraryViewModel : ObservableObject, IDisposable, IF
         IAssistant? assistant = null,
         IRecorder? recorder = null,
         ITranscriptStore? transcripts = null,
-        ISettingsStore? settings = null)
+        ISettingsStore? settings = null,
+        ISpeakerNameStore? speakerNames = null)
     {
         ArgumentNullException.ThrowIfNull(store);
         ArgumentNullException.ThrowIfNull(time);
@@ -97,6 +100,7 @@ public sealed partial class LibraryViewModel : ObservableObject, IDisposable, IF
         _assistant = assistant;
         _recorder = recorder;
         _transcripts = transcripts;
+        _speakerNames = speakerNames;
         _settings = settings is null ? null : SettingsWriter.For(settings);
         _settingsStore = settings;
         _post = post ?? (action => Avalonia.Threading.Dispatcher.UIThread.Post(action));
@@ -1220,7 +1224,75 @@ public sealed partial class LibraryViewModel : ObservableObject, IDisposable, IF
             }
         }
 
-        return await _keywordSearch!.SearchKeywordAsync(query, null, SearchLimit, cancellationToken).ConfigureAwait(true);
+        var hits = await _keywordSearch!.SearchKeywordAsync(query, null, SearchLimit, cancellationToken).ConfigureAwait(true);
+        return await WithSpeakerLabelsAsync(hits, cancellationToken).ConfigureAwait(true);
+    }
+
+    /// <summary>
+    /// The keyword index finds single segments without their speaker. In a recording whose speakers have names, each such hit gets the label
+    /// of its speaker in front (the name, or "You" / "Others" for the one without a name), like the hits the assistant relabels. Best effort:
+    /// a recording whose names or transcript cannot be read keeps its hits as they are.
+    /// </summary>
+    private async Task<IReadOnlyList<SearchHit>> WithSpeakerLabelsAsync(IReadOnlyList<SearchHit> hits, CancellationToken cancellationToken)
+    {
+        if (_speakerNames is null || _transcripts is null || hits.Count == 0)
+        {
+            return hits;
+        }
+
+        var lookups = new Dictionary<SessionId, (SpeakerNames Names, Dictionary<long, TranscriptSegment> Segments)?>();
+        SearchHit[]? result = null;
+        for (var i = 0; i < hits.Count; i++)
+        {
+            var chunk = hits[i].Chunk;
+            if (!lookups.TryGetValue(chunk.Session, out var lookup))
+            {
+                lookup = await TryLoadLabelsAsync(chunk.Session, cancellationToken).ConfigureAwait(true);
+                lookups[chunk.Session] = lookup;
+            }
+
+            if (lookup is not { } labels
+                || !labels.Segments.TryGetValue((long)chunk.Start.TotalMilliseconds, out var segment)
+                || segment.Text.Trim() != chunk.Text.Trim())
+            {
+                continue;
+            }
+
+            result ??= [.. hits];
+            var text = SpeakerLabels.Of(segment.Speaker, labels.Names[segment.Speaker]) + ": " + segment.Text.Trim();
+            result[i] = hits[i] with { Chunk = chunk with { Text = text } };
+        }
+
+        return result ?? hits;
+    }
+
+    private async Task<(SpeakerNames, Dictionary<long, TranscriptSegment>)?> TryLoadLabelsAsync(SessionId session, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var names = await _speakerNames!.GetSpeakerNamesAsync(session, cancellationToken).ConfigureAwait(true);
+            if (names.Me is null && names.Others is null)
+            {
+                return null;
+            }
+
+            if (await _transcripts!.GetTranscriptAsync(session, cancellationToken).ConfigureAwait(true) is not { } transcript)
+            {
+                return null;
+            }
+
+            var segments = new Dictionary<long, TranscriptSegment>();
+            foreach (var segment in transcript.Segments)
+            {
+                segments.TryAdd((long)segment.Start.TotalMilliseconds, segment);
+            }
+
+            return (names, segments);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            return null;
+        }
     }
 
     private async Task<IReadOnlyList<SearchResultViewModel>> BuildResultsAsync(string query, IReadOnlyList<SearchHit> hits, CancellationToken cancellationToken)

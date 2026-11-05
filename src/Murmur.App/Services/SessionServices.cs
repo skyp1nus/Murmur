@@ -13,6 +13,7 @@ namespace Murmur.App.Services;
 /// <param name="Folders">Opens the recording's folder in the file manager; <c>null</c> = "Show in folder" is not offered.</param>
 /// <param name="ChapterGenerator">Splits the transcript into chapters with the local model, right after each summary; <c>null</c> = no chapters are made.</param>
 /// <param name="Chapters">Keeps the chapters between visits; <c>null</c> = the strip shows none.</param>
+/// <param name="SpeakerNames">Keeps the names of the two speakers of the recording; <c>null</c> = the speaker chips are not offered.</param>
 /// <param name="CreatePlayer">Makes a new audio player; used to bring the playback back when deleting the recording failed (the first one was released for the delete). <c>null</c> = the playback stays closed then.</param>
 public sealed record SessionServices(
     ISessionSummarizer? Summarizer = null,
@@ -21,4 +22,5 @@ public sealed record SessionServices(
     IFolderLauncher? Folders = null,
     Func<Core.Capture.IAudioPlayer>? CreatePlayer = null,
     IChapterGenerator? ChapterGenerator = null,
-    IChapterStore? Chapters = null);
+    IChapterStore? Chapters = null,
+    ISpeakerNameStore? SpeakerNames = null);

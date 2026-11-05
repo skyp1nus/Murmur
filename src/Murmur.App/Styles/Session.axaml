@@ -16,6 +16,32 @@
       <x:Double x:Key="Size.SessionMenuWidth">220</x:Double>
       <x:Double x:Key="Size.SessionRenameWidth">280</x:Double>
 
+      <!-- The speaker chips above the transcript (Idea4Transcript.dc.html, "Idea 4 / Speakers"): the chip, its avatar and the padding around them. -->
+      <x:Double x:Key="Size.SpeakerChip">28</x:Double>
+      <x:Double x:Key="Size.SpeakerChipMax">200</x:Double>
+      <x:Double x:Key="Size.SpeakerAvatar">22</x:Double>
+      <x:Double x:Key="Size.SpeakerPencil">11</x:Double>
+      <Thickness x:Key="Margin.SpeakerChip">3,0,10,0</Thickness>
+      <!-- The gap between the "Speakers" label and the chips: the 2 px the canvas adds to the 6 px gap of the row. -->
+      <Thickness x:Key="Margin.SpeakersTitle">0,0,2,0</Thickness>
+      <!-- The name box of the rename popover: 10 px at the sides, no padding above and below (the box is 32 high). -->
+      <Thickness x:Key="Margin.SpeakerField">10,0</Thickness>
+      <!--
+        The rename popover (Idea4Transcript.dc.html, "Idea 4 / Rename speaker popover"): the card has no outline, only Shadow.Popover (0 10 28),
+        so the popup child carries a margin as big as the shadow reaches (28 at the sides, 28 - 10 above, 28 + 10 below) or the window of the
+        popup would cut it. Avalonia places the popup by the card, not by that margin: the card is Space.10 under the chip, left edges aligned.
+      -->
+      <Thickness x:Key="Margin.SpeakerPopover">28,18,28,38</Thickness>
+
+      <ResourceDictionary.ThemeDictionaries>
+        <ResourceDictionary x:Key="Light">
+          <StaticResource x:Key="Speaker.PopoverShadow" ResourceKey="Shadow.Popover" />
+        </ResourceDictionary>
+        <ResourceDictionary x:Key="Dark">
+          <StaticResource x:Key="Speaker.PopoverShadow" ResourceKey="Shadow.PopoverDark" />
+        </ResourceDictionary>
+      </ResourceDictionary.ThemeDictionaries>
+
       <!-- The chapter strip above the player: the height of a segment and its side padding (Idea4Transcript.dc.html, "Idea 4 / Chapters"). -->
       <x:Double x:Key="Size.ChapterStrip">40</x:Double>
       <Thickness x:Key="Margin.ChapterSegment">8,0</Thickness>

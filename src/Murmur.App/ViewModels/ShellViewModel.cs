@@ -199,7 +199,7 @@ public sealed partial class ShellViewModel : ObservableObject
                 services.Time,
                 chat: CreateSavedChat(record.Id),
                 videoPlayback: services.VideoPlayback,
-                services: new SessionServices(ai?.Summarizer, services.Summaries, services.Sessions, SystemFolderLauncher.Instance, playback.CreatePlayer, ai?.ChapterGenerator, services.ChapterStore));
+                services: new SessionServices(ai?.Summarizer, services.Summaries, services.Sessions, SystemFolderLauncher.Instance, playback.CreatePlayer, ai?.ChapterGenerator, services.ChapterStore, services.SpeakerNames));
         }
 
         // Without a store from the composition root (designer, tests) the settings live in memory for the run.
@@ -226,7 +226,7 @@ public sealed partial class ShellViewModel : ObservableObject
             services.Time);
 
         return new ShellViewModel(
-            new LibraryViewModel(services.Sessions, services.Time, processing, keywordSearch: services.Search, assistant: ai?.Assistant, recorder: services.Recorder, transcripts: services.Transcripts, settings: store),
+            new LibraryViewModel(services.Sessions, services.Time, processing, keywordSearch: services.Search, assistant: ai?.Assistant, recorder: services.Recorder, transcripts: services.Transcripts, settings: store, speakerNames: services.SpeakerNames),
             new RecordingViewModel(services.Recorder, services.Capture, services.Sessions, settings: store, marks: services.Marks),
             services.Startup,
             sessionFactory,

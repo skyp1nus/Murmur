@@ -673,29 +673,33 @@
                 RowDefinitions="Auto,*"
                 RowSpacing="{StaticResource Space.8}"
                 IsVisible="{Binding IsTranscriptTab}">
-            <Border Grid.Row="0"
-                    Classes="searchBox"
-                    IsVisible="{Binding ShowTranscriptList}">
-              <Grid ColumnDefinitions="Auto,*"
-                    ColumnSpacing="{StaticResource Space.8}">
-                <controls:IconControl Grid.Column="0"
-                                      Width="{StaticResource Size.SearchIcon}"
-                                      Height="{StaticResource Size.SearchIcon}"
-                                      TextElement.Foreground="{DynamicResource Brush.Smoke}"
-                                      Data="{StaticResource Icon.Search}" />
-                <TextBox x:Name="SearchBox"
-                         Grid.Column="1"
-                         Classes="bare"
-                         AutomationProperties.Name="{x:Static res:Strings.Session_SearchPlaceholder}"
-                         PlaceholderText="{x:Static res:Strings.Session_SearchPlaceholder}"
-                         Text="{Binding SearchText, Mode=TwoWay}">
-                  <TextBox.KeyBindings>
-                    <KeyBinding Gesture="Enter" Command="{Binding NextHitCommand}" />
-                    <KeyBinding Gesture="Shift+Enter" Command="{Binding PreviousHitCommand}" />
-                  </TextBox.KeyBindings>
-                </TextBox>
-              </Grid>
-            </Border>
+            <!-- The speaker chips (hidden, no space, while nothing can be renamed), then the search box. -->
+            <StackPanel Grid.Row="0"
+                        Spacing="{StaticResource Space.8}">
+              <views:SpeakerChipsView IsVisible="{Binding ShowSpeakerChips}" />
+              <Border Classes="searchBox"
+                      IsVisible="{Binding ShowTranscriptList}">
+                <Grid ColumnDefinitions="Auto,*"
+                      ColumnSpacing="{StaticResource Space.8}">
+                  <controls:IconControl Grid.Column="0"
+                                        Width="{StaticResource Size.SearchIcon}"
+                                        Height="{StaticResource Size.SearchIcon}"
+                                        TextElement.Foreground="{DynamicResource Brush.Smoke}"
+                                        Data="{StaticResource Icon.Search}" />
+                  <TextBox x:Name="SearchBox"
+                           Grid.Column="1"
+                           Classes="bare"
+                           AutomationProperties.Name="{x:Static res:Strings.Session_SearchPlaceholder}"
+                           PlaceholderText="{x:Static res:Strings.Session_SearchPlaceholder}"
+                           Text="{Binding SearchText, Mode=TwoWay}">
+                    <TextBox.KeyBindings>
+                      <KeyBinding Gesture="Enter" Command="{Binding NextHitCommand}" />
+                      <KeyBinding Gesture="Shift+Enter" Command="{Binding PreviousHitCommand}" />
+                    </TextBox.KeyBindings>
+                  </TextBox>
+                </Grid>
+              </Border>
+            </StackPanel>
 
             <ScrollViewer x:Name="TranscriptScroller"
                           Grid.Row="1"

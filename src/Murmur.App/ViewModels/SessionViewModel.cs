@@ -605,6 +605,12 @@ public sealed partial class SessionViewModel : ObservableObject, IDisposable, IF
 
         if (transcript is not null)
         {
+            await LoadSpeakerNamesAsync().ConfigureAwait(true);
+            if (_disposed)
+            {
+                return;
+            }
+
             ApplyTranscript(transcript);
             return;
         }
@@ -619,7 +625,11 @@ public sealed partial class SessionViewModel : ObservableObject, IDisposable, IF
         var rows = new SegmentViewModel[segments.Count];
         for (var i = 0; i < rows.Length; i++)
         {
-            rows[i] = new SegmentViewModel(segments[i], i, timeline.FirstWordOfSegment(i), OnSeekRequested) { ShowWord = IsPlaying };
+            rows[i] = new SegmentViewModel(segments[i], i, timeline.FirstWordOfSegment(i), OnSeekRequested)
+            {
+                ShowWord = IsPlaying,
+                SpeakerName = _speakerNames[segments[i].Speaker],
+            };
         }
 
         _transcript = transcript;
@@ -628,6 +638,7 @@ public sealed partial class SessionViewModel : ObservableObject, IDisposable, IF
         _currentSegment = -1;
         CurrentSegmentIndex = -1;
         Segments = rows;
+        BuildSpeakerChips(segments);
         RefreshExport();
         Meta = BuildMeta(transcript);
         ApplyTrackFilters();
@@ -845,6 +856,7 @@ public sealed partial class SessionViewModel : ObservableObject, IDisposable, IF
     private void RaiseLayoutChanged()
     {
         OnPropertyChanged(nameof(ShowTranscriptList));
+        OnPropertyChanged(nameof(ShowSpeakerChips));
         OnPropertyChanged(nameof(ShowStatusCard));
         OnPropertyChanged(nameof(ShowProgress));
         OnPropertyChanged(nameof(ShowSummary));

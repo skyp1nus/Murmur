@@ -112,7 +112,7 @@ internal sealed class CompositionRoot : IDisposable
         // recorder is busy, and the moment a recording starts its llama-server processes are killed.
         var activity = _activity ??= new RecordingActivity(recorder);
         var llm = _llm ??= CreateLlm(models.ModelsDirectory, activity, settings);
-        var assistant = _assistant ??= new Assistant(llm, storage);
+        var assistant = _assistant ??= new Assistant(llm, storage, displayLabel: static speaker => speaker == Speaker.Me ? Murmur.App.Resources.Strings.Segment_Me : Murmur.App.Resources.Strings.Segment_Others);
 
         // The model manager installs into the same folder the ASR and the AI read from. Its active-model lookup is handed
         // to the UI as a delegate because IModelManager does not expose it.
@@ -188,8 +188,8 @@ internal sealed class CompositionRoot : IDisposable
             new SessionProcessingAdapter(processor, models),
             storage,
             new AiServices(assistant, llm, models.ModelsDirectory, AccelerationProbe, llm, AccelerationRuntimeIds(modelManager),
-                new SessionSummarizer(llm, storage, SummarizerOptions.ForContext(new LocalLlmOptions().ContextSize)),
-                new ChapterGenerator(llm, storage, SummarizerOptions.ForContext(new LocalLlmOptions().ContextSize))),
+                new SessionSummarizer(llm, storage, SummarizerOptions.ForContext(new LocalLlmOptions().ContextSize), speakerNames: storage),
+                new ChapterGenerator(llm, storage, SummarizerOptions.ForContext(new LocalLlmOptions().ContextSize), speakerNames: storage)),
             settings,
             aiModels,
             modelManager.ActiveModelId,
@@ -205,6 +205,7 @@ internal sealed class CompositionRoot : IDisposable
             Marks: marks,
             AudioSessions: _audioSessions ??= CreateAudioSessionMonitor(),
             Calls: _calls ??= new CallDetector(_audioSessions, TimeProvider.System),
+            SpeakerNames: storage,
             Activity: activityFeed);
     }
 

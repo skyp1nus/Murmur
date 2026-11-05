@@ -90,6 +90,68 @@ public sealed class SessionSummarizerTests
         Assert.Equal(ReasoningEffort.None, request.Options?.Reasoning?.Effort);
     }
 
+    [Fact]
+    public async Task ThePrompt_UsesTheNamesTheUserGaveTheSpeakers_InTheLinesAndInTheSystemPrompt()
+    {
+        var llm = new ScriptedLlm(_ => Answer);
+        var storage = StorageWith(Roadmap());
+        storage.SpeakerNames[Id] = new SpeakerNames("Олена", "Marek W.");
+
+        await new SessionSummarizer(llm, storage, null, new FixedTime(Now), storage).SummarizeAsync(Id, null, Ct);
+
+        var request = Assert.Single(llm.Requests);
+        Assert.Contains("[11:52] Олена: Okay, a quick run through the roadmap.", request.User);
+        Assert.Contains("[12:08] Marek W.: Does search only match exact words?", request.User);
+        Assert.DoesNotContain("Me:", request.User);
+        Assert.DoesNotContain("Others:", request.User);
+        Assert.Contains("\"Олена\" is the user", request.System);
+        Assert.Contains("\"Marek W.\" stands for the other people", request.System);
+    }
+
+    [Fact]
+    public async Task QuotesInAName_AreNotPassedToTheModel_AndTwoEqualNamesFallBackToTheDefaults()
+    {
+        var quoted = new ScriptedLlm(_ => Answer);
+        var storage = StorageWith(Roadmap());
+        storage.SpeakerNames[Id] = new SpeakerNames("Ol\"ena\"", "Marek");
+        await new SessionSummarizer(quoted, storage, null, new FixedTime(Now), storage).SummarizeAsync(Id, null, Ct);
+        Assert.Contains("[11:52] Ol'ena': Okay", quoted.Requests[0].User);
+        Assert.Contains("\"Ol'ena'\" is the user", quoted.Requests[0].System);
+
+        var same = new ScriptedLlm(_ => Answer);
+        storage.SpeakerNames[Id] = new SpeakerNames("Anna", "anna");
+        await new SessionSummarizer(same, storage, null, new FixedTime(Now), storage).SummarizeAsync(Id, null, Ct);
+        Assert.Contains("[11:52] Me: Okay", same.Requests[0].User);
+        Assert.Contains("[12:08] Others: Does", same.Requests[0].User);
+    }
+
+    [Fact]
+    public async Task ASpeakerWithoutAName_KeepsMeOrOthers_InThePrompt()
+    {
+        var llm = new ScriptedLlm(_ => Answer);
+        var storage = StorageWith(Roadmap());
+        storage.SpeakerNames[Id] = new SpeakerNames(null, "Marek W.");
+
+        await new SessionSummarizer(llm, storage, null, new FixedTime(Now), storage).SummarizeAsync(Id, null, Ct);
+
+        var request = Assert.Single(llm.Requests);
+        Assert.Contains("[11:52] Me: Okay", request.User);
+        Assert.Contains("[12:08] Marek W.: Does", request.User);
+    }
+
+    [Fact]
+    public async Task WithoutNames_ThePromptIsTheOneOfBefore()
+    {
+        var llm = new ScriptedLlm(_ => Answer);
+        var storage = StorageWith(Roadmap());
+
+        await new SessionSummarizer(llm, storage, null, new FixedTime(Now), storage).SummarizeAsync(Id, null, Ct);
+
+        var request = Assert.Single(llm.Requests);
+        Assert.Contains("[11:52] Me: Okay", request.User);
+        Assert.Contains("\"Me\" is the user, \"Others\" stands for the other people", request.System);
+    }
+
     [Theory]
     [InlineData("en", "English")]
     [InlineData("uk-UA", "Ukrainian")]

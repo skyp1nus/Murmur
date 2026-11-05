@@ -3,6 +3,7 @@ using CommunityToolkit.Mvvm.Input;
 using Murmur.App.Resources;
 using Murmur.App.Services;
 using Murmur.Core.Sessions;
+using Murmur.Core.Transcription;
 
 namespace Murmur.App.ViewModels;
 
@@ -83,7 +84,7 @@ public sealed partial class SessionViewModel
 
         try
         {
-            var labels = ExportTexts();
+            var labels = ExportTexts(_speakerNames);
             var summary = format == ExportFormat.Markdown ? _stored : null;
             var content = TranscriptExport.Format(format, _record with { Title = Title }, transcript, summary, labels);
             var extension = TranscriptExport.Extension(format);
@@ -102,10 +103,10 @@ public sealed partial class SessionViewModel
         }
     }
 
-    /// <summary>The speakers and the headings of the exported file, in the UI language.</summary>
-    internal static ExportLabels ExportTexts() => new(
-        Strings.Segment_Me,
-        Strings.Segment_Others,
+    /// <summary>The speakers (the names the user chose, else "You" / "Others") and the headings of the exported file, in the UI language.</summary>
+    internal static ExportLabels ExportTexts(SpeakerNames? names = null) => new(
+        SpeakerLabels.Of(Speaker.Me, names?.Me),
+        SpeakerLabels.Of(Speaker.Others, names?.Others),
         Strings.Session_TabSummary,
         Strings.Session_SummaryOverview,
         Strings.Session_SummaryKeyPoints,

@@ -32,6 +32,7 @@ public static class TokenGenerator
             Space.<n>           double, spacing scale          Inset.<n>      uniform Thickness from the scale
             Inset.<Component>   Thickness (horizontal, vertical) pairs taken from the scale, see TokenGenerator.Insets
             Radius.<Name>       CornerRadius                   Hairline.*     border hairline width / thickness (brush: Brush.Hairline)
+                                Emphasis.*     the 1.5 px edit outline, width / thickness (brush: Brush.Ink)
             Shadow.<Name>       BoxShadows (rgba converted to #AARRGGBB, px dropped; Avalonia parses unitless numbers)
             Orb.<Layer>         Color of a layer of the orb gradient (+ X, Y, Stop doubles); Orb.Base the lavender under them. Not themed.
             Glass.<Orb>.<Name>  x:Double of a canvas orb painted by GlassOrbControl (Recording, Welcome, Voice), from "glassOrbs":
@@ -96,6 +97,11 @@ public static class TokenGenerator
         EmitSpacing(sb, root.GetProperty("spacing"));
         EmitRadii(sb, root.GetProperty("radius"));
         EmitHairline(sb, root.GetProperty("border").GetProperty("hairline"));
+        if (root.GetProperty("border").TryGetProperty("emphasis", out var emphasis))
+        {
+            EmitEmphasis(sb, emphasis);
+        }
+
         EmitShadows(sb, root.GetProperty("shadow"));
         EmitOrb(sb, root.GetProperty("orbGradient"), root.GetProperty("color"), root.GetProperty("colorDark"));
         EmitGlassOrbs(sb, glassOrbs);
@@ -421,6 +427,14 @@ public static class TokenGenerator
         var width = Num(hairline.GetProperty("width").GetDouble());
         sb.Append("  <x:Double x:Key=\"Hairline.Width\">").Append(width).Append("</x:Double>\n");
         sb.Append("  <Thickness x:Key=\"Hairline.Thickness\">").Append(width).Append("</Thickness>\n");
+    }
+
+    private static void EmitEmphasis(StringBuilder sb, JsonElement emphasis)
+    {
+        Section(sb, "Emphasis border: the 1.5 px Ink outline of a chip or a field that is being edited (the colour is Brush.Ink)");
+        var width = Num(emphasis.GetProperty("width").GetDouble());
+        sb.Append("  <x:Double x:Key=\"Emphasis.Width\">").Append(width).Append("</x:Double>\n");
+        sb.Append("  <Thickness x:Key=\"Emphasis.Thickness\">").Append(width).Append("</Thickness>\n");
     }
 
     private static void EmitShadows(StringBuilder sb, JsonElement shadows)

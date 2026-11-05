@@ -1,0 +1,207 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Murmur.App.ViewModels"
+             xmlns:res="using:Murmur.App.Resources"
+             xmlns:controls="using:Murmur.App.Controls"
+             x:Class="Murmur.App.Views.SpeakerChipsView"
+             x:DataType="vm:SessionViewModel">
+
+  <!--
+    The speakers of the recording (Idea4Transcript.dc.html, "Idea 4 / Speakers"): a pill chip for each, with the avatar of the lines
+    and the name; a click (or Enter on the focused chip) opens "Idea 4 / Rename speaker popover" under it: the name box, the hint with the
+    number of lines and Cancel / Rename. The chip whose popover is open has the 1.5 px Ink outline and the pencil. The host hides the row
+    while there is nothing to rename.
+  -->
+  <UserControl.Styles>
+    <Style Selector="Button.speakerChip">
+      <Setter Property="Height" Value="{StaticResource Size.SpeakerChip}" />
+      <Setter Property="MaxWidth" Value="{StaticResource Size.SpeakerChipMax}" />
+      <Setter Property="MinHeight" Value="0" />
+      <Setter Property="MinWidth" Value="0" />
+      <Setter Property="Padding" Value="{StaticResource Margin.SpeakerChip}" />
+      <Setter Property="CornerRadius" Value="{StaticResource Radius.Pill}" />
+      <Setter Property="HorizontalContentAlignment" Value="Left" />
+      <Setter Property="VerticalContentAlignment" Value="Center" />
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="BorderBrush" Value="{DynamicResource Brush.ButtonBorder}" />
+      <Setter Property="BorderThickness" Value="{StaticResource Hairline.Thickness}" />
+      <Setter Property="Foreground" Value="{DynamicResource Brush.Ink}" />
+    </Style>
+    <Style Selector="Button.speakerChip:pointerover /template/ ContentPresenter#PART_ContentPresenter, Button.speakerChip:pressed /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="{DynamicResource Brush.Stone}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource Brush.ButtonBorder}" />
+      <Setter Property="Foreground" Value="{DynamicResource Brush.Ink}" />
+    </Style>
+    <!-- The chip whose popover is open (aria-expanded in the mockup): a 1.5 px Ink outline on Canvas, and the pencil. -->
+    <Style Selector="Button.speakerChip.editing">
+      <Setter Property="BorderBrush" Value="{DynamicResource Brush.Ink}" />
+      <Setter Property="BorderThickness" Value="{StaticResource Emphasis.Thickness}" />
+      <Setter Property="Background" Value="{DynamicResource Brush.Canvas}" />
+    </Style>
+    <Style Selector="Button.speakerChip.editing /template/ ContentPresenter#PART_ContentPresenter, Button.speakerChip.editing:pointerover /template/ ContentPresenter#PART_ContentPresenter, Button.speakerChip.editing:pressed /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="{DynamicResource Brush.Canvas}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource Brush.Ink}" />
+    </Style>
+
+    <!-- The avatar of the lines, a little smaller: Ink for the microphone, Stone for the other side. -->
+    <Style Selector="Border.speakerAvatar">
+      <Setter Property="Width" Value="{StaticResource Size.SpeakerAvatar}" />
+      <Setter Property="Height" Value="{StaticResource Size.SpeakerAvatar}" />
+      <Setter Property="CornerRadius" Value="{StaticResource Radius.Pill}" />
+      <Setter Property="Background" Value="{DynamicResource Brush.Stone}" />
+    </Style>
+    <Style Selector="Border.speakerAvatar > TextBlock">
+      <Setter Property="FontFamily" Value="{StaticResource Font.Body}" />
+      <Setter Property="FontWeight" Value="{StaticResource FontWeight.Body}" />
+      <Setter Property="FontSize" Value="{StaticResource FontSize.Caption}" />
+      <Setter Property="LineHeight" Value="{StaticResource LineHeight.Caption}" />
+      <Setter Property="LetterSpacing" Value="{StaticResource LetterSpacing.Caption}" />
+      <Setter Property="HorizontalAlignment" Value="Center" />
+      <Setter Property="VerticalAlignment" Value="Center" />
+      <Setter Property="Foreground" Value="{DynamicResource Brush.Ink}" />
+    </Style>
+    <Style Selector="Border.speakerAvatar.me">
+      <Setter Property="Background" Value="{DynamicResource Brush.Ink}" />
+    </Style>
+    <Style Selector="Border.speakerAvatar.me > TextBlock">
+      <Setter Property="Foreground" Value="{DynamicResource Brush.Canvas}" />
+    </Style>
+
+    <!-- The name on the chip: 12 px, as the mockup. -->
+    <Style Selector="TextBlock.speakerName">
+      <Setter Property="FontFamily" Value="{StaticResource Font.Body}" />
+      <Setter Property="FontWeight" Value="{StaticResource FontWeight.Body}" />
+      <Setter Property="FontSize" Value="{StaticResource FontSize.Small}" />
+      <Setter Property="LineHeight" Value="{StaticResource LineHeight.Small}" />
+      <Setter Property="LetterSpacing" Value="{StaticResource LetterSpacing.Small}" />
+      <Setter Property="VerticalAlignment" Value="Center" />
+      <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+      <Setter Property="TextWrapping" Value="NoWrap" />
+    </Style>
+    <Style Selector="TextBlock.speakersTitle">
+      <Setter Property="FontFamily" Value="{StaticResource Font.Body}" />
+      <Setter Property="FontWeight" Value="{StaticResource FontWeight.BodyMedium}" />
+      <Setter Property="FontSize" Value="{StaticResource FontSize.Small}" />
+      <Setter Property="LineHeight" Value="{StaticResource LineHeight.Small}" />
+      <Setter Property="LetterSpacing" Value="{StaticResource LetterSpacing.Small}" />
+      <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+    <Style Selector="TextBlock.speakerPopoverTitle">
+      <Setter Property="FontFamily" Value="{StaticResource Font.Body}" />
+      <Setter Property="FontWeight" Value="{StaticResource FontWeight.BodyMedium}" />
+      <Setter Property="FontSize" Value="{StaticResource FontSize.Meta}" />
+      <Setter Property="LineHeight" Value="{StaticResource LineHeight.MetaTight}" />
+      <Setter Property="LetterSpacing" Value="{StaticResource LetterSpacing.Meta}" />
+    </Style>
+    <!-- The hint under the box: 11 px, Smoke, as the mockup. -->
+    <Style Selector="TextBlock.speakerHint">
+      <Setter Property="FontFamily" Value="{StaticResource Font.Body}" />
+      <Setter Property="FontWeight" Value="{StaticResource FontWeight.Body}" />
+      <Setter Property="FontSize" Value="{StaticResource FontSize.Tag}" />
+      <Setter Property="LineHeight" Value="{StaticResource LineHeight.Tag}" />
+      <Setter Property="LetterSpacing" Value="{StaticResource LetterSpacing.Tag}" />
+      <Setter Property="Foreground" Value="{DynamicResource Brush.Smoke}" />
+      <Setter Property="TextWrapping" Value="Wrap" />
+    </Style>
+
+    <!-- The popover: a Canvas card without an outline, lifted by Shadow.Popover; as wide as the rename popover of the top bar. -->
+    <Style Selector="Border.speakerPopover">
+      <Setter Property="Width" Value="{StaticResource Size.SessionRenameWidth}" />
+      <Setter Property="Margin" Value="{StaticResource Margin.SpeakerPopover}" />
+      <Setter Property="Padding" Value="{StaticResource Inset.14}" />
+      <Setter Property="Background" Value="{DynamicResource Brush.Canvas}" />
+      <Setter Property="CornerRadius" Value="{StaticResource Radius.Card}" />
+      <Setter Property="BoxShadow" Value="{DynamicResource Speaker.PopoverShadow}" />
+    </Style>
+    <!-- The name box: 10 px at the sides and none above and below (the box is 32 high). -->
+    <Style Selector="TextBox.speakerField">
+      <Setter Property="Padding" Value="{StaticResource Margin.SpeakerField}" />
+      <Setter Property="MinHeight" Value="{StaticResource Size.Field}" />
+      <Setter Property="VerticalContentAlignment" Value="Center" />
+    </Style>
+  </UserControl.Styles>
+
+  <StackPanel Orientation="Horizontal"
+              Spacing="{StaticResource Space.6}">
+    <TextBlock Classes="speakersTitle"
+               Margin="{StaticResource Margin.SpeakersTitle}"
+               Text="{x:Static res:Strings.Speakers_Title}" />
+    <ItemsControl x:Name="Chips"
+                  ItemsSource="{Binding SpeakerChips}">
+      <ItemsControl.ItemsPanel>
+        <ItemsPanelTemplate>
+          <WrapPanel ItemSpacing="{StaticResource Space.6}"
+                     LineSpacing="{StaticResource Space.6}" />
+        </ItemsPanelTemplate>
+      </ItemsControl.ItemsPanel>
+      <ItemsControl.ItemTemplate>
+        <DataTemplate x:DataType="vm:SpeakerChipViewModel">
+          <Panel>
+            <Button x:Name="Chip"
+                    Classes="speakerChip"
+                    Classes.editing="{Binding IsEditing}"
+                    Command="{Binding BeginEditCommand}"
+                    AutomationProperties.Name="{Binding ToolTip}"
+                    ToolTip.Tip="{Binding ToolTip}">
+              <StackPanel Orientation="Horizontal"
+                          Spacing="{StaticResource Space.6}">
+                <Border Classes="speakerAvatar"
+                        Classes.me="{Binding IsMe}">
+                  <TextBlock Text="{Binding Initial}" />
+                </Border>
+                <TextBlock Classes="speakerName"
+                           Text="{Binding Label}" />
+                <controls:IconControl Width="{StaticResource Size.SpeakerPencil}"
+                                      Height="{StaticResource Size.SpeakerPencil}"
+                                      Stroke="1.8"
+                                      VerticalAlignment="Center"
+                                      IsVisible="{Binding IsEditing}"
+                                      Data="{StaticResource Icon.Edit}" />
+              </StackPanel>
+            </Button>
+            <Popup IsOpen="{Binding IsEditing, Mode=TwoWay}"
+                   PlacementTarget="{Binding #Chip}"
+                   Placement="BottomEdgeAlignedLeft"
+                   VerticalOffset="{StaticResource Space.10}"
+                   PlacementConstraintAdjustment="SlideX,FlipY"
+                   IsLightDismissEnabled="True"
+                   Opened="OnPopupOpened"
+                   Closed="OnPopupClosed">
+              <Border Classes="speakerPopover">
+                <!-- Esc closes the popover from whatever has the focus inside it. -->
+                <Border.KeyBindings>
+                  <KeyBinding Gesture="Escape" Command="{Binding CancelCommand}" />
+                </Border.KeyBindings>
+                <StackPanel Spacing="{StaticResource Space.10}">
+                  <TextBlock Classes="speakerPopoverTitle"
+                             Text="{x:Static res:Strings.Speakers_RenameTitle}" />
+                  <TextBox x:Name="NameBox"
+                           Classes="speakerField"
+                           Text="{Binding EditText, Mode=TwoWay}"
+                           MaxLength="{Binding MaxNameLength}"
+                           AutomationProperties.Name="{x:Static res:Strings.Speakers_NameLabel}">
+                    <TextBox.KeyBindings>
+                      <KeyBinding Gesture="Enter" Command="{Binding CommitCommand}" />
+                    </TextBox.KeyBindings>
+                  </TextBox>
+                  <TextBlock Classes="speakerHint"
+                             Text="{Binding HintText}" />
+                  <StackPanel Orientation="Horizontal"
+                              HorizontalAlignment="Right"
+                              Spacing="{StaticResource Space.6}">
+                    <Button Classes="outline compact"
+                            Content="{x:Static res:Strings.Session_Cancel}"
+                            Command="{Binding CancelCommand}" />
+                    <Button Classes="primary compact"
+                            Content="{x:Static res:Strings.Session_Rename}"
+                            Command="{Binding CommitCommand}" />
+                  </StackPanel>
+                </StackPanel>
+              </Border>
+            </Popup>
+          </Panel>
+        </DataTemplate>
+      </ItemsControl.ItemTemplate>
+    </ItemsControl>
+  </StackPanel>
+</UserControl>
