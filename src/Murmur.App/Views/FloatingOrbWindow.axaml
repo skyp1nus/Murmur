@@ -1,0 +1,146 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:Murmur.App.ViewModels"
+        xmlns:controls="using:Murmur.App.Controls"
+        x:Class="Murmur.App.Views.FloatingOrbWindow"
+        x:DataType="vm:FloatingOrbViewModel"
+        Title="Murmur"
+        WindowDecorations="None"
+        Background="Transparent"
+        TransparencyLevelHint="Transparent"
+        Topmost="True"
+        ShowInTaskbar="False"
+        ShowActivated="False"
+        CanResize="False"
+        SizeToContent="WidthAndHeight"
+        WindowStartupLocation="Manual">
+
+  <!--
+    The floating recorder orb (#46), Idea1Autopilot.dc.html "Idea 1 / Floating recorder (interactive)": the 44 px circle with the
+    28 px orb at the right, the pill of buttons to its left (a click on the circle opens it) and the chip "Marked 12:41" under it.
+    The window is transparent and as big as what is on screen, so it grows to the left when the pill opens; the code behind keeps
+    the circle where it is. No timer: the orb turns and pings on the compositor (OrbMotionLayer).
+  -->
+
+  <Grid x:Name="Root"
+        Margin="{StaticResource FloatingOrb.ShadowMargin}"
+        RowDefinitions="Auto,Auto"
+        ColumnDefinitions="Auto,Auto">
+
+    <Border x:Name="Pill"
+            Classes="orbPill"
+            Grid.Column="0"
+            VerticalAlignment="Center"
+            Margin="{StaticResource FloatingOrb.PillMargin}"
+            IsVisible="{Binding IsPillOpen}">
+      <StackPanel Orientation="Horizontal"
+                  Spacing="{StaticResource Space.2}">
+        <Button x:Name="MarkButton"
+                Classes="orbTool"
+                Command="{Binding MarkCommand}"
+                ToolTip.Tip="{Binding MarkLabel}"
+                AutomationProperties.Name="{Binding MarkLabel}">
+          <controls:IconControl Width="{StaticResource FloatingOrb.MarkIcon}"
+                                Height="{StaticResource FloatingOrb.MarkIcon}"
+                                Data="{StaticResource Icon.Mark}"
+                                Stroke="1.7" />
+        </Button>
+        <Button x:Name="PauseButton"
+                Classes="orbTool"
+                Command="{Binding PauseResumeCommand}"
+                ToolTip.Tip="{Binding PauseLabel}"
+                AutomationProperties.Name="{Binding PauseLabel}">
+          <Panel>
+            <controls:IconControl Width="{StaticResource FloatingOrb.PauseIcon}"
+                                  Height="{StaticResource FloatingOrb.PauseIcon}"
+                                  Data="{StaticResource FloatingOrb.Pause}"
+                                  IsFilled="True"
+                                  IsVisible="{Binding !IsPaused}" />
+            <controls:IconControl Width="{StaticResource FloatingOrb.PauseIcon}"
+                                  Height="{StaticResource FloatingOrb.PauseIcon}"
+                                  Data="{StaticResource FloatingOrb.Resume}"
+                                  IsFilled="True"
+                                  IsVisible="{Binding IsPaused}" />
+          </Panel>
+        </Button>
+        <Button x:Name="StopButton"
+                Classes="orbTool stop"
+                Command="{Binding StopCommand}"
+                ToolTip.Tip="{Binding StopLabel}"
+                AutomationProperties.Name="{Binding StopLabel}">
+          <controls:IconControl Width="{StaticResource FloatingOrb.StopIcon}"
+                                Height="{StaticResource FloatingOrb.StopIcon}"
+                                Data="{StaticResource FloatingOrb.Stop}"
+                                IsFilled="True" />
+        </Button>
+        <Button x:Name="OpenButton"
+                Classes="orbTool quiet"
+                Command="{Binding OpenCommand}"
+                ToolTip.Tip="{Binding OpenLabel}"
+                AutomationProperties.Name="{Binding OpenLabel}">
+          <controls:IconControl Width="{StaticResource FloatingOrb.OpenIcon}"
+                                Height="{StaticResource FloatingOrb.OpenIcon}"
+                                Data="{StaticResource FloatingOrb.OpenGlyph}" />
+        </Button>
+      </StackPanel>
+    </Border>
+
+    <Border x:Name="Circle"
+            Classes="orbCircle"
+            Grid.Column="1"
+            HorizontalAlignment="Right"
+            VerticalAlignment="Center"
+            ToolTip.Tip="{Binding StateLabel}"
+            AutomationProperties.Name="{Binding StateLabel}">
+      <Panel Width="{StaticResource FloatingOrb.Orb}"
+             Height="{StaticResource FloatingOrb.Orb}">
+        <!-- The ping: a copy of the orb under it that grows to 1.9 times and fades, every 3 s while recording. -->
+        <controls:OrbMotionLayer Kind="Ping"
+                                 IsActive="{Binding IsSpinning}"
+                                 IsVisible="{Binding IsSpinning}"
+                                 Opacity="0">
+          <controls:GlassOrbControl Width="{StaticResource FloatingOrb.Orb}"
+                                    Height="{StaticResource FloatingOrb.Orb}" />
+        </controls:OrbMotionLayer>
+        <!-- The orb: turns once in 9 s while recording; still otherwise. -->
+        <controls:OrbMotionLayer Kind="Spin"
+                                 IsActive="{Binding IsSpinning}">
+          <controls:GlassOrbControl Width="{StaticResource FloatingOrb.Orb}"
+                                    Height="{StaticResource FloatingOrb.Orb}" />
+        </controls:OrbMotionLayer>
+        <Ellipse x:Name="PausedWash"
+                 Classes="orbPausedWash"
+                 IsVisible="{Binding IsPaused}" />
+      </Panel>
+    </Border>
+
+    <Border x:Name="Chip"
+            Classes="orbChip"
+            Grid.Row="1"
+            Grid.ColumnSpan="2"
+            HorizontalAlignment="Right"
+            Margin="{StaticResource FloatingOrb.ChipMargin}"
+            IsVisible="{Binding IsChipShown}">
+      <StackPanel Orientation="Horizontal"
+                  VerticalAlignment="Center"
+                  Spacing="{StaticResource Space.6}">
+        <controls:IconControl Width="{StaticResource FloatingOrb.ChipIcon}"
+                              Height="{StaticResource FloatingOrb.ChipIcon}"
+                              VerticalAlignment="Center"
+                              Data="{StaticResource Icon.Mark}"
+                              IsFilled="True" />
+        <StackPanel Orientation="Horizontal"
+                    VerticalAlignment="Center"
+                    Spacing="{StaticResource Space.3}">
+          <TextBlock Classes="orbChipText"
+                     VerticalAlignment="Center"
+                     Text="{Binding ChipLabel}" />
+          <TextBlock x:Name="ChipTimeText"
+                     Classes="orbChipText orbMono"
+                     VerticalAlignment="Center"
+                     Text="{Binding ChipTime}" />
+        </StackPanel>
+      </StackPanel>
+    </Border>
+  </Grid>
+</Window>

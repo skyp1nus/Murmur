@@ -111,6 +111,12 @@ public partial class App : Application
             }
 
             var autoRecording = AutoRecordOptions.TryParse(Args, out var autoRecord, out _) && autoRecord is not null;
+            if (!probing && !autoRecording)
+            {
+                // The floating recorder orb (#46): its window is created only when a recording runs while this one is away.
+                FloatingOrbController.Attach(window, shell, services);
+            }
+
             if (services.Hotkeys is { } hotkeys && !probing && !autoRecording)
             {
                 // Diagnostic runs (start-up probe, --autorecord) never register hotkeys: nothing may start a recording behind them.
