@@ -110,6 +110,10 @@ internal static unsafe class IMFSample
     public static int GetBufferByIndex(nint self, uint index, nint* buffer) =>
         ((delegate* unmanaged[MemberFunction]<nint, uint, nint*, int>)ComCall.Vtbl(self)[40])(self, index, buffer);
 
+    // HRESULT ConvertToContiguousBuffer(IMFMediaBuffer **ppBuffer)
+    public static int ConvertToContiguousBuffer(nint self, nint* buffer) =>
+        ((delegate* unmanaged[MemberFunction]<nint, nint*, int>)ComCall.Vtbl(self)[41])(self, buffer);
+
     // HRESULT AddBuffer(IMFMediaBuffer *pBuffer)
     public static int AddBuffer(nint self, nint buffer) =>
         ((delegate* unmanaged[MemberFunction]<nint, nint, int>)ComCall.Vtbl(self)[42])(self, buffer);
@@ -225,9 +229,21 @@ internal static unsafe class IMFTransform
 
 internal static unsafe class IMFSourceReader
 {
+    // HRESULT SetStreamSelection(DWORD dwStreamIndex, BOOL fSelected)
+    public static int SetStreamSelection(nint self, uint streamIndex, int selected) =>
+        ((delegate* unmanaged[MemberFunction]<nint, uint, int, int>)ComCall.Vtbl(self)[4])(self, streamIndex, selected);
+
+    // HRESULT GetNativeMediaType(DWORD dwStreamIndex, DWORD dwMediaTypeIndex, IMFMediaType **ppMediaType)
+    public static int GetNativeMediaType(nint self, uint streamIndex, uint mediaTypeIndex, nint* mediaType) =>
+        ((delegate* unmanaged[MemberFunction]<nint, uint, uint, nint*, int>)ComCall.Vtbl(self)[5])(self, streamIndex, mediaTypeIndex, mediaType);
+
     // HRESULT GetCurrentMediaType(DWORD dwStreamIndex, IMFMediaType **ppMediaType)
     public static int GetCurrentMediaType(nint self, uint streamIndex, nint* mediaType) =>
         ((delegate* unmanaged[MemberFunction]<nint, uint, nint*, int>)ComCall.Vtbl(self)[6])(self, streamIndex, mediaType);
+
+    // HRESULT SetCurrentMediaType(DWORD dwStreamIndex, DWORD *pdwReserved, IMFMediaType *pMediaType)
+    public static int SetCurrentMediaType(nint self, uint streamIndex, uint* reserved, nint mediaType) =>
+        ((delegate* unmanaged[MemberFunction]<nint, uint, uint*, nint, int>)ComCall.Vtbl(self)[7])(self, streamIndex, reserved, mediaType);
 
     // HRESULT ReadSample(DWORD dwStreamIndex, DWORD dwControlFlags, DWORD *pdwActualStreamIndex, DWORD *pdwStreamFlags, LONGLONG *pllTimestamp, IMFSample **ppSample)
     public static int ReadSample(nint self, uint streamIndex, uint controlFlags, uint* actualStreamIndex, uint* streamFlags, long* timestamp, nint* sample) =>

@@ -96,6 +96,15 @@ internal static class ScreenConstants
     public static readonly Guid MftEnumHardwareUrlAttribute = new("2FB866AC-B078-4942-AB6C-003D05CDA674");
     public static readonly Guid MfPdDuration = new("6C990D33-BB8E-477A-8598-0D5D96FCD88A");
 
+    // Audio media types (mfapi.h): the import decoder asks the source reader for float PCM.
+    public static readonly Guid MfMediaTypeAudio = new("73647561-0000-0010-8000-00AA00389B71");
+    public static readonly Guid MfAudioFormatFloat = new("00000003-0000-0010-8000-00AA00389B71");
+    public static readonly Guid MfMtAudioNumChannels = new("37E48BF5-645E-4C5B-89DE-ADA9E29B696A");
+    public static readonly Guid MfMtAudioSamplesPerSecond = new("5FAEEAE7-0290-4C31-9E8A-C534F68D9DBA");
+    public static readonly Guid MfMtAudioBitsPerSample = new("F2DEB57F-40FA-4764-AA33-ED4F2D1FF669");
+    public static readonly Guid MfMtAudioBlockAlignment = new("322DE230-9EEB-43BD-AB7A-FF412251541D");
+    public static readonly Guid MfMtAudioAvgBytesPerSecond = new("1AAB75C8-CFEF-451C-AB95-AC034B8E1731");
+
     /// <summary>
     /// CODECAPI_AVEncMPVGOPSize (codecapi.h). Not part of Win32Metadata; value taken from codecapi.h. An encoder that
     /// does not know the key ignores it, so a wrong value could only cost the GOP length, never the recording.
@@ -168,6 +177,21 @@ internal static class ScreenConstants
     public const uint MfSourceReaderMediaSource = 0xFFFF_FFFF;
     public const uint MfSourceReaderFlagError = 0x1;
     public const uint MfSourceReaderFlagEndOfStream = 0x2;
+    public const uint MfSourceReaderFlagCurrentMediaTypeChanged = 0x20;
+    public const uint MfSourceReaderFirstAudioStream = 0xFFFF_FFFD;
+    public const uint MfSourceReaderAllStreams = 0xFFFF_FFFE;
+
+    // Media Foundation HRESULTs (mferror.h) the import decoder maps to "unsupported" / "damaged" (with MfEInvalidMediaType and
+    // MfETopoCodecNotFound below).
+    public const int MfEInvalidStreamNumber = unchecked((int)0xC00D36B3);
+    public const int MfENoMoreTypes = unchecked((int)0xC00D36B9);
+    public const int MfEUnsupportedScheme = unchecked((int)0xC00D36C3);
+    public const int MfEUnsupportedByteStreamType = unchecked((int)0xC00D36C4);
+
+    // HRESULT_FROM_WIN32 of ERROR_FILE_NOT_FOUND, ERROR_PATH_NOT_FOUND and ERROR_ACCESS_DENIED (winerror.h).
+    public const int EFileNotFound = unchecked((int)0x80070002);
+    public const int EPathNotFound = unchecked((int)0x80070003);
+    public const int EAccessDenied = unchecked((int)0x80070005);
 
     public const uint D3D11SdkVersion = 7;
     public const int D3DDriverTypeHardware = 1;
