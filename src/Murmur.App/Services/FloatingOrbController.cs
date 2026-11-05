@@ -3,6 +3,7 @@ using Avalonia;
 using Avalonia.Controls;
 using Murmur.App.ViewModels;
 using Murmur.App.Views;
+using Murmur.Core.Platform;
 using Murmur.Core.Recording;
 
 namespace Murmur.App.Services;
@@ -13,8 +14,8 @@ namespace Murmur.App.Services;
 /// recording runs while the main window is away), never at start-up.
 /// </summary>
 /// <remarks>
-/// "Showing the Recording screen" is: the main window is visible, not minimised, and the page is the Recording screen (or the
-/// onboarding, whose own trial recording the orb has nothing to add to). The buttons do what the Recording screen's do: pause and
+/// "Showing the Recording screen" is: the main window is visible, not minimised, and the page is the Recording screen. While the
+/// onboarding is the page the orb is never shown, whatever the window's state. The buttons do what the Recording screen's do: pause and
 /// stop go through the same view model and recorder, Open brings the main window to the front on the Recording screen.
 /// </remarks>
 internal sealed class FloatingOrbController : IDisposable
@@ -22,10 +23,12 @@ internal sealed class FloatingOrbController : IDisposable
     private readonly MainWindow _main;
     private readonly ShellViewModel _shell;
     private readonly Func<FloatingOrbViewModel, FloatingOrbWindow> _createWindow;
+    private readonly IFloatingWindowStyle? _style;
+    private readonly Func<FloatingOrbWindow, nint> _nativeHandle;
     private FloatingOrbWindow? _window;
     private int _disposed;
 
-    internal FloatingOrbController(MainWindow main, ShellViewModel shell, FloatingOrbViewModel viewModel, Func<FloatingOrbViewModel, FloatingOrbWindow>? createWindow = null)
+    internal FloatingOrbController(MainWindow main, ShellViewModel shell, FloatingOrbViewModel viewModel, Func<FloatingOrbViewModel, FloatingOrbWindow>? createWindow = null, IFloatingWindowStyle? style = null, Func<FloatingOrbWindow, nint>? nativeHandle = null)
     {
         ArgumentNullException.ThrowIfNull(main);
         ArgumentNullException.ThrowIfNull(shell);
@@ -34,6 +37,8 @@ internal sealed class FloatingOrbController : IDisposable
         _shell = shell;
         ViewModel = viewModel;
         _createWindow = createWindow ?? (static vm => new FloatingOrbWindow { DataContext = vm });
+        _style = style;
+        _nativeHandle = nativeHandle ?? (static window => window.TryGetPlatformHandle()?.Handle ?? 0);
 
         main.PropertyChanged += OnMainWindowChanged;
         shell.PropertyChanged += OnShellChanged;
@@ -58,7 +63,7 @@ internal sealed class FloatingOrbController : IDisposable
             Stop: shell.Recording.StopAsync,
             Open: () => ShowRecording(main, shell));
         var viewModel = new FloatingOrbViewModel(services.Recorder, actions, services.Marks, services.Settings, services.Motion, services.Time);
-        return new FloatingOrbController(main, shell, viewModel);
+        return new FloatingOrbController(main, shell, viewModel, style: services.FloatingWindowStyle);
     }
 
     /// <summary>The Open button: the main window comes to the front on the Recording screen.</summary>
@@ -72,11 +77,13 @@ internal sealed class FloatingOrbController : IDisposable
         main.BringToFront();
     }
 
-    /// <summary>The main window shows the Recording screen right now.</summary>
+    /// <summary>
+    /// The orb is not needed: the main window shows the Recording screen right now, or the onboarding is the page (whatever the state of
+    /// the window: its trial recording is the onboarding's own business, never the orb's).
+    /// </summary>
     internal bool IsRecorderInView =>
-        _main.IsVisible
-        && _main.WindowState != WindowState.Minimized
-        && _shell.CurrentPage is RecordingViewModel or OnboardingViewModel;
+        _shell.CurrentPage is OnboardingViewModel
+        || (_main.IsVisible && _main.WindowState != WindowState.Minimized && _shell.CurrentPage is RecordingViewModel);
 
     private void OnMainWindowChanged(object? sender, Avalonia.AvaloniaPropertyChangedEventArgs e)
     {
@@ -131,6 +138,13 @@ internal sealed class FloatingOrbController : IDisposable
     {
         var window = _createWindow(ViewModel);
         window.Closed += OnWindowClosed;
+
+        // Before the first Show: clicks on the orb must never take focus from the call, and it has no Alt+Tab entry.
+        if (_style is not null && _nativeHandle(window) is var handle && handle != 0)
+        {
+            _style.MakeNonActivating(handle);
+        }
+
         return window;
     }
 

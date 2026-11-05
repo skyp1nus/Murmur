@@ -33,7 +33,7 @@ public static class FloatingOrbPlacement
     public const double DefaultMargin = 24;
 
     /// <summary>
-    /// The top-left of the orb in pixels: the saved spot when it is on a screen, the nearest visible spot when it is not, the
+    /// The top-left of the orb in pixels: the saved spot when it is on a screen, the nearest spot with the whole orb inside a work area when it is not, the
     /// bottom-right corner of the primary work area when nothing was saved. <c>null</c> without any screen.
     /// </summary>
     public static OrbPlacement? Resolve(FloatingOrbPosition? saved, IReadOnlyList<WorkArea> areas)
@@ -53,22 +53,14 @@ public static class FloatingOrbPlacement
         var spotX = saved.X * scale;
         var spotY = saved.Y * scale;
 
-        // On a screen as it is: the orb's centre is inside a work area.
-        foreach (var area in areas)
-        {
-            var half = OrbSize * area.Scaling / 2;
-            if (area.Contains(spotX + half, spotY + half))
-            {
-                return new OrbPlacement((int)Math.Round(spotX), (int)Math.Round(spotY), Corrected: false);
-            }
-        }
-
-        // Off every screen (a monitor was unplugged): the nearest work area, with the whole orb inside it.
+        // The work area the orb's centre is in, or else the one nearest to its centre (a monitor was unplugged): the whole orb is then
+        // put inside it, so an orb dragged half off an edge, or left under the taskbar, comes back whole.
         var best = areas[0];
         var bestDistance = double.MaxValue;
         foreach (var area in areas)
         {
-            var distance = DistanceTo(area, spotX, spotY);
+            var half = OrbSize * area.Scaling / 2;
+            var distance = DistanceTo(area, spotX + half, spotY + half);
             if (distance < bestDistance)
             {
                 bestDistance = distance;
@@ -77,9 +69,9 @@ public static class FloatingOrbPlacement
         }
 
         var size = OrbSize * best.Scaling;
-        var left = Math.Clamp(spotX, best.X, Math.Max(best.X, best.Right - size));
-        var top = Math.Clamp(spotY, best.Y, Math.Max(best.Y, best.Bottom - size));
-        return new OrbPlacement((int)Math.Round(left), (int)Math.Round(top), Corrected: true);
+        var x = (int)Math.Round(Math.Clamp(spotX, best.X, Math.Max(best.X, best.Right - size)));
+        var y = (int)Math.Round(Math.Clamp(spotY, best.Y, Math.Max(best.Y, best.Bottom - size)));
+        return new OrbPlacement(x, y, Corrected: x != (int)Math.Round(spotX) || y != (int)Math.Round(spotY));
     }
 
     /// <summary>The position to save for an orb whose top-left is at (<paramref name="x"/>, <paramref name="y"/>) pixels: DIPs of the primary screen.</summary>

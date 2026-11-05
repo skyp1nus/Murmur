@@ -480,6 +480,43 @@ public sealed class FloatingOrbViewModelTests : IDisposable
         Assert.Equal(0, _time.ActiveTimers);
     }
 
+    [Fact]
+    public async Task AMarkThatWasNotMade_ShowsNoChip()
+    {
+        var orb = await RecordingAwayAsync();
+        await _recorder.StopAsync(Ct);
+
+        orb.MarkCommand.Execute(null);
+        Assert.False(_marks.TryMark(out _));
+
+        Assert.False(orb.IsChipShown);
+        Assert.Empty(_marks.Current);
+    }
+
+    [Fact]
+    public async Task MarksThatCouldNotBeSaved_ShowAShortErrorChipForTwoSeconds()
+    {
+        var orb = await RecordingAwayAsync();
+        _bookmarks.Failure = new IOException("database is locked");
+        orb.MarkCommand.Execute(null);
+        await _recorder.StopAsync(Ct);
+        await _marks.PendingFlush;
+
+        Assert.True(orb.IsChipShown);
+        Assert.Equal("Marks could not be saved", orb.ChipLabel);
+        Assert.False(orb.HasChipTime);
+
+        _time.Advance(TimeSpan.FromMilliseconds(2100));
+        Assert.False(orb.IsChipShown);
+
+        // The next mark is a normal chip again.
+        await _recorder.StartAsync(new RecordingOptions(), Ct);
+        _recorder.Elapsed = TimeSpan.FromSeconds(5);
+        _marks.TryMark(out _);
+        Assert.Equal("Marked", orb.ChipLabel);
+        Assert.True(orb.HasChipTime);
+    }
+
     // ---- the position ----------------------------------------------------------------------------------------------------------
 
     private static readonly WorkArea Primary = new(0, 0, 1920, 1040, 1.0);
@@ -574,14 +611,35 @@ public sealed class FloatingOrbViewModelTests : IDisposable
     }
 
     [Fact]
-    public void AnOrbHalfOffTheEdge_ButOnAScreen_IsLeftAlone()
+    public void AnOrbHalfOffTheEdge_IsPulledBackWhole()
     {
         _settings.SetCurrentSilently(new AppSettings { FloatingOrbPosition = new FloatingOrbPosition(1895, 500) });
         var orb = Create();
 
         var placement = orb.ResolvePlacement([Primary]);
 
-        Assert.Equal(new OrbPlacement(1895, 500, Corrected: false), placement);
+        Assert.Equal(new OrbPlacement(1920 - 44, 500, Corrected: true), placement);
+    }
+
+    [Fact]
+    public void TheOrbThisRunPutDown_WinsOverTheSavedSpot_AndIsCheckedLikeIt()
+    {
+        _settings.SetCurrentSilently(new AppSettings { FloatingOrbPosition = new FloatingOrbPosition(100, 100) });
+        var orb = Create();
+
+        Assert.Equal(new OrbPlacement(700, 300, Corrected: false), orb.ResolvePlacement([Primary], new FloatingOrbPosition(700, 300)));
+        Assert.Equal(new OrbPlacement(1920 - 44, 300, Corrected: true), orb.ResolvePlacement([Primary], new FloatingOrbPosition(5000, 300)));
+    }
+
+    [Fact]
+    public void WithoutAPrimaryScreen_NothingSavedIsUsed_TheDefaultSpotStays()
+    {
+        _settings.SetCurrentSilently(new AppSettings { FloatingOrbPosition = new FloatingOrbPosition(100, 100) });
+        var orb = Create();
+
+        var placement = orb.ResolvePlacement([Primary], new FloatingOrbPosition(700, 300), primaryKnown: false);
+
+        Assert.Equal(new OrbPlacement(1920 - 24 - 44, 1040 - 24 - 44, Corrected: false), placement);
     }
 
     [Fact]

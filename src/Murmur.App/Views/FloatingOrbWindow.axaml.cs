@@ -27,6 +27,7 @@ public partial class FloatingOrbWindow : Window
     private PixelPoint _pressPoint;
     private bool _pressing;
     private bool _placing;
+    private bool _primaryKnown = true;
     private FloatingOrbViewModel? _watched;
     private Thickness _chipBelowMargin;
 
@@ -65,7 +66,11 @@ public partial class FloatingOrbWindow : Window
         }
 
         var areas = ReadWorkAreas();
-        if (ViewModel?.ResolvePlacement(areas) is { } placement)
+
+        // Where the orb was last put in this run wins over the settings (a save may still be pending), and goes through the same
+        // check as a saved spot: the screens may have changed since.
+        var current = _hasAnchor ? FloatingOrbPlacement.ToSaved(_anchor.X, _anchor.Y, areas) : null;
+        if (ViewModel?.ResolvePlacement(areas, current, _primaryKnown) is { } placement)
         {
             _anchor = new PixelPoint(placement.X, placement.Y);
             _hasAnchor = true;
@@ -91,12 +96,16 @@ public partial class FloatingOrbWindow : Window
         var supplied = WorkAreaSource();
         if (supplied.Count > 0)
         {
+            _primaryKnown = true;
             return supplied;
         }
 
         var screens = Screens;
         var list = new List<WorkArea>(screens.ScreenCount);
         var primary = screens.Primary;
+
+        // Without a primary screen the scale of the saved numbers is unknown: nothing saved is used or written, the default spot is kept.
+        _primaryKnown = primary is not null;
         if (primary is not null)
         {
             list.Add(ToWorkArea(primary));
@@ -273,7 +282,11 @@ public partial class FloatingOrbWindow : Window
         if (viewModel.PointerReleased())
         {
             // Dragged: remember where the circle was left. A failed save is not worth interrupting a call for.
-            _ = viewModel.SavePositionAsync(_anchor.X, _anchor.Y, ReadWorkAreas());
+            var areas = ReadWorkAreas();
+            if (_primaryKnown)
+            {
+                _ = viewModel.SavePositionAsync(_anchor.X, _anchor.Y, areas);
+            }
         }
 
         e.Handled = true;

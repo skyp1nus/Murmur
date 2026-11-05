@@ -360,6 +360,91 @@ public sealed class FloatingOrbWindowTests
         Assert.True(created);
     }
 
+    private sealed class RecordingStyle : Murmur.Core.Platform.IFloatingWindowStyle
+    {
+        public List<nint> Handles { get; } = [];
+
+        public bool WindowWasShown { get; set; }
+
+        public Func<bool>? IsShown { get; set; }
+
+        public void MakeNonActivating(nint nativeHandle)
+        {
+            Handles.Add(nativeHandle);
+            WindowWasShown = IsShown?.Invoke() ?? false;
+        }
+    }
+
+    [Fact]
+    public async Task TheWindowStyle_IsAppliedOnceToTheNativeHandle_BeforeTheFirstShow()
+    {
+        var (handles, shownBefore, shownAfter) = await Session.Dispatch(
+            async () =>
+            {
+                using var rig = new Rig();
+                rig.Controller.Dispose();
+                var style = new RecordingStyle();
+                var viewModel = new FloatingOrbViewModel(rig.Harness.Recorder, new FloatingOrbActions(() => Task.CompletedTask, () => Task.CompletedTask, () => { }), post: action => action());
+                using var controller = new FloatingOrbController(
+                    rig.Main,
+                    rig.Shell,
+                    viewModel,
+                    vm => new FloatingOrbWindow { DataContext = vm, WorkAreaSource = () => rig.Areas },
+                    style,
+                    _ => 4242);
+                var created = () => controller.Window is { IsVisible: true };
+                style.IsShown = created;
+
+                await rig.StartRecordingAsync();
+                UiHarness.Pump(4);
+                await rig.Harness.Recorder.StopAsync(Ct);
+                UiHarness.Pump(2);
+                await rig.StartRecordingAsync();
+                UiHarness.Pump(4);
+                return (style.Handles.ToArray(), style.WindowWasShown, controller.Window is { IsVisible: true });
+            },
+            Ct);
+
+        Assert.Equal([(nint)4242], handles);
+        Assert.False(shownBefore, "The style must be applied before the window is first shown.");
+        Assert.True(shownAfter);
+    }
+
+    [Fact]
+    public async Task TheOnboardingPage_NeverShowsTheOrb_WhateverTheStateOfTheWindow()
+    {
+        var seen = new List<(string Step, bool Created)>();
+        await Session.Dispatch(
+            async () =>
+            {
+                using var english = UiCulture.Override("en");
+                using var rig = new OnboardingRig();
+                var main = new MainWindow { DataContext = rig.Shell, Width = 1100, Height = 720 };
+                main.Show();
+                UiHarness.Pump();
+                var viewModel = new FloatingOrbViewModel(rig.Recorder, new FloatingOrbActions(() => Task.CompletedTask, () => Task.CompletedTask, () => { }), post: action => action());
+                using var controller = new FloatingOrbController(main, rig.Shell, viewModel, vm => new FloatingOrbWindow { DataContext = vm, WorkAreaSource = () => [Screen] });
+                Assert.IsType<OnboardingViewModel>(rig.Shell.CurrentPage);
+
+                await rig.Recorder.StartAsync(new RecordingOptions(), Ct);
+                UiHarness.Pump(3);
+                seen.Add(("onboarding", controller.Window is { IsVisible: true }));
+
+                main.WindowState = WindowState.Minimized;
+                UiHarness.Pump(3);
+                seen.Add(("onboarding, minimised", controller.Window is { IsVisible: true }));
+
+                main.Hide();
+                UiHarness.Pump(3);
+                seen.Add(("onboarding, hidden", controller.Window is { IsVisible: true }));
+                main.Close();
+            },
+            Ct);
+
+        Assert.All(seen, item => Assert.False(item.Created, item.Step));
+        Assert.Equal(3, seen.Count);
+    }
+
     // ---- the position -------------------------------------------------------------------------------------------------------
 
     [Fact]
@@ -598,34 +683,33 @@ public sealed class FloatingOrbWindowTests
         Assert.Equal(anchorAfter, circleScreen);
     }
 
-    // ---- the moving layers -------------------------------------------------------------------------------------------------
+    // ---- the moving orb ----------------------------------------------------------------------------------------------------
+
+    private static FloatingOrbDisc DiscOf(FloatingOrbWindow window) => window.FindControl<FloatingOrbDisc>("Disc")!;
 
     [Fact]
-    public async Task WhileRecording_TheOrbTurnsAndPings_OnTheCompositor_StartedOnce()
+    public async Task WhileRecording_TheOrbMovesOnOneTimer_StartedOnce_AndNoOrbRunsItsOwn()
     {
-        var (spinning, pinging, starts, pingShown) = await Session.Dispatch(
+        var (moving, starts, orbTimers) = await Session.Dispatch(
             async () =>
             {
                 using var rig = new Rig();
                 await rig.StartRecordingAsync();
                 UiHarness.Pump(30);
-                var layers = rig.Window.GetVisualDescendants().OfType<OrbMotionLayer>().ToArray();
-                var spin = layers.Single(l => l.Kind == OrbMotionKind.Spin);
-                var ping = layers.Single(l => l.Kind == OrbMotionKind.Ping);
-                return (spin.IsRunning, ping.IsRunning, new[] { spin.Starts, ping.Starts }, ping.IsVisible);
+                var disc = DiscOf(rig.Window);
+                return (disc.IsMoving, disc.Starts, rig.Window.GetVisualDescendants().OfType<GlassOrbControl>().Count(o => o.IsFrameLoopRunning));
             },
             Ct);
 
-        Assert.True(spinning);
-        Assert.True(pinging);
-        Assert.Equal([1, 1], starts);
-        Assert.True(pingShown);
+        Assert.True(moving);
+        Assert.Equal(1, starts);
+        Assert.Equal(0, orbTimers);
     }
 
     [Fact]
-    public async Task Paused_TheOrbIsStill_AndGrey_AndThePingIsGone()
+    public async Task Paused_TheOrbIsStill_AndGrey_AndTheRingIsGone()
     {
-        var (spinning, pinging, wash, angle) = await Session.Dispatch(
+        var (moving, wash, angle, opacity) = await Session.Dispatch(
             async () =>
             {
                 using var rig = new Rig();
@@ -633,67 +717,63 @@ public sealed class FloatingOrbWindowTests
                 UiHarness.Pump(4);
                 await rig.Harness.Recorder.PauseAsync(Ct);
                 UiHarness.Pump(4);
-                var layers = rig.Window.GetVisualDescendants().OfType<OrbMotionLayer>().ToArray();
-                var spin = layers.Single(l => l.Kind == OrbMotionKind.Spin);
-                var ping = layers.Single(l => l.Kind == OrbMotionKind.Ping);
-                return (spin.IsRunning, ping.IsRunning, rig.Window.FindControl<Ellipse>("PausedWash")!.IsVisible, spin.RestAngle);
+                var disc = DiscOf(rig.Window);
+                return (disc.IsMoving, rig.Window.FindControl<Ellipse>("PausedWash")!.IsVisible, disc.Angle, disc.RingOpacity);
             },
             Ct);
 
-        Assert.False(spinning);
-        Assert.False(pinging);
+        Assert.False(moving);
         Assert.True(wash);
         Assert.Equal(0f, angle);
+        Assert.Equal(0d, opacity);
     }
 
     [Fact]
-    public async Task UnderReducedMotion_NeitherLayerRuns_AndNothingIsGrey()
+    public async Task UnderReducedMotion_TheTimerNeverRuns_AndNothingIsGrey()
     {
-        var (spinning, pinging, wash) = await Session.Dispatch(
+        var (moving, wash) = await Session.Dispatch(
             async () =>
             {
                 using var rig = new Rig();
                 rig.ViewModel.ReduceMotion = true;
                 await rig.StartRecordingAsync();
                 UiHarness.Pump(6);
-                var layers = rig.Window.GetVisualDescendants().OfType<OrbMotionLayer>().ToArray();
-                return (layers.Any(l => l.Kind == OrbMotionKind.Spin && l.IsRunning), layers.Any(l => l.Kind == OrbMotionKind.Ping && l.IsRunning), rig.Window.FindControl<Ellipse>("PausedWash")!.IsVisible);
+                return (DiscOf(rig.Window).IsMoving, rig.Window.FindControl<Ellipse>("PausedWash")!.IsVisible);
             },
             Ct);
 
-        Assert.False(spinning);
-        Assert.False(pinging);
+        Assert.False(moving);
         Assert.False(wash);
     }
 
     [Fact]
-    public async Task AMotionLayer_StartsWhenActivated_StopsWhenNot_AndNeverTwiceInARow()
+    public async Task TheDisc_StartsWhenActivated_StopsWhenNot_AndNeverTwiceInARow()
     {
         var (afterOn, afterOff, afterOnAgain, starts, reduced) = await Session.Dispatch(
             () =>
             {
-                var layer = new OrbMotionLayer { Kind = OrbMotionKind.Spin, Child = new Border { Width = 28, Height = 28 } };
-                var window = new Window { Width = 100, Height = 100, Content = layer };
+                var disc = new FloatingOrbDisc { Width = 28, Height = 28 };
+                var window = new Window { Width = 100, Height = 100, Content = disc };
                 window.Show();
                 UiHarness.Pump();
 
-                layer.IsActive = true;
+                disc.IsActive = true;
                 UiHarness.Pump(3);
-                var on = layer.IsRunning;
-                layer.IsActive = true;
+                var on = disc.IsMoving;
+                disc.IsActive = true;
                 UiHarness.Pump(3);
-                layer.IsActive = false;
+                disc.IsActive = false;
                 UiHarness.Pump(3);
-                var off = layer.IsRunning;
-                layer.IsActive = true;
+                var off = disc.IsMoving;
+                disc.IsActive = true;
                 UiHarness.Pump(3);
-                var again = layer.IsRunning;
+                var again = disc.IsMoving;
 
                 Motion.SetReduceMotion(window, true);
                 UiHarness.Pump(3);
-                var reducedRuns = layer.IsRunning;
+                var reducedRuns = disc.IsMoving;
                 window.Close();
-                return (on, off, again, layer.Starts, reducedRuns);
+                return (on, off, again, disc.Starts, reducedRuns);
             },
             Ct);
 
@@ -705,11 +785,104 @@ public sealed class FloatingOrbWindowTests
     }
 
     [Fact]
+    public async Task TheOrbTurnsOnceInNineSeconds_Linear_AndThePingRingGrowsAndFadesInTheFirstSixtyPercentOfThreeSeconds()
+    {
+        var samples = await Session.Dispatch(
+            () =>
+            {
+                var clock = new TestTime(UiHarness.Now);
+                var disc = new FloatingOrbDisc { Width = 28, Height = 28, Clock = clock };
+                var window = new Window { Width = 100, Height = 100, Content = disc };
+                window.Show();
+                UiHarness.Pump();
+                disc.IsActive = true;
+                UiHarness.Pump(2);
+
+                var result = new List<(double Seconds, float Angle, double Scale, double Opacity)>();
+                foreach (var seconds in new[] { 0.0, 1.0, 2.25, 4.5, 8.99 })
+                {
+                    disc.Clock = clock;
+                    clock.Advance(TimeSpan.FromSeconds(seconds));
+                    disc.Tick();
+                    result.Add((seconds, disc.Angle!.Value, disc.RingScale!.Value, disc.RingOpacity!.Value));
+                }
+
+                window.Close();
+                return result;
+            },
+            Ct);
+
+        // The angle is the share of nine seconds, in radians.
+        Assert.Equal(0f, samples[0].Angle, 0.01f);
+        Assert.Equal((float)(Math.Tau * 1 / 9), samples[1].Angle, 0.01f);
+        Assert.Equal((float)(Math.Tau * 2.25 / 9), samples[2].Angle, 0.01f);
+        Assert.Equal((float)(Math.Tau * 4.5 / 9), samples[3].Angle, 0.01f);
+        Assert.Equal((float)(Math.Tau * 8.99 / 9), samples[4].Angle, 0.01f);
+
+        // The ring: out at 0 s (full size, 0.55), grown to 1.9 and gone by 1.8 s, resting for the other 1.2 s of the three.
+        Assert.Equal(1.0, samples[0].Scale, 0.001);
+        Assert.Equal(0.55, samples[0].Opacity, 0.01);
+        Assert.InRange(samples[1].Scale, 1.0, 1.9);
+        Assert.InRange(samples[1].Opacity, 0.0, 0.55);
+
+        // 2.25 s is 75 % into a ping period of 3 s, in the resting 40 %: the ring is back at rest.
+        Assert.Equal(1.0, samples[2].Scale, 0.001);
+        Assert.Equal(0.0, samples[2].Opacity, 0.001);
+    }
+
+    [Fact]
+    public async Task ATick_AllocatesNothing_InTheRingsActivePartAndInItsRest()
+    {
+        var (activeBytes, restBytes) = await Session.Dispatch(
+            () =>
+            {
+                var clock = new TestTime(UiHarness.Now);
+                var disc = new FloatingOrbDisc { Width = 28, Height = 28, Clock = clock };
+                var window = new Window { Width = 100, Height = 100, Content = disc };
+                window.Show();
+                UiHarness.Pump();
+                disc.IsActive = true;
+                UiHarness.Pump(2);
+
+                // Warm up both branches, then measure many ticks of each.
+                for (var i = 0; i < 50; i++)
+                {
+                    clock.Advance(TimeSpan.FromMilliseconds(40));
+                    disc.Tick();
+                }
+
+                disc.Clock = clock;
+                var active = Measure(disc, clock, TimeSpan.FromMilliseconds(5), 200);
+                clock.Advance(TimeSpan.FromSeconds(1.2));
+                var rest = Measure(disc, clock, TimeSpan.FromMilliseconds(1), 200);
+                window.Close();
+                return (active, rest);
+            },
+            Ct);
+
+        Assert.Equal(0, activeBytes);
+        Assert.Equal(0, restBytes);
+    }
+
+    private static long Measure(FloatingOrbDisc disc, TestTime clock, TimeSpan step, int ticks)
+    {
+        var before = GC.GetAllocatedBytesForCurrentThread();
+        for (var i = 0; i < ticks; i++)
+        {
+            clock.Advance(step);
+            disc.Tick();
+        }
+
+        return GC.GetAllocatedBytesForCurrentThread() - before;
+    }
+
+    [Fact]
     public void TheTurnTakesNineSeconds_AndThePingComesEveryThree()
     {
-        Assert.Equal(TimeSpan.FromSeconds(9), OrbMotionLayer.SpinPeriod);
-        Assert.Equal(TimeSpan.FromSeconds(3), OrbMotionLayer.PingPeriod);
-        Assert.Equal(1.9f, OrbMotionLayer.PingScale);
+        Assert.Equal(TimeSpan.FromSeconds(9), FloatingOrbDisc.SpinPeriod);
+        Assert.Equal(TimeSpan.FromSeconds(3), FloatingOrbDisc.PingPeriod);
+        Assert.Equal(1.9, FloatingOrbDisc.PingScale);
+        Assert.Equal(0.6, FloatingOrbDisc.PingActiveShare);
     }
 
     // ---- the pictures ------------------------------------------------------------------------------------------------------
@@ -719,6 +892,8 @@ public sealed class FloatingOrbWindowTests
     [InlineData("Dark", "recording")]
     [InlineData("Light", "pill")]
     [InlineData("Dark", "pill")]
+    [InlineData("Light", "ping")]
+    [InlineData("Dark", "ping")]
     [InlineData("Light", "paused")]
     [InlineData("Dark", "paused")]
     [InlineData("Light", "marked")]
@@ -748,6 +923,16 @@ public sealed class FloatingOrbWindowTests
                 if (scene.StartsWith("marked", StringComparison.Ordinal))
                 {
                     rig.ViewModel.MarkCommand.Execute(null);
+                }
+
+                if (scene == "ping")
+                {
+                    // A frame in the middle of a ping: 0.6 s into the three seconds, the ring is bigger than the circle's orb.
+                    var clock = new TestTime(UiHarness.Now);
+                    var disc = DiscOf(rig.Window);
+                    disc.Clock = clock;
+                    clock.Advance(TimeSpan.FromSeconds(0.6));
+                    disc.Tick();
                 }
 
                 UiHarness.Pump(6);

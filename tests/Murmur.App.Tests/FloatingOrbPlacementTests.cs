@@ -91,6 +91,24 @@ public sealed class FloatingOrbPlacementTests
     }
 
     [Fact]
+    public void ThePlaceIsChosenByTheOrbsCentre_NotByItsCorner()
+    {
+        // The corner is 20 px inside the left monitor, the centre 2 px inside the right one: the orb belongs to the right one.
+        var placement = FloatingOrbPlacement.Resolve(new FloatingOrbPosition(1900, 300), [Left, Right]);
+
+        Assert.Equal(new OrbPlacement(1920, 300, Corrected: true), placement);
+    }
+
+    [Fact]
+    public void AnOrbWhoseEdgeIsOutsideItsWorkArea_IsClampedWhole()
+    {
+        Assert.Equal(new OrbPlacement(1920 - 44, 300, Corrected: true), FloatingOrbPlacement.Resolve(new FloatingOrbPosition(1910, 300), [Left]));
+        Assert.Equal(new OrbPlacement(500, 1040 - 44, Corrected: true), FloatingOrbPlacement.Resolve(new FloatingOrbPosition(500, 1030), [Left]));
+        Assert.Equal(new OrbPlacement(0, 300, Corrected: true), FloatingOrbPlacement.Resolve(new FloatingOrbPosition(-10, 300), [Left]));
+        Assert.Equal(new OrbPlacement(500, 300, Corrected: false), FloatingOrbPlacement.Resolve(new FloatingOrbPosition(500, 300), [Left]));
+    }
+
+    [Fact]
     public void ToSaved_UsesThePrimaryScaling_WhereverTheOrbIs()
     {
         var hiDpi = new WorkArea(0, 0, 3000, 1560, 2.0);

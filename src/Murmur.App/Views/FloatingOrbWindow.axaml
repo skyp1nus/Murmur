@@ -19,7 +19,7 @@
     The floating recorder orb (#46), Idea1Autopilot.dc.html "Idea 1 / Floating recorder (interactive)": the 44 px circle with the
     28 px orb at the right, the pill of buttons to its left (a click on the circle opens it) and the chip "Marked 12:41" under it.
     The window is transparent and as big as what is on screen, so it grows to the left when the pill opens; the code behind keeps
-    the circle where it is. No timer: the orb turns and pings on the compositor (OrbMotionLayer).
+    the circle where it is. No elapsed-time readout on the orb; its motion is the 15 Hz FloatingOrbDisc.
   -->
 
   <Grid x:Name="Root"
@@ -94,20 +94,11 @@
             AutomationProperties.Name="{Binding StateLabel}">
       <Panel Width="{StaticResource FloatingOrb.Orb}"
              Height="{StaticResource FloatingOrb.Orb}">
-        <!-- The ping: a copy of the orb under it that grows to 1.9 times and fades, every 3 s while recording. -->
-        <controls:OrbMotionLayer Kind="Ping"
-                                 IsActive="{Binding IsSpinning}"
-                                 IsVisible="{Binding IsSpinning}"
-                                 Opacity="0">
-          <controls:GlassOrbControl Width="{StaticResource FloatingOrb.Orb}"
-                                    Height="{StaticResource FloatingOrb.Orb}" />
-        </controls:OrbMotionLayer>
-        <!-- The orb: turns once in 9 s while recording; still otherwise. -->
-        <controls:OrbMotionLayer Kind="Spin"
-                                 IsActive="{Binding IsSpinning}">
-          <controls:GlassOrbControl Width="{StaticResource FloatingOrb.Orb}"
-                                    Height="{StaticResource FloatingOrb.Orb}" />
-        </controls:OrbMotionLayer>
+        <!-- The orb turns once in 9 s and a ring goes out every 3 s while recording (one 15 Hz timer, only while it moves); still otherwise. -->
+        <controls:FloatingOrbDisc x:Name="Disc"
+                                  Width="{StaticResource FloatingOrb.Orb}"
+                                  Height="{StaticResource FloatingOrb.Orb}"
+                                  IsActive="{Binding IsSpinning}" />
         <Ellipse x:Name="PausedWash"
                  Classes="orbPausedWash"
                  IsVisible="{Binding IsPaused}" />
@@ -138,6 +129,7 @@
           <TextBlock x:Name="ChipTimeText"
                      Classes="orbChipText orbMono"
                      VerticalAlignment="Center"
+                     IsVisible="{Binding HasChipTime}"
                      Text="{Binding ChipTime}" />
         </StackPanel>
       </StackPanel>

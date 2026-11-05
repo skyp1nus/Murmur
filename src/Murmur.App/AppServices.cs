@@ -65,6 +65,10 @@ namespace Murmur.App;
 /// </param>
 /// <param name="Calls">Detects calls from <paramref name="AudioSessions"/>; the app starts it while Detect calls is on. <c>null</c> = no call detection.</param>
 /// <param name="Activity">What runs or waits (recording, transcribing, indexing, model downloads) for the status bar; <c>null</c> = no status bar.</param>
+/// <param name="FloatingWindowStyle">
+/// Makes the floating recorder orb's window non-activating so a click on it never takes focus from the call (#46); <c>null</c> = the
+/// window is left as Avalonia makes it.
+/// </param>
 public sealed record AppServices(
     IRecorder Recorder,
     ICapture Capture,
@@ -90,4 +94,5 @@ public sealed record AppServices(
     IRecordingMarks? Marks = null,
     IAudioSessionMonitor? AudioSessions = null,
     ICallDetector? Calls = null,
-    IActivityFeed? Activity = null);
+    IActivityFeed? Activity = null,
+    IFloatingWindowStyle? FloatingWindowStyle = null);

@@ -1591,6 +1591,10 @@
     <value>Відкрити Murmur</value>
     <comment>Button of the floating orb that brings the main window to the Recording screen</comment>
   </data>
+  <data name="FloatingOrb_MarksNotSaved" xml:space="preserve">
+    <value>Позначки не вдалося зберегти</value>
+    <comment>Short chip of the floating orb when the marks of the recording that just stopped could not be saved</comment>
+  </data>
   <!-- Call detection (#44) -->
   <data name="Calls_DetectedTitle" xml:space="preserve">
     <value>Виявлено дзвінок</value>

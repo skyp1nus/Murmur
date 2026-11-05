@@ -79,6 +79,7 @@ public sealed partial class FloatingOrbViewModel : ObservableObject, IDisposable
         if (marks is not null)
         {
             marks.Marked += OnMarked;
+            marks.SaveFailed += OnMarksSaveFailed;
         }
 
         if (motion is not null)
@@ -116,8 +117,13 @@ public sealed partial class FloatingOrbViewModel : ObservableObject, IDisposable
     [ObservableProperty]
     public partial string ChipTime { get; set; } = string.Empty;
 
-    /// <summary>"Marked", the word before <see cref="ChipTime"/>.</summary>
-    public string ChipLabel => Strings.Recording_Marked;
+    /// <summary>"Marked", the word before <see cref="ChipTime"/>; the short error text while the chip reports a failed save of the marks.</summary>
+    [ObservableProperty]
+    public partial string ChipLabel { get; set; } = Strings.Recording_Marked;
+
+    /// <summary>The chip shows a time (a mark was made); false for the error chip.</summary>
+    [ObservableProperty]
+    public partial bool HasChipTime { get; set; } = true;
 
     /// <summary>Recording or paused: a session is open.</summary>
     public bool IsRunning => State is RecorderState.Recording or RecorderState.Paused;
@@ -227,9 +233,15 @@ public sealed partial class FloatingOrbViewModel : ObservableObject, IDisposable
 
     // ---- the position --------------------------------------------------------------------------------------------------------
 
-    /// <summary>Where the orb goes on the given screens: the saved spot, the nearest visible one if it is off every screen, or the default corner.</summary>
-    public OrbPlacement? ResolvePlacement(IReadOnlyList<WorkArea> areas) =>
-        FloatingOrbPlacement.Resolve(_settings?.Current.FloatingOrbPosition, areas);
+    /// <summary>
+    /// Where the orb goes on the given screens (the first is the primary one): the remembered spot with the whole orb inside a work area,
+    /// the default corner when nothing is remembered.
+    /// </summary>
+    /// <param name="areas">The screens' work areas, the primary one first.</param>
+    /// <param name="current">Where the orb was last put in this run, as a position; it wins over the settings (a save may still be pending or have failed).</param>
+    /// <param name="primaryKnown">False when the platform names no primary screen: the scale of the saved numbers is unknown, so nothing saved is used.</param>
+    public OrbPlacement? ResolvePlacement(IReadOnlyList<WorkArea> areas, FloatingOrbPosition? current = null, bool primaryKnown = true) =>
+        FloatingOrbPlacement.Resolve(primaryKnown ? current ?? _settings?.Current.FloatingOrbPosition : null, areas);
 
     /// <summary>Saves where the orb was left (top-left in pixels, turned into DIPs of the screen it is on). Resolves to the inline error text, or <c>null</c>.</summary>
     public Task<string?> SavePositionAsync(int x, int y, IReadOnlyList<WorkArea> areas)
@@ -256,7 +268,12 @@ public sealed partial class FloatingOrbViewModel : ObservableObject, IDisposable
         {
             // The recording is over: the pill and the chip do not wait for the next one.
             IsPillOpen = false;
-            HideChip();
+
+            // A mark chip does not outlive the recording; the error chip of a failed save of the marks may arrive just before this and keeps its two seconds.
+            if (HasChipTime)
+            {
+                HideChip();
+            }
         }
     });
 
@@ -276,9 +293,28 @@ public sealed partial class FloatingOrbViewModel : ObservableObject, IDisposable
         }
     });
 
+    /// <summary>The marks of a stopped recording could not be saved (raised off the UI thread): a short error chip for a moment.</summary>
+    private void OnMarksSaveFailed(Murmur.Core.Sessions.SessionId? session, Exception error) => _post(() =>
+    {
+        if (Volatile.Read(ref _disposed) == 0)
+        {
+            ChipLabel = Strings.FloatingOrb_MarksNotSaved;
+            ChipTime = string.Empty;
+            HasChipTime = false;
+            StartChipTimer();
+        }
+    });
+
     private void ShowChip(TimeSpan at)
     {
+        ChipLabel = Strings.Recording_Marked;
         ChipTime = UiFormat.Clock(at);
+        HasChipTime = true;
+        StartChipTimer();
+    }
+
+    private void StartChipTimer()
+    {
         IsChipShown = true;
         var reset = new CancellationTokenSource();
         var previous = Interlocked.Exchange(ref _chipReset, reset);
@@ -334,6 +370,7 @@ public sealed partial class FloatingOrbViewModel : ObservableObject, IDisposable
         if (_marks is not null)
         {
             _marks.Marked -= OnMarked;
+            _marks.SaveFailed -= OnMarksSaveFailed;
         }
 
         if (_motion is not null)
