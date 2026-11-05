@@ -1,5 +1,6 @@
 using Murmur.App.Services;
 using Murmur.Core.Activity;
+using Murmur.Core.Calls;
 using Murmur.Core.Capture;
 using Murmur.Core.Input;
 using Murmur.Core.Models;
@@ -58,6 +59,11 @@ namespace Murmur.App;
 /// </param>
 /// <param name="Summaries">Keeps the summary of a recording between visits; <c>null</c> = a summary lives only while the recording is open.</param>
 /// <param name="ChapterStore">Keeps the chapters of a recording between visits; <c>null</c> = chapters live only while the recording is open.</param>
+/// <param name="AudioSessions">
+/// Watches the local audio sessions for call detection (#44); <c>null</c> or <see cref="IAudioSessionMonitor.IsSupported"/> false =
+/// no "Detect calls" setting.
+/// </param>
+/// <param name="Calls">Detects calls from <paramref name="AudioSessions"/>; the app starts it while Detect calls is on. <c>null</c> = no call detection.</param>
 /// <param name="Activity">What runs or waits (recording, transcribing, indexing, model downloads) for the status bar; <c>null</c> = no status bar.</param>
 public sealed record AppServices(
     IRecorder Recorder,
@@ -82,4 +88,6 @@ public sealed record AppServices(
     IChatStore? Chats = null,
     IChapterStore? ChapterStore = null,
     IRecordingMarks? Marks = null,
+    IAudioSessionMonitor? AudioSessions = null,
+    ICallDetector? Calls = null,
     IActivityFeed? Activity = null);

@@ -1,6 +1,7 @@
 using Murmur.App;
 using Murmur.App.Services;
 using Murmur.Core.Activity;
+using Murmur.Core.Calls;
 using Murmur.Core.Capture;
 using Murmur.Core.Capture.Synthetic;
 using Murmur.Core.Input;
@@ -44,6 +45,8 @@ internal sealed class CompositionRoot : IDisposable
     private CancellationTokenSource? _recoveryRetry;
     private IGlobalHotkeys? _hotkeys;
     private IMotionPreference? _motion;
+    private IAudioSessionMonitor? _audioSessions;
+    private CallDetector? _calls;
     private readonly SingleInstance? _instance;
 
     /// <param name="instance">The single-instance guard whose "a second start wants the window" signal goes to the app; <c>null</c> = none.</param>
@@ -200,6 +203,8 @@ internal sealed class CompositionRoot : IDisposable
             Chats: storage,
             ChapterStore: storage,
             Marks: marks,
+            AudioSessions: _audioSessions ??= CreateAudioSessionMonitor(),
+            Calls: _calls ??= new CallDetector(_audioSessions, TimeProvider.System),
             Activity: activityFeed);
     }
 
@@ -210,6 +215,10 @@ internal sealed class CompositionRoot : IDisposable
         // The app (the hotkey coordinator) stopped using it when its window closed; this releases the hotkey thread.
         _hotkeys?.Dispose();
         (_motion as IDisposable)?.Dispose();
+
+        // The app stopped the detector when its window closed; this releases the audio-session monitor.
+        _calls?.Dispose();
+        _audioSessions?.Dispose();
         _heapTrimmer?.Dispose();
         _marks?.Dispose();
         _reindex?.Dispose();
@@ -332,6 +341,12 @@ internal sealed class CompositionRoot : IDisposable
         return new FullMotionPreference();
 #endif
     }
+
+    /// <summary>
+    /// The audio sessions call detection watches (#44). Only the null monitor for now (not supported: the Detect calls setting is
+    /// hidden); the WASAPI monitor of Murmur.Capture.Windows replaces it on Windows.
+    /// </summary>
+    internal static IAudioSessionMonitor CreateAudioSessionMonitor() => new NullAudioSessionMonitor();
 
     private static IAudioPlayback CreatePlayback()
     {

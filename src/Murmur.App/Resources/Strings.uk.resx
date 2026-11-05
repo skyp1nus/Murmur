@@ -1579,4 +1579,47 @@
     <value>Перейти до розділу «{0}»</value>
     <comment>{0} = chapter title; tooltip of a chapter segment, which jumps there</comment>
   </data>
+  <!-- Call detection (#44) -->
+  <data name="Calls_DetectedTitle" xml:space="preserve">
+    <value>Виявлено дзвінок</value>
+  </data>
+  <data name="Calls_DetectedBody" xml:space="preserve">
+    <value>{0} відтворює звук дзвінка.</value>
+  </data>
+  <data name="Calls_Record" xml:space="preserve">
+    <value>Записати</value>
+  </data>
+  <data name="Calls_NotNow" xml:space="preserve">
+    <value>Не зараз</value>
+  </data>
+  <data name="Calls_AlwaysRecord" xml:space="preserve">
+    <value>Завжди записувати дзвінки з цього застосунку</value>
+  </data>
+  <data name="Calls_AutoTitle" xml:space="preserve">
+    <value>Запис дзвінка: {0}</value>
+  </data>
+  <data name="Calls_AutoBody" xml:space="preserve">
+    <value>Почався автоматично: дзвінки з цього застосунку записуються завжди.</value>
+  </data>
+  <data name="Calls_Open" xml:space="preserve">
+    <value>Відкрити</value>
+  </data>
+  <data name="Calls_Stop" xml:space="preserve">
+    <value>Зупинити</value>
+  </data>
+  <data name="Calls_Dismiss" xml:space="preserve">
+    <value>Закрити</value>
+  </data>
+  <data name="Calls_SampleApp" xml:space="preserve">
+    <value>Microsoft Teams</value>
+  </data>
+  <data name="Calls_DetectTitle" xml:space="preserve">
+    <value>Виявляти дзвінки</value>
+  </data>
+  <data name="Calls_DetectText" xml:space="preserve">
+    <value>Пропонувати запис, коли починається дзвінок. Виявлення працює лише на цьому ПК.</value>
+  </data>
+  <data name="Calls_TryIt" xml:space="preserve">
+    <value>Спробувати</value>
+  </data>
 </root>

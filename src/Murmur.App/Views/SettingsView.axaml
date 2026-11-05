@@ -658,6 +658,44 @@
             <TextBlock Classes="settingsMeta graphite"
                        IsVisible="{Binding Devices.HasError}"
                        Text="{Binding Devices.Error}" />
+            <!-- Call detection (#44): only where the platform watches the audio sessions (not on the design boards). -->
+            <Border x:Name="DetectCallsRow"
+                    Classes="panel"
+                    IsVisible="{Binding CallDetectionSupported}">
+              <StackPanel>
+                <Border Classes="settingsRow">
+                  <Grid ColumnDefinitions="*,Auto"
+                        ColumnSpacing="{StaticResource Space.12}">
+                    <StackPanel Grid.Column="0"
+                                VerticalAlignment="Center"
+                                Spacing="{StaticResource Space.3}">
+                      <TextBlock Classes="settingsRowTitle"
+                                 Text="{x:Static res:Strings.Calls_DetectTitle}" />
+                      <TextBlock Classes="settingsMeta"
+                                 Text="{x:Static res:Strings.Calls_DetectText}" />
+                    </StackPanel>
+                    <StackPanel Grid.Column="1"
+                                Orientation="Horizontal"
+                                VerticalAlignment="Center"
+                                Spacing="{StaticResource Space.10}">
+                      <Button x:Name="TryCallToastButton"
+                              Classes="outline settingsButton"
+                              Command="{Binding Calls.TryItCommand}">
+                        <TextBlock Text="{x:Static res:Strings.Calls_TryIt}" />
+                      </Button>
+                      <ToggleButton x:Name="DetectCallsSwitch"
+                                    Classes="switch"
+                                    AutomationProperties.Name="{x:Static res:Strings.Calls_DetectTitle}"
+                                    IsChecked="{Binding Calls.DetectCalls, Mode=TwoWay, FallbackValue=False}" />
+                    </StackPanel>
+                  </Grid>
+                </Border>
+                <TextBlock Classes="settingsMeta graphite"
+                           Margin="{StaticResource Inset.GroupRow}"
+                           IsVisible="{Binding Calls.HasError, FallbackValue=False}"
+                           Text="{Binding Calls.Error}" />
+              </StackPanel>
+            </Border>
           </StackPanel>
         </controls:ResponsivePairPanel>
 
