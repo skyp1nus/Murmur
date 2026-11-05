@@ -60,7 +60,7 @@ public sealed partial class ExportDialogViewModel : ObservableObject, IDisposabl
         _debounce = debounce ?? DefaultDebounce;
 
         Title = string.IsNullOrWhiteSpace(record.Title) ? Strings.Common_UntitledRecording : record.Title;
-        WholeSpan = RangeText(TimeSpan.Zero, record.Duration);
+        WholeSpan = RangeText(TimeSpan.Zero, EndOfRecording(record, transcript));
         if (chapter is { } part)
         {
             ChapterLabel = UiText.Format(Strings.Export_RangeChapter, part.Title);
@@ -301,6 +301,7 @@ public sealed partial class ExportDialogViewModel : ObservableObject, IDisposabl
         var format = Format;
         var options = Options;
         var range = Range;
+        string text;
         try
         {
             if (!immediately && _debounce > TimeSpan.Zero)
@@ -308,21 +309,63 @@ public sealed partial class ExportDialogViewModel : ObservableObject, IDisposabl
                 await Task.Delay(_debounce, token).ConfigureAwait(true);
             }
 
-            var text = await Task.Run(() => Cut(Build(format, options, range)), token).ConfigureAwait(true);
-            if (!token.IsCancellationRequested && !_disposed)
-            {
-                Preview = text;
-            }
+            text = await Task.Run(() => PreviewOf(format, options, range, token), token).ConfigureAwait(true);
         }
         catch (OperationCanceledException)
         {
-            // A newer change took over.
+            // A newer change took over: the build stopped at the next segment.
+            return;
+        }
+        catch (Exception)
+        {
+            // A formatter that fails must not leave the task faulted and the preview stale: the dialog says so where the text would be.
+            text = Strings.Export_PreviewFailed;
+        }
+
+        if (!token.IsCancellationRequested && !_disposed)
+        {
+            Preview = text;
         }
     }
+
+    /// <summary>The preview: the export cut at <see cref="MaxPreviewChars"/>, or the empty-state line when the range holds no speech.</summary>
+    private string PreviewOf(ExportFormat format, ExportOptions options, ExportRange? range, CancellationToken cancellationToken)
+    {
+        if (range is { } part && !_transcript.Segments.Any(segment => Overlaps(part, segment)))
+        {
+            return Strings.Export_PreviewEmpty;
+        }
+
+        return Cut(TranscriptExport.Format(format, _record with { Title = Title }, _transcript, _summary, _labels, options, range, cancellationToken));
+    }
+
+    /// <summary>The same test the formatter makes: the segment overlaps <c>[Start, End)</c>, a segment without length counts as a point.</summary>
+    private static bool Overlaps(ExportRange range, TranscriptSegment segment) =>
+        range.End > range.Start
+        && segment.Start < range.End
+        && (segment.End > segment.Start ? segment.End > range.Start : segment.Start >= range.Start);
 
     /// <summary>The text of the export as the file will have it (a .docx is shown as its Markdown).</summary>
     private string Build(ExportFormat format, ExportOptions options, ExportRange? range) =>
         TranscriptExport.Format(format, _record with { Title = Title }, _transcript, _summary, _labels, options, range);
+
+    /// <summary>
+    /// Where the recording ends: its length, or where the last words end when they run past it (or the length is not known). The whole
+    /// recording and the last chapter both end here.
+    /// </summary>
+    internal static TimeSpan EndOfRecording(SessionRecord record, Transcript transcript)
+    {
+        var end = record.Duration;
+        foreach (var segment in transcript.Segments)
+        {
+            if (segment.End > end)
+            {
+                end = segment.End;
+            }
+        }
+
+        return end;
+    }
 
     private static string Cut(string text)
     {
@@ -408,7 +451,17 @@ public sealed partial class ExportDialogViewModel : ObservableObject, IDisposabl
     };
 
     /// <summary><c>12:15 – 24:30</c> (an en dash with spaces, as in the mockup).</summary>
-    private static string RangeText(TimeSpan start, TimeSpan end) => UiFormat.Clock(start) + " – " + UiFormat.Clock(end);
+    private static string RangeText(TimeSpan start, TimeSpan end)
+    {
+        // From an hour on both ends carry hours ("0:24:30 – 1:00:00"), so the two read alike.
+        var hours = end >= TimeSpan.FromHours(1);
+        return Time(start, hours) + " – " + Time(end, hours);
+    }
+
+    private static string Time(TimeSpan time, bool withHours) =>
+        withHours
+            ? string.Create(System.Globalization.CultureInfo.InvariantCulture, $"{(long)time.TotalHours}:{time.Minutes:00}:{time.Seconds:00}")
+            : UiFormat.Clock(time);
 
     public void Dispose()
     {

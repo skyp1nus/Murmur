@@ -1400,9 +1400,6 @@
   <data name="Session_ExportMarkdown" xml:space="preserve">
     <value>Markdown</value>
   </data>
-  <data name="Session_ExportText" xml:space="preserve">
-    <value>Текст</value>
-  </data>
   <data name="Session_ExportSrt" xml:space="preserve">
     <value>Субтитри SRT</value>
   </data>
@@ -1703,5 +1700,11 @@
   <data name="Export_CopyFailed" xml:space="preserve">
     <value>Не вдалося скопіювати: {0}</value>
     <comment>{0} = error message</comment>
+  </data>
+  <data name="Export_PreviewFailed" xml:space="preserve">
+    <value>Не вдалося побудувати попередній перегляд.</value>
+  </data>
+  <data name="Export_PreviewEmpty" xml:space="preserve">
+    <value>У цьому діапазоні нічого не сказано.</value>
   </data>
 </root>

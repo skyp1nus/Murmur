@@ -47,9 +47,6 @@ public sealed partial class SessionViewModel
     /// <summary>The Export button was pressed: the view shows this dialog (a modal over the window). It closes itself with <see cref="ExportDialogViewModel.CloseRequested"/>.</summary>
     public event Action<ExportDialogViewModel>? ExportDialogRequested;
 
-    /// <summary>The last export (for tests); completes when the file is written or the dialog was cancelled.</summary>
-    internal Task ExportTask { get; private set; } = Task.CompletedTask;
-
     /// <summary>The last delete or rename (for tests).</summary>
     internal Task EditTask { get; private set; } = Task.CompletedTask;
 
@@ -83,7 +80,7 @@ public sealed partial class SessionViewModel
         {
             var chapters = Chapters;
             var next = chapters.FirstOrDefault(c => c.Start > current.Start);
-            var end = next?.Start ?? EndOfRecording(transcript);
+            var end = next?.Start ?? ExportDialogViewModel.EndOfRecording(_record with { Title = Title, Duration = Duration }, transcript);
             if (end > current.Start)
             {
                 chapter = new ExportChapterRange(current.Title, current.Start, end);
@@ -93,71 +90,11 @@ public sealed partial class SessionViewModel
         return new ExportDialogViewModel(_record with { Title = Title }, transcript, _stored, ExportTexts(_speakerNames), saver, chapter);
     }
 
-    /// <summary>The length of the recording, or where its last words end when the length is not known.</summary>
-    private TimeSpan EndOfRecording(Transcript transcript)
-    {
-        var end = Duration;
-        foreach (var segment in transcript.Segments)
-        {
-            if (segment.End > end)
-            {
-                end = segment.End;
-            }
-        }
-
-        return end;
-    }
-
-    [RelayCommand(CanExecute = nameof(CanRunExport))]
-    private void ExportMarkdown() => ExportTask = ExportAsync(ExportFormat.Markdown);
-
-    [RelayCommand(CanExecute = nameof(CanRunExport))]
-    private void ExportText() => ExportTask = ExportAsync(ExportFormat.PlainText);
-
-    [RelayCommand(CanExecute = nameof(CanRunExport))]
-    private void ExportSrt() => ExportTask = ExportAsync(ExportFormat.Srt);
-
-    [RelayCommand(CanExecute = nameof(CanRunExport))]
-    private void ExportWebVtt() => ExportTask = ExportAsync(ExportFormat.WebVtt);
-
-    /// <summary>Tells the buttons that the transcript, or the place to save it, changed.</summary>
+    /// <summary>Tells the Export button that the transcript, or the place to save it, changed.</summary>
     internal void RefreshExport()
     {
         OnPropertyChanged(nameof(CanExport));
         OpenExportCommand.NotifyCanExecuteChanged();
-        ExportMarkdownCommand.NotifyCanExecuteChanged();
-        ExportTextCommand.NotifyCanExecuteChanged();
-        ExportSrtCommand.NotifyCanExecuteChanged();
-        ExportWebVttCommand.NotifyCanExecuteChanged();
-    }
-
-    private async Task ExportAsync(ExportFormat format)
-    {
-        if (FileSaver is not { } saver || _transcript is not { } transcript)
-        {
-            ActionMessage = Strings.Session_ExportNoTranscript;
-            return;
-        }
-
-        try
-        {
-            var labels = ExportTexts(_speakerNames);
-            var summary = format == ExportFormat.Markdown ? _stored : null;
-            var content = TranscriptExport.Format(format, _record with { Title = Title }, transcript, summary, labels);
-            var extension = TranscriptExport.Extension(format);
-            var saved = await saver.SaveTextAsync(
-                Strings.Session_ExportTitle,
-                FileNames.Safe(Title) + extension,
-                ExportTypeName(format),
-                extension,
-                content).ConfigureAwait(true);
-            ActionMessage = saved is null ? null : UiText.Format(Strings.Session_ExportSaved, saved);
-        }
-        catch (Exception ex) when (ex is not OperationCanceledException)
-        {
-            // The dialog, the file system and the stream can each fail in their own way (NotSupportedException, a COM error ...).
-            ActionMessage = UiText.Format(Strings.Session_ExportFailed, ex.Message);
-        }
     }
 
     /// <summary>The speakers (the names the user chose, else "You" / "Others") and the headings of the exported file, in the UI language.</summary>
@@ -170,14 +107,6 @@ public sealed partial class SessionViewModel
         Strings.Session_SummaryActionItems,
         Strings.Session_TabTranscript,
         Strings.Common_UntitledRecording);
-
-    private static string ExportTypeName(ExportFormat format) => format switch
-    {
-        ExportFormat.Markdown => Strings.Session_ExportMarkdown,
-        ExportFormat.PlainText => Strings.Session_ExportText,
-        ExportFormat.Srt => Strings.Session_ExportSrt,
-        _ => Strings.Session_ExportWebVtt,
-    };
 
     /// <summary>Gives the recording a new title; a blank one is ignored. The breadcrumb and the library follow.</summary>
     internal async Task RenameAsync(string title)

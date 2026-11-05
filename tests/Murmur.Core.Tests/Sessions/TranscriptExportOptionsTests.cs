@@ -60,7 +60,7 @@ public sealed class TranscriptExportOptionsTests
         var summary = format is ExportFormat.Markdown or ExportFormat.Docx ? Summary : null;
 
         Assert.Equal(
-            TranscriptExport.Format(format, Session, Transcript, summary, null, ExportOptions.Default, null),
+            TranscriptExport.Format(format, Session, Transcript, summary, null, ExportOptions.Default, null, TestContext.Current.CancellationToken),
             TranscriptExport.Format(format, Session, Transcript, Summary));
     }
 
@@ -107,8 +107,8 @@ public sealed class TranscriptExportOptionsTests
     [Fact]
     public void WithoutASummary_NoSummarySectionIsWritten_WhateverTheOptions()
     {
-        var markdown = TranscriptExport.Format(ExportFormat.Markdown, Session, Transcript, null, null, ExportOptions.Default, null);
-        var text = TranscriptExport.Format(ExportFormat.PlainText, Session, Transcript, null, null, ExportOptions.Default, null);
+        var markdown = TranscriptExport.Format(ExportFormat.Markdown, Session, Transcript, null, null, ExportOptions.Default, null, TestContext.Current.CancellationToken);
+        var text = TranscriptExport.Format(ExportFormat.PlainText, Session, Transcript, null, null, ExportOptions.Default, null, TestContext.Current.CancellationToken);
 
         Assert.DoesNotContain("## Summary", markdown, StringComparison.Ordinal);
         Assert.DoesNotContain("SUMMARY", text, StringComparison.Ordinal);
@@ -245,6 +245,82 @@ public sealed class TranscriptExportOptionsTests
         var text = Format(ExportFormat.Srt, range: new ExportRange(TimeSpan.FromMinutes(5), TimeSpan.FromMinutes(6)));
 
         Assert.Equal(string.Empty, text);
+    }
+
+    // Heading levels --------------------------------------------------------------------------------------------
+
+    [Fact]
+    public void ActionItemsWithoutTheSummary_AreASectionOfTheirOwn_NoHeadingLevelIsSkipped()
+    {
+        var alone = Format(ExportFormat.Markdown, new ExportOptions(Summary: false));
+        var both = Format(ExportFormat.Markdown);
+
+        Assert.Contains("\n## Action items\n\n- [ ] Send the invite", alone, StringComparison.Ordinal);
+        Assert.DoesNotContain("### Action items", alone, StringComparison.Ordinal);
+        Assert.DoesNotContain("## Summary", alone, StringComparison.Ordinal);
+        Assert.Contains("\n### Action items\n\n", both, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ASummaryWithoutText_HasNoSummaryHeading_InAnyFormat()
+    {
+        var empty = Summary with { Overview = "  ", KeyPoints = [] };
+
+        var markdown = Format(ExportFormat.Markdown, summary: empty);
+        var plain = Format(ExportFormat.PlainText, summary: empty);
+
+        Assert.DoesNotContain("## Summary", markdown, StringComparison.Ordinal);
+        Assert.Contains("\n## Action items\n", markdown, StringComparison.Ordinal);
+        Assert.DoesNotContain("SUMMARY", plain, StringComparison.Ordinal);
+        Assert.Contains("ACTION ITEMS\n• Send the invite", plain, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ASummaryWithNothingAtAll_AddsNoSection()
+    {
+        var nothing = Summary with { Overview = string.Empty, KeyPoints = [], ActionItems = [] };
+
+        var plain = Format(ExportFormat.PlainText, summary: nothing);
+
+        Assert.DoesNotContain("SUMMARY", plain, StringComparison.Ordinal);
+        Assert.DoesNotContain("TRANSCRIPT", plain, StringComparison.Ordinal);
+        Assert.DoesNotContain("## Summary", Format(ExportFormat.Markdown, summary: nothing), StringComparison.Ordinal);
+    }
+
+    // The range edge cases and giving up ---------------------------------------------------------------------------
+
+    [Theory]
+    [InlineData(30, 5)]
+    [InlineData(15, 15)]
+    [InlineData(-5, -10)]
+    public void ARangeThatEndsAtOrBeforeItsStart_HasNoSegments_WhateverTheyCover(double start, double end)
+    {
+        var spanning = new Transcript(Id, [Segment(Speaker.Me, 0, 60, "Spans everything."), Segment(Speaker.Others, 15, 15, "A point.")], "parakeet", "en");
+        var range = new ExportRange(TimeSpan.FromSeconds(start), TimeSpan.FromSeconds(end));
+
+        foreach (var format in new[] { ExportFormat.Markdown, ExportFormat.PlainText, ExportFormat.Srt, ExportFormat.WebVtt })
+        {
+            var text = TranscriptExport.Format(format, Session, spanning, null, null, ExportOptions.Default, range, TestContext.Current.CancellationToken);
+
+            Assert.DoesNotContain("Spans everything.", text, StringComparison.Ordinal);
+            Assert.DoesNotContain("A point.", text, StringComparison.Ordinal);
+        }
+    }
+
+    [Theory]
+    [InlineData(ExportFormat.Markdown)]
+    [InlineData(ExportFormat.PlainText)]
+    [InlineData(ExportFormat.Srt)]
+    [InlineData(ExportFormat.WebVtt)]
+    public void ACancelledToken_StopsTheBuild_AndALiveOneChangesNothing(ExportFormat format)
+    {
+        using var cancelled = new CancellationTokenSource();
+        cancelled.Cancel();
+
+        Assert.Throws<OperationCanceledException>(() => TranscriptExport.Format(format, Session, Transcript, Summary, null, ExportOptions.Default, null, cancelled.Token));
+        Assert.Equal(
+            Format(format),
+            TranscriptExport.Format(format, Session, Transcript, Summary, null, ExportOptions.Default, null, CancellationToken.None));
     }
 
     [Fact]

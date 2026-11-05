@@ -218,6 +218,37 @@ public sealed class DocxExportTests
     }
 
     [Fact]
+    public void ThePageMargins_CarryTheHeaderFooterAndGutterTheSchemaWants()
+    {
+        var margins = Part(Build(), "word/document.xml").Descendants(W + "pgMar").Single();
+
+        Assert.Equal("709", (string?)margins.Attribute(W + "header"));
+        Assert.Equal("709", (string?)margins.Attribute(W + "footer"));
+        Assert.Equal("0", (string?)margins.Attribute(W + "gutter"));
+        Assert.Equal("1134", (string?)margins.Attribute(W + "top"));
+    }
+
+    [Fact]
+    public void ActionItemsWithoutTheSummary_AreAHeading2_NoLevelIsSkipped()
+    {
+        var alone = Paragraphs(Build(new ExportOptions(Summary: false)));
+        var both = Paragraphs(Build());
+
+        Assert.Contains(("Heading2", "Action items"), alone);
+        Assert.DoesNotContain(alone, p => p.Text == "Summary");
+        Assert.Contains(("Heading3", "Action items"), both);
+    }
+
+    [Fact]
+    public void ASummaryWithoutText_HasNoSummaryHeading()
+    {
+        var paragraphs = Paragraphs(Build(summary: Summary with { Overview = string.Empty, KeyPoints = [] }));
+
+        Assert.DoesNotContain(paragraphs, p => p.Text is "Summary" or "Overview" or "Key points");
+        Assert.Contains(("Heading2", "Action items"), paragraphs);
+    }
+
+    [Fact]
     public void ALongTranscript_StillMakesAValidDocument()
     {
         var segments = Enumerable.Range(0, 5000)

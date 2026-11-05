@@ -299,23 +299,11 @@ public sealed class SpeakerNamesTests : IDisposable
         await vm.RenameSpeakerAsync(Speaker.Others, "Anna K.");
         await vm.RenameSpeakerAsync(Speaker.Me, "Олена");
 
-        switch (format)
-        {
-            case ExportFormat.Markdown:
-                vm.ExportMarkdownCommand.Execute(null);
-                break;
-            case ExportFormat.PlainText:
-                vm.ExportTextCommand.Execute(null);
-                break;
-            case ExportFormat.Srt:
-                vm.ExportSrtCommand.Execute(null);
-                break;
-            default:
-                vm.ExportWebVttCommand.Execute(null);
-                break;
-        }
-
-        await vm.ExportTask;
+        using var dialog = vm.CreateExportDialog();
+        Assert.NotNull(dialog);
+        dialog.Format = format;
+        dialog.SaveCommand.Execute(null);
+        await dialog.ActionTask;
 
         var content = Assert.Single(_saver.Saved).Content;
         Assert.Contains(expected, content);

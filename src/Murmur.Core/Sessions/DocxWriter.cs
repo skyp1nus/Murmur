@@ -134,6 +134,11 @@ internal static class DocxWriter
             writer.WriteAttributeString("w", side, W, "1134");
         }
 
+        // The schema wants the header, footer and gutter distances too.
+        writer.WriteAttributeString("w", "header", W, "709");
+        writer.WriteAttributeString("w", "footer", W, "709");
+        writer.WriteAttributeString("w", "gutter", W, "0");
+
         writer.WriteEndElement();
         writer.WriteEndElement();
 

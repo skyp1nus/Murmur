@@ -76,7 +76,7 @@ public sealed class ExportDialogTests : IDisposable
         Assert.Equal("Client demo: Q4/roadmap", vm.Title);
         Assert.Equal("Client demo_ Q4_roadmap.md", vm.FileName);
         Assert.Equal("Save .md", vm.SaveLabel);
-        Assert.Equal(TranscriptExport.Format(ExportFormat.Markdown, Record, Transcript, Summary, ExportLabels.English, ExportOptions.Default, null), vm.Preview);
+        Assert.Equal(TranscriptExport.Format(ExportFormat.Markdown, Record, Transcript, Summary, ExportLabels.English, ExportOptions.Default, null, TestContext.Current.CancellationToken), vm.Preview);
         Assert.StartsWith("# Client demo: Q4/roadmap\n", vm.Preview, StringComparison.Ordinal);
         Assert.Contains("## Summary", vm.Preview, StringComparison.Ordinal);
     }
@@ -89,7 +89,7 @@ public sealed class ExportDialogTests : IDisposable
         vm.IncludeSummary = false;
         await vm.PreviewTask;
         Assert.DoesNotContain("## Summary", vm.Preview, StringComparison.Ordinal);
-        Assert.Contains("### Action items", vm.Preview, StringComparison.Ordinal);
+        Assert.Contains("\n## Action items\n", vm.Preview, StringComparison.Ordinal);
 
         vm.IncludeActionItems = false;
         await vm.PreviewTask;
@@ -223,10 +223,24 @@ public sealed class ExportDialogTests : IDisposable
     public async Task Subtitles_RaisePropertyChangedForTheLockedBoxes()
     {
         using var vm = await Settled(Create());
-        var raised = new List<string?>();
-        vm.PropertyChanged += (_, e) => raised.Add(e.PropertyName);
+        var collected = new List<string?>();
+        vm.PropertyChanged += (_, e) =>
+        {
+            lock (collected)
+            {
+                collected.Add(e.PropertyName);
+            }
+        };
 
         vm.IsSrt = true;
+
+        // The preview is set from the thread pool (there is no UI thread here): let it finish before the list is read.
+        await vm.PreviewTask;
+        List<string?> raised;
+        lock (collected)
+        {
+            raised = [.. collected];
+        }
 
         Assert.Contains(nameof(ExportDialogViewModel.IncludeSummary), raised);
         Assert.Contains(nameof(ExportDialogViewModel.IncludeActionItems), raised);
@@ -301,7 +315,7 @@ public sealed class ExportDialogTests : IDisposable
         vm.CopyCommand.Execute(null);
         await vm.ActionTask;
 
-        Assert.Equal(TranscriptExport.Format(ExportFormat.PlainText, Record, Transcript, Summary, ExportLabels.English, new ExportOptions(Timestamps: false), null), _clipboard.Single());
+        Assert.Equal(TranscriptExport.Format(ExportFormat.PlainText, Record, Transcript, Summary, ExportLabels.English, new ExportOptions(Timestamps: false), null, TestContext.Current.CancellationToken), _clipboard.Single());
         Assert.Equal("Copied to clipboard", vm.Status);
         Assert.True(vm.HasStatus);
 
@@ -358,7 +372,7 @@ public sealed class ExportDialogTests : IDisposable
         var saved = Assert.Single(_saver.Texts);
         Assert.Equal("Client demo_ Q4_roadmap" + extension, saved.SuggestedName);
         Assert.Equal(extension, saved.Extension);
-        Assert.Equal(TranscriptExport.Format(format, Record, Transcript, Summary, ExportLabels.English, new ExportOptions(SpeakerNames: false), null), saved.Content);
+        Assert.Equal(TranscriptExport.Format(format, Record, Transcript, Summary, ExportLabels.English, new ExportOptions(SpeakerNames: false), null, TestContext.Current.CancellationToken), saved.Content);
         Assert.Equal("Saved export" + extension, vm.Status);
         Assert.Empty(_saver.Binaries);
     }
@@ -437,6 +451,113 @@ public sealed class ExportDialogTests : IDisposable
 
         Assert.Equal("Зберегти .md", vm.SaveLabel);
         Assert.Equal("Розділ: PDF export", vm.ChapterLabel);
+    }
+
+    // The range text, the empty range and a formatter that fails ------------------------------------------------
+
+    [Fact]
+    public async Task FromAnHourOn_BothEndsOfARangeCarryHours()
+    {
+        var late = new ExportChapterRange("Late", TimeSpan.FromSeconds(3300), TimeSpan.FromSeconds(4000));
+        using var vm = await Settled(Create(late));
+
+        Assert.Equal("0:55:00 – 1:06:40", vm.ChapterSpan);
+        Assert.Equal("00:00 – 47:12", vm.WholeSpan);
+    }
+
+    [Fact]
+    public async Task TheWholeRecording_EndsWhereTheLastWordsEnd_WhenTheyRunPastTheLength()
+    {
+        var segments = new[] { Segment(Speaker.Me, 0, 10, "Short."), Segment(Speaker.Others, 3000, 4000, "Past the stored length.") };
+        var past = new Transcript(Record.Id, segments, "parakeet", "en");
+        using var vm = await Settled(Create(transcript: past));
+
+        Assert.Equal(TimeSpan.FromSeconds(4000), ExportDialogViewModel.EndOfRecording(Record, past));
+        Assert.Equal("0:00:00 – 1:06:40", vm.WholeSpan);
+    }
+
+    [Fact]
+    public async Task ARangeWithoutSpeech_ShowsAnEmptyStateLine_InEveryFormat()
+    {
+        var quiet = new ExportChapterRange("Silence", TimeSpan.FromSeconds(2000), TimeSpan.FromSeconds(3000));
+        using var vm = await Settled(Create(quiet));
+        vm.IsChapterRange = true;
+
+        foreach (var format in new[] { ExportFormat.Markdown, ExportFormat.PlainText, ExportFormat.Srt, ExportFormat.Docx })
+        {
+            vm.Format = format;
+            await vm.PreviewTask;
+
+            Assert.Equal("Nothing was said in this range.", vm.Preview);
+        }
+
+        vm.IsWholeRange = true;
+        await vm.PreviewTask;
+        Assert.Contains("quick run", vm.Preview, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task TheEmptyStateLine_IsInUkrainianToo()
+    {
+        using var ukrainian = UiCulture.Override("uk");
+        var quiet = new ExportChapterRange("Тиша", TimeSpan.FromSeconds(2000), TimeSpan.FromSeconds(3000));
+        using var vm = await Settled(Create(quiet));
+
+        vm.IsChapterRange = true;
+        await vm.PreviewTask;
+
+        Assert.Equal("У цьому діапазоні нічого не сказано.", vm.Preview);
+    }
+
+    [Fact]
+    public async Task AFormatterThatFails_ShowsAShortErrorLine_AndLeavesNoFaultedTask()
+    {
+        var broken = new Transcript(Record.Id, [new TranscriptSegment(Speaker.Me, TimeSpan.Zero, TimeSpan.FromSeconds(1), null!, [])], "parakeet", "en");
+        using var vm = Create(transcript: broken);
+
+        await vm.PreviewTask;
+        Assert.Equal(TaskStatus.RanToCompletion, vm.PreviewTask.Status);
+        Assert.Equal("Couldn’t build the preview.", vm.Preview);
+
+        // The next change is formatted again (here: it fails the same way), the dialog stays usable.
+        vm.IncludeSummary = false;
+        await vm.PreviewTask;
+        Assert.Equal(TaskStatus.RanToCompletion, vm.PreviewTask.Status);
+        Assert.Equal("Couldn’t build the preview.", vm.Preview);
+        Assert.True(vm.SaveCommand.CanExecute(null));
+    }
+
+    [Fact]
+    public async Task TheErrorLine_IsInUkrainianToo()
+    {
+        using var ukrainian = UiCulture.Override("uk");
+        var broken = new Transcript(Record.Id, [new TranscriptSegment(Speaker.Me, TimeSpan.Zero, TimeSpan.FromSeconds(1), null!, [])], "parakeet", "en");
+        using var vm = Create(transcript: broken);
+
+        await vm.PreviewTask;
+
+        Assert.Equal("Не вдалося побудувати попередній перегляд.", vm.Preview);
+    }
+
+    [Fact]
+    public async Task ASupersededBuild_NeverShows_AndNeverFaults()
+    {
+        // A long transcript, changed again and again while the first builds still run: only the last state is shown.
+        var segments = Enumerable.Range(0, 20_000).Select(i => Segment(Speaker.Me, i * 2, (i * 2) + 1, "Line number " + i)).ToArray();
+        var big = new Transcript(Record.Id, segments, "parakeet", "en");
+        using var vm = Create(transcript: big);
+
+        vm.Format = ExportFormat.PlainText;
+        var first = vm.PreviewTask;
+        vm.Format = ExportFormat.Srt;
+        var second = vm.PreviewTask;
+        vm.IncludeSpeakerNames = false;
+        await vm.PreviewTask;
+        await first;
+        await second;
+
+        Assert.Equal(TaskStatus.RanToCompletion, first.Status);
+        Assert.StartsWith("1\n00:00:00,000 --> 00:00:01,000\nLine number 0", vm.Preview, StringComparison.Ordinal);
     }
 
     /// <summary>An <see cref="IFileSaver"/> that remembers what it was asked to write.</summary>

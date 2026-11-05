@@ -48,7 +48,7 @@
                          VerticalAlignment="Top"
                          Margin="{StaticResource Margin.ExportSubtitle}"
                          TextTrimming="CharacterEllipsis"
-                         MaxWidth="560"
+                         MaxWidth="{StaticResource Size.ExportSubtitleMax}"
                          Text="{Binding Title}" />
             </StackPanel>
             <Button x:Name="CloseButton"
@@ -259,8 +259,8 @@
                 <controls:IconControl Width="{StaticResource Size.ExportCopyIcon}"
                                       Height="{StaticResource Size.ExportCopyIcon}"
                                       Data="{StaticResource Icon.Copy}" />
-                <TextBlock Classes="sessionGhostText"
-                           Foreground="{Binding $parent[ContentPresenter].Foreground}"
+                <TextBlock x:Name="CopyLabel"
+                           Classes="sessionGhostText"
                            Text="{x:Static res:Strings.Export_Copy}" />
               </StackPanel>
             </Button>

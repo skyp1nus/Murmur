@@ -1409,9 +1409,6 @@
   <data name="Session_ExportMarkdown" xml:space="preserve">
     <value>Markdown</value>
   </data>
-  <data name="Session_ExportText" xml:space="preserve">
-    <value>Text</value>
-  </data>
   <data name="Session_ExportSrt" xml:space="preserve">
     <value>SRT subtitles</value>
   </data>
@@ -1712,5 +1709,11 @@
   <data name="Export_CopyFailed" xml:space="preserve">
     <value>Couldn’t copy: {0}</value>
     <comment>{0} = error message</comment>
+  </data>
+  <data name="Export_PreviewFailed" xml:space="preserve">
+    <value>Couldn’t build the preview.</value>
+  </data>
+  <data name="Export_PreviewEmpty" xml:space="preserve">
+    <value>Nothing was said in this range.</value>
   </data>
 </root>

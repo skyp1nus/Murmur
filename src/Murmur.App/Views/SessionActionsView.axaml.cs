@@ -48,11 +48,27 @@ public partial class SessionActionsView : UserControl
         }
     }
 
+    protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
+    {
+        base.OnAttachedToVisualTree(e);
+        if (_session is null && DataContext is SessionActionsViewModel { Session: var session })
+        {
+            _session = session;
+            _session.ExportDialogRequested += OnExportDialogRequested;
+        }
+    }
+
     protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
     {
         // Going to another screen takes the dialog with it.
         _dialog?.Close();
         _dialog = null;
+        if (_session is not null)
+        {
+            _session.ExportDialogRequested -= OnExportDialogRequested;
+            _session = null;
+        }
+
         base.OnDetachedFromVisualTree(e);
     }
 

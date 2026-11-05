@@ -68,7 +68,22 @@ public static class TranscriptExport
         SessionSummary? summary,
         ExportLabels? labels,
         ExportOptions options,
-        ExportRange? range)
+        ExportRange? range) =>
+        Format(format, session, transcript, summary, labels, options, range, CancellationToken.None);
+
+    /// <summary>
+    /// The same, for a caller that may give up (the live preview of a long transcript): the token is checked between segments and a
+    /// cancelled build throws <see cref="OperationCanceledException"/> instead of running to the end.
+    /// </summary>
+    public static string Format(
+        ExportFormat format,
+        SessionRecord session,
+        Transcript transcript,
+        SessionSummary? summary,
+        ExportLabels? labels,
+        ExportOptions options,
+        ExportRange? range,
+        CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(session);
         ArgumentNullException.ThrowIfNull(transcript);
@@ -76,10 +91,10 @@ public static class TranscriptExport
         labels ??= ExportLabels.English;
         return format switch
         {
-            ExportFormat.Markdown or ExportFormat.Docx => Markdown(session, transcript, summary, labels, options, range),
-            ExportFormat.PlainText => PlainText(session, transcript, summary, labels, options, range),
-            ExportFormat.Srt => Srt(transcript, labels, options, range),
-            ExportFormat.WebVtt => WebVtt(session, transcript, labels, options, range),
+            ExportFormat.Markdown or ExportFormat.Docx => Markdown(session, transcript, summary, labels, options, range, cancellationToken),
+            ExportFormat.PlainText => PlainText(session, transcript, summary, labels, options, range, cancellationToken),
+            ExportFormat.Srt => Srt(transcript, labels, options, range, cancellationToken),
+            ExportFormat.WebVtt => WebVtt(session, transcript, labels, options, range, cancellationToken),
             _ => throw new ArgumentOutOfRangeException(nameof(format), format, null),
         };
     }
@@ -107,21 +122,23 @@ public static class TranscriptExport
             new(DocxWriter.Meta, [new DocxRun(MetaLine(session, transcript))]),
         };
 
-        if (summary is not null && options.Summary)
+        var summaryText = HasSummaryText(summary, options);
+        if (summaryText)
         {
             paragraphs.Add(new(DocxWriter.Heading2, [new DocxRun(labels.Summary)]));
-            if (!string.IsNullOrWhiteSpace(summary.Overview))
+            if (!string.IsNullOrWhiteSpace(summary!.Overview))
             {
                 paragraphs.Add(new(DocxWriter.Heading3, [new DocxRun(labels.Overview)]));
                 paragraphs.Add(new(DocxWriter.Normal, [new DocxRun(summary.Overview.Trim())]));
             }
 
-            AddBullets(paragraphs, labels.KeyPoints, summary.KeyPoints, "•", options.Timestamps);
+            AddBullets(paragraphs, DocxWriter.Heading3, labels.KeyPoints, summary.KeyPoints, "•", options.Timestamps);
         }
 
-        if (summary is not null && options.ActionItems)
+        if (HasActionItems(summary, options))
         {
-            AddBullets(paragraphs, labels.ActionItems, summary.ActionItems, "☐", options.Timestamps);
+            // Under the Summary heading when there is one, else a section of its own (no level is skipped).
+            AddBullets(paragraphs, summaryText ? DocxWriter.Heading3 : DocxWriter.Heading2, labels.ActionItems, summary!.ActionItems, "☐", options.Timestamps);
         }
 
         paragraphs.Add(new(DocxWriter.Heading2, [new DocxRun(labels.Transcript)]));
@@ -145,14 +162,14 @@ public static class TranscriptExport
         return DocxWriter.Build(paragraphs);
     }
 
-    private static void AddBullets(List<DocxParagraph> paragraphs, string heading, IReadOnlyList<SummaryItem> items, string bullet, bool timestamps)
+    private static void AddBullets(List<DocxParagraph> paragraphs, string headingStyle, string heading, IReadOnlyList<SummaryItem> items, string bullet, bool timestamps)
     {
         if (items.Count == 0)
         {
             return;
         }
 
-        paragraphs.Add(new(DocxWriter.Heading3, [new DocxRun(heading)]));
+        paragraphs.Add(new(headingStyle, [new DocxRun(heading)]));
         foreach (var item in items)
         {
             var runs = new List<DocxRun>(2) { new(bullet + "\t" + OneLine(item.Text)) };
@@ -173,7 +190,7 @@ public static class TranscriptExport
     {
         ArgumentNullException.ThrowIfNull(session);
         ArgumentNullException.ThrowIfNull(transcript);
-        return Markdown(session, transcript, summary, labels ?? ExportLabels.English, ExportOptions.Default, null);
+        return Markdown(session, transcript, summary, labels ?? ExportLabels.English, ExportOptions.Default, null, CancellationToken.None);
     }
 
     /// <summary>The title and the meta line, then one line per segment: <c>[12:21] You: text</c>.</summary>
@@ -181,7 +198,7 @@ public static class TranscriptExport
     {
         ArgumentNullException.ThrowIfNull(session);
         ArgumentNullException.ThrowIfNull(transcript);
-        return PlainText(session, transcript, null, labels ?? ExportLabels.English, ExportOptions.Default, null);
+        return PlainText(session, transcript, null, labels ?? ExportLabels.English, ExportOptions.Default, null, CancellationToken.None);
     }
 
     /// <summary>SubRip: numbered cues <c>00:12:21,000 --> 00:12:29,000</c> with <c>Speaker: text</c>, one cue per segment.</summary>
@@ -189,7 +206,7 @@ public static class TranscriptExport
     {
         ArgumentNullException.ThrowIfNull(session);
         ArgumentNullException.ThrowIfNull(transcript);
-        return Srt(transcript, labels ?? ExportLabels.English, ExportOptions.Default, null);
+        return Srt(transcript, labels ?? ExportLabels.English, ExportOptions.Default, null, CancellationToken.None);
     }
 
     /// <summary>WebVTT: the <c>WEBVTT - title</c> header, then cues <c>00:12:21.000 --> 00:12:29.000</c> with the speaker as a voice tag (<c>&lt;v You&gt;</c>).</summary>
@@ -197,34 +214,37 @@ public static class TranscriptExport
     {
         ArgumentNullException.ThrowIfNull(session);
         ArgumentNullException.ThrowIfNull(transcript);
-        return WebVtt(session, transcript, labels ?? ExportLabels.English, ExportOptions.Default, null);
+        return WebVtt(session, transcript, labels ?? ExportLabels.English, ExportOptions.Default, null, CancellationToken.None);
     }
 
-    private static string Markdown(SessionRecord session, Transcript transcript, SessionSummary? summary, ExportLabels labels, ExportOptions options, ExportRange? range)
+    private static string Markdown(SessionRecord session, Transcript transcript, SessionSummary? summary, ExportLabels labels, ExportOptions options, ExportRange? range, CancellationToken cancellationToken)
     {
         var text = new StringBuilder();
         text.Append("# ").Append(TitleOf(session, labels)).Append("\n\n");
         text.Append(MetaLine(session, transcript)).Append("\n\n");
 
-        if (summary is not null && options.Summary)
+        var summaryText = HasSummaryText(summary, options);
+        if (summaryText)
         {
             text.Append("## ").Append(labels.Summary).Append("\n\n");
-            if (!string.IsNullOrWhiteSpace(summary.Overview))
+            if (!string.IsNullOrWhiteSpace(summary!.Overview))
             {
                 text.Append("### ").Append(labels.Overview).Append("\n\n").Append(summary.Overview.Trim()).Append("\n\n");
             }
 
-            AppendItems(text, labels.KeyPoints, summary.KeyPoints, "- ", options.Timestamps);
+            AppendItems(text, "### ", labels.KeyPoints, summary.KeyPoints, "- ", options.Timestamps);
         }
 
-        if (summary is not null && options.ActionItems)
+        if (HasActionItems(summary, options))
         {
-            AppendItems(text, labels.ActionItems, summary.ActionItems, "- [ ] ", options.Timestamps);
+            // Under the Summary heading when there is one, else a section of its own (no level is skipped).
+            AppendItems(text, summaryText ? "### " : "## ", labels.ActionItems, summary!.ActionItems, "- [ ] ", options.Timestamps);
         }
 
         text.Append("## ").Append(labels.Transcript).Append("\n\n");
         foreach (var segment in Segments(transcript, range))
         {
+            cancellationToken.ThrowIfCancellationRequested();
             if (options.SpeakerNames)
             {
                 text.Append("**").Append(SpeakerOf(segment, labels)).Append("**");
@@ -246,16 +266,16 @@ public static class TranscriptExport
         return text.ToString().TrimEnd('\n') + "\n";
     }
 
-    private static string PlainText(SessionRecord session, Transcript transcript, SessionSummary? summary, ExportLabels labels, ExportOptions options, ExportRange? range)
+    private static string PlainText(SessionRecord session, Transcript transcript, SessionSummary? summary, ExportLabels labels, ExportOptions options, ExportRange? range, CancellationToken cancellationToken)
     {
         var text = new StringBuilder();
         text.Append(TitleOf(session, labels)).Append('\n').Append(MetaLine(session, transcript)).Append("\n\n");
         var sections = false;
-        if (summary is not null && options.Summary)
+        if (HasSummaryText(summary, options))
         {
             sections = true;
             text.Append(labels.Summary.ToUpperInvariant()).Append('\n');
-            if (!string.IsNullOrWhiteSpace(summary.Overview))
+            if (!string.IsNullOrWhiteSpace(summary!.Overview))
             {
                 text.Append(summary.Overview.Trim()).Append('\n');
             }
@@ -264,10 +284,10 @@ public static class TranscriptExport
             AppendPlainItems(text, labels.KeyPoints, summary.KeyPoints, options.Timestamps);
         }
 
-        if (summary is not null && options.ActionItems && summary.ActionItems.Count > 0)
+        if (HasActionItems(summary, options))
         {
             sections = true;
-            AppendPlainItems(text, labels.ActionItems, summary.ActionItems, options.Timestamps);
+            AppendPlainItems(text, labels.ActionItems, summary!.ActionItems, options.Timestamps);
         }
 
         if (sections)
@@ -277,6 +297,7 @@ public static class TranscriptExport
 
         foreach (var segment in Segments(transcript, range))
         {
+            cancellationToken.ThrowIfCancellationRequested();
             if (options.Timestamps)
             {
                 text.Append('[').Append(Clock(segment.Start)).Append("] ");
@@ -293,12 +314,13 @@ public static class TranscriptExport
         return text.ToString();
     }
 
-    private static string Srt(Transcript transcript, ExportLabels labels, ExportOptions options, ExportRange? range)
+    private static string Srt(Transcript transcript, ExportLabels labels, ExportOptions options, ExportRange? range, CancellationToken cancellationToken)
     {
         var text = new StringBuilder();
         var number = 1;
         foreach (var segment in Segments(transcript, range))
         {
+            cancellationToken.ThrowIfCancellationRequested();
             text.Append(number++.ToString(CultureInfo.InvariantCulture)).Append('\n')
                 .Append(CueTime(segment.Start, ',')).Append(" --> ").Append(CueTime(CueEnd(segment), ',')).Append('\n');
             if (options.SpeakerNames)
@@ -312,11 +334,12 @@ public static class TranscriptExport
         return text.ToString();
     }
 
-    private static string WebVtt(SessionRecord session, Transcript transcript, ExportLabels labels, ExportOptions options, ExportRange? range)
+    private static string WebVtt(SessionRecord session, Transcript transcript, ExportLabels labels, ExportOptions options, ExportRange? range, CancellationToken cancellationToken)
     {
         var text = new StringBuilder("WEBVTT - ").Append(HeaderText(TitleOf(session, labels))).Append("\n\n");
         foreach (var segment in Segments(transcript, range))
         {
+            cancellationToken.ThrowIfCancellationRequested();
             text.Append(CueTime(segment.Start, '.')).Append(" --> ").Append(CueTime(CueEnd(segment), '.')).Append('\n');
             if (options.SpeakerNames)
             {
@@ -329,12 +352,24 @@ public static class TranscriptExport
         return text.ToString();
     }
 
-    /// <summary>The segments that overlap <c>[Start, End)</c> of the range (a segment without length counts as a point); all of them without a range.</summary>
+    /// <summary>The summary's own text (overview, key points) is asked for and there is some: only then is there a "Summary" section.</summary>
+    private static bool HasSummaryText(SessionSummary? summary, ExportOptions options) =>
+        options.Summary && summary is not null && (!string.IsNullOrWhiteSpace(summary.Overview) || summary.KeyPoints.Count > 0);
+
+    private static bool HasActionItems(SessionSummary? summary, ExportOptions options) =>
+        options.ActionItems && summary is { ActionItems.Count: > 0 };
+
+    /// <summary>The segments that overlap <c>[Start, End)</c> of the range (a segment without length counts as a point); all of them without a range, none for a range that ends at or before its start.</summary>
     private static IEnumerable<TranscriptSegment> Segments(Transcript transcript, ExportRange? range)
     {
         if (range is not { } part)
         {
             return transcript.Segments;
+        }
+
+        if (part.End <= part.Start)
+        {
+            return [];
         }
 
         return transcript.Segments.Where(segment =>
@@ -363,14 +398,14 @@ public static class TranscriptExport
         text.Append('\n');
     }
 
-    private static void AppendItems(StringBuilder text, string heading, IReadOnlyList<SummaryItem> items, string bullet, bool timestamps)
+    private static void AppendItems(StringBuilder text, string headingMark, string heading, IReadOnlyList<SummaryItem> items, string bullet, bool timestamps)
     {
         if (items.Count == 0)
         {
             return;
         }
 
-        text.Append("### ").Append(heading).Append("\n\n");
+        text.Append(headingMark).Append(heading).Append("\n\n");
         foreach (var item in items)
         {
             text.Append(bullet).Append(OneLine(item.Text));

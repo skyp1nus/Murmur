@@ -4,6 +4,7 @@ using Avalonia.Controls.Primitives;
 using Avalonia.Headless;
 using Avalonia.Input;
 using Avalonia.Interactivity;
+using Avalonia.Media;
 using Avalonia.Styling;
 using Avalonia.VisualTree;
 using Murmur.App.Localization;
@@ -163,7 +164,7 @@ public sealed class ExportDialogViewTests : IDisposable
         Assert.True(dialog.HasChapterRange);
         Assert.Equal("Chapter: PDF export", dialog.ChapterLabel);
         Assert.Equal("12:15 – 24:30", dialog.ChapterSpan);
-        Assert.Equal("00:00 – 1:00:00", dialog.WholeSpan);
+        Assert.Equal("0:00:00 – 1:00:00", dialog.WholeSpan);
     }
 
     [Fact]
@@ -176,7 +177,7 @@ public sealed class ExportDialogViewTests : IDisposable
 
         Assert.NotNull(dialog);
         Assert.Equal("Chapter: Next steps & pricing", dialog.ChapterLabel);
-        Assert.Equal("24:30 – 1:00:00", dialog.ChapterSpan);
+        Assert.Equal("0:24:30 – 1:00:00", dialog.ChapterSpan);
     }
 
     [Fact]
@@ -252,6 +253,92 @@ public sealed class ExportDialogViewTests : IDisposable
         Assert.True(centered, "840 x 540 in the middle of the window");
         Assert.True(escaped, "Esc closes it");
         Assert.True(focused, "the focus is in the dialog");
+    }
+
+    [Fact]
+    public async Task Esc_ClosesTheDialog_NotTheSession_TheFocusGoesBack_AndTheDialogOpensAgain()
+    {
+        var shell = await OpenShellAsync();
+        var session = shell.Session!;
+        var backs = 0;
+        session.BackRequested += () => backs++;
+
+        var result = await Session.Dispatch(
+            () =>
+            {
+                var window = UiHarness.Show(shell);
+                var actions = window.GetVisualDescendants().OfType<SessionActionsView>().Single();
+                var layer = OverlayLayer.GetOverlayLayer(window)!;
+                var button = ExportButton(actions);
+
+                Click(window, button);
+                var first = actions.OpenDialog;
+                window.KeyPressQwerty(PhysicalKey.Escape, RawInputModifiers.None);
+                UiHarness.Pump(3);
+                var closed = actions.OpenDialog is null && first is not null && !layer.Children.Contains(first);
+                var sessionStays = ReferenceEquals(shell.Session, session) && ReferenceEquals(shell.CurrentPage, session);
+                var focusBack = ReferenceEquals(window.FocusManager?.GetFocusedElement(), button);
+
+                // Once more: a new dialog, the old one is gone, and it closes the same way.
+                Click(window, button);
+                var second = actions.OpenDialog;
+                var onlyOne = layer.Children.OfType<ExportDialog>().Count() == 1;
+                var other = second is not null && !ReferenceEquals(first, second);
+                var usable = second?.GetVisualDescendants().OfType<Button>().Any(b => b.Name == "SaveButton" && b.IsEffectivelyEnabled) == true;
+                window.KeyPressQwerty(PhysicalKey.Escape, RawInputModifiers.None);
+                UiHarness.Pump(3);
+                var closedAgain = actions.OpenDialog is null && !layer.Children.OfType<ExportDialog>().Any();
+                window.Close();
+                return (closed, sessionStays, focusBack, onlyOne, other, usable, closedAgain);
+            },
+            Ct);
+
+        Assert.True(result.closed, "Esc closes the dialog");
+        Assert.True(result.sessionStays, "the session page is still there");
+        Assert.Equal(0, backs);
+        Assert.True(result.focusBack, "the focus is on the Export button again");
+        Assert.True(result.onlyOne, "one dialog on the layer");
+        Assert.True(result.other, "a second opening makes a new dialog");
+        Assert.True(result.usable);
+        Assert.True(result.closedAgain);
+    }
+
+    [Theory]
+    [InlineData("Light")]
+    [InlineData("Dark")]
+    public async Task TheCopyLabel_IsDimmed_WhenCopyIsDisabled(string theme)
+    {
+        var shell = await OpenShellAsync();
+
+        var (enabled, disabled, ash, ink) = await Session.Dispatch(
+            () =>
+            {
+                var window = new MainWindow { DataContext = shell, Width = 1100, Height = 720, RequestedThemeVariant = theme == "Dark" ? ThemeVariant.Dark : ThemeVariant.Light };
+                window.Show();
+                UiHarness.Pump();
+                var actions = window.GetVisualDescendants().OfType<SessionActionsView>().Single();
+                Click(window, ExportButton(actions));
+                var dialog = actions.OpenDialog!;
+                var label = dialog.GetVisualDescendants().OfType<TextBlock>().Single(t => t.Name == "CopyLabel");
+                var copy = dialog.GetVisualDescendants().OfType<Button>().Single(b => b.Name == "CopyButton");
+                Color Colour(string key) => label.TryFindResource(key, window.ActualThemeVariant, out var found) && found is ISolidColorBrush brush ? brush.Color : default;
+
+                var on = ((ISolidColorBrush)label.Foreground!).Color;
+                var enabledNow = copy.IsEffectivelyEnabled;
+                dialog.GetVisualDescendants().OfType<RadioButton>().Single(r => r.Name == "FormatDocx").IsChecked = true;
+                UiHarness.Pump(4);
+                var off = ((ISolidColorBrush)label.Foreground!).Color;
+                var result = ((enabledNow, on), (copy.IsEffectivelyEnabled, off), Colour("Brush.Ash"), Colour("Brush.Ink"));
+                window.Close();
+                return result;
+            },
+            Ct);
+
+        Assert.True(enabled.enabledNow);
+        Assert.Equal(ink, enabled.on);
+        Assert.False(disabled.IsEffectivelyEnabled);
+        Assert.Equal(ash, disabled.off);
+        Assert.NotEqual(enabled.on, disabled.off);
     }
 
     [Fact]
@@ -539,7 +626,7 @@ public sealed class ExportDialogViewTests : IDisposable
 
                 UiHarness.Pump(8);
                 Assert.Equal(format, viewModel.Format);
-                Assert.Equal(format == ExportFormat.Docx, viewModel.Preview.Contains("## Summary", StringComparison.Ordinal));
+                Assert.Equal("Nothing was said in this range.", viewModel.Preview);
                 UiHarness.Save(window, path);
                 window.Close();
             },
