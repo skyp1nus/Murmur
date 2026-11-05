@@ -1650,4 +1650,8 @@
     <value>Не вдалося зберегти імʼя мовця: {0}</value>
     <comment>{0} = error message</comment>
   </data>
+  <data name="Session_FollowAlong" xml:space="preserve">
+    <value>Стежити за текстом</value>
+    <comment>the label of the switch in the transcript header: the spoken word is marked and the list follows the playback</comment>
+  </data>
 </root>

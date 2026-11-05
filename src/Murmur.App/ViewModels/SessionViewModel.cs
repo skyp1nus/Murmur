@@ -52,17 +52,14 @@ public enum TranscriptStatus
 /// <para><b>Current word.</b> <see cref="Tick"/> and every seek look the word up with a binary search over the word
 /// start times (<see cref="TranscriptTimeline"/>) and move <see cref="SegmentViewModel.ActiveWord"/>; only the previous
 /// and the new row get a property notification.</para>
-/// <para><b>Auto-scroll.</b> When the current segment changes the view model raises
-/// <see cref="ScrollToSegmentRequested"/> unless the user scrolled in the last <see cref="AutoScrollHold"/>
-/// (<see cref="NotifyUserScrolled"/>). A seek by the user clears that hold.</para>
+/// <para><b>Auto-scroll.</b> While <see cref="FollowAlong"/> is on and the playback moves to another segment the view model raises
+/// <see cref="ScrollToSegmentRequested"/>, unless the user scrolled by hand (<see cref="NotifyUserScrolled"/>): then the list is left
+/// alone until the playback reaches the next line, or until the user seeks (a click on a line or the waveform).</para>
 /// <para><b>Threads.</b> Everything runs on the UI thread; player and pipeline events are marshalled with the
 /// <c>post</c> callback.</para>
 /// </remarks>
 public sealed partial class SessionViewModel : ObservableObject, IDisposable, IFillsFrame
 {
-    /// <summary>After a manual scroll the list is left alone for this long.</summary>
-    public static readonly TimeSpan AutoScrollHold = TimeSpan.FromSeconds(3);
-
     private readonly SessionRecord _record;
     private readonly SessionFiles _files;
     private readonly ITranscriptStore _transcripts;
@@ -79,8 +76,7 @@ public sealed partial class SessionViewModel : ObservableObject, IDisposable, IF
     private bool _disposed;
     private int _currentWord = -1;
     private int _currentSegment = -1;
-    private long? _lastUserScroll;
-    private bool _scrollPending;
+    private bool _scrollPaused;
 
     public SessionViewModel(
         SessionRecord record,
@@ -124,6 +120,7 @@ public sealed partial class SessionViewModel : ObservableObject, IDisposable, IF
         _controls = player as IAudioPlayerControls;
         _player.StateChanged += OnPlayerStateChanged;
         _processing.ProgressChanged += OnProcessingChanged;
+        LoadFollowAlong();
     }
 
     /// <summary>Raised when the user wants to go back to the library.</summary>
@@ -162,7 +159,7 @@ public sealed partial class SessionViewModel : ObservableObject, IDisposable, IF
     public partial bool IsPlaying { get; private set; }
 
     [ObservableProperty]
-    public partial TimeSpan Position { get; private set; }
+    public partial TimeSpan Position { get; internal set; }
 
     /// <summary>Length of the session; the player's own duration once it is open, the stored one before.</summary>
     [ObservableProperty]
@@ -262,8 +259,8 @@ public sealed partial class SessionViewModel : ObservableObject, IDisposable, IF
 
     public bool ShowAsk => SelectedTab == SessionTab.Ask;
 
-    /// <summary>True while the user's last scroll is recent enough that the list must not move on its own.</summary>
-    public bool AutoScrollSuspended => _lastUserScroll is { } stamp && _time.GetElapsedTime(stamp) < AutoScrollHold;
+    /// <summary>True after the user scrolled by hand, until the playback reaches the next line or the user seeks: the list must not move on its own.</summary>
+    public bool AutoScrollSuspended => _scrollPaused;
 
     /// <summary>Loads audio, waveform and transcript. Failures show up in the view (cards, <see cref="PlayerError"/>), never as exceptions.</summary>
     public async Task LoadAsync()
@@ -404,8 +401,7 @@ public sealed partial class SessionViewModel : ObservableObject, IDisposable, IF
         }
 
         // The user wants to see where they jumped to, whatever they scrolled before.
-        _lastUserScroll = null;
-        _scrollPending = false;
+        _scrollPaused = false;
         Position = position;
         UpdateCurrent(forceScroll: true);
         SyncPlayerState();
@@ -427,7 +423,11 @@ public sealed partial class SessionViewModel : ObservableObject, IDisposable, IF
     }
 
     /// <summary>A drag on the waveform starts: the playhead follows the pointer, the player is left alone until <see cref="EndScrub"/>.</summary>
-    public void BeginScrub() => _scrubbing = true;
+    public void BeginScrub()
+    {
+        _scrubbing = true;
+        _scrollPaused = false;
+    }
 
     public void ScrubTo(double fraction)
     {
@@ -449,8 +449,8 @@ public sealed partial class SessionViewModel : ObservableObject, IDisposable, IF
 
     // Transcript commands -----------------------------------------------------------------------------------------
 
-    /// <summary>The user scrolled the list (wheel, scroll bar): auto-scroll waits <see cref="AutoScrollHold"/>.</summary>
-    public void NotifyUserScrolled() => _lastUserScroll = _time.GetTimestamp();
+    /// <summary>The user scrolled the list (wheel, scroll bar, keys, touch): auto-scroll waits until the playback reaches the next line or the user seeks.</summary>
+    public void NotifyUserScrolled() => _scrollPaused = true;
 
     [RelayCommand]
     private async Task RetryAsync()
@@ -627,7 +627,7 @@ public sealed partial class SessionViewModel : ObservableObject, IDisposable, IF
         {
             rows[i] = new SegmentViewModel(segments[i], i, timeline.FirstWordOfSegment(i), OnSeekRequested)
             {
-                ShowWord = IsPlaying,
+                ShowWord = IsPlaying && FollowAlong,
                 SpeakerName = _speakerNames[segments[i].Speaker],
             };
         }
@@ -800,7 +800,7 @@ public sealed partial class SessionViewModel : ObservableObject, IDisposable, IF
         OnPropertyChanged(nameof(PlayPauseLabel));
         foreach (var row in Segments)
         {
-            row.ShowWord = value;
+            row.ShowWord = value && FollowAlong;
         }
     }
 
@@ -857,6 +857,7 @@ public sealed partial class SessionViewModel : ObservableObject, IDisposable, IF
     {
         OnPropertyChanged(nameof(ShowTranscriptList));
         OnPropertyChanged(nameof(ShowSpeakerChips));
+        OnPropertyChanged(nameof(ShowFollowAlongSwitch));
         OnPropertyChanged(nameof(ShowStatusCard));
         OnPropertyChanged(nameof(ShowProgress));
         OnPropertyChanged(nameof(ShowSummary));
@@ -889,7 +890,11 @@ public sealed partial class SessionViewModel : ObservableObject, IDisposable, IF
         PlayFrom(_timeline.WordStart(segment.FirstWord + wordInSegment));
     }
 
-    private void UpdateCurrent(bool forceScroll)
+    /// <summary>
+    /// Finds the word and the segment at <see cref="Position"/> (two binary searches, no allocation) and moves the marks; only the
+    /// previous and the new row are notified, and only when the word or the segment changed.
+    /// </summary>
+    internal void UpdateCurrent(bool forceScroll)
     {
         if (_timeline is not { } timeline)
         {
@@ -931,22 +936,19 @@ public sealed partial class SessionViewModel : ObservableObject, IDisposable, IF
             }
         }
 
-        if (segment < 0)
+        // The playback reached the next line: the pause of a manual scroll is over.
+        if (changed)
+        {
+            _scrollPaused = false;
+        }
+
+        if (segment < 0 || !FollowAlong || _scrollPaused)
         {
             return;
         }
 
-        if (AutoScrollSuspended)
+        if (changed || forceScroll)
         {
-            // Keep the dropped request: it is delivered on the first tick after the hold, without waiting for the next
-            // segment boundary (which can be tens of seconds away).
-            _scrollPending |= changed || forceScroll;
-            return;
-        }
-
-        if (changed || forceScroll || _scrollPending)
-        {
-            _scrollPending = false;
             ScrollToSegmentRequested?.Invoke(segment);
         }
     }
