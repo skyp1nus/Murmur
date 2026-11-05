@@ -39,6 +39,7 @@
                                       Height="{StaticResource Size.StatusOrb}"
                                       HorizontalAlignment="Center"
                                       VerticalAlignment="Center"
+                                      IsActive="{Binding IsRecording}"
                                       IsVisible="{Binding IsRecording}" />
                 <controls:IconControl Width="{StaticResource Size.ActivityIcon}"
                                       Height="{StaticResource Size.ActivityIcon}"
@@ -63,11 +64,20 @@
                           Margin="{StaticResource Margin.ActivityText}"
                           VerticalAlignment="Center"
                           Spacing="{StaticResource Space.4}">
-                <TextBlock Classes="t13"
-                           TextTrimming="CharacterEllipsis"
-                           TextWrapping="NoWrap">
-                  <Run Text="{Binding KindText}" FontWeight="{StaticResource FontWeight.BodyMedium}" /><Run Text="{Binding TitleSuffix}" />
-                </TextBlock>
+                <!-- A running row names its kind in the medium weight; a queued one is plain Graphite text, as in the design. -->
+                <Panel>
+                  <TextBlock Classes="t13"
+                             IsVisible="{Binding !IsQueued}"
+                             TextTrimming="CharacterEllipsis"
+                             TextWrapping="NoWrap">
+                    <Run Text="{Binding KindText}" FontWeight="{StaticResource FontWeight.BodyMedium}" /><Run Text="{Binding TitleSuffix}" />
+                  </TextBlock>
+                  <TextBlock Classes="t13 graphite"
+                             IsVisible="{Binding IsQueued}"
+                             TextTrimming="CharacterEllipsis"
+                             TextWrapping="NoWrap"
+                             Text="{Binding QueuedLine}" />
+                </Panel>
                 <ProgressBar Classes="activityBar"
                              IsVisible="{Binding HasProgress}"
                              Value="{Binding Percent}" />
@@ -84,7 +94,7 @@
                            HorizontalAlignment="Right"
                            IsVisible="{Binding IsRecording}"
                            Text="{Binding ElapsedText}" />
-                <TextBlock Classes="t12 muted"
+                <TextBlock Classes="t12 graphite"
                            HorizontalAlignment="Right"
                            IsVisible="{Binding IsQueued}"
                            Text="{Binding QueuedText}" />

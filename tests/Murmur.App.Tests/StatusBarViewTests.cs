@@ -269,83 +269,162 @@ public sealed class StatusBarViewTests
         var window = new Window { Width = 200, Height = 200, Content = orb };
         Motion.SetReduceMotion(window, reduce);
         window.Show();
-        UiHarness.Pump();
+        UiHarness.Pump(6);
         return window;
     }
 
     [Fact]
-    public async Task SpinningOrb_TurnsOnce_InNineSeconds()
+    public async Task SpinningOrb_TurnsOnlyWhileActive()
     {
-        var angles = await Session.Dispatch(
+        var (idle, active, stopped, angle) = await Session.Dispatch(
             () =>
             {
                 var orb = new SpinningOrb { Width = 12, Height = 12 };
                 var window = HostOrb(orb, reduce: false);
-                var clock = new TestTime(UiHarness.Now);
-                orb.Clock = clock;
-                orb.Step();
-                clock.Advance(TimeSpan.FromSeconds(1));
-                orb.Step();
-                var one = orb.Angle;
-                clock.Advance(TimeSpan.FromSeconds(8));
-                orb.Step();
-                var r = (spinning: orb.IsSpinning, one, full: orb.Angle);
+                var before = orb.IsSpinning;
+                orb.IsActive = true;
+                var turning = orb.IsSpinning;
+                orb.IsActive = false;
+                var r = (before, turning, !orb.IsSpinning, orb.RestAngle);
                 window.Close();
                 return r;
             },
             Ct);
 
-        Assert.True(angles.spinning);
-        Assert.Equal(40, angles.one, 1);
-        Assert.InRange(angles.full, 0, 0.001);
+        Assert.False(idle);
+        Assert.True(active);
+        Assert.True(stopped);
+        Assert.Equal(0f, angle);
     }
 
     [Fact]
-    public async Task SpinningOrb_UnderReducedMotion_RunsNoTimer_AndStaysAtRest()
+    public async Task SpinningOrb_UnderReducedMotion_HasNoAnimation_UntilMotionIsAllowed()
     {
-        var (running, angle, restarted) = await Session.Dispatch(
+        var (reduced, allowed) = await Session.Dispatch(
             () =>
             {
-                var orb = new SpinningOrb { Width = 12, Height = 12 };
+                var orb = new SpinningOrb { Width = 12, Height = 12, IsActive = true };
                 var window = HostOrb(orb, reduce: true);
-                var clock = new TestTime(UiHarness.Now);
-                orb.Clock = clock;
-                UiHarness.Pump(6);
-                var r = (orb.IsSpinning, orb.Angle, false);
+                var whileReduced = orb.IsSpinning;
                 Motion.SetReduceMotion(window, false);
-                r.Item3 = orb.IsSpinning;
+                var r = (whileReduced, orb.IsSpinning);
                 window.Close();
                 return r;
             },
             Ct);
 
-        Assert.False(running);
-        Assert.Equal(0, angle);
-        Assert.True(restarted);
+        Assert.False(reduced);
+        Assert.True(allowed);
     }
 
     [Fact]
-    public async Task SpinningOrb_TurningMotionOff_StopsItAndReturnsToRest()
+    public async Task SpinningOrb_MotionToggledWhileHidden_FollowsTheSetting()
     {
-        var (angle, running) = await Session.Dispatch(
+        var (hiddenReduced, shownAgain) = await Session.Dispatch(
             () =>
             {
-                var orb = new SpinningOrb { Width = 12, Height = 12 };
+                var orb = new SpinningOrb { Width = 12, Height = 12, IsActive = true };
                 var window = HostOrb(orb, reduce: false);
-                var clock = new TestTime(UiHarness.Now);
-                orb.Clock = clock;
-                orb.Step();
-                clock.Advance(TimeSpan.FromSeconds(2));
-                orb.Step();
-                Assert.True(orb.Angle > 0);
+                Assert.True(orb.IsSpinning);
+                orb.IsVisible = false;
                 Motion.SetReduceMotion(window, true);
-                var r = (orb.Angle, orb.IsSpinning);
+                var stillWhileHidden = !orb.IsSpinning;
+                orb.IsVisible = true;
+                UiHarness.Pump(4);
+                var r = (stillWhileHidden, orb.IsSpinning);
                 window.Close();
                 return r;
             },
             Ct);
 
-        Assert.Equal(0, angle);
+        Assert.True(hiddenReduced);
+        Assert.False(shownAgain);
+    }
+
+    [Fact]
+    public async Task SpinningOrb_WithTurningMotionOff_StopsAndReturnsToRest()
+    {
+        var (running, angle) = await Session.Dispatch(
+            () =>
+            {
+                var orb = new SpinningOrb { Width = 12, Height = 12, IsActive = true };
+                var window = HostOrb(orb, reduce: false);
+                Assert.True(orb.IsSpinning);
+                Motion.SetReduceMotion(window, true);
+                var r = (orb.IsSpinning, orb.RestAngle);
+                window.Close();
+                return r;
+            },
+            Ct);
+
         Assert.False(running);
+        Assert.Equal(0f, angle);
+    }
+
+    [Fact]
+    public async Task TheBarOrbs_FollowTheRecording_AndHoldStillUnderReducedMotion()
+    {
+        var (recording, popover, idle, reduced) = await Session.Dispatch(
+            () =>
+            {
+                using var scope = UiCulture.Override("en");
+                using var rig = new DesignRig(statusBar: true);
+                var window = UiHarness.Show(rig.Shell);
+                var bar = window.GetVisualDescendants().OfType<StatusBarView>().Single();
+                var button = bar.FindControl<Button>("ActivityButton")!;
+                var flyout = (Flyout)button.Flyout!;
+                Click(button);
+                var content = (ActivityPopoverView)flyout.Content!;
+                var barOrb = bar.GetVisualDescendants().OfType<SpinningOrb>().Single();
+                var rowOrb = content.GetVisualDescendants().OfType<SpinningOrb>().Single(o => o.IsEffectivelyVisible);
+                var r1 = barOrb.IsSpinning;
+                var r2 = rowOrb.IsSpinning;
+
+                // The recording ends: both orbs hold still.
+                rig.Activity!.Set();
+                UiHarness.Pump(4);
+                var r3 = !barOrb.IsSpinning;
+
+                // A recording under reduced motion: neither turns (the popover has its own root, so it is set there too).
+                rig.Activity.Set(DesignDemoData.ActivityItems);
+                Motion.SetReduceMotion(window, true);
+                Motion.SetReduceMotion((Control)content, true);
+                UiHarness.Pump(4);
+                var r4 = !barOrb.IsSpinning && !rowOrb.IsSpinning;
+                flyout.Hide();
+                window.Close();
+                return (r1, r2, r3, r4);
+            },
+            Ct);
+
+        Assert.True(recording);
+        Assert.True(popover);
+        Assert.True(idle);
+        Assert.True(reduced);
+    }
+
+    [Fact]
+    public async Task ThePopover_FloatsEightPixelsAboveTheBar()
+    {
+        var gap = await Session.Dispatch(
+            () =>
+            {
+                using var scope = UiCulture.Override("en");
+                using var rig = new DesignRig(statusBar: true);
+                var window = UiHarness.Show(rig.Shell);
+                var bar = window.GetVisualDescendants().OfType<StatusBarView>().Single();
+                var button = bar.FindControl<Button>("ActivityButton")!;
+                var flyout = (Flyout)button.Flyout!;
+                Click(button);
+                var card = ((ActivityPopoverView)flyout.Content!).GetVisualDescendants().OfType<Border>().First(b => b.Classes.Contains("activityCard"));
+                var cardBottom = card.TranslatePoint(new Point(0, card.Bounds.Height), window)!.Value.Y;
+                var barTop = bar.TranslatePoint(default, window)!.Value.Y;
+                flyout.Hide();
+                window.Close();
+                return barTop - cardBottom;
+            },
+            Ct);
+
+        Assert.Equal(8, gap, 0.5);
     }
 }

@@ -29,6 +29,10 @@ public sealed partial class ActivityRowViewModel : ObservableObject
     [ObservableProperty]
     public partial string TitleSuffix { get; private set; } = string.Empty;
 
+    /// <summary>"Kind · title" as one plain string: the line of a queued row.</summary>
+    [ObservableProperty]
+    public partial string QueuedLine { get; private set; } = string.Empty;
+
     /// <summary>0..100 for the bar.</summary>
     [ObservableProperty]
     public partial double Percent { get; private set; }
@@ -74,6 +78,7 @@ public sealed partial class ActivityRowViewModel : ObservableObject
         ArgumentNullException.ThrowIfNull(item);
         KindText = KindWord(item.Kind);
         TitleSuffix = string.IsNullOrWhiteSpace(item.Title) ? string.Empty : " · " + item.Title;
+        QueuedLine = KindText + TitleSuffix;
         IsQueued = item.Queued;
         IsRecording = item.Kind == ActivityKind.Recording;
         var known = !item.Queued && item.Progress is not null;

@@ -76,7 +76,7 @@ public sealed partial class ActivityPopoverViewModel : ObservableObject
 /// The 28 px status bar at the bottom of the window: "Recording 12:48" on the left (only while recording), the summary button in the
 /// middle ("Transcribing 64% · Downloading 42%" or "Up to date"; it opens the Activity popover) and "All local" on the right.
 /// Everything comes from <see cref="IActivityFeed"/> (facts only); the elapsed time is read from <see cref="IRecorder.Elapsed"/> by
-/// <see cref="Refresh"/>, which the view calls once a second while recording, so nothing is pushed at frame rate.
+/// <see cref="Refresh"/>, which the view calls four times a second while recording (so a second never skips), so nothing is pushed at frame rate.
 /// </summary>
 public sealed partial class StatusBarViewModel : ObservableObject, IDisposable
 {
@@ -134,7 +134,7 @@ public sealed partial class StatusBarViewModel : ObservableObject, IDisposable
 
     public string ActivityName => Strings.Activity_Title;
 
-    /// <summary>Re-reads the elapsed time of the recording. Called by the view once a second while the bar shows a recording.</summary>
+    /// <summary>Re-reads the elapsed time of the recording. Called by the view four times a second while the bar shows a recording.</summary>
     public void Refresh()
     {
         if (!IsRecording)
@@ -212,8 +212,12 @@ public sealed partial class StatusBarViewModel : ObservableObject, IDisposable
             }
         }
 
-        SummaryParts = parts;
-        IsUpToDate = parts.Count == 0;
-        OnPropertyChanged(nameof(SummaryText));
+        // The list is replaced only when it differs, so a progress tick that changes nothing visible repaints nothing.
+        if (!parts.SequenceEqual(SummaryParts))
+        {
+            SummaryParts = parts;
+            IsUpToDate = parts.Count == 0;
+            OnPropertyChanged(nameof(SummaryText));
+        }
     }
 }

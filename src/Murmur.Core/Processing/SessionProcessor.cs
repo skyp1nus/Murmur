@@ -118,6 +118,12 @@ public sealed class SessionProcessor : IDisposable
     /// <summary>Raised whenever the processing status of a session changes.</summary>
     public event Action<SessionProcessingStatus>? ProgressChanged;
 
+    /// <summary>
+    /// Raised when the status of a session is dropped without a final status (the session is gone, e.g. deleted while it waited):
+    /// <see cref="GetStatus"/> returns <c>null</c> from then on. Raised on the job's thread, like <see cref="ProgressChanged"/>.
+    /// </summary>
+    public event Action<SessionId>? StatusCleared;
+
     public bool IsAsrInstalled => _asr.Status != AsrStatus.ModelMissing;
 
     /// <summary><see cref="AsrNotInstalledCode"/> when the model is missing, else <c>null</c>.</summary>
@@ -637,9 +643,16 @@ public sealed class SessionProcessor : IDisposable
 
     private void ClearStatus(SessionId id)
     {
+        bool removed;
         lock (_gate)
         {
-            _statuses.Remove(id);
+            removed = _statuses.Remove(id);
+        }
+
+        // Outside the lock, like ProgressChanged: the session is no longer handled here (deleted, or gone while it waited).
+        if (removed)
+        {
+            StatusCleared?.Invoke(id);
         }
     }
 

@@ -13,7 +13,7 @@
       <StackPanel DockPanel.Dock="Right"
                   Orientation="Horizontal"
                   VerticalAlignment="Center"
-                  Spacing="{StaticResource Space.6}">
+                  Spacing="{StaticResource Space.4}">
         <controls:IconControl Width="{StaticResource Size.StatusLock}"
                               Height="{StaticResource Size.StatusLock}"
                               VerticalAlignment="Center"
@@ -37,12 +37,16 @@
                       Spacing="{StaticResource Space.6}">
             <controls:SpinningOrb Width="{StaticResource Size.StatusOrb}"
                                   Height="{StaticResource Size.StatusOrb}"
-                                  VerticalAlignment="Center" />
-            <TextBlock Classes="statusText graphite"
-                       Text="{Binding RecordingText}" />
-            <TextBlock x:Name="ElapsedLabel"
-                       Classes="statusMono graphite"
-                       Text="{Binding ElapsedText}" />
+                                  VerticalAlignment="Center"
+                                  IsActive="{Binding IsRecording}" />
+            <StackPanel Orientation="Horizontal"
+                        Spacing="{StaticResource Space.4}">
+              <TextBlock Classes="statusText graphite"
+                         Text="{Binding RecordingText}" />
+              <TextBlock x:Name="ElapsedLabel"
+                         Classes="statusMono graphite"
+                         Text="{Binding ElapsedText}" />
+            </StackPanel>
           </StackPanel>
         </Button>
 

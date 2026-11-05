@@ -347,6 +347,88 @@ public sealed class ActivityFeedTests : IAsyncDisposable
         await WaitUntilAsync(() => feed.Current.Count == 0);
     }
 
+    [Fact]
+    public async Task RealProcessor_ASessionDeletedWhileQueued_LosesItsRow()
+    {
+        var asr = new FakeAsr { Gate = new SemaphoreSlim(0) };
+        asr.Script("mic.wav", (0.5, 1.5, "hello"));
+        await using var queue = new JobQueue();
+        using var processor = new SessionProcessor(_recorder, _sessions, new InMemoryTranscriptStore(), asr, queue);
+        var feed = Create(processor: processor);
+
+        var running = await RecordedSessionAsync("Running one");
+        var waiting = await RecordedSessionAsync("Waiting one");
+        Assert.True(await processor.EnqueueAsync(running.Id, TestContext.Current.CancellationToken));
+        await WaitUntilAsync(() => feed.Current.Any(i => i.Title == "Running one"));
+        Assert.True(await processor.EnqueueAsync(waiting.Id, TestContext.Current.CancellationToken));
+        await WaitUntilAsync(() => feed.Current.Any(i => i.Key == "asr:" + waiting.Id && i.Queued));
+
+        await _sessions.DeleteSessionAsync(waiting.Id, CancellationToken.None);
+        asr.Gate.Release(10);
+
+        await WaitUntilAsync(() => feed.Current.Count == 0);
+    }
+
+    [Fact]
+    public async Task StatusCleared_DropsTheRow()
+    {
+        var feed = Create();
+        var session = Seed("Gone");
+        feed.OnProcessing(new SessionProcessingStatus(session.Id, SessionProcessingStage.Queued, 0));
+        await WaitUntilAsync(() => feed.Current.Count == 1);
+
+        feed.OnStatusCleared(session.Id);
+
+        await WaitUntilAsync(() => feed.Current.Count == 0);
+    }
+
+    [Fact]
+    public async Task ARecreatedRow_ReadsTheTitleAgain_SoARenameShows()
+    {
+        var feed = Create();
+        var session = Seed("Before");
+        feed.OnProcessing(new SessionProcessingStatus(session.Id, SessionProcessingStage.Transcribing, 0.1));
+        await WaitUntilAsync(() => feed.Current.Count == 1 && feed.Current[0].Title == "Before");
+        feed.OnProcessing(new SessionProcessingStatus(session.Id, SessionProcessingStage.Completed, 1));
+        await WaitUntilAsync(() => feed.Current.Count == 0);
+
+        _sessions.Seed(session with { Title = "After" });
+        feed.OnProcessing(new SessionProcessingStatus(session.Id, SessionProcessingStage.Transcribing, 0.2));
+
+        await WaitUntilAsync(() => feed.Current.Count == 1 && feed.Current[0].Title == "After");
+    }
+
+    [Fact]
+    public async Task ProgressChangesBelowOnePercent_RaiseNothing()
+    {
+        var feed = Create();
+        var model = new ModelInfo("m", ModelKind.Chat, "Gemma", 100_000, false);
+        _models.Raise(new ModelStatus(model, ModelInstallState.Downloading, 5_000, 100_000, null));
+        await WaitUntilAsync(() => feed.Current.Count == 1);
+        var raised = 0;
+        feed.Changed += () => Interlocked.Increment(ref raised);
+
+        _models.Raise(new ModelStatus(model, ModelInstallState.Downloading, 5_100, 100_000, null));
+        await Task.Delay(Interval * 5, TestContext.Current.CancellationToken);
+
+        Assert.Equal(0, raised);
+    }
+
+    [Fact]
+    public void TheDefaultInterval_IsAtMostTwoHertz()
+    {
+        Assert.True(ActivityFeed.DefaultInterval >= TimeSpan.FromMilliseconds(500));
+    }
+
+    private async Task<SessionRecord> RecordedSessionAsync(string title)
+    {
+        var created = await _sessions.CreateSessionAsync(title, DateTimeOffset.UtcNow, CancellationToken.None);
+        TestWav.Square(_sessions.GetFiles(created.Id).MicrophoneAudio, TimeSpan.FromSeconds(2), 0.5f);
+        var session = created with { State = SessionState.Recorded, HasMicrophone = true, Duration = TimeSpan.FromSeconds(2) };
+        _sessions.Seed(session);
+        return session;
+    }
+
     private sealed class FakeModels : IModelManager
     {
         public string ModelsDirectory => "/models";

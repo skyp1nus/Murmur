@@ -138,10 +138,11 @@
       <x:Double x:Key="Size.StatusLock">14</x:Double>
       <x:Double x:Key="Size.ActivityWidth">320</x:Double>
       <x:Double x:Key="Size.ActivityIcon">16</x:Double>
-      <!-- The popover floats 8 px above the bar (negative: upwards). -->
-      <x:Double x:Key="Size.ActivityGap">-8</x:Double>
+      <!-- The popover card floats 8 px above the bar: the flyout is placed from the top of the 22 px button, which sits 3 px inside the bar (negative: upwards). -->
+      <x:Double x:Key="Size.ActivityGap">-11</x:Double>
       <Thickness x:Key="Margin.StatusBar">10,0</Thickness>
-      <Thickness x:Key="Margin.StatusItem">8,0</Thickness>
+      <!-- The design pads an item 0/7; the scale has 6 and 8, the nearer-to-fit 6 is taken. -->
+      <Thickness x:Key="Margin.StatusItem">6,0</Thickness>
       <Thickness x:Key="Margin.ActivityHeader">8,6,8,4</Thickness>
       <Thickness x:Key="Margin.ActivityText">10,0</Thickness>
     </ResourceDictionary>
@@ -706,13 +707,13 @@
     <Setter Property="LetterSpacing" Value="{StaticResource LetterSpacing.MonoSmall}" />
     <Setter Property="VerticalAlignment" Value="Center" />
   </Style>
-  <!-- The bar's two buttons: pills without a border that fill with the hover colour; the summary stays Stone while its popover is open. -->
+  <!-- The bar's two buttons: 6 px radius (the design's .sb), no border, they fill with the hover colour; the summary stays Stone while its popover is open. -->
   <Style Selector="Button.statusItem">
     <Setter Property="Height" Value="{StaticResource Size.StatusItem}" />
     <Setter Property="MinHeight" Value="0" />
     <Setter Property="MinWidth" Value="0" />
     <Setter Property="Padding" Value="{StaticResource Margin.StatusItem}" />
-    <Setter Property="CornerRadius" Value="{StaticResource Radius.Pill}" />
+    <Setter Property="CornerRadius" Value="{StaticResource Radius.Key}" />
     <Setter Property="Background" Value="Transparent" />
     <Setter Property="BorderThickness" Value="0" />
     <Setter Property="VerticalAlignment" Value="Center" />

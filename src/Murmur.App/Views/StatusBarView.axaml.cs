@@ -7,7 +7,7 @@ namespace Murmur.App.Views;
 
 public partial class StatusBarView : UserControl
 {
-    private static readonly TimeSpan ElapsedInterval = TimeSpan.FromSeconds(1);
+    private static readonly TimeSpan ElapsedInterval = TimeSpan.FromMilliseconds(250);
 
     private readonly DispatcherTimer _timer;
     private StatusBarViewModel? _viewModel;
