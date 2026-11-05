@@ -1,3 +1,4 @@
+using Murmur.Core.Activity;
 using Murmur.Core.Capture;
 using Murmur.Core.Models;
 using Murmur.Core.Sessions;
@@ -205,6 +206,18 @@ internal static class DesignDemoData
     public const long OnboardingFreeBytes = 250_000_000_000;
 
     // ---- What the app cannot show yet -----------------------------------------------------------------------------------
+
+    /// <summary>
+    /// What the status bar and the Activity popover of <c>features/Idea5Activity.dc.html</c> show: the widest case (a recording, a
+    /// transcription, a queued index and a model download). The 22 boards do not show the bar, so only the window-fit tests use it.
+    /// </summary>
+    public static ActivityItem[] ActivityItems { get; } =
+    [
+        new("rec", ActivityKind.Recording, "Untitled recording", null, false),
+        new("asr:1", ActivityKind.Transcribing, "Weekly team sync", 0.64, false),
+        new("model:gemma", ActivityKind.DownloadingModel, "Gemma 4 26B", 0.42, false),
+        new("idx:1", ActivityKind.Indexing, "Weekly team sync", null, true),
+    ];
 
     /// <summary>
     /// Content of the artboards that the app has no way to show yet (screen, feature). The harness leaves it out; the screen

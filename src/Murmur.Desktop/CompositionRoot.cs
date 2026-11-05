@@ -1,5 +1,6 @@
 using Murmur.App;
 using Murmur.App.Services;
+using Murmur.Core.Activity;
 using Murmur.Core.Calls;
 using Murmur.Core.Capture;
 using Murmur.Core.Capture.Synthetic;
@@ -31,6 +32,7 @@ internal sealed class CompositionRoot : IDisposable
     private WorkerAsrClient? _asr;
     private JobQueue? _queue;
     private SessionProcessor? _processor;
+    private ActivityFeed? _activityFeed;
     private RecordingActivity? _activity;
     private RecordingMarks? _marks;
     private RecordingHeapTrimmer? _heapTrimmer;
@@ -128,6 +130,9 @@ internal sealed class CompositionRoot : IDisposable
             indexer: (session, cancellationToken) => assistant.IndexSessionAsync(session, cancellationToken).AsTask(),
             isAiInstalled: () => llm.IsInstalled);
 
+        // The status bar's feed: what runs or waits, from the recorder, the pipeline and the model downloads.
+        var activityFeed = _activityFeed ??= new ActivityFeed(recorder, storage, processor, modelManager);
+
         // AI installed in the app while it runs: sessions finished without it get their vectors now, not at the next start.
         if (_reindex is null)
         {
@@ -200,7 +205,8 @@ internal sealed class CompositionRoot : IDisposable
             Marks: marks,
             AudioSessions: _audioSessions ??= CreateAudioSessionMonitor(),
             Calls: _calls ??= new CallDetector(_audioSessions, TimeProvider.System),
-            SpeakerNames: storage);
+            SpeakerNames: storage,
+            Activity: activityFeed);
     }
 
     public void Dispose()
@@ -217,6 +223,7 @@ internal sealed class CompositionRoot : IDisposable
         _heapTrimmer?.Dispose();
         _marks?.Dispose();
         _reindex?.Dispose();
+        _activityFeed?.Dispose();
         _processor?.Dispose();
         _queue?.DisposeAsync().AsTask().GetAwaiter().GetResult();
         _activity?.Dispose();

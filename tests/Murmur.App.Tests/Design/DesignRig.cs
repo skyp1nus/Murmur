@@ -18,8 +18,19 @@ internal sealed class DesignRig : IDisposable
 {
     private SessionFixture? _fixture;
 
-    public DesignRig(bool onboarding = false)
+    /// <param name="onboarding">The first-run state: the onboarding is the page on screen.</param>
+    /// <param name="statusBar">
+    /// The shell has the status bar (the window-fit tests). The 22 parity boards do not show it, so the boards' rig is built without:
+    /// no feed, no <see cref="ShellViewModel.StatusBar"/>, no row under the page (see "design parity" in docs/design/README.md).
+    /// </param>
+    public DesignRig(bool onboarding = false, bool statusBar = false)
     {
+        if (statusBar)
+        {
+            Activity = new FakeActivityFeed();
+            Activity.Set(DesignDemoData.ActivityItems);
+        }
+
         Store = new FakeSettingsStore(new AppSettings
         {
             Language = "en",
@@ -94,8 +105,12 @@ internal sealed class DesignRig : IDisposable
             post: action => action(),
             chatStore: ChatStore,
             sessionStore: SessionStore,
-            chatModelChip: new ChatModelChipViewModel(() => ChatModelName, null, action => action()));
+            chatModelChip: new ChatModelChipViewModel(() => ChatModelName, null, action => action()),
+            statusBar: Activity is null ? null : new StatusBarViewModel(Activity, Recorder, action => action()));
     }
+
+    /// <summary>The activity feed of the status bar; <c>null</c> in the boards' rig.</summary>
+    public FakeActivityFeed? Activity { get; }
 
     public FakeSettingsStore Store { get; }
 
