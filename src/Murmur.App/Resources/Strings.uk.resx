@@ -1650,4 +1650,58 @@
     <value>Не вдалося зберегти імʼя мовця: {0}</value>
     <comment>{0} = error message</comment>
   </data>
+  <data name="Export_Close" xml:space="preserve">
+    <value>Закрити</value>
+  </data>
+  <data name="Export_Format" xml:space="preserve">
+    <value>Формат</value>
+  </data>
+  <data name="Export_FormatPlainText" xml:space="preserve">
+    <value>Звичайний текст</value>
+  </data>
+  <data name="Export_FormatSubtitles" xml:space="preserve">
+    <value>Субтитри</value>
+  </data>
+  <data name="Export_FormatWord" xml:space="preserve">
+    <value>Word</value>
+  </data>
+  <data name="Export_Include" xml:space="preserve">
+    <value>Що включити</value>
+  </data>
+  <data name="Export_IncludeTimestamps" xml:space="preserve">
+    <value>Позначки часу</value>
+  </data>
+  <data name="Export_IncludeSpeakers" xml:space="preserve">
+    <value>Імена спікерів</value>
+  </data>
+  <data name="Export_SubtitlesNote" xml:space="preserve">
+    <value>Субтитри містять лише промовлені репліки.</value>
+  </data>
+  <data name="Export_Range" xml:space="preserve">
+    <value>Діапазон</value>
+  </data>
+  <data name="Export_RangeWhole" xml:space="preserve">
+    <value>Увесь запис</value>
+  </data>
+  <data name="Export_RangeChapter" xml:space="preserve">
+    <value>Розділ: {0}</value>
+    <comment>{0} = chapter title; the range option that exports only that chapter</comment>
+  </data>
+  <data name="Export_Preview" xml:space="preserve">
+    <value>Попередній перегляд</value>
+  </data>
+  <data name="Export_Copy" xml:space="preserve">
+    <value>Копіювати</value>
+  </data>
+  <data name="Export_SaveAs" xml:space="preserve">
+    <value>Зберегти {0}</value>
+    <comment>{0} = file extension with the dot (.md); the button that saves the export</comment>
+  </data>
+  <data name="Export_Copied" xml:space="preserve">
+    <value>Скопійовано до буфера обміну</value>
+  </data>
+  <data name="Export_CopyFailed" xml:space="preserve">
+    <value>Не вдалося скопіювати: {0}</value>
+    <comment>{0} = error message</comment>
+  </data>
 </root>

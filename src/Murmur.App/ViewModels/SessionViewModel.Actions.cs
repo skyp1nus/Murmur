@@ -8,7 +8,7 @@ using Murmur.Core.Transcription;
 namespace Murmur.App.ViewModels;
 
 /// <summary>
-/// What the buttons of the top bar do: export the recording to a file (Markdown with the summary, text, SRT, WebVTT), rename it,
+/// What the buttons of the top bar do: open the export dialog (Markdown with the summary, text, SRT, Word), rename the recording,
 /// show its folder, transcribe it again and delete it.
 /// </summary>
 public sealed partial class SessionViewModel
@@ -44,6 +44,9 @@ public sealed partial class SessionViewModel
     /// <summary>"Show in folder" is offered.</summary>
     public bool CanShowFolder => _services.Folders is not null;
 
+    /// <summary>The Export button was pressed: the view shows this dialog (a modal over the window). It closes itself with <see cref="ExportDialogViewModel.CloseRequested"/>.</summary>
+    public event Action<ExportDialogViewModel>? ExportDialogRequested;
+
     /// <summary>The last export (for tests); completes when the file is written or the dialog was cancelled.</summary>
     internal Task ExportTask { get; private set; } = Task.CompletedTask;
 
@@ -51,6 +54,59 @@ public sealed partial class SessionViewModel
     internal Task EditTask { get; private set; } = Task.CompletedTask;
 
     private bool CanRunExport() => CanExport;
+
+    /// <summary>The Export button: opens the export dialog.</summary>
+    [RelayCommand(CanExecute = nameof(CanRunExport))]
+    private void OpenExport()
+    {
+        if (CreateExportDialog() is { } dialog)
+        {
+            ExportDialogRequested?.Invoke(dialog);
+        }
+    }
+
+    /// <summary>
+    /// The dialog for this recording: the transcript on screen, the summary when there is one, the names of the speakers, and the chapter the
+    /// playhead is in as a second range (it ends where the next chapter starts, the last one at the end of the recording). <c>null</c> without
+    /// a transcript or a place to save.
+    /// </summary>
+    internal ExportDialogViewModel? CreateExportDialog()
+    {
+        if (FileSaver is not { } saver || _transcript is not { } transcript)
+        {
+            ActionMessage = Strings.Session_ExportNoTranscript;
+            return null;
+        }
+
+        ExportChapterRange? chapter = null;
+        if (CurrentChapter is { } current)
+        {
+            var chapters = Chapters;
+            var next = chapters.FirstOrDefault(c => c.Start > current.Start);
+            var end = next?.Start ?? EndOfRecording(transcript);
+            if (end > current.Start)
+            {
+                chapter = new ExportChapterRange(current.Title, current.Start, end);
+            }
+        }
+
+        return new ExportDialogViewModel(_record with { Title = Title }, transcript, _stored, ExportTexts(_speakerNames), saver, chapter);
+    }
+
+    /// <summary>The length of the recording, or where its last words end when the length is not known.</summary>
+    private TimeSpan EndOfRecording(Transcript transcript)
+    {
+        var end = Duration;
+        foreach (var segment in transcript.Segments)
+        {
+            if (segment.End > end)
+            {
+                end = segment.End;
+            }
+        }
+
+        return end;
+    }
 
     [RelayCommand(CanExecute = nameof(CanRunExport))]
     private void ExportMarkdown() => ExportTask = ExportAsync(ExportFormat.Markdown);
@@ -68,6 +124,7 @@ public sealed partial class SessionViewModel
     internal void RefreshExport()
     {
         OnPropertyChanged(nameof(CanExport));
+        OpenExportCommand.NotifyCanExecuteChanged();
         ExportMarkdownCommand.NotifyCanExecuteChanged();
         ExportTextCommand.NotifyCanExecuteChanged();
         ExportSrtCommand.NotifyCanExecuteChanged();

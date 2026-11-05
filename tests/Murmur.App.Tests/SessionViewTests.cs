@@ -292,7 +292,7 @@ public sealed class SessionViewTests : IDisposable
     }
 
     [Fact]
-    public async Task TheTopBar_HasExportAndTheMenu_AndExportListsTheFourFormats()
+    public async Task TheTopBar_HasExportAndTheMenu_AndExportOpensTheDialogInsteadOfAMenu()
     {
         _fixture.UseShortTranscript();
         var (_, shell) = await OpenAsync();
@@ -306,7 +306,7 @@ public sealed class SessionViewTests : IDisposable
                 var export = view.GetVisualDescendants().OfType<Button>().First(b => b.Classes.Contains("sessionGhost") && !b.Classes.Contains("round"));
                 var more = view.GetVisualDescendants().OfType<Button>().First(b => b.Classes.Contains("round"));
                 var labels = VisibleTexts(window);
-                var result = (labels, export.IsEnabled, more.Flyout is not null && export.Flyout is not null);
+                var result = (labels, export.IsEnabled, more.Flyout is not null && export.Flyout is null);
                 window.Close();
                 return result;
             },

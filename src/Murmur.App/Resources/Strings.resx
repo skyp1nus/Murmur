@@ -1659,4 +1659,58 @@
     <value>Couldn’t save the speaker name: {0}</value>
     <comment>{0} = error message</comment>
   </data>
+  <data name="Export_Close" xml:space="preserve">
+    <value>Close</value>
+  </data>
+  <data name="Export_Format" xml:space="preserve">
+    <value>Format</value>
+  </data>
+  <data name="Export_FormatPlainText" xml:space="preserve">
+    <value>Plain text</value>
+  </data>
+  <data name="Export_FormatSubtitles" xml:space="preserve">
+    <value>Subtitles</value>
+  </data>
+  <data name="Export_FormatWord" xml:space="preserve">
+    <value>Word</value>
+  </data>
+  <data name="Export_Include" xml:space="preserve">
+    <value>Include</value>
+  </data>
+  <data name="Export_IncludeTimestamps" xml:space="preserve">
+    <value>Timestamps</value>
+  </data>
+  <data name="Export_IncludeSpeakers" xml:space="preserve">
+    <value>Speaker names</value>
+  </data>
+  <data name="Export_SubtitlesNote" xml:space="preserve">
+    <value>Subtitles carry only the spoken lines.</value>
+  </data>
+  <data name="Export_Range" xml:space="preserve">
+    <value>Range</value>
+  </data>
+  <data name="Export_RangeWhole" xml:space="preserve">
+    <value>Whole recording</value>
+  </data>
+  <data name="Export_RangeChapter" xml:space="preserve">
+    <value>Chapter: {0}</value>
+    <comment>{0} = chapter title; the range option that exports only that chapter</comment>
+  </data>
+  <data name="Export_Preview" xml:space="preserve">
+    <value>Preview</value>
+  </data>
+  <data name="Export_Copy" xml:space="preserve">
+    <value>Copy</value>
+  </data>
+  <data name="Export_SaveAs" xml:space="preserve">
+    <value>Save {0}</value>
+    <comment>{0} = file extension with the dot (.md); the button that saves the export</comment>
+  </data>
+  <data name="Export_Copied" xml:space="preserve">
+    <value>Copied to clipboard</value>
+  </data>
+  <data name="Export_CopyFailed" xml:space="preserve">
+    <value>Couldn’t copy: {0}</value>
+    <comment>{0} = error message</comment>
+  </data>
 </root>

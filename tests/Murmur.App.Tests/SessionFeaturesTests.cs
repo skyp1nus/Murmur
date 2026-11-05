@@ -760,5 +760,8 @@ public sealed class SessionFeaturesTests : IDisposable
             Saved.Add((suggestedFileName, extension, content));
             return Task.FromResult<string?>("export" + extension);
         }
+
+        public Task<string?> SaveBytesAsync(string title, string suggestedFileName, string fileTypeName, string extension, byte[] content) =>
+            Task.FromResult<string?>("export" + extension);
     }
 }

@@ -22,10 +22,19 @@ public sealed record ExportLabels(
     public static ExportLabels English { get; } = new("You", "Others");
 }
 
+/// <summary>What an export includes. Srt/WebVtt ignore Summary/ActionItems and always include timestamps.</summary>
+public sealed record ExportOptions(bool Summary = true, bool ActionItems = true, bool Timestamps = true, bool SpeakerNames = true)
+{
+    public static readonly ExportOptions Default = new();
+}
+
+/// <summary>A part of the timeline to export; null = the whole recording.</summary>
+public readonly record struct ExportRange(TimeSpan Start, TimeSpan End);
+
 /// <summary>
 /// Pure formatters that turn a recording into the text of an export file: Markdown (with the summary when there is one), plain text,
-/// SRT subtitles and WebVTT. Lines end with <c>\n</c> in every format, times use the invariant culture, so the output of the same
-/// recording is the same on every machine. The caller writes the string as UTF-8.
+/// SRT subtitles and WebVTT, and the .docx (<see cref="ToDocx"/>). Lines end with <c>\n</c> in every text format, times use the invariant
+/// culture, so the output of the same recording is the same on every machine. The caller writes the string as UTF-8.
 /// </summary>
 public static class TranscriptExport
 {
@@ -36,19 +45,125 @@ public static class TranscriptExport
         ExportFormat.PlainText => ".txt",
         ExportFormat.Srt => ".srt",
         ExportFormat.WebVtt => ".vtt",
+        ExportFormat.Docx => ".docx",
         _ => throw new ArgumentOutOfRangeException(nameof(format), format, null),
     };
 
-    /// <summary>Formats the recording as <paramref name="format"/> (<paramref name="summary"/> only matters for Markdown).</summary>
+    /// <summary>
+    /// Formats the recording as <paramref name="format"/> with the default options and the whole timeline
+    /// (<paramref name="summary"/> only matters for Markdown, as before the options existed).
+    /// </summary>
     public static string Format(ExportFormat format, SessionRecord session, Transcript transcript, SessionSummary? summary = null, ExportLabels? labels = null) =>
-        format switch
+        Format(format, session, transcript, format is ExportFormat.Markdown or ExportFormat.Docx ? summary : null, labels, ExportOptions.Default, null);
+
+    /// <summary>
+    /// Formats the recording as <paramref name="format"/>: only what <paramref name="options"/> asks for, and only the segments that
+    /// overlap <paramref name="range"/> (the whole recording when <c>null</c>). <see cref="ExportFormat.Docx"/> returns the Markdown text
+    /// the .docx carries (its preview); the file itself is <see cref="ToDocx"/>.
+    /// </summary>
+    public static string Format(
+        ExportFormat format,
+        SessionRecord session,
+        Transcript transcript,
+        SessionSummary? summary,
+        ExportLabels? labels,
+        ExportOptions options,
+        ExportRange? range)
+    {
+        ArgumentNullException.ThrowIfNull(session);
+        ArgumentNullException.ThrowIfNull(transcript);
+        ArgumentNullException.ThrowIfNull(options);
+        labels ??= ExportLabels.English;
+        return format switch
         {
-            ExportFormat.Markdown => ToMarkdown(session, transcript, summary, labels),
-            ExportFormat.PlainText => ToPlainText(session, transcript, labels),
-            ExportFormat.Srt => ToSrt(session, transcript, labels),
-            ExportFormat.WebVtt => ToWebVtt(session, transcript, labels),
+            ExportFormat.Markdown or ExportFormat.Docx => Markdown(session, transcript, summary, labels, options, range),
+            ExportFormat.PlainText => PlainText(session, transcript, summary, labels, options, range),
+            ExportFormat.Srt => Srt(transcript, labels, options, range),
+            ExportFormat.WebVtt => WebVtt(session, transcript, labels, options, range),
             _ => throw new ArgumentOutOfRangeException(nameof(format), format, null),
         };
+    }
+
+    /// <summary>
+    /// A minimal valid .docx (WordprocessingML in a zip: <c>[Content_Types].xml</c>, <c>_rels/.rels</c>, <c>word/document.xml</c>,
+    /// <c>word/styles.xml</c> and the relationship part that ties the styles to the document) with the same content as the Markdown
+    /// export: headings, paragraphs, bullet lists. Hand-written, no dependency; the same recording gives the same bytes.
+    /// </summary>
+    public static byte[] ToDocx(
+        SessionRecord session,
+        Transcript transcript,
+        SessionSummary? summary,
+        ExportLabels? labels,
+        ExportOptions options,
+        ExportRange? range)
+    {
+        ArgumentNullException.ThrowIfNull(session);
+        ArgumentNullException.ThrowIfNull(transcript);
+        ArgumentNullException.ThrowIfNull(options);
+        labels ??= ExportLabels.English;
+        var paragraphs = new List<DocxParagraph>
+        {
+            new(DocxWriter.Heading1, [new DocxRun(TitleOf(session, labels))]),
+            new(DocxWriter.Meta, [new DocxRun(MetaLine(session, transcript))]),
+        };
+
+        if (summary is not null && options.Summary)
+        {
+            paragraphs.Add(new(DocxWriter.Heading2, [new DocxRun(labels.Summary)]));
+            if (!string.IsNullOrWhiteSpace(summary.Overview))
+            {
+                paragraphs.Add(new(DocxWriter.Heading3, [new DocxRun(labels.Overview)]));
+                paragraphs.Add(new(DocxWriter.Normal, [new DocxRun(summary.Overview.Trim())]));
+            }
+
+            AddBullets(paragraphs, labels.KeyPoints, summary.KeyPoints, "•", options.Timestamps);
+        }
+
+        if (summary is not null && options.ActionItems)
+        {
+            AddBullets(paragraphs, labels.ActionItems, summary.ActionItems, "☐", options.Timestamps);
+        }
+
+        paragraphs.Add(new(DocxWriter.Heading2, [new DocxRun(labels.Transcript)]));
+        foreach (var segment in Segments(transcript, range))
+        {
+            var runs = new List<DocxRun>(3);
+            if (options.SpeakerNames)
+            {
+                runs.Add(new DocxRun(SpeakerOf(segment, labels), Bold: true));
+            }
+
+            if (options.Timestamps)
+            {
+                runs.Add(new DocxRun((runs.Count > 0 ? " " : string.Empty) + Clock(segment.Start), Mono: true));
+            }
+
+            runs.Add(new DocxRun(OneLine(segment.Text), BreakBefore: runs.Count > 0));
+            paragraphs.Add(new(DocxWriter.Normal, runs));
+        }
+
+        return DocxWriter.Build(paragraphs);
+    }
+
+    private static void AddBullets(List<DocxParagraph> paragraphs, string heading, IReadOnlyList<SummaryItem> items, string bullet, bool timestamps)
+    {
+        if (items.Count == 0)
+        {
+            return;
+        }
+
+        paragraphs.Add(new(DocxWriter.Heading3, [new DocxRun(heading)]));
+        foreach (var item in items)
+        {
+            var runs = new List<DocxRun>(2) { new(bullet + "\t" + OneLine(item.Text)) };
+            if (timestamps && item.At is { } at)
+            {
+                runs.Add(new DocxRun(" (" + Clock(at) + ")", Mono: true));
+            }
+
+            paragraphs.Add(new(DocxWriter.Bullet, runs));
+        }
+    }
 
     /// <summary>
     /// <c># Title</c>, a line with the date, length and language, the summary (overview, key points, action items; each item with its
@@ -58,31 +173,7 @@ public static class TranscriptExport
     {
         ArgumentNullException.ThrowIfNull(session);
         ArgumentNullException.ThrowIfNull(transcript);
-        labels ??= ExportLabels.English;
-        var text = new StringBuilder();
-        text.Append("# ").Append(TitleOf(session, labels)).Append("\n\n");
-        text.Append(MetaLine(session, transcript)).Append("\n\n");
-
-        if (summary is not null)
-        {
-            text.Append("## ").Append(labels.Summary).Append("\n\n");
-            if (!string.IsNullOrWhiteSpace(summary.Overview))
-            {
-                text.Append("### ").Append(labels.Overview).Append("\n\n").Append(summary.Overview.Trim()).Append("\n\n");
-            }
-
-            AppendItems(text, labels.KeyPoints, summary.KeyPoints, "- ");
-            AppendItems(text, labels.ActionItems, summary.ActionItems, "- [ ] ");
-        }
-
-        text.Append("## ").Append(labels.Transcript).Append("\n\n");
-        foreach (var segment in transcript.Segments)
-        {
-            text.Append("**").Append(SpeakerOf(segment, labels)).Append("** `").Append(Clock(segment.Start)).Append("`  \n")
-                .Append(OneLine(segment.Text)).Append("\n\n");
-        }
-
-        return text.ToString().TrimEnd('\n') + "\n";
+        return Markdown(session, transcript, summary, labels ?? ExportLabels.English, ExportOptions.Default, null);
     }
 
     /// <summary>The title and the meta line, then one line per segment: <c>[12:21] You: text</c>.</summary>
@@ -90,16 +181,7 @@ public static class TranscriptExport
     {
         ArgumentNullException.ThrowIfNull(session);
         ArgumentNullException.ThrowIfNull(transcript);
-        labels ??= ExportLabels.English;
-        var text = new StringBuilder();
-        text.Append(TitleOf(session, labels)).Append('\n').Append(MetaLine(session, transcript)).Append("\n\n");
-        foreach (var segment in transcript.Segments)
-        {
-            text.Append('[').Append(Clock(segment.Start)).Append("] ").Append(SpeakerOf(segment, labels)).Append(": ")
-                .Append(OneLine(segment.Text)).Append('\n');
-        }
-
-        return text.ToString();
+        return PlainText(session, transcript, null, labels ?? ExportLabels.English, ExportOptions.Default, null);
     }
 
     /// <summary>SubRip: numbered cues <c>00:12:21,000 --> 00:12:29,000</c> with <c>Speaker: text</c>, one cue per segment.</summary>
@@ -107,17 +189,7 @@ public static class TranscriptExport
     {
         ArgumentNullException.ThrowIfNull(session);
         ArgumentNullException.ThrowIfNull(transcript);
-        labels ??= ExportLabels.English;
-        var text = new StringBuilder();
-        var number = 1;
-        foreach (var segment in transcript.Segments)
-        {
-            text.Append(number++.ToString(CultureInfo.InvariantCulture)).Append('\n')
-                .Append(CueTime(segment.Start, ',')).Append(" --> ").Append(CueTime(CueEnd(segment), ',')).Append('\n')
-                .Append(SrtText(SpeakerOf(segment, labels))).Append(": ").Append(SrtText(OneLine(segment.Text))).Append("\n\n");
-        }
-
-        return text.ToString();
+        return Srt(transcript, labels ?? ExportLabels.English, ExportOptions.Default, null);
     }
 
     /// <summary>WebVTT: the <c>WEBVTT - title</c> header, then cues <c>00:12:21.000 --> 00:12:29.000</c> with the speaker as a voice tag (<c>&lt;v You&gt;</c>).</summary>
@@ -125,18 +197,173 @@ public static class TranscriptExport
     {
         ArgumentNullException.ThrowIfNull(session);
         ArgumentNullException.ThrowIfNull(transcript);
-        labels ??= ExportLabels.English;
-        var text = new StringBuilder("WEBVTT - ").Append(HeaderText(TitleOf(session, labels))).Append("\n\n");
-        foreach (var segment in transcript.Segments)
+        return WebVtt(session, transcript, labels ?? ExportLabels.English, ExportOptions.Default, null);
+    }
+
+    private static string Markdown(SessionRecord session, Transcript transcript, SessionSummary? summary, ExportLabels labels, ExportOptions options, ExportRange? range)
+    {
+        var text = new StringBuilder();
+        text.Append("# ").Append(TitleOf(session, labels)).Append("\n\n");
+        text.Append(MetaLine(session, transcript)).Append("\n\n");
+
+        if (summary is not null && options.Summary)
         {
-            text.Append(CueTime(segment.Start, '.')).Append(" --> ").Append(CueTime(CueEnd(segment), '.')).Append('\n')
-                .Append("<v ").Append(EscapeVoice(SpeakerOf(segment, labels))).Append('>').Append(EscapeCue(OneLine(segment.Text)).Replace("-->", "--&gt;", StringComparison.Ordinal)).Append("\n\n");
+            text.Append("## ").Append(labels.Summary).Append("\n\n");
+            if (!string.IsNullOrWhiteSpace(summary.Overview))
+            {
+                text.Append("### ").Append(labels.Overview).Append("\n\n").Append(summary.Overview.Trim()).Append("\n\n");
+            }
+
+            AppendItems(text, labels.KeyPoints, summary.KeyPoints, "- ", options.Timestamps);
+        }
+
+        if (summary is not null && options.ActionItems)
+        {
+            AppendItems(text, labels.ActionItems, summary.ActionItems, "- [ ] ", options.Timestamps);
+        }
+
+        text.Append("## ").Append(labels.Transcript).Append("\n\n");
+        foreach (var segment in Segments(transcript, range))
+        {
+            if (options.SpeakerNames)
+            {
+                text.Append("**").Append(SpeakerOf(segment, labels)).Append("**");
+            }
+
+            if (options.Timestamps)
+            {
+                text.Append(options.SpeakerNames ? " `" : "`").Append(Clock(segment.Start)).Append('`');
+            }
+
+            if (options.SpeakerNames || options.Timestamps)
+            {
+                text.Append("  \n");
+            }
+
+            text.Append(OneLine(segment.Text)).Append("\n\n");
+        }
+
+        return text.ToString().TrimEnd('\n') + "\n";
+    }
+
+    private static string PlainText(SessionRecord session, Transcript transcript, SessionSummary? summary, ExportLabels labels, ExportOptions options, ExportRange? range)
+    {
+        var text = new StringBuilder();
+        text.Append(TitleOf(session, labels)).Append('\n').Append(MetaLine(session, transcript)).Append("\n\n");
+        var sections = false;
+        if (summary is not null && options.Summary)
+        {
+            sections = true;
+            text.Append(labels.Summary.ToUpperInvariant()).Append('\n');
+            if (!string.IsNullOrWhiteSpace(summary.Overview))
+            {
+                text.Append(summary.Overview.Trim()).Append('\n');
+            }
+
+            text.Append('\n');
+            AppendPlainItems(text, labels.KeyPoints, summary.KeyPoints, options.Timestamps);
+        }
+
+        if (summary is not null && options.ActionItems && summary.ActionItems.Count > 0)
+        {
+            sections = true;
+            AppendPlainItems(text, labels.ActionItems, summary.ActionItems, options.Timestamps);
+        }
+
+        if (sections)
+        {
+            text.Append(labels.Transcript.ToUpperInvariant()).Append('\n');
+        }
+
+        foreach (var segment in Segments(transcript, range))
+        {
+            if (options.Timestamps)
+            {
+                text.Append('[').Append(Clock(segment.Start)).Append("] ");
+            }
+
+            if (options.SpeakerNames)
+            {
+                text.Append(SpeakerOf(segment, labels)).Append(": ");
+            }
+
+            text.Append(OneLine(segment.Text)).Append('\n');
         }
 
         return text.ToString();
     }
 
-    private static void AppendItems(StringBuilder text, string heading, IReadOnlyList<SummaryItem> items, string bullet)
+    private static string Srt(Transcript transcript, ExportLabels labels, ExportOptions options, ExportRange? range)
+    {
+        var text = new StringBuilder();
+        var number = 1;
+        foreach (var segment in Segments(transcript, range))
+        {
+            text.Append(number++.ToString(CultureInfo.InvariantCulture)).Append('\n')
+                .Append(CueTime(segment.Start, ',')).Append(" --> ").Append(CueTime(CueEnd(segment), ',')).Append('\n');
+            if (options.SpeakerNames)
+            {
+                text.Append(SrtText(SpeakerOf(segment, labels))).Append(": ");
+            }
+
+            text.Append(SrtText(OneLine(segment.Text))).Append("\n\n");
+        }
+
+        return text.ToString();
+    }
+
+    private static string WebVtt(SessionRecord session, Transcript transcript, ExportLabels labels, ExportOptions options, ExportRange? range)
+    {
+        var text = new StringBuilder("WEBVTT - ").Append(HeaderText(TitleOf(session, labels))).Append("\n\n");
+        foreach (var segment in Segments(transcript, range))
+        {
+            text.Append(CueTime(segment.Start, '.')).Append(" --> ").Append(CueTime(CueEnd(segment), '.')).Append('\n');
+            if (options.SpeakerNames)
+            {
+                text.Append("<v ").Append(EscapeVoice(SpeakerOf(segment, labels))).Append('>');
+            }
+
+            text.Append(EscapeCue(OneLine(segment.Text)).Replace("-->", "--&gt;", StringComparison.Ordinal)).Append("\n\n");
+        }
+
+        return text.ToString();
+    }
+
+    /// <summary>The segments that overlap <c>[Start, End)</c> of the range (a segment without length counts as a point); all of them without a range.</summary>
+    private static IEnumerable<TranscriptSegment> Segments(Transcript transcript, ExportRange? range)
+    {
+        if (range is not { } part)
+        {
+            return transcript.Segments;
+        }
+
+        return transcript.Segments.Where(segment =>
+            segment.Start < part.End && (segment.End > segment.Start ? segment.End > part.Start : segment.Start >= part.Start));
+    }
+
+    private static void AppendPlainItems(StringBuilder text, string heading, IReadOnlyList<SummaryItem> items, bool timestamps)
+    {
+        if (items.Count == 0)
+        {
+            return;
+        }
+
+        text.Append(heading.ToUpperInvariant()).Append('\n');
+        foreach (var item in items)
+        {
+            text.Append("• ").Append(OneLine(item.Text));
+            if (timestamps && item.At is { } at)
+            {
+                text.Append(" (").Append(Clock(at)).Append(')');
+            }
+
+            text.Append('\n');
+        }
+
+        text.Append('\n');
+    }
+
+    private static void AppendItems(StringBuilder text, string heading, IReadOnlyList<SummaryItem> items, string bullet, bool timestamps)
     {
         if (items.Count == 0)
         {
@@ -147,7 +374,7 @@ public static class TranscriptExport
         foreach (var item in items)
         {
             text.Append(bullet).Append(OneLine(item.Text));
-            if (item.At is { } at)
+            if (timestamps && item.At is { } at)
             {
                 text.Append(" (`").Append(Clock(at)).Append("`)");
             }
@@ -245,4 +472,7 @@ public enum ExportFormat
     PlainText,
     Srt,
     WebVtt,
+
+    /// <summary>Word: see <see cref="TranscriptExport.ToDocx"/>.</summary>
+    Docx,
 }

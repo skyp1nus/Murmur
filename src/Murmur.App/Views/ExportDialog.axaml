@@ -1,0 +1,277 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Murmur.App.ViewModels"
+             xmlns:res="using:Murmur.App.Resources"
+             xmlns:controls="using:Murmur.App.Controls"
+             x:Class="Murmur.App.Views.ExportDialog"
+             x:DataType="vm:ExportDialogViewModel"
+             Focusable="True"
+             KeyboardNavigation.TabNavigation="Cycle">
+
+  <!--
+    The export dialog (Idea6Export.dc.html, "Idea 6 / Export sheet"): the scrim over the window and, in the middle, the 840 x 540 sheet with
+    the header (title, the recording, close), the options (Format, Include, Range), the preview and the footer (status, Copy, Save).
+    ExportDialog.Show puts it on the overlay layer of the window; Esc and a click on the scrim close it.
+  -->
+  <Grid x:Name="Scrim"
+        Background="{DynamicResource Brush.Scrim}">
+    <Border x:Name="Sheet"
+            Width="{StaticResource Size.ExportSheetWidth}"
+            Height="{StaticResource Size.ExportSheetHeight}"
+            HorizontalAlignment="Center"
+            VerticalAlignment="Center"
+            Background="{DynamicResource Brush.Canvas}"
+            CornerRadius="{StaticResource Radius.CardLarge}"
+            BoxShadow="{StaticResource Shadow.Modal}"
+            AutomationProperties.Name="{x:Static res:Strings.Session_ExportTitle}">
+      <Grid>
+        <Grid.RowDefinitions>
+          <RowDefinition Height="{StaticResource Grid.ExportHeader}" />
+          <RowDefinition Height="*" />
+          <RowDefinition Height="{StaticResource Grid.ExportFooter}" />
+        </Grid.RowDefinitions>
+
+        <!-- Header: "Export" and the recording, the close cross -->
+        <Border Grid.Row="0"
+                BorderBrush="{DynamicResource Brush.Hairline}"
+                BorderThickness="{StaticResource Border.ExportEdgeBottom}"
+                Padding="{StaticResource Margin.ExportHeader}">
+          <Grid ColumnDefinitions="*,Auto">
+            <StackPanel Grid.Column="0"
+                        Orientation="Horizontal"
+                        VerticalAlignment="Center"
+                        Spacing="{StaticResource Space.8}">
+              <TextBlock Classes="exportTitle"
+                         VerticalAlignment="Top"
+                         Text="{x:Static res:Strings.Session_Export}" />
+              <TextBlock Classes="exportSmall"
+                         VerticalAlignment="Top"
+                         Margin="{StaticResource Margin.ExportSubtitle}"
+                         TextTrimming="CharacterEllipsis"
+                         MaxWidth="560"
+                         Text="{Binding Title}" />
+            </StackPanel>
+            <Button x:Name="CloseButton"
+                    Grid.Column="1"
+                    Classes="exportClose"
+                    VerticalAlignment="Center"
+                    Command="{Binding CloseCommand}"
+                    AutomationProperties.Name="{x:Static res:Strings.Export_Close}">
+              <controls:IconControl Width="{StaticResource Size.ExportCloseIcon}"
+                                    Height="{StaticResource Size.ExportCloseIcon}"
+                                    Stroke="{StaticResource Stroke.ExportClose}"
+                                    Data="{StaticResource Icon.Close}" />
+            </Button>
+          </Grid>
+        </Border>
+
+        <Grid Grid.Row="1">
+          <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="{StaticResource Grid.ExportOptions}" />
+            <ColumnDefinition Width="*" />
+          </Grid.ColumnDefinitions>
+
+          <!-- Options -->
+          <Border Grid.Column="0"
+                  BorderBrush="{DynamicResource Brush.Hairline}"
+                  BorderThickness="{StaticResource Border.ExportEdgeRight}">
+            <ScrollViewer VerticalScrollBarVisibility="Auto"
+                          HorizontalScrollBarVisibility="Disabled">
+              <StackPanel Spacing="{StaticResource Space.16}"
+                          Margin="{StaticResource Margin.ExportPane}">
+
+                <StackPanel Spacing="{StaticResource Space.8}">
+                  <TextBlock Classes="exportLabel"
+                             Text="{x:Static res:Strings.Export_Format}" />
+                  <Grid ColumnDefinitions="*,*"
+                        RowDefinitions="Auto,Auto"
+                        ColumnSpacing="{StaticResource Space.6}"
+                        RowSpacing="{StaticResource Space.6}">
+                    <RadioButton x:Name="FormatMarkdown"
+                                 Grid.Column="0" Grid.Row="0"
+                                 Classes="exportFormat"
+                                 GroupName="ExportFormat"
+                                 IsChecked="{Binding IsMarkdown, Mode=TwoWay}">
+                      <StackPanel>
+                        <TextBlock Classes="exportItemStrong"
+                                   Text="{x:Static res:Strings.Session_ExportMarkdown}" />
+                        <TextBlock Classes="exportMono" Text="{Binding MarkdownExtension}" />
+                      </StackPanel>
+                    </RadioButton>
+                    <RadioButton x:Name="FormatPlainText"
+                                 Grid.Column="1" Grid.Row="0"
+                                 Classes="exportFormat"
+                                 GroupName="ExportFormat"
+                                 IsChecked="{Binding IsPlainText, Mode=TwoWay}">
+                      <StackPanel>
+                        <TextBlock Classes="exportItemStrong"
+                                   Text="{x:Static res:Strings.Export_FormatPlainText}" />
+                        <TextBlock Classes="exportMono" Text="{Binding PlainTextExtension}" />
+                      </StackPanel>
+                    </RadioButton>
+                    <RadioButton x:Name="FormatSrt"
+                                 Grid.Column="0" Grid.Row="1"
+                                 Classes="exportFormat"
+                                 GroupName="ExportFormat"
+                                 IsChecked="{Binding IsSrt, Mode=TwoWay}">
+                      <StackPanel>
+                        <TextBlock Classes="exportItemStrong"
+                                   Text="{x:Static res:Strings.Export_FormatSubtitles}" />
+                        <TextBlock Classes="exportMono" Text="{Binding SrtExtension}" />
+                      </StackPanel>
+                    </RadioButton>
+                    <RadioButton x:Name="FormatDocx"
+                                 Grid.Column="1" Grid.Row="1"
+                                 Classes="exportFormat"
+                                 GroupName="ExportFormat"
+                                 IsChecked="{Binding IsDocx, Mode=TwoWay}">
+                      <StackPanel>
+                        <TextBlock Classes="exportItemStrong"
+                                   Text="{x:Static res:Strings.Export_FormatWord}" />
+                        <TextBlock Classes="exportMono" Text="{Binding DocxExtension}" />
+                      </StackPanel>
+                    </RadioButton>
+                  </Grid>
+                </StackPanel>
+
+                <StackPanel Spacing="{StaticResource Space.2}">
+                  <TextBlock Classes="exportLabel"
+                             Margin="{StaticResource Margin.ExportIncludeTitle}"
+                             Text="{x:Static res:Strings.Export_Include}" />
+                  <CheckBox x:Name="IncludeSummary"
+                            Classes="exportOption"
+                            IsEnabled="{Binding SummaryEnabled}"
+                            IsChecked="{Binding IncludeSummary, Mode=TwoWay}">
+                    <TextBlock Classes="exportItem" Text="{x:Static res:Strings.Session_TabSummary}" />
+                  </CheckBox>
+                  <CheckBox x:Name="IncludeActionItems"
+                            Classes="exportOption"
+                            IsEnabled="{Binding ActionItemsEnabled}"
+                            IsChecked="{Binding IncludeActionItems, Mode=TwoWay}">
+                    <TextBlock Classes="exportItem" Text="{x:Static res:Strings.Session_SummaryActionItems}" />
+                  </CheckBox>
+                  <CheckBox x:Name="IncludeTimestamps"
+                            Classes="exportOption"
+                            IsEnabled="{Binding TimestampsEnabled}"
+                            IsChecked="{Binding IncludeTimestamps, Mode=TwoWay}">
+                    <TextBlock Classes="exportItem" Text="{x:Static res:Strings.Export_IncludeTimestamps}" />
+                  </CheckBox>
+                  <CheckBox x:Name="IncludeSpeakers"
+                            Classes="exportOption"
+                            IsChecked="{Binding IncludeSpeakerNames, Mode=TwoWay}">
+                    <TextBlock Classes="exportItem" Text="{x:Static res:Strings.Export_IncludeSpeakers}" />
+                  </CheckBox>
+                  <TextBlock Classes="exportSmall"
+                             Margin="{StaticResource Margin.ExportNote}"
+                             TextWrapping="Wrap"
+                             IsVisible="{Binding IsSubtitles}"
+                             Text="{x:Static res:Strings.Export_SubtitlesNote}" />
+                </StackPanel>
+
+                <StackPanel Spacing="{StaticResource Space.6}">
+                  <TextBlock Classes="exportLabel"
+                             Text="{x:Static res:Strings.Export_Range}" />
+                  <StackPanel Spacing="{StaticResource Space.2}">
+                    <RadioButton x:Name="RangeWhole"
+                                 Classes="exportRange"
+                                 GroupName="ExportRange"
+                                 IsChecked="{Binding IsWholeRange, Mode=TwoWay}">
+                      <Grid ColumnDefinitions="*,Auto">
+                        <TextBlock Grid.Column="0"
+                                   Classes="exportItem"
+                                   TextTrimming="CharacterEllipsis"
+                                   Text="{x:Static res:Strings.Export_RangeWhole}" />
+                        <TextBlock Grid.Column="1"
+                                   Classes="exportMono"
+                                   Text="{Binding WholeSpan}" />
+                      </Grid>
+                    </RadioButton>
+                    <RadioButton x:Name="RangeChapter"
+                                 Classes="exportRange"
+                                 GroupName="ExportRange"
+                                 IsVisible="{Binding HasChapterRange}"
+                                 IsChecked="{Binding IsChapterRange, Mode=TwoWay}">
+                      <Grid ColumnDefinitions="*,Auto">
+                        <TextBlock Grid.Column="0"
+                                   Classes="exportItem"
+                                   TextTrimming="CharacterEllipsis"
+                                   Text="{Binding ChapterLabel}" />
+                        <TextBlock Grid.Column="1"
+                                   Classes="exportMono"
+                                   Margin="{StaticResource Margin.ExportRowLabel}"
+                                   Text="{Binding ChapterSpan}" />
+                      </Grid>
+                    </RadioButton>
+                  </StackPanel>
+                </StackPanel>
+              </StackPanel>
+            </ScrollViewer>
+          </Border>
+
+          <!-- Preview -->
+          <Grid Grid.Column="1"
+                RowDefinitions="Auto,*"
+                RowSpacing="{StaticResource Space.8}"
+                Margin="{StaticResource Margin.ExportPane}">
+            <Grid Grid.Row="0" ColumnDefinitions="*,Auto">
+              <TextBlock Grid.Column="0"
+                         Classes="exportLabel"
+                         Text="{x:Static res:Strings.Export_Preview}" />
+              <TextBlock x:Name="FileNameText"
+                         Grid.Column="1"
+                         Classes="exportMono"
+                         Text="{Binding FileName}" />
+            </Grid>
+            <Border Grid.Row="1"
+                    Background="{DynamicResource Brush.Surface}"
+                    CornerRadius="{StaticResource Radius.Panel}"
+                    ClipToBounds="True">
+              <ScrollViewer VerticalScrollBarVisibility="Auto"
+                            HorizontalScrollBarVisibility="Disabled">
+                <SelectableTextBlock x:Name="PreviewText"
+                                     Classes="exportPreview"
+                                     Classes.mono="{Binding PreviewIsMono}"
+                                     Margin="{StaticResource Margin.ExportPreview}"
+                                     Text="{Binding Preview}" />
+              </ScrollViewer>
+            </Border>
+          </Grid>
+        </Grid>
+
+        <!-- Footer: status, Copy, Save -->
+        <Border Grid.Row="2"
+                BorderBrush="{DynamicResource Brush.Hairline}"
+                BorderThickness="{StaticResource Border.ExportEdgeTop}"
+                Padding="{StaticResource Margin.ExportHeader}">
+          <Grid ColumnDefinitions="*,Auto,Auto"
+                ColumnSpacing="{StaticResource Space.8}">
+            <TextBlock x:Name="StatusText"
+                       Grid.Column="0"
+                       Classes="exportStatus"
+                       AutomationProperties.LiveSetting="Polite"
+                       Text="{Binding Status}" />
+            <Button x:Name="CopyButton"
+                    Grid.Column="1"
+                    Classes="outline"
+                    Command="{Binding CopyCommand}">
+              <StackPanel Orientation="Horizontal"
+                          Spacing="{StaticResource Space.6}">
+                <controls:IconControl Width="{StaticResource Size.ExportCopyIcon}"
+                                      Height="{StaticResource Size.ExportCopyIcon}"
+                                      Data="{StaticResource Icon.Copy}" />
+                <TextBlock Classes="sessionGhostText"
+                           Foreground="{Binding $parent[ContentPresenter].Foreground}"
+                           Text="{x:Static res:Strings.Export_Copy}" />
+              </StackPanel>
+            </Button>
+            <Button x:Name="SaveButton"
+                    Grid.Column="2"
+                    Classes="primary exportSave"
+                    Command="{Binding SaveCommand}"
+                    Content="{Binding SaveLabel}" />
+          </Grid>
+        </Border>
+      </Grid>
+    </Border>
+  </Grid>
+</UserControl>
