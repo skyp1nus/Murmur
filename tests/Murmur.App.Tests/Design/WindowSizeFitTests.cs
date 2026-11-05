@@ -9,7 +9,7 @@ namespace Murmur.App.Tests.Design;
 /// <summary>
 /// Every screen of the design (both themes) in the smallest window (900 x 600) and in the default one (1100 x 720): the primary controls
 /// stay inside the window, none overlaps another, nothing scrolls sideways, and what is taller than the window scrolls.
-/// PNGs go to <c>MURMUR_SIZEFIT_DIR</c> (default: the temp folder, murmur-sizefit).
+/// PNGs go to <c>MURMUR_SIZEFIT_DIR</c> (default: the temp folder, murmur-sizefit-<process id>).
 /// </summary>
 public sealed class WindowSizeFitTests
 {
@@ -65,7 +65,8 @@ public sealed class WindowSizeFitTests
     private static async Task CheckAsync(string name, bool dark, int width, int height, bool statusBar)
     {
         var board = DesignBoards.Get(name + (dark ? "Dark" : "")) with { Width = width, Height = height };
-        var dir = Environment.GetEnvironmentVariable("MURMUR_SIZEFIT_DIR") is { Length: > 0 } d ? d : Path.Combine(Path.GetTempPath(), "murmur-sizefit");
+        // One folder per test process: concurrent runs (other worktrees, CI shards) must not write the same PNG at once.
+        var dir = Environment.GetEnvironmentVariable("MURMUR_SIZEFIT_DIR") is { Length: > 0 } d ? d : Path.Combine(Path.GetTempPath(), $"murmur-sizefit-{Environment.ProcessId}");
         var png = Path.Combine(dir, $"{board.Name}-{width}x{height}{(statusBar ? "-statusbar" : "")}.png");
 
         var problems = await UiHarness.Session.Dispatch(
