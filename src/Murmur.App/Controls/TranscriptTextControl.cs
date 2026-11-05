@@ -91,6 +91,12 @@ public sealed class TranscriptTextControl : Control
     private const char Pad = '\u00A0';
 
     private TextLayout? _layout;
+
+    // What a word change rebuilds with: the run properties of the two colours are cached (they only depend on the brush, the typeface and
+    // the size) and one span list is reused, so the rebuild allocates the layout and nothing else of its own.
+    private GenericTextRunProperties? _highlightRun;
+    private GenericTextRunProperties? _upcomingRun;
+    private readonly List<ValueSpan<TextRunProperties>> _activeSpans = [];
     private Pen? _highlightPen;
     private double _layoutWidth;
 
@@ -553,20 +559,42 @@ public sealed class TranscriptTextControl : Control
 
         var from = ToLaidOut(starts[active]);
         var to = ToLaidOut(starts[active] + lengths[active] - 1) + 1;
-        var spans = taken ?? [];
+        List<ValueSpan<TextRunProperties>> spans;
+        if (taken is null)
+        {
+            // TextLayout reads the overrides while it is built and keeps no reference to the list.
+            spans = _activeSpans;
+            spans.Clear();
+        }
+        else
+        {
+            spans = taken;
+        }
+
         var occupied = spans.Count;
         if (HighlightForeground is { } highlight)
         {
-            AddOutside(spans, occupied, from, to - from, new GenericTextRunProperties(typeface, FontSize, null, highlight));
+            AddOutside(spans, occupied, from, to - from, Run(ref _highlightRun, highlight, typeface));
         }
 
         if (UpcomingForeground is { } upcoming && to < length)
         {
-            AddOutside(spans, occupied, to, length - to, new GenericTextRunProperties(typeface, FontSize, null, upcoming));
+            AddOutside(spans, occupied, to, length - to, Run(ref _upcomingRun, upcoming, typeface));
         }
 
         spans.Sort(static (a, b) => a.Start.CompareTo(b.Start));
         return spans;
+    }
+
+    /// <summary>The run properties for <paramref name="brush"/> in the current font, made once and kept until the brush, the typeface or the size change.</summary>
+    private TextRunProperties Run(ref GenericTextRunProperties? cache, IBrush brush, Typeface typeface)
+    {
+        if (cache is null || !ReferenceEquals(cache.ForegroundBrush, brush) || cache.Typeface != typeface || cache.FontRenderingEmSize != FontSize)
+        {
+            cache = new GenericTextRunProperties(typeface, FontSize, null, brush);
+        }
+
+        return cache;
     }
 
     /// <summary>Adds <paramref name="properties"/> for the range, minus the first <paramref name="occupied"/> spans of the (sorted) list.</summary>

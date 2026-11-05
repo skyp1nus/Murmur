@@ -1,5 +1,6 @@
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Controls.Primitives;
 using Avalonia.Headless;
 using Avalonia.Input;
 using Avalonia.Media;
@@ -221,7 +222,7 @@ public sealed class FollowAlongTests : IDisposable
     // Auto-scroll -------------------------------------------------------------------------------------------------
 
     [Fact]
-    public async Task WithFollowAlongOff_TheListIsNotMovedByThePlayback()
+    public async Task WithFollowAlongOff_ThePlaybackDoesNotMoveTheList_ButAnExplicitSeekDoes()
     {
         var vm = await LoadAsync();
         var requested = new List<int>();
@@ -230,10 +231,18 @@ public sealed class FollowAlongTests : IDisposable
 
         _fixture.Player.Position = vm.Segments[2].Start;
         vm.Tick();
-        vm.SeekTo(vm.Segments[3].Start);
-
         Assert.Empty(requested);
-        Assert.True(vm.Segments[3].IsCurrent);
+        Assert.True(vm.Segments[2].IsCurrent);
+
+        // The waveform, a chapter, a time chip or a word: the user asked for that place, so it is brought into view as before.
+        vm.SeekTo(vm.Segments[3].Start);
+        Assert.Equal([3], requested);
+        vm.Segments[4].SeekCommand.Execute(null);
+        Assert.Equal([3, 4], requested);
+        vm.BeginScrub();
+        vm.ScrubTo(vm.Segments[5].Start / vm.Duration);
+        Assert.Contains(5, requested);
+        Assert.True(vm.Segments[5].IsCurrent);
     }
 
     [Fact]
@@ -342,6 +351,88 @@ public sealed class FollowAlongTests : IDisposable
         Assert.True(suspended.Item2);
     }
 
+    [Fact]
+    public async Task ATouchDragGesture_PausesTheAutoScroll()
+    {
+        _fixture.UseTranscript(TranscriptFactory.Make(_fixture.Record.Id, 10_000));
+        var shell = await OpenShellAsync();
+
+        var (before, after) = await Session.Dispatch(
+            () =>
+            {
+                var window = UiHarness.Show(shell);
+                var scroller = window.GetVisualDescendants().OfType<ScrollViewer>().Single(v => v.Name == "TranscriptScroller");
+                var wasSuspended = shell.Session!.AutoScrollSuspended;
+                scroller.RaiseEvent(new ScrollGestureEventArgs(1, new Vector(0, -20)) { RoutedEvent = InputElement.ScrollGestureEvent, Source = scroller });
+                var result = (wasSuspended, shell.Session.AutoScrollSuspended);
+                window.Close();
+                return result;
+            },
+            TestContext.Current.CancellationToken);
+
+        Assert.False(before);
+        Assert.True(after);
+    }
+
+    // A touch press on a word seeks (and so ends the pause), which is why a touch drag is told apart by the scroll gesture and not by the press.
+    [Fact]
+    public async Task ATapOnALine_EndsThePause_AfterADrag()
+    {
+        var vm = await LoadAsync();
+        _fixture.Player.Position = vm.Segments[1].Start;
+        vm.Tick();
+        vm.NotifyUserScrolled();
+
+        vm.Segments[1].SeekWordCommand.Execute(0);
+
+        Assert.False(vm.AutoScrollSuspended);
+    }
+
+    // The header ---------------------------------------------------------------------------------------------------
+
+    [Theory]
+    [InlineData(1100, 720)]
+    [InlineData(900, 600)]
+    public async Task TheHeader_KeepsLongSpeakerNamesAwayFromTheSwitch(int width, int height)
+    {
+        using var ukrainian = Murmur.App.Localization.UiCulture.Override("uk");
+        var names = new FakeSpeakerNameStore();
+        names.Put(_fixture.Record.Id, new Murmur.Core.Sessions.SpeakerNames(new string('Ж', 40), new string('W', 40)));
+        _fixture.UseTranscript(TranscriptFactory.Make(_fixture.Record.Id, 120));
+        var harness = new UiHarness();
+        harness.Store.Add(_fixture.Record);
+        var shell = harness.CreateShell(
+            record => new SessionViewModel(record, _fixture.Files, _fixture.Transcripts, _fixture.Player, _fixture.Processing, _fixture.Time, action => action(),
+                services: new SessionServices(SpeakerNames: names)),
+            _fixture.Processing);
+        await shell.Library.LoadAsync();
+        shell.Library.SelectedSession = shell.Library.Sessions[0];
+        await shell.SessionLoadTask;
+
+        var (chips, toggle, windowWidth) = await Session.Dispatch(
+            () =>
+            {
+                using var scope = Murmur.App.Localization.UiCulture.Override("uk");
+                var window = new MainWindow { DataContext = shell, Width = width, Height = height };
+                window.Show();
+                UiHarness.Pump(4);
+                var switchControl = window.GetVisualDescendants().OfType<ToggleButton>().Single(t => t.Name == "FollowAlongSwitch");
+                var switchBounds = new Rect(switchControl.TranslatePoint(default, window)!.Value, switchControl.Bounds.Size);
+                var chipBounds = window.GetVisualDescendants().OfType<Button>().Where(b => b.Classes.Contains("speakerChip") && b.IsEffectivelyVisible)
+                    .Select(b => new Rect(b.TranslatePoint(default, window)!.Value, b.Bounds.Size)).ToArray();
+                window.Close();
+                return (chipBounds, switchBounds, window.Width);
+            },
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal(2, chips.Length);
+        Assert.True(toggle.Right <= windowWidth, $"The switch ends at {toggle.Right} in a window {windowWidth} wide.");
+        foreach (var chip in chips)
+        {
+            Assert.True(chip.Right <= toggle.Left || chip.Bottom <= toggle.Top || chip.Top >= toggle.Bottom, $"A chip {chip} runs into the switch {toggle}.");
+        }
+    }
+
     // No allocations ----------------------------------------------------------------------------------------------
 
     [Fact]
@@ -376,7 +467,7 @@ public sealed class FollowAlongTests : IDisposable
     }
 
     [Fact]
-    public async Task MovingTheMark_ThroughTheWords_AllocatesNothing()
+    public async Task MovingTheMark_ToTheNextWord_AllocatesNoMoreThanATickInsideAWord()
     {
         var vm = await LoadAsync(words: 3_000);
         vm.PlayPauseCommand.Execute(null);
@@ -389,25 +480,37 @@ public sealed class FollowAlongTests : IDisposable
             }
         }
 
-        // Setting Position builds the clock text of the player, which is not the highlight path: move the playhead first, then measure the lookup.
+        // The tick also builds the clock text of the player (the same bytes every time while it is "mm:ss"); that is not the highlight.
+        // So compare a tick that moves to another word with a tick that stays inside one: the highlight must add nothing.
+        void Tick(TimeSpan position)
+        {
+            _fixture.Player.Position = position;
+            vm.Tick();
+        }
+
         var start = positions.Count / 4;
         var count = positions.Count / 2;
         for (var i = start; i < start + count; i++)
         {
-            vm.Position = positions[i];
-            vm.UpdateCurrent(forceScroll: false);
+            Tick(positions[i]);
         }
 
-        var allocated = 0L;
+        var before = GC.GetAllocatedBytesForCurrentThread();
         for (var i = start; i < start + count; i++)
         {
-            vm.Position = positions[i];
-            var before = GC.GetAllocatedBytesForCurrentThread();
-            vm.UpdateCurrent(forceScroll: false);
-            allocated += GC.GetAllocatedBytesForCurrentThread() - before;
+            Tick(positions[i]);
         }
 
-        Assert.Equal(0, allocated);
+        var moving = GC.GetAllocatedBytesForCurrentThread() - before;
+
+        before = GC.GetAllocatedBytesForCurrentThread();
+        for (var i = 0; i < count; i++)
+        {
+            Tick(positions[start] + TimeSpan.FromMilliseconds(i % 300));
+        }
+
+        var staying = GC.GetAllocatedBytesForCurrentThread() - before;
+        Assert.True(moving <= staying, $"Moving through {count} words allocated {moving} B, ticks inside one word {staying} B.");
     }
 
     // The control: the chip --------------------------------------------------------------------------------------

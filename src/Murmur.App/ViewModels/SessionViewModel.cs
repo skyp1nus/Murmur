@@ -159,7 +159,7 @@ public sealed partial class SessionViewModel : ObservableObject, IDisposable, IF
     public partial bool IsPlaying { get; private set; }
 
     [ObservableProperty]
-    public partial TimeSpan Position { get; internal set; }
+    public partial TimeSpan Position { get; private set; }
 
     /// <summary>Length of the session; the player's own duration once it is open, the stored one before.</summary>
     [ObservableProperty]
@@ -942,7 +942,8 @@ public sealed partial class SessionViewModel : ObservableObject, IDisposable, IF
             _scrollPaused = false;
         }
 
-        if (segment < 0 || !FollowAlong || _scrollPaused)
+        // With Follow along off the playback does not move the list, but an explicit seek (forceScroll) still brings its target into view.
+        if (segment < 0 || _scrollPaused || (!FollowAlong && !forceScroll))
         {
             return;
         }

@@ -35,7 +35,9 @@ public partial class SessionView : UserControl
         // Wheel and scroll-bar drags are the user's scrolls; programmatic ScrollIntoView raises neither.
         TranscriptScroller.AddHandler(PointerWheelChangedEvent, OnUserScroll, RoutingStrategies.Tunnel | RoutingStrategies.Bubble, handledEventsToo: true);
         TranscriptScroller.AddHandler(PointerPressedEvent, OnTranscriptPointerPressed, RoutingStrategies.Tunnel);
-        TranscriptScroller.AddHandler(KeyDownEvent, OnTranscriptKeyDown, RoutingStrategies.Tunnel | RoutingStrategies.Bubble, handledEventsToo: true);
+        TranscriptScroller.AddHandler(KeyDownEvent, OnTranscriptKeyDown, RoutingStrategies.Tunnel);
+        // A touch or pen drag scrolls the list through this gesture; it is raised only by the user, never by a programmatic scroll or a tap.
+        TranscriptScroller.AddHandler(ScrollGestureEvent, OnUserScroll, RoutingStrategies.Bubble, handledEventsToo: true);
 
         // The "back" button of a mouse goes back, like Esc.
         AddHandler(PointerReleasedEvent, OnPointerReleasedForBack, RoutingStrategies.Tunnel);
@@ -172,9 +174,7 @@ public partial class SessionView : UserControl
 
     private void OnTranscriptPointerPressed(object? sender, PointerPressedEventArgs e)
     {
-        // A touch or pen on the list may be a drag-scroll; a tap that turns out to be a click on a line seeks, which ends the pause.
-        if (e.Pointer.Type != PointerType.Mouse
-            || (e.Source is Visual source && source.FindAncestorOfType<ScrollBar>(includeSelf: true) is not null))
+        if (e.Source is Visual source && source.FindAncestorOfType<ScrollBar>(includeSelf: true) is not null)
         {
             _viewModel?.NotifyUserScrolled();
         }
