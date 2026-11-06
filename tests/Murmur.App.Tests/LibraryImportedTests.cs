@@ -599,6 +599,25 @@ public sealed class LibraryImportedTests : IDisposable
     }
 
     [Fact]
+    public async Task TheDetails_OfAnImport_LoadTheTranscript_LikeARecording()
+    {
+        var record = Sessions.Make("Standup", Now.AddHours(-1), TimeSpan.FromMinutes(14), mic: false) with
+        {
+            Source = SessionSource.Imported,
+            OriginalPath = "/in/standup.wav",
+        };
+        using var fixture = new SessionFixture(record: record);
+        fixture.UseTranscript(new Transcript(record.Id, [TranscriptFactory.Segment(Speaker.Others, 1, "Hi")], "parakeet-tdt-0.6b-v3-int8", "en"));
+        var vm = fixture.Create();
+
+        await vm.LoadAsync();
+
+        Assert.Equal(TranscriptStatus.Available, vm.Status);
+        Assert.True(vm.ShowTranscriptList);
+        Assert.NotEmpty(vm.Segments);
+    }
+
+    [Fact]
     public async Task TheDetails_OfARecording_DoNotMentionImports()
     {
         using var fixture = new SessionFixture();
