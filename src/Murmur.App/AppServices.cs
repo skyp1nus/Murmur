@@ -66,6 +66,7 @@ namespace Murmur.App;
 /// <param name="Calls">Detects calls from <paramref name="AudioSessions"/>; the app starts it while Detect calls is on. <c>null</c> = no call detection.</param>
 /// <param name="SpeakerNames">Keeps the names the user gave the speakers of a recording; <c>null</c> = the speaker chips are not offered (the lines say "You" / "Others").</param>
 /// <param name="Activity">What runs or waits (recording, transcribing, indexing, model downloads) for the status bar; <c>null</c> = no status bar.</param>
+/// <param name="Vocabulary">The user's own words for the fixes of uncertain words ("Did you mean"); <c>null</c> = the fixes are not remembered.</param>
 public sealed record AppServices(
     IRecorder Recorder,
     ICapture Capture,
@@ -92,4 +93,5 @@ public sealed record AppServices(
     IAudioSessionMonitor? AudioSessions = null,
     ICallDetector? Calls = null,
     ISpeakerNameStore? SpeakerNames = null,
-    IActivityFeed? Activity = null);
+    IActivityFeed? Activity = null,
+    IVocabularyStore? Vocabulary = null);

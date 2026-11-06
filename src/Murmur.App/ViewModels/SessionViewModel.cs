@@ -283,6 +283,7 @@ public sealed partial class SessionViewModel : ObservableObject, IDisposable, IF
 
         _disposed = true;
         CancelSummary();
+        CloseDidYouMean();
         _player.StateChanged -= OnPlayerStateChanged;
         _processing.ProgressChanged -= OnProcessingChanged;
         Chat.CitationActivated -= OnCitationActivated;
@@ -629,9 +630,11 @@ public sealed partial class SessionViewModel : ObservableObject, IDisposable, IF
             {
                 ShowWord = IsPlaying && FollowAlong,
                 SpeakerName = _speakerNames[segments[i].Speaker],
+                OpenWord = OpenDidYouMean,
             };
         }
 
+        CloseDidYouMean();
         _transcript = transcript;
         _timeline = timeline;
         _currentWord = -1;

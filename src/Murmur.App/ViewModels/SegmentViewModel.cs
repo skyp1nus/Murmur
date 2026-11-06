@@ -16,7 +16,7 @@ public sealed partial class SegmentViewModel : ObservableObject
 {
     private static readonly int[] NoOffsets = [];
 
-    private readonly TranscriptSegment _segment;
+    private TranscriptSegment _segment;
     private readonly Action<SegmentViewModel, int> _seek;
     private string? _text;
     private string? _speakerName;

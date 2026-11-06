@@ -788,6 +788,8 @@
                                                           WordLengths="{Binding WordLengths}"
                                                           ActiveWord="{Binding VisibleWord}"
                                                           HighlightTerm="{Binding HighlightTerm}"
+                                                          UncertainWords="{Binding UncertainWords}"
+                                                          UncertainCommand="{Binding OpenWordCommand}"
                                                           Command="{Binding SeekWordCommand}" />
                         </StackPanel>
                       </Grid>
@@ -796,6 +798,10 @@
                 </ItemsControl.ItemTemplate>
               </ItemsControl>
             </ScrollViewer>
+
+            <!-- "Did you mean" for the uncertain word clicked in the list (#58); takes no room. -->
+            <views:DidYouMeanPopover Grid.Row="1"
+                                     Target="{Binding #TranscriptScroller}" />
 
             <!-- State card: loading, progress, install hint, error, empty -->
             <Border Grid.Row="0"

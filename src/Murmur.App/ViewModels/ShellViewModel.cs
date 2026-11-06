@@ -201,7 +201,7 @@ public sealed partial class ShellViewModel : ObservableObject
                 services.Time,
                 chat: CreateSavedChat(record.Id),
                 videoPlayback: services.VideoPlayback,
-                services: new SessionServices(ai?.Summarizer, services.Summaries, services.Sessions, SystemFolderLauncher.Instance, playback.CreatePlayer, ai?.ChapterGenerator, services.ChapterStore, services.SpeakerNames, store));
+                services: new SessionServices(ai?.Summarizer, services.Summaries, services.Sessions, SystemFolderLauncher.Instance, playback.CreatePlayer, ai?.ChapterGenerator, services.ChapterStore, services.SpeakerNames, store, services.Vocabulary, ai?.WordSuggester));
         }
 
         var settings = new SettingsViewModel(

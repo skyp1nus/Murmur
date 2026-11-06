@@ -16,6 +16,8 @@ namespace Murmur.App.Services;
 /// <param name="Chapters">Keeps the chapters between visits; <c>null</c> = the strip shows none.</param>
 /// <param name="SpeakerNames">Keeps the names of the two speakers of the recording; <c>null</c> = the speaker chips are not offered.</param>
 /// <param name="Settings">Keeps the choices that belong to every recording (the "Follow along" switch); <c>null</c> = the choice lives only while the view is open.</param>
+/// <param name="Vocabulary">The user's own words: "Did you mean" offers them first and keeps every fix in them; <c>null</c> = the fixes are not remembered.</param>
+/// <param name="WordSuggester">Asks the local model for alternatives to an uncertain word; <c>null</c> = only the vocabulary's.</param>
 /// <param name="CreatePlayer">Makes a new audio player; used to bring the playback back when deleting the recording failed (the first one was released for the delete). <c>null</c> = the playback stays closed then.</param>
 public sealed record SessionServices(
     ISessionSummarizer? Summarizer = null,
@@ -26,4 +28,6 @@ public sealed record SessionServices(
     IChapterGenerator? ChapterGenerator = null,
     IChapterStore? Chapters = null,
     ISpeakerNameStore? SpeakerNames = null,
-    ISettingsStore? Settings = null);
+    ISettingsStore? Settings = null,
+    IVocabularyStore? Vocabulary = null,
+    IWordSuggester? WordSuggester = null);

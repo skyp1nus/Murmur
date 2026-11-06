@@ -60,4 +60,43 @@ internal sealed class FakeTranscriptStore : ITranscriptStore
 
         return ValueTask.FromResult<IReadOnlyList<TranscriptSummary>>(result);
     }
+
+    /// <summary>Every <see cref="ReplaceWordAsync"/> call, in order.</summary>
+    public List<(SessionId Session, int Segment, int Word, string Text)> Replacements { get; } = [];
+
+    public Exception? ReplaceFailure { get; set; }
+
+    /// <summary>Like the SQLite store: the word gets the text and an unknown confidence, the segment text is rebuilt from the words.</summary>
+    public ValueTask ReplaceWordAsync(SessionId session, int segmentIndex, int wordIndex, string text, CancellationToken cancellationToken)
+    {
+        if (ReplaceFailure is { } failure)
+        {
+            throw failure;
+        }
+
+        var transcript = PerSession.TryGetValue(session, out var own) ? own : Transcript;
+        if (transcript is null || segmentIndex < 0 || segmentIndex >= transcript.Segments.Count
+            || wordIndex < 0 || wordIndex >= transcript.Segments[segmentIndex].Words.Count)
+        {
+            throw new ArgumentOutOfRangeException(nameof(segmentIndex));
+        }
+
+        Replacements.Add((session, segmentIndex, wordIndex, text));
+        var segments = transcript.Segments.ToArray();
+        var segment = segments[segmentIndex];
+        var words = segment.Words.ToArray();
+        words[wordIndex] = words[wordIndex] with { Text = text.Trim(), Confidence = null };
+        segments[segmentIndex] = segment with { Words = words, Text = string.Join(' ', words.Select(w => w.Text)) };
+        var updated = transcript with { Segments = segments };
+        if (PerSession.ContainsKey(session))
+        {
+            PerSession[session] = updated;
+        }
+        else
+        {
+            Transcript = updated;
+        }
+
+        return ValueTask.CompletedTask;
+    }
 }
