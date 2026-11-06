@@ -15,9 +15,12 @@ namespace Murmur.App.Controls;
 /// of them is one <see cref="TextLayout"/>.
 /// </summary>
 /// <remarks>
-/// <para><b>Highlight.</b> <see cref="ActiveWord"/> is an index into <see cref="WordStarts"/>/<see cref="WordLengths"/>
-/// (character offsets inside <see cref="Text"/>). The word gets a filled rounded rectangle behind it
-/// (<see cref="HighlightBrush"/>, an achromatic token); only this control repaints when the highlight moves.</para>
+/// <para><b>Highlight (follow along).</b> <see cref="ActiveWord"/> is an index into <see cref="WordStarts"/>/<see cref="WordLengths"/>
+/// (character offsets inside <see cref="Text"/>). The word gets a filled rounded chip behind it (<see cref="HighlightBrush"/>, an
+/// achromatic token) with its text in <see cref="HighlightForeground"/>, and the text after it is set in <see cref="UpcomingForeground"/>,
+/// like the active line of Idea4Transcript.dc.html. The chip is drawn <see cref="HighlightPadding"/> beyond the word on each side and
+/// the colours change no metrics, so the text never reflows when the highlight moves (unlike the search mark below, which makes
+/// real room). Only this control repaints when the highlight moves.</para>
 /// <para><b>Search mark.</b> <see cref="HighlightTerm"/> marks every occurrence (any case) like the canvas's <c>&lt;mark&gt;</c>: a filled
 /// rounded box with the text in <see cref="MarkForeground"/>, 3 px wider on each side. The room for the box is real: a space
 /// (in a size that makes it 3 px wide) goes before and after the word in the laid-out text, so the words after it move as they do in the canvas; the
@@ -57,6 +60,15 @@ public sealed class TranscriptTextControl : Control
     public static readonly StyledProperty<IBrush?> HighlightBrushProperty =
         AvaloniaProperty.Register<TranscriptTextControl, IBrush?>(nameof(HighlightBrush));
 
+    public static readonly StyledProperty<IBrush?> HighlightForegroundProperty =
+        AvaloniaProperty.Register<TranscriptTextControl, IBrush?>(nameof(HighlightForeground));
+
+    public static readonly StyledProperty<IBrush?> UpcomingForegroundProperty =
+        AvaloniaProperty.Register<TranscriptTextControl, IBrush?>(nameof(UpcomingForeground));
+
+    public static readonly StyledProperty<double> HighlightPaddingProperty =
+        AvaloniaProperty.Register<TranscriptTextControl, double>(nameof(HighlightPadding), 2);
+
     public static readonly StyledProperty<IBrush?> HighlightBorderBrushProperty =
         AvaloniaProperty.Register<TranscriptTextControl, IBrush?>(nameof(HighlightBorderBrush));
 
@@ -79,6 +91,12 @@ public sealed class TranscriptTextControl : Control
     private const char Pad = '\u00A0';
 
     private TextLayout? _layout;
+
+    // What a word change rebuilds with: the run properties of the two colours are cached (they only depend on the brush, the typeface and
+    // the size) and one span list is reused, so the rebuild allocates the layout and nothing else of its own.
+    private GenericTextRunProperties? _highlightRun;
+    private GenericTextRunProperties? _upcomingRun;
+    private readonly List<ValueSpan<TextRunProperties>> _activeSpans = [];
     private Pen? _highlightPen;
     private double _layoutWidth;
 
@@ -91,7 +109,7 @@ public sealed class TranscriptTextControl : Control
         AffectsMeasure<TranscriptTextControl>(
             TextProperty, FontFamilyProperty, FontSizeProperty, FontWeightProperty, LineHeightProperty, LetterSpacingProperty, HighlightTermProperty);
         AffectsRender<TranscriptTextControl>(
-            WordStartsProperty, WordLengthsProperty, ActiveWordProperty, HighlightBrushProperty, HighlightBorderBrushProperty, HighlightCornerRadiusProperty, ForegroundProperty,
+            WordStartsProperty, WordLengthsProperty, ActiveWordProperty, HighlightBrushProperty, HighlightBorderBrushProperty, HighlightCornerRadiusProperty, HighlightPaddingProperty, ForegroundProperty,
             MarkBrushProperty, MarkForegroundProperty, MarkCornerRadiusProperty);
     }
 
@@ -191,6 +209,27 @@ public sealed class TranscriptTextControl : Control
     {
         get => GetValue(HighlightBrushProperty);
         set => SetValue(HighlightBrushProperty, value);
+    }
+
+    /// <summary>Colour of the text of the highlighted word (on the chip); <c>null</c> = the text keeps <see cref="Foreground"/>.</summary>
+    public IBrush? HighlightForeground
+    {
+        get => GetValue(HighlightForegroundProperty);
+        set => SetValue(HighlightForegroundProperty, value);
+    }
+
+    /// <summary>Colour of the text after the highlighted word (what is still to be said); <c>null</c> = it keeps <see cref="Foreground"/>.</summary>
+    public IBrush? UpcomingForeground
+    {
+        get => GetValue(UpcomingForegroundProperty);
+        set => SetValue(UpcomingForegroundProperty, value);
+    }
+
+    /// <summary>How far the chip of the highlighted word reaches beyond the word on each side; it overlaps the spaces and never moves the text.</summary>
+    public double HighlightPadding
+    {
+        get => GetValue(HighlightPaddingProperty);
+        set => SetValue(HighlightPaddingProperty, value);
     }
 
     /// <summary>Hairline around the highlighted word; <c>null</c> = none.</summary>
@@ -319,11 +358,15 @@ public sealed class TranscriptTextControl : Control
                 _highlightPen = new Pen(border, 1);
             }
 
+            // The chip is the content area of the font (like the search mark), centred in the line and wider than the word by the padding.
+            var chipHeight = Math.Round(FontSize * 1.25);
+            var chipPadding = HighlightPadding;
             var first = ToLaidOut(starts[active]);
             var last = ToLaidOut(starts[active] + lengths[active] - 1);
             foreach (var rect in layout.HitTestTextRange(first, last - first + 1))
             {
-                context.DrawRectangle(highlight, _highlightPen, rect.Inflate(new Thickness(2, 0)), radius, radius);
+                var chip = new Rect(rect.X - chipPadding, rect.Y + ((rect.Height - chipHeight) / 2), rect.Width + (2 * chipPadding), chipHeight);
+                context.DrawRectangle(highlight, _highlightPen, chip, radius, radius);
             }
         }
 
@@ -369,12 +412,17 @@ public sealed class TranscriptTextControl : Control
         if (change.Property == TextProperty || change.Property == FontFamilyProperty || change.Property == FontSizeProperty
             || change.Property == FontWeightProperty || change.Property == LineHeightProperty
             || change.Property == LetterSpacingProperty || change.Property == ForegroundProperty
-            || change.Property == HighlightTermProperty || change.Property == MarkForegroundProperty)
+            || change.Property == HighlightTermProperty || change.Property == MarkForegroundProperty
+            || change.Property == HighlightForegroundProperty || change.Property == UpcomingForegroundProperty
+            || ((change.Property == ActiveWordProperty || change.Property == WordStartsProperty || change.Property == WordLengthsProperty) && ColoursActiveLine))
         {
             _layout?.Dispose();
             _layout = null;
         }
     }
+
+    /// <summary>The active word or the rest of the line has a colour of its own, so the colours of the layout depend on <see cref="ActiveWord"/>.</summary>
+    private bool ColoursActiveLine => HighlightForeground is not null || UpcomingForeground is not null;
 
     private TextLayout? EnsureLayout(double width)
     {
@@ -421,6 +469,13 @@ public sealed class TranscriptTextControl : Control
     /// <see cref="MarkForeground"/>. Returns the text to lay out and the colour spans (<c>null</c> without marks).
     /// </summary>
     private (string Text, IReadOnlyList<ValueSpan<TextRunProperties>>? Overrides) Mark(string text, Typeface typeface)
+    {
+        var (shown, spans) = MarkTerm(text, typeface);
+        spans = ColourActiveLine(shown.Length, spans, typeface);
+        return (shown, spans);
+    }
+
+    private (string Text, List<ValueSpan<TextRunProperties>>? Overrides) MarkTerm(string text, Typeface typeface)
     {
         _marks = [];
         _pads = [];
@@ -485,6 +540,93 @@ public sealed class TranscriptTextControl : Control
 
         spans.Sort(static (a, b) => a.Start.CompareTo(b.Start));
         return (shown.ToString(), spans);
+    }
+
+    /// <summary>
+    /// Colours the active word (<see cref="HighlightForeground"/>) and everything after it (<see cref="UpcomingForeground"/>). Only colours:
+    /// the font, size and spacing of every run stay the same, so the lines break exactly where they do without a highlight. What the
+    /// search mark and its pads already colour is left to them.
+    /// </summary>
+    private List<ValueSpan<TextRunProperties>>? ColourActiveLine(int length, List<ValueSpan<TextRunProperties>>? taken, Typeface typeface)
+    {
+        var starts = WordStarts;
+        var lengths = WordLengths;
+        var active = ActiveWord;
+        if (!ColoursActiveLine || starts is null || lengths is null || active < 0 || active >= starts.Length || lengths[active] <= 0)
+        {
+            return taken;
+        }
+
+        var from = ToLaidOut(starts[active]);
+        var to = ToLaidOut(starts[active] + lengths[active] - 1) + 1;
+        List<ValueSpan<TextRunProperties>> spans;
+        if (taken is null)
+        {
+            // TextLayout reads the overrides while it is built and keeps no reference to the list.
+            spans = _activeSpans;
+            spans.Clear();
+        }
+        else
+        {
+            spans = taken;
+        }
+
+        var occupied = spans.Count;
+        if (HighlightForeground is { } highlight)
+        {
+            AddOutside(spans, occupied, from, to - from, Run(ref _highlightRun, highlight, typeface));
+        }
+
+        if (UpcomingForeground is { } upcoming && to < length)
+        {
+            AddOutside(spans, occupied, to, length - to, Run(ref _upcomingRun, upcoming, typeface));
+        }
+
+        spans.Sort(static (a, b) => a.Start.CompareTo(b.Start));
+        return spans;
+    }
+
+    /// <summary>The run properties for <paramref name="brush"/> in the current font, made once and kept until the brush, the typeface or the size change.</summary>
+    private TextRunProperties Run(ref GenericTextRunProperties? cache, IBrush brush, Typeface typeface)
+    {
+        if (cache is null || !ReferenceEquals(cache.ForegroundBrush, brush) || cache.Typeface != typeface || cache.FontRenderingEmSize != FontSize)
+        {
+            cache = new GenericTextRunProperties(typeface, FontSize, null, brush);
+        }
+
+        return cache;
+    }
+
+    /// <summary>Adds <paramref name="properties"/> for the range, minus the first <paramref name="occupied"/> spans of the (sorted) list.</summary>
+    private static void AddOutside(List<ValueSpan<TextRunProperties>> spans, int occupied, int start, int length, TextRunProperties properties)
+    {
+        var at = start;
+        var end = start + length;
+        for (var i = 0; i < occupied && at < end; i++)
+        {
+            var span = spans[i];
+            if (span.Start + span.Length <= at)
+            {
+                continue;
+            }
+
+            if (span.Start >= end)
+            {
+                break;
+            }
+
+            if (span.Start > at)
+            {
+                spans.Add(new ValueSpan<TextRunProperties>(at, span.Start - at, properties));
+            }
+
+            at = span.Start + span.Length;
+        }
+
+        if (at < end)
+        {
+            spans.Add(new ValueSpan<TextRunProperties>(at, end - at, properties));
+        }
     }
 
     /// <summary>The advance of a space as a share of the font size (the width of "a" + no-break space + "a" minus "aa" at 100 px, without letter spacing).</summary>

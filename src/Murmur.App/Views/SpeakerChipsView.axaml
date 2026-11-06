@@ -121,12 +121,15 @@
     </Style>
   </UserControl.Styles>
 
-  <StackPanel Orientation="Horizontal"
-              Spacing="{StaticResource Space.6}">
-    <TextBlock Classes="speakersTitle"
+  <!-- A grid, not a horizontal stack: the chips get the width that is left after the title, so they wrap (and a long name is cut) instead of running under the switch. -->
+  <Grid ColumnDefinitions="Auto,*"
+        ColumnSpacing="{StaticResource Space.6}">
+    <TextBlock Grid.Column="0"
+               Classes="speakersTitle"
                Margin="{StaticResource Margin.SpeakersTitle}"
                Text="{x:Static res:Strings.Speakers_Title}" />
     <ItemsControl x:Name="Chips"
+                  Grid.Column="1"
                   ItemsSource="{Binding SpeakerChips}">
       <ItemsControl.ItemsPanel>
         <ItemsPanelTemplate>
@@ -203,5 +206,5 @@
         </DataTemplate>
       </ItemsControl.ItemTemplate>
     </ItemsControl>
-  </StackPanel>
+  </Grid>
 </UserControl>

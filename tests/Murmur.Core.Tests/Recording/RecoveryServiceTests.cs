@@ -42,6 +42,19 @@ public sealed class RecoveryServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task AHalfMadeImport_IsLeftToTheImportQueue_NotMarkedAsALostRecording()
+    {
+        var import = Seed(SessionState.Recording) with { Source = SessionSource.Imported, HasSystemAudio = true };
+        _store.Seed(import);
+        var recording = Seed(SessionState.Recording);
+
+        var recovered = await new RecoveryService(_store).RecoverAsync(Ct);
+
+        Assert.Equal([recording.Id], recovered.Select(r => r.Id));
+        Assert.Equal(import, _store.Get(import.Id));
+    }
+
+    [Fact]
     public async Task OnlyOneTrack_IsEnough()
     {
         var session = Seed(SessionState.Recording);

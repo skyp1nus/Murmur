@@ -46,6 +46,9 @@
       <x:Double x:Key="Size.ChapterStrip">40</x:Double>
       <Thickness x:Key="Margin.ChapterSegment">8,0</Thickness>
 
+      <!-- The chip behind the spoken word (Idea4Transcript.dc.html, "Idea 4 / Active line – follow along"): 3 px beyond the word on each side. -->
+      <x:Double x:Key="Size.WordChipPadding">3</x:Double>
+
       <!-- The three dots of "..." (filled circles on the 24 x 24 grid of the canvas SVG). -->
       <StreamGeometry x:Key="Session.Dots">M3.4 12a1.6 1.6 0 1 0 3.2 0a1.6 1.6 0 1 0 -3.2 0 M10.4 12a1.6 1.6 0 1 0 3.2 0a1.6 1.6 0 1 0 -3.2 0 M17.4 12a1.6 1.6 0 1 0 3.2 0a1.6 1.6 0 1 0 -3.2 0</StreamGeometry>
     </ResourceDictionary>
