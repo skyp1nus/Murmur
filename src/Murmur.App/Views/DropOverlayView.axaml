@@ -1,0 +1,33 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Murmur.App.ViewModels"
+             xmlns:controls="using:Murmur.App.Controls"
+             x:Class="Murmur.App.Views.DropOverlayView"
+             x:DataType="vm:DropOverlayViewModel"
+             IsHitTestVisible="False">
+  <!-- Idea 7 / Drag anywhere: the dashed Ink outline, the Surface veil, the upload icon and two lines. Opacity 0 until a drag is over the window. -->
+  <Panel x:Name="Root"
+         Classes="dropOverlay"
+         Classes.shown="{Binding IsVisible}"
+         Margin="{StaticResource Margin.DropOverlay}">
+    <Border Classes="dropOverlayVeil" />
+    <Rectangle Classes="dropOverlayOutline" />
+    <StackPanel VerticalAlignment="Center"
+                HorizontalAlignment="Center"
+                Spacing="{StaticResource Space.4}">
+      <controls:IconControl HorizontalAlignment="Center"
+                            Width="{StaticResource Size.DropOverlayIcon}"
+                            Height="{StaticResource Size.DropOverlayIcon}"
+                            Data="{StaticResource Import.Icon.Upload}" />
+      <TextBlock x:Name="TitleText"
+                 Classes="importStrong"
+                 HorizontalAlignment="Center"
+                 TextAlignment="Center"
+                 Text="{Binding Title}" />
+      <TextBlock x:Name="HintText"
+                 Classes="dropOverlayHint"
+                 HorizontalAlignment="Center"
+                 Text="{Binding Hint}" />
+    </StackPanel>
+  </Panel>
+</UserControl>

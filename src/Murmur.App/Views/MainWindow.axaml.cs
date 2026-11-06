@@ -16,6 +16,13 @@ public partial class MainWindow : Window
     {
         InitializeComponent();
         Activated += (_, _) => (DataContext as ShellViewModel)?.OnWindowActivated();
+        WireDrop();
+    }
+
+    protected override void OnDataContextChanged(EventArgs e)
+    {
+        base.OnDataContextChanged(e);
+        OnShellChanged(DataContext as ShellViewModel);
     }
 
     /// <summary>

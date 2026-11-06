@@ -1907,4 +1907,28 @@
   <data name="Export_PreviewEmpty" xml:space="preserve">
     <value>У цьому діапазоні нічого не сказано.</value>
   </data>
+  <data name="DropOverlay_TitleOne" xml:space="preserve">
+    <value>Скиньте, щоб імпортувати {0} файл</value>
+  </data>
+  <data name="DropOverlay_TitleFew" xml:space="preserve">
+    <value>Скиньте, щоб імпортувати {0} файли</value>
+  </data>
+  <data name="DropOverlay_TitleMany" xml:space="preserve">
+    <value>Скиньте, щоб імпортувати {0} файлів</value>
+  </data>
+  <data name="DropOverlay_Hint" xml:space="preserve">
+    <value>Їх транскрибуватимуть по одному</value>
+  </data>
+  <data name="DropOverlay_Unsupported" xml:space="preserve">
+    <value>Ці файли не можна імпортувати</value>
+  </data>
+  <data name="DropOverlay_UnsupportedHint" xml:space="preserve">
+    <value>Імпортувати можна лише аудіо- та відеофайли</value>
+  </data>
+  <data name="DropOverlay_Recording" xml:space="preserve">
+    <value>Імпорт почнеться після зупинки запису</value>
+  </data>
+  <data name="DropOverlay_RecordingHint" xml:space="preserve">
+    <value>Скиньте файли ще раз, коли зупините запис</value>
+  </data>
 </root>
