@@ -329,10 +329,18 @@ internal sealed class CompositionRoot : IDisposable
     private static IMediaDecoder CreateMediaDecoder() => new CompositeMediaDecoder(new WavMediaDecoder());
 
     /// <summary>
-    /// The Downloads folder of the import dialog's "Recent in Downloads": <c>%USERPROFILE%\Downloads</c> / <c>~/Downloads</c>. On Windows the
-    /// known folder of Murmur.Capture.Windows (a Downloads folder the user moved) replaces it (follow-up of #67).
+    /// The Downloads folder of the import dialog's "Recent in Downloads": on Windows the known folder <c>FOLDERID_Downloads</c> of
+    /// Murmur.Capture.Windows (a Downloads folder the user moved is found; <c>%USERPROFILE%\Downloads</c> as its fallback), elsewhere
+    /// <c>~/Downloads</c>.
     /// </summary>
-    internal static IDownloadsFolder CreateDownloadsFolder() => new HomeDownloadsFolder();
+    internal static IDownloadsFolder CreateDownloadsFolder()
+    {
+#if WINDOWS
+        return Murmur.Capture.Windows.WindowsCapture.CreateDownloadsFolder();
+#else
+        return new HomeDownloadsFolder();
+#endif
+    }
 
     private static IAccelerationProbe CreateAccelerationProbe()
     {

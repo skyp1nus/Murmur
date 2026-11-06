@@ -4,6 +4,7 @@ using Murmur.Capture.Windows.Playback;
 using Murmur.Capture.Windows.Screen;
 using Murmur.Capture.Windows.Video;
 using Murmur.Core.Capture;
+using Murmur.Core.Import;
 using Murmur.Core.Input;
 using Murmur.Core.Platform;
 
@@ -76,6 +77,12 @@ public sealed class WindowsCapture : ICapture, IAudioPlayback, IVideoPlayback
     /// window that starts with the first subscriber). The caller owns and disposes it.
     /// </summary>
     public static IMotionPreference CreateMotionPreference() => new Platform.WindowsMotionPreference();
+
+    /// <summary>
+    /// The user's Downloads folder for the import dialog: the shell's known folder <c>FOLDERID_Downloads</c> (a moved folder is found),
+    /// else <c>%USERPROFILE%\Downloads</c>.
+    /// </summary>
+    public static IDownloadsFolder CreateDownloadsFolder() => new Platform.KnownFolderDownloads();
 
     /// <summary>Media Foundation and the Media Engine are available (checked once, see <see cref="WindowsVideoPlayback"/>).</summary>
     bool IVideoPlayback.IsSupported => _video.IsSupported;
