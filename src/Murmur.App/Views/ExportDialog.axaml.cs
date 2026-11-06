@@ -23,6 +23,8 @@ public partial class ExportDialog : UserControl
     public ExportDialog()
     {
         InitializeComponent();
+        // A modal with keys of its own: the session shortcuts (#61) stay out of it.
+        SessionShortcuts.SetOwnsKeys(this, true);
         Scrim.PointerPressed += OnScrimPressed;
     }
 

@@ -1928,6 +1928,42 @@
   <data name="Export_PreviewEmpty" xml:space="preserve">
     <value>Nothing was said in this range.</value>
   </data>
+  <data name="Shortcuts_Space" xml:space="preserve">
+    <value>Space</value>
+    <comment>the key cap of the Space key in the shortcuts bar under the recording</comment>
+  </data>
+  <data name="Shortcuts_Esc" xml:space="preserve">
+    <value>Esc</value>
+    <comment>the key cap of the Escape key in the shortcuts bar</comment>
+  </data>
+  <data name="Shortcuts_PlayPause" xml:space="preserve">
+    <value>Play / pause</value>
+    <comment>shortcuts bar: Space</comment>
+  </data>
+  <data name="Shortcuts_Seek" xml:space="preserve">
+    <value>−5 s / +5 s</value>
+    <comment>shortcuts bar: J and L seek five seconds back and forward</comment>
+  </data>
+  <data name="Shortcuts_Lines" xml:space="preserve">
+    <value>Previous / next line</value>
+    <comment>shortcuts bar: the Up and Down arrows</comment>
+  </data>
+  <data name="Shortcuts_Bookmark" xml:space="preserve">
+    <value>Mark moment</value>
+    <comment>shortcuts bar: M adds a bookmark at the playhead</comment>
+  </data>
+  <data name="Shortcuts_Follow" xml:space="preserve">
+    <value>Follow along</value>
+    <comment>shortcuts bar: F switches Follow along</comment>
+  </data>
+  <data name="Shortcuts_Close" xml:space="preserve">
+    <value>Close</value>
+    <comment>shortcuts bar: Esc closes the open popover, then goes back to the library</comment>
+  </data>
+  <data name="Shortcuts_BarName" xml:space="preserve">
+    <value>Keyboard shortcuts</value>
+    <comment>accessible name of the shortcuts bar</comment>
+  </data>
   <data name="DidYouMean_Title" xml:space="preserve">
     <value>Did you mean</value>
     <comment>Label in front of the alternatives for a word the recogniser was unsure about</comment>
