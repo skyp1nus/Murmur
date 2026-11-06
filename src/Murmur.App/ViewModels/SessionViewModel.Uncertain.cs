@@ -8,7 +8,7 @@ namespace Murmur.App.ViewModels;
 /// Uncertain words (#58, Idea4Transcript.dc.html "Idea 4 / Low-confidence fix"). A word the recogniser doubted
 /// (<see cref="TranscriptWord.IsUncertain"/>) is underlined in its line; a click on it (or Enter) opens "Did you mean" (<see cref="DidYouMean"/>)
 /// under it. The alternatives come from the user's vocabulary at once and from the local model when it answers (it never holds the popover
-/// up); picking one stores the fix (<see cref="ITranscriptStore.ReplaceWordAsync"/>: the line, the stored transcript and the search index)
+/// up; its ideas rank after the vocabulary's close matches and before words that only start alike); picking one stores the fix (<see cref="ITranscriptStore.ReplaceWordAsync"/>: the line, the stored transcript and the search index)
 /// and adds the word to the vocabulary; "Keep" stores the word as it is, which only takes its doubt away (in this recording).
 /// </summary>
 /// <remarks>
@@ -73,20 +73,21 @@ public sealed partial class SessionViewModel
         // The model is asked at once, in parallel with the vocabulary: it is the slow one.
         var model = AskModelAsync(popover, cancellationToken);
 
-        IReadOnlyList<string> vocabulary = [];
+        IReadOnlyList<string> close = [];
+        IReadOnlyList<string> prefix = [];
         if (_services.Vocabulary is { } store)
         {
             try
             {
-                vocabulary = WordSuggestions.FromVocabulary(popover.Word, await store.GetVocabularyAsync(cancellationToken).ConfigureAwait(true));
-            }
-            catch (Exception ex) when (ex is not OperationCanceledException)
-            {
-                // A vocabulary that cannot be read only means fewer chips.
+                (close, prefix) = WordSuggestions.FromVocabulary(popover.Word, await store.GetVocabularyAsync(cancellationToken).ConfigureAwait(true));
             }
             catch (OperationCanceledException)
             {
                 return;
+            }
+            catch (Exception)
+            {
+                // A vocabulary that cannot be read only means fewer chips.
             }
         }
 
@@ -95,7 +96,7 @@ public sealed partial class SessionViewModel
             return;
         }
 
-        popover.SetAlternatives(WordSuggestions.Merge(popover.Word, vocabulary, []));
+        popover.SetAlternatives(WordSuggestions.Merge(popover.Word, close, prefix));
 
         IReadOnlyList<string> ideas;
         try
@@ -107,9 +108,10 @@ public sealed partial class SessionViewModel
             return;
         }
 
+        // The model's ideas go before the words that only start like this one: a shared beginning is a weak hint.
         if (ideas.Count > 0 && ReferenceEquals(DidYouMean, popover))
         {
-            popover.SetAlternatives(WordSuggestions.Merge(popover.Word, vocabulary, ideas));
+            popover.SetAlternatives(WordSuggestions.Merge(popover.Word, close, ideas, prefix));
         }
     }
 

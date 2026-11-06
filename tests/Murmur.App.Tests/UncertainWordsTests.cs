@@ -118,22 +118,23 @@ public sealed class UncertainWordsTests : IDisposable
     }
 
     [Fact]
-    public async Task TheModelsIdeas_ComeAfterTheVocabulary_AtMostThree_WithoutRepeats()
+    public async Task TheModelsIdeas_ComeAfterCloseVocabularyWords_AndBeforeWordsThatOnlyStartAlike()
     {
-        _vocabulary.Adds.Clear();
-        var vocabulary = new FakeVocabularyStore("parakeet");
+        // "parquets" is one edit away (close); "Parakeet" only shares "par" (a weak hint).
+        var vocabulary = new FakeVocabularyStore("Parakeet", "parquets");
         UseTranscript();
         var vm = new SessionViewModel(_fixture.Record, _fixture.Files, _fixture.Transcripts, _fixture.Player, _fixture.Processing, _fixture.Time, action => action(),
             services: new SessionServices(Vocabulary: vocabulary, WordSuggester: _suggester));
         await vm.LoadAsync();
 
         vm.Segments[1].OpenWordCommand.Execute(5);
-        Assert.Equal(["parakeet"], vm.DidYouMean!.Alternatives);
+        Assert.Equal(["parquets", "Parakeet"], vm.DidYouMean!.Alternatives);
 
-        _suggester.Answer("Parakeet", "parquet", "Paraquat", "Parkit", "Parquette");
+        _suggester.Answer("parakeet", "parquet", "Paraquat", "Parkit");
         await vm.LastSuggestions;
 
-        Assert.Equal(["parakeet", "Paraquat", "Parkit"], vm.DidYouMean!.Alternatives);
+        // The model's "parakeet" is the vocabulary's "Parakeet" (any case) and takes its place; "parquet" is the word itself; three at most.
+        Assert.Equal(["parquets", "parakeet", "Paraquat"], vm.DidYouMean!.Alternatives);
         Assert.Equal(4, vm.DidYouMean.Choices.Count);
         Assert.Equal("Keep parquet", vm.DidYouMean.Choices[^1].Text);
     }
@@ -213,7 +214,7 @@ public sealed class UncertainWordsTests : IDisposable
         _suggester.Answer("Paraquat");
         await vm.LastSuggestions;
 
-        var choice = vm.DidYouMean!.Choices[0];
+        var choice = vm.DidYouMean!.Choices.First(c => c.Value == "parakeet");
         Assert.Equal("parakeet", choice.Value);
         choice.PickCommand.Execute(null);
         await WaitForAsync(() => _vocabulary.Adds.Count > 0);
@@ -336,11 +337,24 @@ public sealed class UncertainWordsTests : IDisposable
     {
         string[] vocabulary = ["Kubernetes", "Parakeet", "parquetry", "PARQUET", "Gemma", "Parfait", "Київ", "par", "Pa"];
 
-        // "PARQUET" is the word itself; "Gemma", "Kubernetes" and "Pa" look nothing like it; "parquetry" is 2 edits away, "Parakeet", "Parfait"
-        // (3) and "par" (4) share its first three letters: the closest three.
-        Assert.Equal(["parquetry", "Parakeet", "Parfait"], WordSuggestions.FromVocabulary("parquet", vocabulary));
-        Assert.Equal(["Київ"], WordSuggestions.FromVocabulary("київа", vocabulary));
-        Assert.Empty(WordSuggestions.FromVocabulary("zzz", vocabulary));
+        // "PARQUET" is the word itself; "Gemma", "Kubernetes" and "Pa" look nothing like it; "parquetry" is 2 edits away (close); "Parakeet",
+        // "Parfait" (3 edits) and "par" (4) only share its first three letters.
+        var (close, prefix) = WordSuggestions.FromVocabulary("parquet", vocabulary);
+        Assert.Equal(["parquetry"], close);
+        Assert.Equal(["Parakeet", "Parfait", "par"], prefix);
+        Assert.Equal(["Київ"], WordSuggestions.FromVocabulary("київа", vocabulary).Close);
+        Assert.Equal((0, 0), (WordSuggestions.FromVocabulary("zzz", vocabulary).Close.Count, WordSuggestions.FromVocabulary("zzz", vocabulary).Prefix.Count));
+    }
+
+    [Fact]
+    public void TheEditDistance_NeedsFourLetters_ShortWordsAreNotCloseToEverything()
+    {
+        string[] vocabulary = ["I", "on", "API", "ape", "apex"];
+
+        // "an" is one or two edits from "I", "on", "API" and "ape", but such short words match nearly anything.
+        Assert.Empty(WordSuggestions.FromVocabulary("an", vocabulary).Close);
+        Assert.Empty(WordSuggestions.FromVocabulary("apt", vocabulary).Close);
+        Assert.Equal(["apex"], WordSuggestions.FromVocabulary("apes", vocabulary).Close);
     }
 
     [Fact]
@@ -349,7 +363,10 @@ public sealed class UncertainWordsTests : IDisposable
         string[] newestFirst = ["mode", "modal", "models", "modem", "mod"];
 
         // mode, modal, models and modem are all one edit away: the newest three of them, in the vocabulary's order.
-        Assert.Equal(["mode", "modal", "models"], WordSuggestions.FromVocabulary("model", newestFirst));
+        Assert.Equal(["mode", "modal", "models"], WordSuggestions.FromVocabulary("model", newestFirst).Close);
+
+        // "mod" is too short for the edit distance; it shares "mod".
+        Assert.Equal(["mod"], WordSuggestions.FromVocabulary("model", newestFirst).Prefix);
     }
 
     [Fact]
@@ -357,6 +374,7 @@ public sealed class UncertainWordsTests : IDisposable
     {
         Assert.Equal(["a", "B", "c"], WordSuggestions.Merge("w", ["a", "B", "W"], ["b", "A", "c", "d"]));
         Assert.Equal(["x"], WordSuggestions.Merge("w", [], [" x ", "", "  "]));
+        Assert.Equal(["a", "b", "c"], WordSuggestions.Merge("w", ["a"], ["b"], ["c", "d"]));
     }
 
     [Theory]
@@ -761,7 +779,7 @@ public sealed class UncertainWordsTests : IDisposable
             },
             Ct);
 
-        Assert.True(chipsFocused, "The first chip has the focus when the popover opens.");
+        Assert.True(chipsFocused, "The first chip has the focus (with its ring) when the popover opens from the keyboard.");
         Assert.Equal(0, _fixture.Player.Plays); // Enter on the line opened the word, it did not play the row
         Assert.True(afterRight);
         Assert.True(closedByEscape);
@@ -803,5 +821,222 @@ public sealed class UncertainWordsTests : IDisposable
         Assert.InRange(dx, -60, 0.5);
         Assert.Equal(6, gap, 1);
         Assert.Equal(26, height, 0.5);
+    }
+
+    // Review round 1 ---------------------------------------------------------------------------------------------------
+
+    [Fact]
+    public async Task WhileThePopoverIsOpen_FollowAlongDoesNotMoveTheList_AndAUserScrollClosesIt()
+    {
+        var vm = await LoadAsync();
+        Assert.True(vm.FollowAlong);
+        var scrolls = new List<int>();
+        vm.ScrollToSegmentRequested += scrolls.Add;
+        vm.PlayPauseCommand.Execute(null);
+        _fixture.Player.Position = TimeSpan.FromSeconds(20.1);
+        vm.Tick();
+        scrolls.Clear();
+
+        vm.Segments[1].OpenWordCommand.Execute(5);
+        _fixture.Player.Position = TimeSpan.FromSeconds(30.5);
+        vm.Tick();
+
+        Assert.Empty(scrolls);
+        Assert.True(vm.Segments[2].IsCurrent);
+        Assert.NotNull(vm.DidYouMean);
+
+        vm.NotifyUserScrolled();
+        Assert.Null(vm.DidYouMean);
+    }
+
+    [Fact]
+    public async Task InTheApp_ThePopover_StaysOpen_WhilePlaybackMovesToTheNextLine()
+    {
+        var shell = await OpenShellAsync();
+
+        var (open, offsetBefore, offsetAfter) = await Session.Dispatch(
+            () =>
+            {
+                var window = UiHarness.Show(shell);
+                UiHarness.Pump(4);
+                var session = shell.Session!;
+                session.PlayPauseCommand.Execute(null);
+                _fixture.Player.Position = TimeSpan.FromSeconds(20.1);
+                session.Tick();
+                UiHarness.Pump(4);
+                var line = window.GetVisualDescendants().OfType<TranscriptTextControl>().First(c => c.UncertainWords is not null);
+                var at = line.TranslatePoint(line.WordBounds(5)!.Value.Center, window)!.Value;
+                window.MouseDown(at, MouseButton.Left);
+                window.MouseUp(at, MouseButton.Left);
+                UiHarness.Pump(6);
+                var scroller = window.GetVisualDescendants().OfType<ScrollViewer>().Single(v => v.Name == "TranscriptScroller");
+                var before = scroller.Offset;
+
+                _fixture.Player.Position = TimeSpan.FromSeconds(30.5);
+                session.Tick();
+                UiHarness.Pump(6);
+                var popup = window.GetVisualDescendants().OfType<DidYouMeanPopover>().Single().PopupControl;
+                var result = (popup.IsOpen && session.DidYouMean is not null, before, scroller.Offset);
+                window.Close();
+                return result;
+            },
+            Ct);
+
+        Assert.True(open);
+        Assert.Equal(offsetBefore, offsetAfter);
+    }
+
+    [Fact]
+    public async Task AClick_FocusesTheFirstChipWithoutARing_TheKeyboardWithOne()
+    {
+        var shell = await OpenShellAsync();
+
+        var (clickFocused, clickRing, keyFocused, keyRing) = await Session.Dispatch(
+            () =>
+            {
+                var window = UiHarness.Show(shell);
+                UiHarness.Pump(4);
+                var line = window.GetVisualDescendants().OfType<TranscriptTextControl>().First(c => c.UncertainWords is not null);
+                var host = window.GetVisualDescendants().OfType<DidYouMeanPopover>().Single();
+                var at = line.TranslatePoint(line.WordBounds(5)!.Value.Center, window)!.Value;
+                window.MouseDown(at, MouseButton.Left);
+                window.MouseUp(at, MouseButton.Left);
+                UiHarness.Pump(6);
+                var clicked = host.ChipButtons()[0];
+                var byPointer = (clicked.IsFocused, clicked.Classes.Contains(":focus-visible"));
+
+                window.KeyPressQwerty(PhysicalKey.Escape, RawInputModifiers.None);
+                UiHarness.Pump(6);
+                line.Focus(NavigationMethod.Tab);
+                window.KeyPressQwerty(PhysicalKey.Enter, RawInputModifiers.None);
+                UiHarness.Pump(6);
+                var typed = host.ChipButtons()[0];
+                var result = (byPointer.IsFocused, byPointer.Item2, typed.IsFocused, typed.Classes.Contains(":focus-visible"));
+                window.Close();
+                return result;
+            },
+            Ct);
+
+        Assert.True(clickFocused);
+        Assert.False(clickRing);
+        Assert.True(keyFocused);
+        Assert.True(keyRing);
+    }
+
+    [Fact]
+    public async Task NearTheRightEdge_TheCardKeepsSixteenPixelsFromTheWindow()
+    {
+        var shell = await OpenShellAsync();
+
+        var (left, right, width) = await Session.Dispatch(
+            () =>
+            {
+                var window = new MainWindow { DataContext = shell, Width = 900, Height = 600 };
+                window.Show();
+                UiHarness.Pump(4);
+                var line = window.GetVisualDescendants().OfType<TranscriptTextControl>().First(c => c.UncertainWords is not null);
+                var at = line.TranslatePoint(line.WordBounds(7)!.Value.Center, window)!.Value;
+                window.MouseDown(at, MouseButton.Left);
+                window.MouseUp(at, MouseButton.Left);
+                UiHarness.Pump(8);
+                var card = (Border)window.GetVisualDescendants().OfType<Popup>().First(p => p.IsOpen).Child!;
+                var cardAt = card.TranslatePoint(default, window)!.Value;
+                var result = (cardAt.X, cardAt.X + card.Bounds.Width, window.Bounds.Width);
+                window.Close();
+                return result;
+            },
+            Ct);
+
+        Assert.True(left >= 16 - 0.5, $"The card starts at {left}.");
+        Assert.True(right <= width - 16 + 0.5, $"The card ends at {right} in a window {width} wide.");
+    }
+
+    [Fact]
+    public async Task ASearchMarkInsideAnUncertainWord_DoesNotShortenItsUnderline()
+    {
+        await Session.Dispatch(
+            () =>
+            {
+                var control = Text(Flags);
+                control.MarkBrush = Brushes.Black;
+                control.MarkForeground = Brushes.White;
+                control.HighlightTerm = "rqu";
+                control.Measure(new Size(2000, double.PositiveInfinity));
+                control.Arrange(new Rect(control.DesiredSize));
+                Assert.Equal(1, control.MarkCount);
+
+                var (starts, _) = Words(Line);
+                var first = control.LaidOutIndex(starts[5]);
+                var end = control.LaidOutIndex(starts[5] + "parquet".Length - 1) + 1;
+                var word = control.CurrentLayout!.HitTestTextRange(first, end - first).ToArray();
+                var underline = control.Underlines.First(u => u.Word == 5);
+
+                Assert.Equal(word[0].X, underline.Left, 0.01);
+                Assert.Equal(word[^1].Right, underline.Right, 0.01);
+            },
+            Ct);
+    }
+
+    [Fact]
+    public async Task TheFocusRing_IsWorkedOutOnce_NotPerFrame()
+    {
+        await Session.Dispatch(
+            () =>
+            {
+                var control = Text(Flags);
+                control.UncertainForeground = null;
+                control.FocusBrush = Brushes.Black;
+                control.UncertainCommand = new CommunityToolkit.Mvvm.Input.RelayCommand<int>(_ => { });
+                var window = new Window { Width = 900, Height = 60, Content = control };
+                window.Show();
+                UiHarness.Pump();
+                var unfocused = RenderAllocations(control);
+
+                control.Focus(NavigationMethod.Tab);
+                UiHarness.Pump();
+                var ring = control.FocusRingRect;
+                Assert.NotNull(ring);
+                var focused = RenderAllocations(control);
+                Assert.Equal(ring, control.FocusRingRect);
+                window.Close();
+
+                Assert.True(focused - unfocused <= 32, $"{focused} bytes per frame focused, {unfocused} without the focus.");
+            },
+            Ct);
+    }
+
+    [Theory]
+    [InlineData("a b c", "a,b,c", 1, "X")]
+    [InlineData("a  b,  c", "a,b,c", 1, "X")]
+    [InlineData("b b b", "b,b,b", 2, "X")]
+    [InlineData("1 2 3", "one,two,three", 1, "2")]
+    [InlineData("Okay, a quick run.", "Okay,|a|quick|run.", 0, "Fine,")]
+    [InlineData("Does it run on the parquet? model", "Does,it,run,on,the,parquet?,model", 5, "Parakeet?")]
+    public async Task TheLineAndTheStore_RebuildTheTextAlike(string text, string words, int index, string replacement)
+    {
+        var list = words.Split(words.Contains('|') ? '|' : ',').Select((w, i) => W(w, i)).ToArray();
+        var root = Path.Combine(Path.GetTempPath(), "murmur-app-tests", Guid.NewGuid().ToString("N"));
+        try
+        {
+            using var storage = new Murmur.Storage.SqliteStorage(root);
+            var id = (await storage.CreateSessionAsync("t", UiHarness.Now, Ct)).Id;
+            await storage.SaveTranscriptAsync(new Transcript(id, [new TranscriptSegment(Speaker.Me, TimeSpan.Zero, TimeSpan.FromSeconds(9), text, list)], "e"), Ct);
+
+            await storage.ReplaceWordAsync(id, 0, index, replacement, Ct);
+
+            var stored = (await storage.GetTranscriptAsync(id, Ct))!.Segments[0].Text;
+            Assert.Equal(stored, WordSuggestions.ReplaceInText(text, list, index, replacement));
+        }
+        finally
+        {
+            Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
+            try
+            {
+                Directory.Delete(root, recursive: true);
+            }
+            catch (IOException)
+            {
+            }
+        }
     }
 }

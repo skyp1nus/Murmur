@@ -152,6 +152,12 @@ public sealed class TranscriptTextControl : Control
     private TextLayout? _dotsLayout;
     private int _dotsSkip = -1;
     private double _dotsThickness;
+
+    // The keyboard ring around _ringWord in _ringLayout.
+    private Rect? _ring;
+    private TextLayout? _ringLayout;
+    private int _ringWord = -1;
+    private double _ringThickness;
     private Pen? _focusPen;
     private GenericTextRunProperties? _uncertainRun;
 
@@ -393,6 +399,9 @@ public sealed class TranscriptTextControl : Control
     /// <summary>The cached dots of the underlines (the same instance until the layout, the chipped word or the words change; for tests).</summary>
     internal object? UnderlineStore => _dots;
 
+    /// <summary>The cached keyboard ring (for tests).</summary>
+    internal Rect? FocusRingRect => _ring;
+
     /// <summary>The bounds of a word in this control (its first line when it wraps), or <c>null</c> when it is out of range.</summary>
     internal Rect? WordBounds(int word)
     {
@@ -576,20 +585,38 @@ public sealed class TranscriptTextControl : Control
             context.DrawGeometry(brush, null, dots);
         }
 
-        if (_focusVisible && IsFocused && FocusBrush is { } focus && IsUncertain(_focusedWord) && WordBounds(_focusedWord) is { } word)
+        if (_focusVisible && IsFocused && FocusBrush is { } focus && IsUncertain(_focusedWord) && FocusRing(layout) is { } ring)
         {
-            var thickness = FocusThickness;
-            if (_focusPen is null || !ReferenceEquals(_focusPen.Brush, focus) || _focusPen.Thickness != thickness)
+            if (_focusPen is null || !ReferenceEquals(_focusPen.Brush, focus) || _focusPen.Thickness != FocusThickness)
             {
-                _focusPen = new Pen(focus, thickness);
+                _focusPen = new Pen(focus, FocusThickness);
             }
 
             var radius = MarkCornerRadius.TopLeft;
-            var padding = HighlightPadding;
-            var height = Math.Round(FontSize * 1.25);
-            var ring = new Rect(word.X - padding, word.Y + ((word.Height - height) / 2), word.Width + (2 * padding), height).Inflate(thickness / 2);
             context.DrawRectangle(null, _focusPen, ring, radius, radius);
         }
+    }
+
+    /// <summary>The ring around the focused uncertain word, worked out once per layout and word (a frame only draws it).</summary>
+    private Rect? FocusRing(TextLayout layout)
+    {
+        if (ReferenceEquals(_ringLayout, layout) && _ringWord == _focusedWord && _ringThickness.Equals(FocusThickness))
+        {
+            return _ring;
+        }
+
+        _ringLayout = layout;
+        _ringWord = _focusedWord;
+        _ringThickness = FocusThickness;
+        _ring = null;
+        if (WordBounds(_focusedWord) is { } word)
+        {
+            var padding = HighlightPadding;
+            var height = Math.Round(FontSize * 1.25);
+            _ring = new Rect(word.X - padding, word.Y + ((word.Height - height) / 2), word.Width + (2 * padding), height).Inflate(FocusThickness / 2);
+        }
+
+        return _ring;
     }
 
     /// <summary>
@@ -682,7 +709,10 @@ public sealed class TranscriptTextControl : Control
                 continue;
             }
 
-            foreach (var rect in layout.HitTestTextRange(ToLaidOut(from), length))
+            // The end is mapped on its own: a search mark inside the word puts room (pads) between its letters.
+            var first = ToLaidOut(from);
+            var end = ToLaidOut(from + length - 1) + 1;
+            foreach (var rect in layout.HitTestTextRange(first, end - first))
             {
                 if (rect.Width <= 0)
                 {
@@ -753,7 +783,7 @@ public sealed class TranscriptTextControl : Control
     }
 
     /// <summary>Opens the uncertain word: tells the popover host where it is, then runs <see cref="UncertainCommand"/>.</summary>
-    private bool InvokeUncertain(int word)
+    private bool InvokeUncertain(int word, bool fromKeyboard)
     {
         if (!IsUncertain(word) || UncertainCommand is not { } command || !command.CanExecute(word))
         {
@@ -761,7 +791,7 @@ public sealed class TranscriptTextControl : Control
         }
 
         _focusedWord = word;
-        RaiseEvent(new UncertainWordEventArgs(UncertainWordInvokedEvent, this, word, WordBounds(word) ?? new Rect(Bounds.Size)));
+        RaiseEvent(new UncertainWordEventArgs(UncertainWordInvokedEvent, this, word, WordBounds(word) ?? new Rect(Bounds.Size), fromKeyboard));
         command.Execute(word);
         return true;
     }
@@ -811,7 +841,7 @@ public sealed class TranscriptTextControl : Control
                     _focusedWord = NextUncertain(-1, 1);
                 }
 
-                e.Handled = InvokeUncertain(_focusedWord);
+                e.Handled = InvokeUncertain(_focusedWord, fromKeyboard: true);
                 break;
         }
     }
@@ -844,7 +874,7 @@ public sealed class TranscriptTextControl : Control
         }
 
         var word = WordAt(e.GetPosition(this));
-        if (InvokeUncertain(word))
+        if (InvokeUncertain(word, fromKeyboard: false))
         {
             _focusVisible = false;
             e.Handled = true;
@@ -993,7 +1023,8 @@ public sealed class TranscriptTextControl : Control
                 spans.Clear();
             }
 
-            AddOutside(spans, occupied, ToLaidOut(from), length, Run(ref _uncertainRun, brush, typeface));
+            var first = ToLaidOut(from);
+            AddOutside(spans, occupied, first, ToLaidOut(from + length - 1) + 1 - first, Run(ref _uncertainRun, brush, typeface));
         }
 
         if (spans is not null && spans.Count > occupied)
@@ -1213,8 +1244,11 @@ public sealed class TranscriptTextControl : Control
 }
 
 /// <summary>An uncertain word of a <see cref="TranscriptTextControl"/> was clicked or opened with the keyboard.</summary>
-public sealed class UncertainWordEventArgs(RoutedEvent routedEvent, object source, int word, Rect wordBounds) : RoutedEventArgs(routedEvent, source)
+public sealed class UncertainWordEventArgs(RoutedEvent routedEvent, object source, int word, Rect wordBounds, bool fromKeyboard = false) : RoutedEventArgs(routedEvent, source)
 {
+    /// <summary>Opened with Enter or Space (the popover then shows where the keyboard focus is), not with the pointer.</summary>
+    public bool FromKeyboard { get; } = fromKeyboard;
+
     /// <summary>Index of the word in the segment.</summary>
     public int Word { get; } = word;
 

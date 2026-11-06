@@ -3,29 +3,34 @@ using System.Text;
 namespace Murmur.App.ViewModels;
 
 /// <summary>
-/// What "Did you mean" offers for an uncertain word (#58): first the user's vocabulary (words they picked or kept before), then the local
-/// model's ideas, at most <see cref="MaxAlternatives"/>, never the word itself and never one twice (any case). The recogniser gives no
-/// alternatives of its own (spike #53, D-052).
+/// What "Did you mean" offers for an uncertain word (#58): first the user's vocabulary words that are a small edit away from it, then the
+/// local model's ideas, then vocabulary words that only start like it; at most <see cref="MaxAlternatives"/>, never the word itself and
+/// never one twice (any case). The recogniser gives no alternatives of its own (spike #53, D-052).
 /// </summary>
 internal static class WordSuggestions
 {
     /// <summary>The popover shows at most this many alternatives, plus "Keep".</summary>
     public const int MaxAlternatives = 3;
 
-    /// <summary>A vocabulary word at most this many edits away (case-insensitive) is offered.</summary>
+    /// <summary>A vocabulary word at most this many edits away (case-insensitive) is a close match.</summary>
     public const int MaxDistance = 2;
 
-    /// <summary>A vocabulary word that starts with the same this many letters (case-insensitive) is offered too.</summary>
+    /// <summary>The edit distance counts only when both words have at least this many characters (two edits turn "on" into "I").</summary>
+    public const int MinDistanceLength = 4;
+
+    /// <summary>A vocabulary word that starts with the same this many letters (case-insensitive) is offered too, after the model's ideas.</summary>
     public const int SharedPrefix = 3;
 
     /// <summary>
-    /// The vocabulary words that look like <paramref name="word"/>: at most <see cref="MaxDistance"/> edits away, or sharing its first
-    /// <see cref="SharedPrefix"/> letters. The closest first; equally close ones in the order of the vocabulary (the newest first).
+    /// The vocabulary words that look like <paramref name="word"/>. <c>Close</c>: at most <see cref="MaxDistance"/> edits away, both words at
+    /// least <see cref="MinDistanceLength"/> long. <c>Prefix</c>: the others that share its first <see cref="SharedPrefix"/> letters. Each
+    /// list the closest first, equally close ones in the order of the vocabulary (the newest first), at most <paramref name="max"/>.
     /// </summary>
-    public static List<string> FromVocabulary(string word, IReadOnlyList<string> vocabulary, int max = MaxAlternatives)
+    public static (List<string> Close, List<string> Prefix) FromVocabulary(string word, IReadOnlyList<string> vocabulary, int max = MaxAlternatives)
     {
         var target = word.ToLowerInvariant();
-        var matches = new List<(string Word, int Distance, int Order)>();
+        var close = new List<(string Word, int Distance, int Order)>();
+        var prefix = new List<(string Word, int Distance, int Order)>();
         for (var i = 0; i < vocabulary.Count; i++)
         {
             var candidate = vocabulary[i]?.Trim();
@@ -40,14 +45,46 @@ internal static class WordSuggestions
                 continue;
             }
 
-            var close = Distance(target, lower, MaxDistance) <= MaxDistance;
-            if (close || SharesPrefix(target, lower))
+            var distance = Distance(target, lower, Math.Max(target.Length, lower.Length));
+            if (distance <= MaxDistance && target.Length >= MinDistanceLength && lower.Length >= MinDistanceLength)
             {
-                // The order needs the real distance of a word that only shares the first letters.
-                matches.Add((candidate, close ? Distance(target, lower, MaxDistance) : Distance(target, lower, Math.Max(target.Length, lower.Length)), i));
+                close.Add((candidate, distance, i));
+            }
+            else if (SharesPrefix(target, lower))
+            {
+                prefix.Add((candidate, distance, i));
             }
         }
 
+        return (Ranked(close, max), Ranked(prefix, max));
+    }
+
+    /// <summary>The sources in order: without <paramref name="word"/>, without repeats (any case), at most <see cref="MaxAlternatives"/>.</summary>
+    public static List<string> Merge(string word, params IReadOnlyList<string>[] sources)
+    {
+        var result = new List<string>(MaxAlternatives);
+        foreach (var source in sources)
+        {
+            foreach (var raw in source)
+            {
+                var candidate = raw?.Trim();
+                if (result.Count == MaxAlternatives)
+                {
+                    return result;
+                }
+
+                if (!string.IsNullOrEmpty(candidate) && !string.Equals(candidate, word, StringComparison.OrdinalIgnoreCase) && !Contains(result, candidate))
+                {
+                    result.Add(candidate);
+                }
+            }
+        }
+
+        return result;
+    }
+
+    private static List<string> Ranked(List<(string Word, int Distance, int Order)> matches, int max)
+    {
         matches.Sort(static (a, b) => a.Distance != b.Distance ? a.Distance.CompareTo(b.Distance) : a.Order.CompareTo(b.Order));
         var result = new List<string>(Math.Min(max, matches.Count));
         foreach (var (candidate, _, _) in matches)
@@ -64,32 +101,6 @@ internal static class WordSuggestions
         }
 
         return result;
-    }
-
-    /// <summary><paramref name="first"/>, then <paramref name="then"/>: without <paramref name="word"/>, without repeats (any case), at most <paramref name="max"/>.</summary>
-    public static List<string> Merge(string word, IReadOnlyList<string> first, IReadOnlyList<string> then, int max = MaxAlternatives)
-    {
-        var result = new List<string>(max);
-        Add(first);
-        Add(then);
-        return result;
-
-        void Add(IReadOnlyList<string> source)
-        {
-            foreach (var raw in source)
-            {
-                var candidate = raw?.Trim();
-                if (result.Count == max)
-                {
-                    return;
-                }
-
-                if (!string.IsNullOrEmpty(candidate) && !string.Equals(candidate, word, StringComparison.OrdinalIgnoreCase) && !Contains(result, candidate))
-                {
-                    result.Add(candidate);
-                }
-            }
-        }
     }
 
     /// <summary>

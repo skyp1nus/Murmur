@@ -142,12 +142,14 @@ public sealed partial class WordSuggester : IWordSuggester
                 line = line[(arrow.Index + arrow.Length)..];
             }
 
-            // A label in front ("Answer: Parakeet") goes, and a one-line list ("Parakeet, parakeet model") is split.
+            // "Answer: Parakeet": a known label goes. "Parakeet: a speech model": the fix comes first, what follows explains it.
             var colon = line.IndexOf(':', StringComparison.Ordinal);
-            if (colon >= 0 && colon < line.Length - 1)
+            if (colon >= 0)
             {
-                line = line[(colon + 1)..];
+                line = IsLabel(line.AsSpan(0, colon)) ? line[(colon + 1)..] : line[..colon];
             }
+
+            // A one-line list ("Parakeet, parakeet model") is split.
 
             foreach (var part in line.Split([',', ';', '/', '|'], StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries))
             {
@@ -168,6 +170,28 @@ public sealed partial class WordSuggester : IWordSuggester
         }
 
         return result;
+    }
+
+    /// <summary>The words a model puts in front of its answer ("Suggestions:", "Варіанти:"), any case, markdown stars ignored.</summary>
+    private static readonly string[] Labels =
+    [
+        "answer", "answers", "suggestion", "suggestions", "correction", "corrections", "fix", "fixes", "option", "options",
+        "alternative", "alternatives", "replacement", "replacements", "did you mean", "you mean", "maybe", "likely",
+        "відповідь", "варіант", "варіанти", "виправлення", "можливо",
+    ];
+
+    private static bool IsLabel(ReadOnlySpan<char> text)
+    {
+        var label = text.Trim().Trim('*').Trim();
+        foreach (var known in Labels)
+        {
+            if (label.Equals(known, StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /// <summary>The word without the punctuation around it ("parquet," → "parquet").</summary>
