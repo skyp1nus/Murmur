@@ -1,5 +1,4 @@
 using Murmur.Capture.Windows.Import;
-using Murmur.Capture.Windows.Screen.Interop;
 using Murmur.Core.Audio;
 using Murmur.Core.Import;
 
@@ -30,6 +29,7 @@ public sealed class MediaFoundationDecoderRulesTests
     [InlineData(unchecked((int)0xC00D36B4), typeof(NotSupportedException))] // MF_E_INVALIDMEDIATYPE
     [InlineData(unchecked((int)0xC00D36C3), typeof(NotSupportedException))] // MF_E_UNSUPPORTED_SCHEME
     [InlineData(unchecked((int)0xC00D36B3), typeof(InvalidDataException))] // MF_E_INVALIDSTREAMNUMBER: no audio stream
+    [InlineData(unchecked((int)0xC00D36B9), typeof(InvalidDataException))] // MF_E_NO_MORE_TYPES: no audio type to read
     [InlineData(unchecked((int)0x80070002), typeof(FileNotFoundException))]
     [InlineData(unchecked((int)0x80070003), typeof(FileNotFoundException))]
     [InlineData(unchecked((int)0x80070005), typeof(UnauthorizedAccessException))]
@@ -40,12 +40,6 @@ public sealed class MediaFoundationDecoderRulesTests
 
         Assert.IsType(expected, error);
         Assert.Contains("clip.ogg", error.Message, StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public void TheErrorCodes_AreTheMediaFoundationOnes()
-    {
-        Assert.Equal(unchecked((int)0xC00D36C4), ScreenConstants.MfEUnsupportedByteStreamType);
     }
 }
 
@@ -150,6 +144,116 @@ public sealed class MediaFoundationDecoderTests : IDisposable
 
         Assert.False(File.Exists(destination));
         Assert.False(File.Exists(destination + ".part"));
+    }
+
+    [Fact]
+    public async Task AnAacM4a_IsAudio_AndDecodesTo16kMonoPcm16()
+    {
+        SkipUnlessWindows();
+        var path = Path.Combine(_dir, "memo.m4a");
+        TestMedia.WriteRequired(path, TestMedia.Aac, video: false, TimeSpan.FromSeconds(3));
+
+        var probe = await _decoder.ProbeAsync(path, Ct);
+        var destination = Path.Combine(_dir, "system.wav");
+        await _decoder.DecodeAudioAsync(path, destination, null, Ct);
+
+        Assert.Equal(MediaKind.Audio, probe.Kind);
+        AssertNear(TimeSpan.FromSeconds(3), probe.Duration, "probe duration");
+        AssertTone(destination, TimeSpan.FromSeconds(3), toneFrom: TimeSpan.Zero);
+    }
+
+    [Fact]
+    public async Task AnH264AacMp4_IsVideo_WithItsDuration_AndItsAudioDecodesTo16kMonoPcm16()
+    {
+        SkipUnlessWindows();
+        var path = Path.Combine(_dir, "meeting.mp4");
+        TestMedia.WriteRequired(path, TestMedia.Aac, video: true, TimeSpan.FromSeconds(3));
+
+        var probe = await _decoder.ProbeAsync(path, Ct);
+        var destination = Path.Combine(_dir, "system.wav");
+        await _decoder.DecodeAudioAsync(path, destination, null, Ct);
+
+        Assert.Equal(MediaKind.Video, probe.Kind);
+        Assert.Equal(new FileInfo(path).Length, probe.SizeBytes);
+        AssertNear(TimeSpan.FromSeconds(3), probe.Duration, "probe duration");
+        AssertTone(destination, TimeSpan.FromSeconds(3), toneFrom: TimeSpan.Zero);
+    }
+
+    [Fact]
+    public async Task AnMp4WhoseAudioStartsLate_IsPaddedWithSilence_SoTheTrackStaysInStepWithTheVideo()
+    {
+        SkipUnlessWindows();
+        var path = Path.Combine(_dir, "late.mp4");
+        TestMedia.WriteRequired(path, TestMedia.Aac, video: true, TimeSpan.FromSeconds(3), audioStart: TimeSpan.FromSeconds(1));
+        var destination = Path.Combine(_dir, "system.wav");
+
+        await _decoder.DecodeAudioAsync(path, destination, null, Ct);
+
+        // If this fails with the tone at 0 s, the MP4 sink wrote no start offset (or the source reader dropped it).
+        AssertTone(destination, TimeSpan.FromSeconds(3), toneFrom: TimeSpan.FromSeconds(1));
+    }
+
+    [Fact]
+    public async Task AnMp3_IsAudio_AndDecodes()
+    {
+        SkipUnlessWindows();
+        var path = Path.Combine(_dir, "podcast.mp3");
+        TestMedia.WriteOrSkip(path, TestMedia.Mp3, video: false, TimeSpan.FromSeconds(3));
+
+        var probe = await _decoder.ProbeAsync(path, Ct);
+        var destination = Path.Combine(_dir, "system.wav");
+        await _decoder.DecodeAudioAsync(path, destination, null, Ct);
+
+        Assert.Equal(MediaKind.Audio, probe.Kind);
+        AssertNear(TimeSpan.FromSeconds(3), probe.Duration, "probe duration");
+        AssertTone(destination, TimeSpan.FromSeconds(3), toneFrom: TimeSpan.Zero);
+    }
+
+    [Fact]
+    public async Task AFlac_IsAudio_AndDecodes()
+    {
+        SkipUnlessWindows();
+        var path = Path.Combine(_dir, "lecture.flac");
+        TestMedia.WriteOrSkip(path, TestMedia.Flac, video: false, TimeSpan.FromSeconds(3));
+
+        var probe = await _decoder.ProbeAsync(path, Ct);
+        var destination = Path.Combine(_dir, "system.wav");
+        await _decoder.DecodeAudioAsync(path, destination, null, Ct);
+
+        Assert.Equal(MediaKind.Audio, probe.Kind);
+        AssertNear(TimeSpan.FromSeconds(3), probe.Duration, "probe duration");
+        AssertTone(destination, TimeSpan.FromSeconds(3), toneFrom: TimeSpan.Zero);
+    }
+
+    /// <summary>Encoders add priming and padding (AAC: about 46 ms), so lengths are compared with this tolerance.</summary>
+    private static void AssertNear(TimeSpan expected, TimeSpan actual, string what) =>
+        Assert.True((actual - expected).Duration() <= TimeSpan.FromMilliseconds(200), $"{what}: expected about {expected}, got {actual}");
+
+    /// <summary>
+    /// The decoded track is the recorder's format, about <paramref name="duration"/> long, silent before
+    /// <paramref name="toneFrom"/> and the test tone (down-mixed, still about <see cref="TestMedia.ToneAmplitude"/>) after it.
+    /// </summary>
+    private static void AssertTone(string wav, TimeSpan duration, TimeSpan toneFrom)
+    {
+        using (var reader = WavReader.Open(wav))
+        {
+            Assert.Equal((16_000, 1, 16), (reader.Layout.SampleRate, reader.Layout.Channels, reader.Layout.BitsPerSample));
+            AssertNear(duration, reader.Duration, "decoded duration");
+        }
+
+        var (_, samples) = WavReader.ReadAll(wav);
+        const int Rate = 16_000;
+        float Peak(double from, double to) =>
+            samples.Skip((int)(from * Rate)).Take((int)((to - from) * Rate)).DefaultIfEmpty(0f).Max(MathF.Abs);
+
+        var start = toneFrom.TotalSeconds;
+        if (start > 0)
+        {
+            Assert.True(Peak(0, start - 0.2) < 0.02f, $"expected silence before {start} s, peak {Peak(0, start - 0.2)}");
+        }
+
+        var tone = Peak(start + 0.2, duration.TotalSeconds - 0.2);
+        Assert.InRange(tone, 0.35f, 0.65f);
     }
 
     private static void SkipUnlessWindows() =>

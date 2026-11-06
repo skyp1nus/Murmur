@@ -158,6 +158,8 @@ public sealed unsafe class ScreenInteropLayoutTests
         Assert.Equal(new Guid("73647561-0000-0010-8000-00AA00389B71"), ScreenConstants.MfMediaTypeAudio);
         Assert.Equal("auds", System.Text.Encoding.ASCII.GetString(ScreenConstants.MfMediaTypeAudio.ToByteArray(), 0, 4));
         Assert.Equal(3, BitConverter.ToInt32(ScreenConstants.MfAudioFormatFloat.ToByteArray(), 0));
+        Assert.Equal(1, BitConverter.ToInt32(ScreenConstants.MfAudioFormatPcm.ToByteArray(), 0)); // WAVE_FORMAT_PCM
+        Assert.Equal(0x100u, ScreenConstants.MfSourceReaderFlagStreamTick);
         Assert.Equal(new Guid("37E48BF5-645E-4C5B-89DE-ADA9E29B696A"), ScreenConstants.MfMtAudioNumChannels);
         Assert.Equal(new Guid("5FAEEAE7-0290-4C31-9E8A-C534F68D9DBA"), ScreenConstants.MfMtAudioSamplesPerSecond);
         Assert.Equal(new Guid("F2DEB57F-40FA-4764-AA33-ED4F2D1FF669"), ScreenConstants.MfMtAudioBitsPerSample);

@@ -10,23 +10,30 @@ using Murmur.Core.Import;
 namespace Murmur.Capture.Windows.Import;
 
 /// <summary>
-/// Decodes audio and video files with Media Foundation (<c>MFCreateSourceReaderFromURL</c>): the first audio stream
-/// is read as 32-bit float, and the source reader is first asked for the recorder's track format directly (16 kHz
-/// mono, its resampler); whatever rate and channel count it delivers is then brought to <see cref="AudioFormat.Asr"/>
-/// by <see cref="StreamingResampler"/> (a pass-through when Media Foundation already converted) and written as 16-bit PCM.
+/// Decodes audio and video files with Media Foundation (<c>MFCreateSourceReaderFromURL</c>). The first audio stream is
+/// read as PCM: the source reader is asked for 32-bit float in the recorder's track format first (16 kHz mono, its own
+/// resampler), then for float at the stream's rate, then for 16-bit PCM at the stream's rate. Whatever it delivers is
+/// brought to <see cref="AudioFormat.Asr"/> by <see cref="StreamingResampler"/> (a pass-through when Media Foundation
+/// already converted) and written as 16-bit PCM.
 /// </summary>
 /// <remarks>
 /// <para><b>Formats.</b> MP3, M4A/AAC, FLAC, WMA, MP4 and MOV come with Windows 10/11. OGG, MKV and WEBM open only
 /// when the installed codecs support them (e.g. the Web Media Extensions); otherwise <see cref="ProbeAsync"/> fails with
 /// <see cref="NotSupportedException"/> for that file. A file without an audio stream, or one Media Foundation cannot
 /// parse, is <see cref="InvalidDataException"/>; a missing file <see cref="FileNotFoundException"/>.</para>
-/// <para><b>Threads.</b> Probe and decode run on the thread pool (multithreaded apartment); raw vtable calls (no RCWs),
-/// pooled buffers, nothing allocated per sample. The decode writes <c>&lt;destination&gt;.part</c> and renames it when
-/// complete. UNVERIFIED-ON-WINDOWS until the owner's check (#66).</para>
+/// <para><b>Timeline.</b> Sample timestamps are honoured: audio that starts after 0 (an MP4 whose sound starts later
+/// than its picture) or has gaps (stream ticks) is padded with silence, so the track stays in step with the video and
+/// the transcript times match the file.</para>
+/// <para><b>Threads.</b> Probe and decode run on the thread pool and join the multithreaded apartment explicitly
+/// (<c>CoInitializeEx</c>, balanced); raw vtable calls (no RCWs), pooled buffers, nothing allocated per sample. The
+/// decode writes <c>&lt;destination&gt;.part</c> and renames it when complete.</para>
 /// </remarks>
 public sealed class MediaFoundationDecoder : IMediaDecoder
 {
     private const int BlockFrames = 8192;
+
+    /// <summary>A timestamp this far ahead of the audio written so far is a gap to fill with silence (not codec jitter).</summary>
+    private static readonly long GapTolerance = TimeSpan.FromMilliseconds(20).Ticks;
 
     private static readonly HashSet<string> SupportedExtensions = new(StringComparer.Ordinal)
     {
@@ -59,13 +66,14 @@ public sealed class MediaFoundationDecoder : IMediaDecoder
             ScreenConstants.EAccessDenied => new UnauthorizedAccessException(detail),
             ScreenConstants.MfEUnsupportedByteStreamType or ScreenConstants.MfEUnsupportedScheme
                 or ScreenConstants.MfETopoCodecNotFound or ScreenConstants.MfEInvalidMediaType => new NotSupportedException(detail),
-            ScreenConstants.MfEInvalidStreamNumber or ScreenConstants.MfENoMoreTypes => new InvalidDataException($"'{name}' has no audio stream."),
+            ScreenConstants.MfEInvalidStreamNumber or ScreenConstants.MfENoMoreTypes => new InvalidDataException($"'{name}' has no audio stream Media Foundation can read ({detail})."),
             _ => new InvalidDataException(detail),
         };
     }
 
     private static unsafe MediaProbe Probe(string path)
     {
+        using var apartment = ComHelpers.EnterMta();
         var reader = Open(path);
         nint video = 0;
         try
@@ -84,66 +92,57 @@ public sealed class MediaFoundationDecoder : IMediaDecoder
 
     private static unsafe void Decode(string path, string destinationWav, IProgress<double>? progress, CancellationToken cancellationToken)
     {
+        using var apartment = ComHelpers.EnterMta();
         var part = destinationWav + ".part";
         var reader = Open(path);
-        float[]? output = null;
         try
         {
-            var duration = Math.Max(DurationOf(reader).Ticks, 1);
-            var format = CurrentFormat(reader, path);
-            var resampler = new StreamingResampler(format, AudioFormat.Asr.SampleRate);
-            output = ArrayPool<float>.Shared.Rent(Math.Max(resampler.MaxOutputSamples(BlockFrames), resampler.MaxFlushSamples));
+            var declared = DurationOf(reader).Ticks;
+            var duration = Math.Max(declared, 1);
             var reported = -1;
-
             using (var writer = CreateWriter(part))
+            using (var pipeline = new Pipeline(CurrentFormat(reader, path), writer))
             {
                 while (true)
                 {
                     cancellationToken.ThrowIfCancellationRequested();
-                    uint actual, flags;
-                    long timestamp;
+                    uint actual = 0, flags = 0;
+                    long timestamp = 0;
                     nint sample = 0;
                     var hr = IMFSourceReader.ReadSample(reader, ScreenConstants.MfSourceReaderFirstAudioStream, 0, &actual, &flags, &timestamp, &sample);
-                    if (hr < 0 || (flags & ScreenConstants.MfSourceReaderFlagError) != 0)
+                    try
                     {
-                        ComCall.Release(ref sample);
-                        throw ErrorFor(hr < 0 ? hr : ScreenConstants.EFail, path, "IMFSourceReader::ReadSample");
-                    }
-
-                    if ((flags & ScreenConstants.MfSourceReaderFlagCurrentMediaTypeChanged) != 0)
-                    {
-                        // A new rate or channel count mid-stream (rare: chained streams): finish the old one, go on with the new.
-                        var changed = CurrentFormat(reader, path);
-                        if (changed != resampler.InputFormat)
+                        if (hr < 0 || (flags & ScreenConstants.MfSourceReaderFlagError) != 0)
                         {
-                            writer.Append(output.AsSpan(0, resampler.Flush(output)));
-                            resampler = new StreamingResampler(changed, AudioFormat.Asr.SampleRate);
-                            var needed = Math.Max(resampler.MaxOutputSamples(BlockFrames), resampler.MaxFlushSamples);
-                            if (output.Length < needed)
+                            throw ErrorFor(hr < 0 ? hr : ScreenConstants.EFail, path, "IMFSourceReader::ReadSample");
+                        }
+
+                        if ((flags & ScreenConstants.MfSourceReaderFlagCurrentMediaTypeChanged) != 0)
+                        {
+                            // A new rate or channel count mid-stream (rare: chained streams): finish the old one, go on with the new.
+                            pipeline.Change(CurrentFormat(reader, path));
+                        }
+
+                        if (sample != 0 || (flags & ScreenConstants.MfSourceReaderFlagStreamTick) != 0)
+                        {
+                            pipeline.PadTo(timestamp, declared);
+                        }
+
+                        if (sample != 0)
+                        {
+                            pipeline.Write(sample, path);
+                            var percent = (int)Math.Clamp(timestamp * 100 / duration, 0, 99);
+                            if (percent != reported)
                             {
-                                ArrayPool<float>.Shared.Return(output);
-                                output = ArrayPool<float>.Shared.Rent(needed);
+                                reported = percent;
+                                progress?.Report(percent / 100.0);
                             }
                         }
                     }
-
-                    if (sample != 0)
+                    finally
                     {
-                        try
-                        {
-                            WriteSample(sample, resampler, output, writer, path);
-                        }
-                        finally
-                        {
-                            ComCall.Release(ref sample);
-                        }
-
-                        var percent = (int)Math.Clamp(timestamp * 100 / duration, 0, 99);
-                        if (percent != reported)
-                        {
-                            reported = percent;
-                            progress?.Report(percent / 100.0);
-                        }
+                        // Whatever was thrown above, the sample of this read is released.
+                        ComCall.Release(ref sample);
                     }
 
                     if ((flags & ScreenConstants.MfSourceReaderFlagEndOfStream) != 0)
@@ -152,7 +151,7 @@ public sealed class MediaFoundationDecoder : IMediaDecoder
                     }
                 }
 
-                writer.Append(output.AsSpan(0, resampler.Flush(output)));
+                pipeline.Finish();
                 if (writer.SamplesWritten == 0)
                 {
                     throw new InvalidDataException($"'{Path.GetFileName(path)}' holds no audio.");
@@ -170,11 +169,6 @@ public sealed class MediaFoundationDecoder : IMediaDecoder
         }
         finally
         {
-            if (output is not null)
-            {
-                ArrayPool<float>.Shared.Return(output);
-            }
-
             ComCall.Release(ref reader);
         }
     }
@@ -194,50 +188,7 @@ public sealed class MediaFoundationDecoder : IMediaDecoder
         }
     }
 
-    /// <summary>Converts one decoded float sample in blocks of <see cref="BlockFrames"/> frames.</summary>
-    private static unsafe void WriteSample(nint sample, StreamingResampler resampler, float[] output, WavPcm16Writer writer, string path)
-    {
-        nint buffer = 0;
-        try
-        {
-            var hr = IMFSample.ConvertToContiguousBuffer(sample, &buffer);
-            if (hr < 0)
-            {
-                throw ErrorFor(hr, path, "IMFSample::ConvertToContiguousBuffer");
-            }
-
-            byte* data;
-            uint max, length;
-            hr = IMFMediaBuffer.Lock(buffer, &data, &max, &length);
-            if (hr < 0)
-            {
-                throw ErrorFor(hr, path, "IMFMediaBuffer::Lock");
-            }
-
-            try
-            {
-                var channels = resampler.InputFormat.Channels;
-                var frames = (int)(length / sizeof(float) / (uint)channels);
-                var samples = new ReadOnlySpan<float>(data, frames * channels);
-                for (var offset = 0; offset < frames; offset += BlockFrames)
-                {
-                    var count = Math.Min(BlockFrames, frames - offset);
-                    var produced = resampler.Process(samples.Slice(offset * channels, count * channels), output);
-                    writer.Append(output.AsSpan(0, produced));
-                }
-            }
-            finally
-            {
-                IMFMediaBuffer.Unlock(buffer);
-            }
-        }
-        finally
-        {
-            ComCall.Release(ref buffer);
-        }
-    }
-
-    /// <summary>A source reader on the first audio stream only, delivering float PCM (16 kHz mono when Media Foundation can).</summary>
+    /// <summary>A source reader on the first audio stream only, delivering PCM (16 kHz mono float when Media Foundation can).</summary>
     private static unsafe nint Open(string path)
     {
         try
@@ -277,10 +228,12 @@ public sealed class MediaFoundationDecoder : IMediaDecoder
                 throw ErrorFor(hr, path, "IMFSourceReader::SetStreamSelection");
             }
 
-            // The recorder's format straight from Media Foundation; if it refuses, float at the native rate (resampled here).
-            if (SetOutputType(reader, AudioFormat.Asr) < 0)
+            // The recorder's format straight from Media Foundation; else float at the native rate; else 16-bit PCM (for a
+            // decoder that cannot output float when the source reader cannot convert either). Resampled here as needed.
+            if (SetOutputType(reader, ScreenConstants.MfAudioFormatFloat, AudioFormat.Asr) < 0
+                && SetOutputType(reader, ScreenConstants.MfAudioFormatFloat, null) < 0)
             {
-                hr = SetOutputType(reader, null);
+                hr = SetOutputType(reader, ScreenConstants.MfAudioFormatPcm, null);
                 if (hr < 0)
                 {
                     throw ErrorFor(hr, path, "IMFSourceReader::SetCurrentMediaType");
@@ -296,8 +249,11 @@ public sealed class MediaFoundationDecoder : IMediaDecoder
         }
     }
 
-    /// <summary>Float PCM output: of <paramref name="format"/>, or (null) at whatever rate and channel count the stream has.</summary>
-    private static unsafe int SetOutputType(nint reader, AudioFormat? format)
+    /// <summary>
+    /// PCM output of <paramref name="subtype"/> (float: 32 bits, PCM: 16 bits): of <paramref name="format"/>, or (null) at
+    /// whatever rate and channel count the stream has.
+    /// </summary>
+    private static unsafe int SetOutputType(nint reader, Guid subtype, AudioFormat? format)
     {
         nint type = 0;
         try
@@ -308,21 +264,22 @@ public sealed class MediaFoundationDecoder : IMediaDecoder
                 return hr;
             }
 
+            var bits = subtype == ScreenConstants.MfAudioFormatFloat ? 32u : 16u;
             var key = ScreenConstants.MfMtMajorType;
             var value = ScreenConstants.MfMediaTypeAudio;
             IMFAttributes.SetGUID(type, &key, &value);
             key = ScreenConstants.MfMtSubtype;
-            value = ScreenConstants.MfAudioFormatFloat;
+            value = subtype;
             IMFAttributes.SetGUID(type, &key, &value);
+            key = ScreenConstants.MfMtAudioBitsPerSample;
+            IMFAttributes.SetUINT32(type, &key, bits);
             if (format is { } f)
             {
-                var blockAlign = (uint)(f.Channels * sizeof(float));
+                var blockAlign = (uint)f.Channels * (bits / 8);
                 key = ScreenConstants.MfMtAudioSamplesPerSecond;
                 IMFAttributes.SetUINT32(type, &key, (uint)f.SampleRate);
                 key = ScreenConstants.MfMtAudioNumChannels;
                 IMFAttributes.SetUINT32(type, &key, (uint)f.Channels);
-                key = ScreenConstants.MfMtAudioBitsPerSample;
-                IMFAttributes.SetUINT32(type, &key, 32);
                 key = ScreenConstants.MfMtAudioBlockAlignment;
                 IMFAttributes.SetUINT32(type, &key, blockAlign);
                 key = ScreenConstants.MfMtAudioAvgBytesPerSecond;
@@ -337,8 +294,9 @@ public sealed class MediaFoundationDecoder : IMediaDecoder
         }
     }
 
-    /// <summary>Rate and channel count of the float PCM the reader delivers now.</summary>
-    private static unsafe AudioFormat CurrentFormat(nint reader, string path)
+    /// <summary>Rate, channel count and encoding of the PCM the reader delivers now.</summary>
+    /// <exception cref="NotSupportedException">Anything but 32-bit float or 16-bit PCM.</exception>
+    private static unsafe PcmFormat CurrentFormat(nint reader, string path)
     {
         nint type = 0;
         try
@@ -349,17 +307,36 @@ public sealed class MediaFoundationDecoder : IMediaDecoder
                 throw ErrorFor(hr, path, "IMFSourceReader::GetCurrentMediaType");
             }
 
-            uint rate = 0, channels = 0;
+            uint rate = 0, channels = 0, bits = 0;
+            Guid subtype = default;
             var key = ScreenConstants.MfMtAudioSamplesPerSecond;
             IMFAttributes.GetUINT32(type, &key, &rate);
             key = ScreenConstants.MfMtAudioNumChannels;
             IMFAttributes.GetUINT32(type, &key, &channels);
+            key = ScreenConstants.MfMtAudioBitsPerSample;
+            IMFAttributes.GetUINT32(type, &key, &bits);
+            key = ScreenConstants.MfMtSubtype;
+            IMFAttributes.GetGUID(type, &key, &subtype);
             if (rate == 0 || channels == 0)
             {
                 throw new InvalidDataException($"'{Path.GetFileName(path)}' has an audio stream without a sample rate or channel count.");
             }
 
-            return new AudioFormat((int)rate, (int)channels);
+            bool pcm16;
+            if (subtype == ScreenConstants.MfAudioFormatFloat && bits == 32)
+            {
+                pcm16 = false;
+            }
+            else if (subtype == ScreenConstants.MfAudioFormatPcm && bits == 16)
+            {
+                pcm16 = true;
+            }
+            else
+            {
+                throw new NotSupportedException($"'{Path.GetFileName(path)}' decodes to {subtype} with {bits} bits, not float or 16-bit PCM.");
+            }
+
+            return new PcmFormat(new AudioFormat((int)rate, (int)channels), pcm16);
         }
         finally
         {
@@ -370,20 +347,20 @@ public sealed class MediaFoundationDecoder : IMediaDecoder
     /// <summary>MF_PD_DURATION of the media source (100 ns units, VT_UI8); zero when the file does not declare it.</summary>
     private static unsafe TimeSpan DurationOf(nint reader)
     {
-        var variant = default(Variant);
+        var value = default(PropVariant);
         var key = ScreenConstants.MfPdDuration;
-        if (IMFSourceReader.GetPresentationAttribute(reader, ScreenConstants.MfSourceReaderMediaSource, &key, &variant) < 0)
+        if (IMFSourceReader.GetPresentationAttribute(reader, ScreenConstants.MfSourceReaderMediaSource, &key, &value) < 0)
         {
             return TimeSpan.Zero;
         }
 
         try
         {
-            return variant.Vt == ScreenConstants.VtUI8 ? TimeSpan.FromTicks((long)Math.Min(variant.UI8, long.MaxValue)) : TimeSpan.Zero;
+            return value.VarType == ScreenConstants.VtUI8 ? TimeSpan.FromTicks((long)Math.Min((ulong)value.Value, long.MaxValue)) : TimeSpan.Zero;
         }
         finally
         {
-            ScreenNativeMethods.VariantClear(&variant);
+            NativeMethods.PropVariantClear(ref value);
         }
     }
 
@@ -396,6 +373,176 @@ public sealed class MediaFoundationDecoder : IMediaDecoder
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
             // Best effort: a leftover .part never looks like a finished track.
+        }
+    }
+
+    /// <param name="Pcm16">16-bit PCM samples; otherwise 32-bit float.</param>
+    private readonly record struct PcmFormat(AudioFormat Audio, bool Pcm16);
+
+    /// <summary>
+    /// The PCM -&gt; track conversion of one decode: the resampler of the current format, its pooled buffers, and the
+    /// position on the file's timeline up to which audio was written (to pad gaps with silence).
+    /// </summary>
+    private sealed class Pipeline : IDisposable
+    {
+        private readonly WavPcm16Writer _writer;
+        private PcmFormat _format;
+        private StreamingResampler _resampler;
+        private float[] _output = [];
+        private float[] _scratch = [];
+        private long _baseTicks;
+        private long _fedFrames;
+
+        public Pipeline(PcmFormat format, WavPcm16Writer writer)
+        {
+            _writer = writer;
+            _format = format;
+            _resampler = new StreamingResampler(format.Audio, AudioFormat.Asr.SampleRate);
+            EnsureBuffers();
+        }
+
+        /// <summary>Where on the file's timeline (100 ns) the audio written so far ends.</summary>
+        private long CoveredTicks => _baseTicks + (_fedFrames * TimeSpan.TicksPerSecond / _format.Audio.SampleRate);
+
+        public void Change(PcmFormat format)
+        {
+            if (format == _format)
+            {
+                return;
+            }
+
+            var covered = CoveredTicks;
+            _writer.Append(_output.AsSpan(0, _resampler.Flush(_output)));
+            _format = format;
+            _baseTicks = covered;
+            _fedFrames = 0;
+            _resampler = new StreamingResampler(format.Audio, AudioFormat.Asr.SampleRate);
+            EnsureBuffers();
+        }
+
+        /// <summary>Fills a gap before <paramref name="timestamp"/> with silence (a timestamp far past the declared end is ignored).</summary>
+        public void PadTo(long timestamp, long declaredTicks)
+        {
+            var gap = timestamp - CoveredTicks;
+            if (gap <= GapTolerance || (declaredTicks > 0 && timestamp > declaredTicks + TimeSpan.TicksPerSecond))
+            {
+                return;
+            }
+
+            var frames = gap * _format.Audio.SampleRate / TimeSpan.TicksPerSecond;
+            var channels = _format.Audio.Channels;
+            while (frames > 0)
+            {
+                var count = (int)Math.Min(frames, BlockFrames);
+                var silence = _scratch.AsSpan(0, count * channels);
+                silence.Clear();
+                Feed(silence);
+                frames -= count;
+            }
+        }
+
+        public unsafe void Write(nint sample, string path)
+        {
+            nint buffer = 0;
+            try
+            {
+                var hr = IMFSample.ConvertToContiguousBuffer(sample, &buffer);
+                if (hr < 0)
+                {
+                    throw ErrorFor(hr, path, "IMFSample::ConvertToContiguousBuffer");
+                }
+
+                byte* data;
+                uint max, length;
+                hr = IMFMediaBuffer.Lock(buffer, &data, &max, &length);
+                if (hr < 0)
+                {
+                    throw ErrorFor(hr, path, "IMFMediaBuffer::Lock");
+                }
+
+                try
+                {
+                    var channels = _format.Audio.Channels;
+                    if (_format.Pcm16)
+                    {
+                        var frames = (int)(length / sizeof(short) / (uint)channels);
+                        var samples = new ReadOnlySpan<short>(data, frames * channels);
+                        for (var offset = 0; offset < frames; offset += BlockFrames)
+                        {
+                            var count = Math.Min(BlockFrames, frames - offset);
+                            var block = samples.Slice(offset * channels, count * channels);
+                            var converted = _scratch.AsSpan(0, block.Length);
+                            for (var i = 0; i < block.Length; i++)
+                            {
+                                converted[i] = block[i] / 32768f;
+                            }
+
+                            Feed(converted);
+                        }
+                    }
+                    else
+                    {
+                        var frames = (int)(length / sizeof(float) / (uint)channels);
+                        var samples = new ReadOnlySpan<float>(data, frames * channels);
+                        for (var offset = 0; offset < frames; offset += BlockFrames)
+                        {
+                            var count = Math.Min(BlockFrames, frames - offset);
+                            Feed(samples.Slice(offset * channels, count * channels));
+                        }
+                    }
+                }
+                finally
+                {
+                    IMFMediaBuffer.Unlock(buffer);
+                }
+            }
+            finally
+            {
+                ComCall.Release(ref buffer);
+            }
+        }
+
+        public void Finish() => _writer.Append(_output.AsSpan(0, _resampler.Flush(_output)));
+
+        public void Dispose()
+        {
+            Return(ref _output);
+            Return(ref _scratch);
+        }
+
+        /// <summary>Gives a rented array back once: the field is emptied first, so a later failing Rent never returns it twice.</summary>
+        private static void Return(ref float[] array)
+        {
+            var rented = array;
+            array = [];
+            if (rented.Length > 0)
+            {
+                ArrayPool<float>.Shared.Return(rented);
+            }
+        }
+
+        private void Feed(ReadOnlySpan<float> interleaved)
+        {
+            var produced = _resampler.Process(interleaved, _output);
+            _writer.Append(_output.AsSpan(0, produced));
+            _fedFrames += interleaved.Length / _format.Audio.Channels;
+        }
+
+        private void EnsureBuffers()
+        {
+            var output = Math.Max(_resampler.MaxOutputSamples(BlockFrames), _resampler.MaxFlushSamples);
+            if (_output.Length < output)
+            {
+                Return(ref _output);
+                _output = ArrayPool<float>.Shared.Rent(output);
+            }
+
+            var scratch = BlockFrames * _format.Audio.Channels;
+            if (_scratch.Length < scratch)
+            {
+                Return(ref _scratch);
+                _scratch = ArrayPool<float>.Shared.Rent(scratch);
+            }
         }
     }
 }

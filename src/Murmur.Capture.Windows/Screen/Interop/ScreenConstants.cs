@@ -99,6 +99,7 @@ internal static class ScreenConstants
     // Audio media types (mfapi.h): the import decoder asks the source reader for float PCM.
     public static readonly Guid MfMediaTypeAudio = new("73647561-0000-0010-8000-00AA00389B71");
     public static readonly Guid MfAudioFormatFloat = new("00000003-0000-0010-8000-00AA00389B71");
+    public static readonly Guid MfAudioFormatPcm = new("00000001-0000-0010-8000-00AA00389B71");
     public static readonly Guid MfMtAudioNumChannels = new("37E48BF5-645E-4C5B-89DE-ADA9E29B696A");
     public static readonly Guid MfMtAudioSamplesPerSecond = new("5FAEEAE7-0290-4C31-9E8A-C534F68D9DBA");
     public static readonly Guid MfMtAudioBitsPerSample = new("F2DEB57F-40FA-4764-AA33-ED4F2D1FF669");
@@ -178,6 +179,7 @@ internal static class ScreenConstants
     public const uint MfSourceReaderFlagError = 0x1;
     public const uint MfSourceReaderFlagEndOfStream = 0x2;
     public const uint MfSourceReaderFlagCurrentMediaTypeChanged = 0x20;
+    public const uint MfSourceReaderFlagStreamTick = 0x100;
     public const uint MfSourceReaderFirstAudioStream = 0xFFFF_FFFD;
     public const uint MfSourceReaderAllStreams = 0xFFFF_FFFE;
 
