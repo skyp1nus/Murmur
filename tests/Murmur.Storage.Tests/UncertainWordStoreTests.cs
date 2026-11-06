@@ -254,4 +254,30 @@ public sealed class UncertainWordStoreTests : IDisposable
         Assert.Equal(10, SchemaMigrator.GetVersion(connection));
         SqliteConnection.ClearPool(connection);
     }
+
+    [Fact]
+    public void ADatabaseOfSchema9_GainsTheVocabularyTable_AndKeepsItsSessions()
+    {
+        using var connection = new SqliteConnection("Data Source=:memory:");
+        connection.Open();
+        SchemaMigrator.Apply(connection, [.. SchemaMigrator.Migrations.Take(9)]);
+        Assert.Equal(9, SchemaMigrator.GetVersion(connection));
+        using (var insert = connection.CreateCommand())
+        {
+            insert.CommandText =
+                "INSERT INTO sessions (id, title, started_at, duration_ms, state, has_mic, has_system, screen_segments, folder) " +
+                "VALUES ('a', 'kept', 0, 0, 1, 0, 0, '[]', 'f')";
+            insert.ExecuteNonQuery();
+        }
+
+        Assert.Equal(10, SchemaMigrator.Apply(connection, SchemaMigrator.Migrations));
+
+        using var check = connection.CreateCommand();
+        check.CommandText = "SELECT (SELECT count(*) FROM sessions), (SELECT count(*) FROM vocabulary), (SELECT count(*) FROM sqlite_master WHERE name = 'vocabulary')";
+        using var reader = check.ExecuteReader();
+        Assert.True(reader.Read());
+        Assert.Equal(1L, reader.GetInt64(0));
+        Assert.Equal(0L, reader.GetInt64(1));
+        Assert.Equal(1L, reader.GetInt64(2));
+    }
 }
