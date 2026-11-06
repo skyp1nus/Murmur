@@ -129,6 +129,7 @@ public sealed partial class LibraryViewModel : ObservableObject, IDisposable, IF
             ApplySavedSwitches(settings.Current);
         }
 
+        SubscribeImports();
         Suggestions = [Strings.Library_Suggestion1, Strings.Library_Suggestion2, Strings.Library_Suggestion3];
         Entries.SetHead(new LibraryHeroEntry(this), new LibraryHeaderEntry(this), new LibraryFiltersEntry(this));
     }
@@ -356,7 +357,7 @@ public sealed partial class LibraryViewModel : ObservableObject, IDisposable, IF
 
     internal bool IsFilteredNow => IsFiltered;
 
-    private bool IsFiltered => Filter != LibraryFilter.All || !string.IsNullOrWhiteSpace(SearchText) || _loaded.Count > 0;
+    private bool IsFiltered => Filter != LibraryFilter.All || ImportedOnly || !string.IsNullOrWhiteSpace(SearchText) || _loaded.Count > 0;
 
     /// <summary>The last background read of the rows' transcript lines (for tests).</summary>
     internal Task DetailsTask { get; private set; } = Task.CompletedTask;
@@ -376,8 +377,10 @@ public sealed partial class LibraryViewModel : ObservableObject, IDisposable, IF
                 return;
             }
 
+            SnapshotImports();
             _loaded = records;
             _recentPool = recent ?? [.. records.Take(RecentPoolSize)];
+            UpdateImportedKnown();
             UpdateRecent();
             Error = null;
         }
@@ -416,6 +419,7 @@ public sealed partial class LibraryViewModel : ObservableObject, IDisposable, IF
             _recorder.StateChanged -= OnRecorderStateChanged;
         }
 
+        UnsubscribeImports();
         StopStaleTimer();
         _search?.Cancel();
         _search?.Dispose();
@@ -742,26 +746,35 @@ public sealed partial class LibraryViewModel : ObservableObject, IDisposable, IF
 
     private string? _appliedNeedle;
     private IReadOnlyList<SessionRecord>? _appliedLoaded;
+    private IReadOnlyList<SessionRecord>? _appliedImportRows;
+    private bool _appliedImportedOnly;
 
     private void ApplySearch()
     {
         // With a transcript search the list is not on screen (the results are): the rows stay the full list and are not rebuilt per keystroke.
         var needle = HasTranscriptSearch ? string.Empty : SearchText.Trim();
-        if (needle == _appliedNeedle && ReferenceEquals(_loaded, _appliedLoaded))
+        if (needle == _appliedNeedle && ReferenceEquals(_loaded, _appliedLoaded) && ReferenceEquals(_importRows, _appliedImportRows) && ImportedOnly == _appliedImportedOnly)
         {
             return;
         }
 
         _appliedNeedle = needle;
         _appliedLoaded = _loaded;
+        _appliedImportRows = _importRows;
+        _appliedImportedOnly = ImportedOnly;
         var rows = new List<SessionItemViewModel>(_loaded.Count);
         _rows.Clear();
 
         // The pipeline keeps "model missing" as the last status of a session until it is processed again, even after the
         // model was installed in the Settings; the install state is asked afresh here so the badge does not outlive it.
         var asrInstalled = _processing?.IsAsrInstalled ?? true;
-        foreach (var record in _loaded)
+        foreach (var record in ImportPlaceholders().Concat(_loaded))
         {
+            if (ImportedOnly && record.Source != SessionSource.Imported)
+            {
+                continue;
+            }
+
             if (needle.Length == 0 || record.Title.Contains(needle, StringComparison.OrdinalIgnoreCase))
             {
                 var live = _processing?.GetStatus(record.Id);
@@ -770,7 +783,8 @@ public sealed partial class LibraryViewModel : ObservableObject, IDisposable, IF
                     live = null;
                 }
 
-                var row = new SessionItemViewModel(record, _time, live, OpenRow);
+                _importBySession.TryGetValue(record.Id, out var import);
+                var row = new SessionItemViewModel(record, _time, live, _placeholderIds.Contains(record.Id) ? null : OpenRow, import);
                 rows.Add(row);
                 _rows[record.Id] = row;
             }
@@ -1315,6 +1329,11 @@ public sealed partial class LibraryViewModel : ObservableObject, IDisposable, IF
         foreach (var record in _loaded)
         {
             known[record.Id] = record;
+            if (ImportedOnly && record.Source != SessionSource.Imported)
+            {
+                continue;
+            }
+
             if (record.Title.Contains(query, StringComparison.OrdinalIgnoreCase))
             {
                 rows.Add(new SearchResultViewModel(record, null, string.Empty, _time) { OpenAction = OpenResult });
@@ -1339,7 +1358,7 @@ public sealed partial class LibraryViewModel : ObservableObject, IDisposable, IF
                 known[id] = record;
             }
 
-            if (record is null || (from is { } start && record.StartedAt < start) || (to is { } stop && record.StartedAt > stop))
+            if (record is null || (ImportedOnly && record.Source != SessionSource.Imported) || (from is { } start && record.StartedAt < start) || (to is { } stop && record.StartedAt > stop))
             {
                 continue;
             }

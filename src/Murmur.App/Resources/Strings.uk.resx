@@ -1907,4 +1907,10 @@
   <data name="Export_PreviewEmpty" xml:space="preserve">
     <value>У цьому діапазоні нічого не сказано.</value>
   </data>
+  <data name="Library_FilterImported" xml:space="preserve">
+    <value>Імпортовані</value>
+  </data>
+  <data name="Library_ImportedMeta" xml:space="preserve">
+    <value>Імпортовано</value>
+  </data>
 </root>
