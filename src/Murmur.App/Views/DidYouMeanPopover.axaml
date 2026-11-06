@@ -1,6 +1,7 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="using:Murmur.App.ViewModels"
+             xmlns:views="using:Murmur.App.Views"
              x:Class="Murmur.App.Views.DidYouMeanPopover"
              x:DataType="vm:SessionViewModel"
              Width="0"
@@ -29,6 +30,7 @@
     <!-- The card is the popup's child (Avalonia places the popup by it, its margin only makes room for the shadow). -->
     <Border x:Name="Card"
             Classes="didYouMean"
+            views:SessionShortcuts.OwnsKeys="True"
             DataContext="{Binding DidYouMean}">
       <StackPanel x:DataType="vm:DidYouMeanViewModel"
                   Orientation="Horizontal"
