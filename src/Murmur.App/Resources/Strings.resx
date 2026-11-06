@@ -1968,4 +1968,36 @@
     <value>Couldn’t fix the word: {0}</value>
     <comment>{0} = error message</comment>
   </data>
+  <data name="DropOverlay_TitleOne" xml:space="preserve">
+    <value>Drop to import {0} file</value>
+    <comment>title of the drop overlay; {0} = number of supported files (one form: 1, 21, 31...)</comment>
+  </data>
+  <data name="DropOverlay_TitleFew" xml:space="preserve">
+    <value>Drop to import {0} files</value>
+    <comment>title of the drop overlay; {0} = number of files (Ukrainian few form: 2-4, 22-24...)</comment>
+  </data>
+  <data name="DropOverlay_TitleMany" xml:space="preserve">
+    <value>Drop to import {0} files</value>
+    <comment>title of the drop overlay; {0} = number of files (other numbers)</comment>
+  </data>
+  <data name="DropOverlay_Hint" xml:space="preserve">
+    <value>They’ll be transcribed one by one</value>
+    <comment>second line of the drop overlay</comment>
+  </data>
+  <data name="DropOverlay_Unsupported" xml:space="preserve">
+    <value>These files can’t be imported</value>
+    <comment>title of the drop overlay when only unsupported files are dragged</comment>
+  </data>
+  <data name="DropOverlay_UnsupportedHint" xml:space="preserve">
+    <value>Only audio and video files can be imported</value>
+    <comment>second line of the drop overlay when only unsupported files are dragged</comment>
+  </data>
+  <data name="DropOverlay_Recording" xml:space="preserve">
+    <value>Imports wait until the recording stops</value>
+    <comment>title of the drop overlay while a recording is running</comment>
+  </data>
+  <data name="DropOverlay_RecordingHint" xml:space="preserve">
+    <value>Drop the files again after you stop recording</value>
+    <comment>second line of the drop overlay while a recording is running</comment>
+  </data>
 </root>
