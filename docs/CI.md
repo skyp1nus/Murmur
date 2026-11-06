@@ -22,6 +22,7 @@
 pwsh scripts/verify-local.ps1                      # build + тести + AOT win-x64 + старт (≈ джоби windows і startup)
 pwsh scripts/verify-local.ps1 -Publish -Installer   # інсталятор: збірка, тихе встановлення в temp, старт, видалення (≈ джоб installer)
 pwsh scripts/verify-local.ps1 -Publish -Capture     # + запис 60 с зі звуком і екраном (≈ capture-e2e)
+pwsh scripts/verify-local.ps1 -Import -ImportSamples D:\media  # імпорт файлів через Media Foundation (#66): згенеровані m4a/mp4/mp3/flac + ваші файли з теки
 pwsh scripts/verify-local.ps1 -Perf -PerfMinutes 20 # довгі записи з бюджетами PLAN.md (≈ perf-record)
 pwsh scripts/verify-local.ps1 -Asr                  # 1 год аудіо → текст, бюджет 180 с (≈ asr; потрібен fetch-models.ps1)
 pwsh scripts/verify-local.ps1 -AiEval               # AI-eval з Gemma 4 (≈ ai-eval; потрібен fetch-models.ps1 -Ai)
