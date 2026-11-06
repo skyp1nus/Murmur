@@ -77,6 +77,9 @@ public sealed class WindowsCapture : ICapture, IAudioPlayback, IVideoPlayback
     /// </summary>
     public static IMotionPreference CreateMotionPreference() => new Platform.WindowsMotionPreference();
 
+    /// <summary>Makes the floating recorder orb's window non-activating and keeps it out of Alt+Tab (<c>WS_EX_NOACTIVATE</c> / <c>WS_EX_TOOLWINDOW</c>).</summary>
+    public static IFloatingWindowStyle CreateFloatingWindowStyle() => new Platform.WindowsFloatingWindowStyle();
+
     /// <summary>Media Foundation and the Media Engine are available (checked once, see <see cref="WindowsVideoPlayback"/>).</summary>
     bool IVideoPlayback.IsSupported => _video.IsSupported;
 
