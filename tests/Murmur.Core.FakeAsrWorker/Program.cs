@@ -15,6 +15,8 @@ namespace Murmur.Core.FakeAsrWorker;
 /// segment), <c>crash-on-start</c> (exit 4 before ready), <c>hang</c> (one segment, then ignores everything),
 /// <c>fatal</c> (error without request id, exit 1), <c>no-ready</c> (never says ready).</item>
 /// <item><c>segments</c> per job (default 3), spread evenly over the WAV duration; <c>delayMs</c> before each event.</item>
+/// <item><c>confidence</c> of the second word of every segment (default 0.42, an uncertain word; <c>none</c> = not sent, like an older
+/// worker); the first word never has one (#58).</item>
 /// </list>
 /// It exits with code 0 after <c>--idle-exit-seconds</c> without a job, like the real worker.
 /// Every start and request is appended to <c>D/fake-worker.log</c>.
@@ -26,6 +28,7 @@ internal static class Program
     private static string _logPath = string.Empty;
     private static long _lastActivity = Environment.TickCount64;
     private static int _running;
+    private static float? _confidence = 0.42f;
 
     public static int Main(string[] args)
     {
@@ -35,6 +38,8 @@ internal static class Program
         var mode = settings.GetValueOrDefault("mode", "normal");
         var segments = int.Parse(settings.GetValueOrDefault("segments", "3"), CultureInfo.InvariantCulture);
         var delay = int.Parse(settings.GetValueOrDefault("delayMs", "0"), CultureInfo.InvariantCulture);
+        var confidenceSetting = settings.GetValueOrDefault("confidence", "0.42");
+        _confidence = confidenceSetting == "none" ? null : float.Parse(confidenceSetting, CultureInfo.InvariantCulture);
 
         Log("start " + string.Join(' ', args));
         Console.OutputEncoding = new UTF8Encoding(false);
@@ -183,7 +188,7 @@ internal static class Program
             {
                 Kind = WorkerKinds.Segment,
                 RequestId = id,
-                Segment = new WorkerSegment(start, end, text, [new WorkerWord(stem, start, mid), new WorkerWord(k.ToString(CultureInfo.InvariantCulture), mid, end, 0.42f)]),
+                Segment = new WorkerSegment(start, end, text, [new WorkerWord(stem, start, mid), new WorkerWord(k.ToString(CultureInfo.InvariantCulture), mid, end, _confidence)]),
             });
             Write(stdout, new WorkerEvent { Kind = WorkerKinds.Progress, RequestId = id, ProcessedSeconds = end, TotalSeconds = duration });
 

@@ -16,7 +16,7 @@ public sealed partial class SegmentViewModel : ObservableObject
 {
     private static readonly int[] NoOffsets = [];
 
-    private readonly TranscriptSegment _segment;
+    private TranscriptSegment _segment;
     private readonly Action<SegmentViewModel, int> _seek;
     private string? _text;
     private string? _speakerName;
@@ -129,6 +129,34 @@ public sealed partial class SegmentViewModel : ObservableObject
     /// <summary>The text the transcript search looks for (every occurrence in this row is marked), or <c>null</c>.</summary>
     [ObservableProperty]
     public partial string? HighlightTerm { get; set; }
+
+    /// <summary>The bookmarks (#59) that stand in front of this row: only the first row has any (a moment before the first line).</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasMarksBefore))]
+    public partial IReadOnlyList<BookmarkViewModel> MarksBefore { get; private set; } = [];
+
+    /// <summary>The bookmarks (#59) whose moment is in this row's span (from its start up to the next row): the dashed pills drawn under it.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasMarksAfter))]
+    public partial IReadOnlyList<BookmarkViewModel> MarksAfter { get; private set; } = [];
+
+    public bool HasMarksBefore => MarksBefore.Count > 0;
+
+    public bool HasMarksAfter => MarksAfter.Count > 0;
+
+    /// <summary>Sets the pills of the row; nothing is raised when they are the ones it already has.</summary>
+    internal void SetMarks(IReadOnlyList<BookmarkViewModel> before, IReadOnlyList<BookmarkViewModel> after)
+    {
+        if (!before.SequenceEqual(MarksBefore))
+        {
+            MarksBefore = before;
+        }
+
+        if (!after.SequenceEqual(MarksAfter))
+        {
+            MarksAfter = after;
+        }
+    }
 
     /// <summary>The segment's text contains <paramref name="term"/> (any case).</summary>
     internal bool Contains(string term) => Text.Contains(term, StringComparison.OrdinalIgnoreCase);

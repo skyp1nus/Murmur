@@ -1,0 +1,31 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Murmur.App.ViewModels"
+             xmlns:controls="using:Murmur.App.Controls"
+             x:Class="Murmur.App.Views.BookmarkPillView"
+             x:DataType="vm:BookmarkViewModel">
+
+  <!--
+    A bookmark between two lines of the transcript (Idea4Transcript.dc.html, "Idea 4 / Inline bookmark"): a dashed 1 px pill with the flag,
+    the time in Geist Mono and the note. It is a row of its own, so no word of a line moves; a click seeks to the moment.
+  -->
+  <Button Classes="bookmarkPill"
+          Command="{Binding SeekCommand}"
+          AutomationProperties.Name="{Binding AutomationName}"
+          ToolTip.Tip="{Binding GoToTip}">
+    <Panel>
+      <Rectangle Classes="bookmarkOutline" />
+      <StackPanel Classes="bookmarkPillContent"
+                  Orientation="Horizontal"
+                  Spacing="{StaticResource Space.8}">
+        <controls:IconControl Classes="bookmarkFlag"
+                              Data="{StaticResource Icon.Mark}" />
+        <TextBlock Classes="bookmarkTime"
+                   Text="{Binding TimeText}" />
+        <TextBlock Classes="bookmarkPillNote"
+                   IsVisible="{Binding HasNote}"
+                   Text="{Binding Note}" />
+      </StackPanel>
+    </Panel>
+  </Button>
+</UserControl>

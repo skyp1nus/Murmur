@@ -615,6 +615,14 @@
     <Setter Property="Background" Value="{DynamicResource Brush.Stone}" />
     <Setter Property="Foreground" Value="{DynamicResource Brush.Ink}" />
   </Style>
+  <!-- A stand-in row of a queued import: nothing to open yet, so no hover, no press and no dimmed text. -->
+  <Style Selector="Button.libraryRow:disabled /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="Foreground" Value="{DynamicResource Brush.Ink}" />
+  </Style>
+  <Style Selector="Button.libraryRow:disabled:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="Transparent" />
+  </Style>
   <Style Selector="Border.rowTile">
     <Setter Property="Width" Value="{StaticResource Size.RowTile}" />
     <Setter Property="Height" Value="{StaticResource Size.RowTile}" />

@@ -103,6 +103,13 @@ public sealed class WaveformControl : Control
     /// <summary>How many times the geometry was rebuilt (for tests: must not grow with the playhead).</summary>
     internal int GeometryBuilds { get; private set; }
 
+    /// <summary>
+    /// The x of a moment that is <paramref name="fraction"/> of the way through the recording, in a waveform <paramref name="width"/> wide: the
+    /// mapping of the playhead and of a click. The bookmark flags above the waveform (<see cref="BookmarkFlagsControl"/>) use it too, so a flag
+    /// stands exactly over the bars of its time.
+    /// </summary>
+    public static double XOf(double fraction, double width) => Math.Clamp(fraction, 0, 1) * width;
+
     protected override Size MeasureOverride(Size availableSize) =>
         new(double.IsInfinity(availableSize.Width) ? 0 : availableSize.Width, double.IsInfinity(availableSize.Height) ? 0 : availableSize.Height);
 
@@ -123,7 +130,7 @@ public sealed class WaveformControl : Control
             context.DrawGeometry(wave, null, geometry);
         }
 
-        var x = Math.Clamp(Fraction, 0, 1) * size.Width;
+        var x = XOf(Fraction, size.Width);
         if (PlayedBrush is { } played && x > 0)
         {
             using (context.PushClip(new Rect(0, 0, x, size.Height)))
@@ -190,7 +197,7 @@ public sealed class WaveformControl : Control
     }
 
     private double FractionAt(PointerEventArgs e) =>
-        Bounds.Width <= 0 ? 0 : Math.Clamp(e.GetPosition(this).X / Bounds.Width, 0, 1);
+        Bounds.Width <= 0 ? 0 : Math.Clamp(e.GetPosition(this).X / Bounds.Width, 0, 1); // inverse of XOf
 
     private StreamGeometry EnsureGeometry(Size size)
     {

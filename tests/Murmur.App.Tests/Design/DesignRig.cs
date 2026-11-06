@@ -185,7 +185,7 @@ internal sealed class DesignRig : IDisposable
             action => action(),
             new ChatViewModel(Assistant, Llm, Recorder, record.Id, "/models", action => action(), ChatStore, SessionStore, Time),
             new FakeVideoPlayback(VideoPlayer),
-            new SessionServices(Summarizer, SummaryStore, SessionStore, Folders))
+            new SessionServices(Summarizer, SummaryStore, SessionStore, Folders, Bookmarks: Bookmarks))
         {
             // The Session boards do not show the speaker chips of Idea4Transcript (#55); like ShowMark, an explicit switch instead of an ignore rectangle.
             ShowSpeakers = false,
@@ -194,6 +194,13 @@ internal sealed class DesignRig : IDisposable
             FollowAlong = false,
         };
     }
+
+    /// <summary>
+    /// The bookmark store of the opened recording. <c>null</c> for the boards: the Session boards (Session.dc.html) do not show the Bookmarks card, the
+    /// flags or the pills of Idea4Transcript (#59), and without a store the view has none of them (see "design parity" in docs/design/README.md). Screenshot
+    /// tests of the feature set it before the recording is opened.
+    /// </summary>
+    public FakeBookmarkStore? Bookmarks { get; set; }
 
     public FakeSummarizer Summarizer { get; } = new();
 

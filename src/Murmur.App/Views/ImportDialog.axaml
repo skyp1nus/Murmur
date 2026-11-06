@@ -1,0 +1,299 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Murmur.App.ViewModels"
+             xmlns:res="using:Murmur.App.Resources"
+             xmlns:controls="using:Murmur.App.Controls"
+             x:Class="Murmur.App.Views.ImportDialog"
+             x:DataType="vm:ImportDialogViewModel"
+             Focusable="True"
+             KeyboardNavigation.TabNavigation="Cycle">
+
+  <!--
+    The import dialog (Idea7Import.dc.html, "Idea 7 / Import dialog"): the scrim over the window and the 520 px card with the header (title,
+    close), the body (1 drop zone, 2 Recent in Downloads, 3 the files to import, the options) and the footer ("Transcribed on this PC",
+    Cancel, Import N files). ImportDialog.Show puts it on the overlay layer of the window; Esc, the cross, Cancel and a click on the scrim close
+    it. The body scrolls when the window is too low for it (900 x 600); the header and the footer stay.
+  -->
+  <Grid x:Name="Scrim"
+        Background="Transparent">
+    <Border x:Name="ScrimFill"
+            Classes="importScrim" />
+
+    <Border x:Name="Sheet"
+            Classes="importSheet"
+            AutomationProperties.Name="{x:Static res:Strings.Import_Title}">
+      <DockPanel>
+
+        <!-- Header: "Import recordings" and the cross -->
+        <Border DockPanel.Dock="Top"
+                Classes="importHeader">
+          <Grid ColumnDefinitions="*,Auto">
+            <TextBlock Grid.Column="0"
+                       Classes="importTitle"
+                       Text="{x:Static res:Strings.Import_Title}" />
+            <Button x:Name="CloseButton"
+                    Grid.Column="1"
+                    Classes="importClose"
+                    VerticalAlignment="Center"
+                    Command="{Binding CloseCommand}"
+                    AutomationProperties.Name="{x:Static res:Strings.Import_Close}">
+              <controls:IconControl Width="{StaticResource Size.ImportCloseIcon}"
+                                    Height="{StaticResource Size.ImportCloseIcon}"
+                                    Stroke="{StaticResource Stroke.ImportClose}"
+                                    Data="{StaticResource Import.Icon.Close}" />
+            </Button>
+          </Grid>
+        </Border>
+
+        <!-- Footer: the privacy note (or the error), Cancel, Import N files -->
+        <Border DockPanel.Dock="Bottom"
+                Classes="importFooter">
+          <Grid ColumnDefinitions="*,Auto,Auto"
+                ColumnSpacing="{StaticResource Space.8}">
+            <StackPanel Grid.Column="0"
+                        Orientation="Horizontal"
+                        VerticalAlignment="Center"
+                        IsVisible="{Binding !HasError}">
+              <controls:IconControl Width="{StaticResource Size.ImportLockIcon}"
+                                    Height="{StaticResource Size.ImportLockIcon}"
+                                    Margin="{StaticResource Margin.ImportLock}"
+                                    VerticalAlignment="Center"
+                                    Stroke="{StaticResource Stroke.ImportLock}"
+                                    TextElement.Foreground="{DynamicResource Brush.Graphite}"
+                                    Data="{StaticResource Import.Icon.Lock}" />
+              <TextBlock Classes="importNote"
+                         Text="{x:Static res:Strings.Import_Local}" />
+            </StackPanel>
+            <TextBlock x:Name="ErrorText"
+                       Grid.Column="0"
+                       Classes="importNote error"
+                       IsVisible="{Binding HasError}"
+                       AutomationProperties.LiveSetting="Assertive"
+                       Text="{Binding Error}"
+                       ToolTip.Tip="{Binding Error}" />
+            <Button x:Name="CancelButton"
+                    Grid.Column="1"
+                    Classes="outline importCancel"
+                    Command="{Binding CloseCommand}">
+              <TextBlock Classes="importStrong"
+                         Text="{x:Static res:Strings.Import_Cancel}" />
+            </Button>
+            <Button x:Name="ImportButton"
+                    Grid.Column="2"
+                    Classes="primary importGo"
+                    Command="{Binding ImportCommand}">
+              <TextBlock Classes="importStrong"
+                         Text="{Binding ImportLabel}" />
+            </Button>
+          </Grid>
+        </Border>
+
+        <ScrollViewer x:Name="Body"
+                      HorizontalScrollBarVisibility="Disabled"
+                      VerticalScrollBarVisibility="Auto">
+          <StackPanel Margin="{StaticResource Margin.ImportBody}"
+                      Spacing="{StaticResource Space.14}">
+
+            <!-- 1 · Drop zone: the upload icon, the line, "or browse this PC" and the formats -->
+            <Panel>
+              <Panel x:Name="DropZone">
+                <Rectangle Classes="importDropOutline" />
+                <StackPanel Margin="{StaticResource Margin.ImportDropContent}"
+                            Spacing="{StaticResource Space.6}">
+                  <Border Classes="importDropPlate">
+                    <controls:IconControl Width="{StaticResource Size.ImportDropIcon}"
+                                          Height="{StaticResource Size.ImportDropIcon}"
+                                          Data="{StaticResource Import.Icon.Upload}" />
+                  </Border>
+                  <TextBlock Classes="importStrong"
+                             HorizontalAlignment="Center"
+                             TextAlignment="Center"
+                             TextWrapping="Wrap"
+                             Text="{x:Static res:Strings.Import_DropTitle}" />
+                  <StackPanel Orientation="Horizontal"
+                              HorizontalAlignment="Center">
+                    <TextBlock Classes="importSmall"
+                               VerticalAlignment="Center"
+                               Text="{x:Static res:Strings.Import_DropOr}" />
+                    <Button x:Name="BrowseButton"
+                            Classes="importLink"
+                            Command="{Binding BrowseCommand}">
+                      <TextBlock Text="{x:Static res:Strings.Import_Browse}" />
+                    </Button>
+                  </StackPanel>
+                  <TextBlock x:Name="FormatsText"
+                             Classes="importFormats"
+                             Margin="{StaticResource Margin.ImportFormats}"
+                             Text="{Binding FormatsText}" />
+                </StackPanel>
+              </Panel>
+              <Border Classes="importBadge drop">
+                <TextBlock Text="1" />
+              </Border>
+            </Panel>
+
+            <!-- 2 · Recent in Downloads (hidden without a Downloads folder or recent media) -->
+            <Panel x:Name="RecentSection"
+                   IsVisible="{Binding HasRecent}">
+              <StackPanel>
+                <Grid ColumnDefinitions="*,Auto"
+                      Margin="{StaticResource Margin.ImportRecentHeader}">
+                  <TextBlock Grid.Column="0"
+                             Classes="importLabel"
+                             VerticalAlignment="Bottom"
+                             Text="{x:Static res:Strings.Import_RecentTitle}" />
+                  <TextBlock Grid.Column="1"
+                             Classes="importMicro"
+                             VerticalAlignment="Bottom"
+                             Text="{x:Static res:Strings.Import_RecentNote}" />
+                </Grid>
+                <ItemsControl x:Name="RecentList"
+                              ItemsSource="{Binding Recent}">
+                  <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="vm:RecentFileViewModel">
+                      <Grid ColumnDefinitions="Auto,*,Auto"
+                            ColumnSpacing="{StaticResource Space.10}"
+                            Margin="{StaticResource Margin.ImportRecentRow}">
+                        <Border Grid.Column="0"
+                                Classes="importTile">
+                          <controls:IconControl Classes="importKind audio"
+                                                Classes.video="{Binding IsVideo}" />
+                        </Border>
+                        <StackPanel Grid.Column="1"
+                                    VerticalAlignment="Center">
+                          <TextBlock Classes="importLabel"
+                                     TextTrimming="CharacterEllipsis"
+                                     Text="{Binding Name}"
+                                     ToolTip.Tip="{Binding Path}" />
+                          <TextBlock Classes="importMicro"
+                                     Margin="{StaticResource Margin.ImportMeta}"
+                                     TextTrimming="CharacterEllipsis"
+                                     Text="{Binding Detail}" />
+                        </StackPanel>
+                        <Button Grid.Column="2"
+                                Classes="importAdd"
+                                Command="{Binding AddCommand}"
+                                AutomationProperties.Name="{Binding AddAccessibleName}">
+                          <TextBlock Text="{Binding AddLabel}" />
+                        </Button>
+                      </Grid>
+                    </DataTemplate>
+                  </ItemsControl.ItemTemplate>
+                </ItemsControl>
+              </StackPanel>
+              <Border Classes="importBadge">
+                <TextBlock Text="2" />
+              </Border>
+            </Panel>
+
+            <!-- 3 · The files to import (hidden while there are none) -->
+            <Panel x:Name="QueueSection"
+                   IsVisible="{Binding HasFiles}">
+              <StackPanel Spacing="{StaticResource Space.6}">
+                <TextBlock x:Name="FilesTitle"
+                           Classes="importLabel"
+                           Text="{Binding FilesTitle}" />
+                <Border Classes="importQueue">
+                  <ItemsControl x:Name="QueueList"
+                                Classes="importQueueList"
+                                ItemsSource="{Binding Files}">
+                    <ItemsControl.ItemTemplate>
+                      <DataTemplate x:DataType="vm:ImportFileViewModel">
+                        <Border Classes="importQueueRow">
+                          <Grid ColumnDefinitions="Auto,*,Auto"
+                                ColumnSpacing="{StaticResource Space.10}">
+                            <Border Grid.Column="0"
+                                    Classes="importTile importDimmable"
+                                    Classes.dimmed="{Binding IsDimmed}">
+                              <controls:IconControl Classes="importKind"
+                                                    Classes.audio="{Binding IsAudio}"
+                                                    Classes.video="{Binding IsVideo}" />
+                            </Border>
+                            <StackPanel Grid.Column="1"
+                                        Classes="importDimmable"
+                                        Classes.dimmed="{Binding IsDimmed}"
+                                        VerticalAlignment="Center">
+                              <TextBlock Classes="importLabel"
+                                         TextTrimming="CharacterEllipsis"
+                                         Text="{Binding Name}"
+                                         ToolTip.Tip="{Binding Path}" />
+                              <TextBlock Classes="importMicro"
+                                         Classes.dimmed="{Binding IsDimmed}"
+                                         Margin="{StaticResource Margin.ImportMeta}"
+                                         TextTrimming="CharacterEllipsis"
+                                         Text="{Binding Detail}"
+                                         ToolTip.Tip="{Binding Detail}" />
+                            </StackPanel>
+                            <Button Grid.Column="2"
+                                    Classes="importRemove"
+                                    Command="{Binding RemoveCommand}"
+                                    AutomationProperties.Name="{Binding RemoveLabel}">
+                              <controls:IconControl Width="{StaticResource Size.ImportRemoveIcon}"
+                                                    Height="{StaticResource Size.ImportRemoveIcon}"
+                                                    Stroke="{StaticResource Stroke.ImportRemove}"
+                                                    Data="{StaticResource Import.Icon.Close}" />
+                            </Button>
+                          </Grid>
+                        </Border>
+                      </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                  </ItemsControl>
+                </Border>
+              </StackPanel>
+              <Border Classes="importBadge">
+                <TextBlock Text="3" />
+              </Border>
+            </Panel>
+
+            <!-- Options: the spoken language and the original file -->
+            <Grid ColumnDefinitions="*,*"
+                  ColumnSpacing="{StaticResource Space.12}">
+              <StackPanel Grid.Column="0"
+                          Spacing="{StaticResource Space.6}">
+                <TextBlock Classes="importLabel"
+                           Text="{x:Static res:Strings.Import_Language}" />
+                <ComboBox x:Name="LanguageBox"
+                          Classes="onb settingsPicker importLanguage"
+                          AutomationProperties.Name="{x:Static res:Strings.Import_Language}"
+                          ItemsSource="{Binding Languages}"
+                          SelectedItem="{Binding SelectedLanguage, Mode=TwoWay}">
+                  <ComboBox.ItemTemplate>
+                    <DataTemplate x:DataType="vm:ImportLanguageOption">
+                      <TextBlock Classes="importOption"
+                                 TextTrimming="CharacterEllipsis"
+                                 Text="{Binding Name}" />
+                    </DataTemplate>
+                  </ComboBox.ItemTemplate>
+                </ComboBox>
+              </StackPanel>
+              <StackPanel Grid.Column="1"
+                          Spacing="{StaticResource Space.6}">
+                <TextBlock Classes="importLabel"
+                           Text="{x:Static res:Strings.Import_OriginalFile}" />
+                <Border Classes="importSegments">
+                  <Grid ColumnDefinitions="*,*"
+                        ColumnSpacing="{StaticResource Space.2}">
+                    <RadioButton x:Name="CopyToLibrary"
+                                 Grid.Column="0"
+                                 Classes="importSegment"
+                                 GroupName="ImportOriginalFile"
+                                 IsChecked="{Binding IsCopyToLibrary, Mode=TwoWay}">
+                      <TextBlock Text="{x:Static res:Strings.Import_CopyToLibrary}" />
+                    </RadioButton>
+                    <RadioButton x:Name="LeaveInPlace"
+                                 Grid.Column="1"
+                                 Classes="importSegment"
+                                 GroupName="ImportOriginalFile"
+                                 IsChecked="{Binding IsLeaveInPlace, Mode=TwoWay}">
+                      <TextBlock Text="{x:Static res:Strings.Import_LeaveInPlace}" />
+                    </RadioButton>
+                  </Grid>
+                </Border>
+              </StackPanel>
+            </Grid>
+          </StackPanel>
+        </ScrollViewer>
+      </DockPanel>
+    </Border>
+  </Grid>
+</UserControl>

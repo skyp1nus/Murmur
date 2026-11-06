@@ -1,0 +1,107 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Murmur.App.ViewModels"
+             xmlns:res="using:Murmur.App.Resources"
+             xmlns:controls="using:Murmur.App.Controls"
+             x:Class="Murmur.App.Views.BookmarksCardView"
+             x:DataType="vm:SessionViewModel"
+             AutomationProperties.Name="{x:Static res:Strings.Session_Bookmarks}">
+
+  <!--
+    The Bookmarks card under the player (Idea4Transcript.dc.html, "Idea 4 / Bookmarks list"): Surface, radius 16, 16 x 12 inside; the title
+    and its hint, then a row for every bookmark (flag, time in Geist Mono, note; Stone under the pointer). A click on a row seeks there, the
+    pencil (or a double click on the note) edits the note in place (Enter saves, Esc drops), the cross deletes the bookmark. Without
+    bookmarks the card says how to add one. The host hides the card when the recording has no bookmark store.
+  -->
+  <Border Classes="bookmarksCard">
+    <StackPanel Spacing="{StaticResource Space.8}">
+      <Grid ColumnDefinitions="*,Auto"
+            ColumnSpacing="{StaticResource Space.8}">
+        <TextBlock Grid.Column="0"
+                   Classes="bookmarksTitle"
+                   Text="{x:Static res:Strings.Session_Bookmarks}" />
+        <TextBlock Grid.Column="1"
+                   Classes="bookmarksHint"
+                   Text="{x:Static res:Strings.Session_BookmarksHint}" />
+      </Grid>
+
+      <TextBlock Classes="bookmarksEmpty"
+                 IsVisible="{Binding ShowBookmarksEmpty}"
+                 Text="{x:Static res:Strings.Session_BookmarksEmpty}" />
+
+      <ScrollViewer Classes="bookmarksScroll"
+                    IsVisible="{Binding HasBookmarks}"
+                    HorizontalScrollBarVisibility="Disabled"
+                    VerticalScrollBarVisibility="Auto">
+        <ItemsControl x:Name="Rows"
+                      Margin="{StaticResource Margin.BookmarkRows}"
+                      ItemsSource="{Binding Bookmarks}">
+          <ItemsControl.ItemTemplate>
+            <DataTemplate x:DataType="vm:BookmarkViewModel">
+              <Border Classes="bookmarkRow">
+              <Grid ColumnDefinitions="Auto,*,Auto"
+                    ColumnSpacing="{StaticResource Space.8}">
+                <Button Grid.Column="0"
+                        Classes="bookmarkSeek"
+                        Command="{Binding SeekCommand}"
+                        AutomationProperties.Name="{Binding AutomationName}"
+                        ToolTip.Tip="{Binding GoToTip}">
+                  <StackPanel Orientation="Horizontal"
+                              Spacing="{StaticResource Space.8}">
+                    <controls:IconControl Classes="bookmarkFlag"
+                                          Data="{StaticResource Icon.Mark}" />
+                    <TextBlock Classes="bookmarkTime"
+                               Text="{Binding TimeText}" />
+                  </StackPanel>
+                </Button>
+                <Button Grid.Column="1"
+                        Classes="bookmarkNote"
+                        Classes.empty="{Binding !HasNote}"
+                        IsVisible="{Binding !IsEditing}"
+                        Command="{Binding SeekCommand}"
+                        DoubleTapped="OnNoteDoubleTapped"
+                        ToolTip.Tip="{Binding GoToTip}">
+                  <TextBlock Classes="bookmarkNoteText"
+                             Text="{Binding DisplayNote}" />
+                </Button>
+                <TextBox Grid.Column="1"
+                         Classes="bookmarkEditor"
+                         IsVisible="{Binding IsEditing}"
+                         AutomationProperties.Name="{x:Static res:Strings.Session_BookmarkNoteBox}"
+                         PlaceholderText="{x:Static res:Strings.Session_BookmarkPlaceholder}"
+                         Text="{Binding EditText, Mode=TwoWay}"
+                         Loaded="OnEditorLoaded"
+                         LostFocus="OnEditorLostFocus">
+                  <TextBox.KeyBindings>
+                    <KeyBinding Gesture="Enter" Command="{Binding CommitEditCommand}" />
+                    <KeyBinding Gesture="Escape" Command="{Binding CancelEditCommand}" />
+                  </TextBox.KeyBindings>
+                </TextBox>
+                <StackPanel Grid.Column="2"
+                            Classes="bookmarkActions"
+                            Orientation="Horizontal"
+                            IsVisible="{Binding !IsEditing}">
+                  <Button Classes="bookmarkAction"
+                          Command="{Binding BeginEditCommand}"
+                          AutomationProperties.Name="{x:Static res:Strings.Session_BookmarkEdit}"
+                          ToolTip.Tip="{x:Static res:Strings.Session_BookmarkEdit}">
+                    <controls:IconControl Classes="bookmarkActionIcon"
+                                          Data="{StaticResource Icon.Edit}" />
+                  </Button>
+                  <Button Classes="bookmarkAction"
+                          Command="{Binding DeleteCommand}"
+                          AutomationProperties.Name="{x:Static res:Strings.Session_BookmarkDelete}"
+                          ToolTip.Tip="{x:Static res:Strings.Session_BookmarkDelete}">
+                    <controls:IconControl Classes="bookmarkActionIcon"
+                                          Data="{StaticResource Session.Cross}" />
+                  </Button>
+                </StackPanel>
+              </Grid>
+              </Border>
+            </DataTemplate>
+          </ItemsControl.ItemTemplate>
+        </ItemsControl>
+      </ScrollViewer>
+    </StackPanel>
+  </Border>
+</UserControl>

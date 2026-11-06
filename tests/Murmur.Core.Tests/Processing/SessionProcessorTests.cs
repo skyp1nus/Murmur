@@ -69,6 +69,21 @@ public sealed class SessionProcessorTests : IAsyncDisposable
     }
 
     [Fact]
+    public async Task TheConfidenceOfTheWords_IsSavedWithTheTranscript()
+    {
+        // #58: the worker's per-word confidence reaches the store, so the transcript can underline the uncertain words.
+        _asr.WordConfidence = 0.31f;
+        using var processor = Create();
+        var session = await RecordAsync(mic: true, system: true);
+
+        await WaitForStateAsync(session.Id, SessionState.Ready);
+
+        var transcript = (await _transcripts.GetTranscriptAsync(session.Id, CancellationToken.None))!;
+        Assert.All(transcript.Segments, s => Assert.Equal(0.31f, Assert.Single(s.Words).Confidence));
+        Assert.All(transcript.Segments, s => Assert.True(s.Words[0].IsUncertain));
+    }
+
+    [Fact]
     public async Task Progress_RisesMonotonicallyThroughTheStages()
     {
         using var processor = Create();
