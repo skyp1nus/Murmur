@@ -702,6 +702,79 @@ public sealed class BookmarkTests : IDisposable
     }
 
     [Fact]
+    public async Task AMarkWithinHalfASecondOfAnother_IsTheSameMoment()
+    {
+        var vm = await LoadAsync();
+        vm.SeekTo(S(100));
+        await vm.AddBookmarkAtPlayheadCommand.ExecuteAsync(null);
+        await vm.AddBookmarkAtPlayheadCommand.ExecuteAsync(null);
+        vm.SeekTo(S(100.4));
+        await vm.AddBookmarkAtPlayheadCommand.ExecuteAsync(null);
+
+        Assert.Equal([S(100)], vm.Bookmarks.Select(b => b.At));
+        Assert.Single(_store.All);
+
+        vm.SeekTo(S(100.6));
+        await vm.AddBookmarkAtPlayheadCommand.ExecuteAsync(null);
+
+        Assert.Equal(2, vm.Bookmarks.Count);
+    }
+
+    [Fact]
+    public async Task KeyRepeat_BeforeTheStoreAnswers_AddsOnlyOne()
+    {
+        var vm = await LoadAsync();
+        vm.SeekTo(S(30));
+
+        var first = vm.AddBookmarkAtPlayheadCommand.ExecuteAsync(null);
+        var second = vm.AddBookmarkAtPlayheadCommand.ExecuteAsync(null);
+        var third = vm.AddBookmarkAtPlayheadCommand.ExecuteAsync(null);
+        await Task.WhenAll(first, second, third);
+
+        Assert.Single(_store.All);
+        Assert.Single(vm.Bookmarks);
+    }
+
+    [Fact]
+    public async Task TheEmptyState_IsNotShownBeforeTheLoadHasFinished()
+    {
+        var vm = Create();
+
+        Assert.True(vm.ShowBookmarksCard);
+        Assert.False(vm.ShowBookmarksEmpty);
+
+        await vm.LoadAsync();
+
+        Assert.True(vm.ShowBookmarksEmpty);
+    }
+
+    [Fact]
+    public async Task TheRowActions_AreNotHitTestableUntilTheRowIsHovered()
+    {
+        _store.Put(_fixture.Record.Id, (761, "Pricing question"));
+        var (_, shell) = await OpenAsync();
+
+        var (idle, hovered) = await Session.Dispatch(
+            () =>
+            {
+                var window = UiHarness.Show(shell);
+                var row = window.GetVisualDescendants().OfType<Border>().Single(b => b.Classes.Contains("bookmarkRow"));
+                var actions = row.GetVisualDescendants().OfType<StackPanel>().Single(p => p.Classes.Contains("bookmarkActions"));
+                var before = (actions.Opacity, actions.IsHitTestVisible);
+                var origin = row.TranslatePoint(new Avalonia.Point(row.Bounds.Width / 2, row.Bounds.Height / 2), window)!.Value;
+                window.MouseMove(origin, RawInputModifiers.None);
+                UiHarness.Pump();
+                var after = (actions.Opacity, actions.IsHitTestVisible);
+                window.Close();
+                return (before, after);
+            },
+            Ct);
+
+        Assert.Equal((0d, false), idle);
+        Assert.Equal((1d, true), hovered);
+    }
+
+    [Fact]
     public async Task TheMKey_AddsABookmarkAtThePlayhead()
     {
         var (_, shell) = await OpenAsync();

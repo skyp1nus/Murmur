@@ -22,7 +22,12 @@ namespace Murmur.App.ViewModels;
 /// </remarks>
 public sealed partial class SessionViewModel
 {
+    /// <summary>A bookmark closer than this to an existing (or just requested) one is the same moment: key repeat or a double M.</summary>
+    private static readonly TimeSpan BookmarkDuplicateWindow = TimeSpan.FromSeconds(0.5);
+
     private BookmarkViewModel[] _bookmarkRows = [];
+    private readonly List<TimeSpan> _bookmarksBeingAdded = [];
+    private bool _bookmarksLoaded;
 
     /// <summary>The bookmarks in timeline order (the card's rows); empty when there are none.</summary>
     [ObservableProperty]
@@ -39,7 +44,7 @@ public sealed partial class SessionViewModel
     public bool ShowBookmarksCard => _services.Bookmarks is not null;
 
     /// <summary>The card shows "No bookmarks yet. Press M to add one." instead of rows.</summary>
-    public bool ShowBookmarksEmpty => ShowBookmarksCard && !HasBookmarks;
+    public bool ShowBookmarksEmpty => ShowBookmarksCard && _bookmarksLoaded && !HasBookmarks;
 
     /// <summary>
     /// Adds a bookmark at the playhead (the M key). The card, the flags and the pills show it as soon as the store has saved it; a store
@@ -54,6 +59,13 @@ public sealed partial class SessionViewModel
         }
 
         var at = Duration > TimeSpan.Zero ? Clamp(Position) : Position;
+        if (_bookmarkRows.Any(r => (r.At - at).Duration() < BookmarkDuplicateWindow)
+            || _bookmarksBeingAdded.Exists(a => (a - at).Duration() < BookmarkDuplicateWindow))
+        {
+            return;
+        }
+
+        _bookmarksBeingAdded.Add(at);
         try
         {
             var all = await store.AddBookmarksAsync(Id, [new NewBookmark(at)], CancellationToken.None).ConfigureAwait(true);
@@ -65,6 +77,10 @@ public sealed partial class SessionViewModel
         catch (Exception)
         {
             // A mark that cannot be saved is not shown; the list stays as it was.
+        }
+        finally
+        {
+            _bookmarksBeingAdded.Remove(at);
         }
     }
 
@@ -113,6 +129,7 @@ public sealed partial class SessionViewModel
 
         Array.Sort(rows, static (a, b) => a.At != b.At ? a.At.CompareTo(b.At) : a.Id.CompareTo(b.Id));
         _bookmarkRows = rows;
+        _bookmarksLoaded = true;
         Bookmarks = rows;
         RebuildBookmarkFlags();
         ApplyBookmarkMarks();
