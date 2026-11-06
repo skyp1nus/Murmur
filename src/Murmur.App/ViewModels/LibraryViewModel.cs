@@ -2,6 +2,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Murmur.App.Resources;
 using Murmur.App.Services;
+using Murmur.Core.Import;
 using Murmur.Core.Intelligence;
 using Murmur.Core.Processing;
 using Murmur.Core.Recording;
@@ -79,6 +80,9 @@ public sealed partial class LibraryViewModel : ObservableObject, IDisposable, IF
     /// </param>
     /// <param name="transcripts">Where the language and the first line of each row's transcript come from; <c>null</c> = rows without them.</param>
     /// <param name="settings">Where the Screen switch of the New recording card is kept (<c>ScreenByDefault</c>, like the Settings); <c>null</c> = not kept.</param>
+    /// <param name="imports">The import of audio and video files: the "Import files" pill opens the import dialog over it; <c>null</c> = no pill.</param>
+    /// <param name="mediaProbe">Reads the kind, size and duration of the files the import dialog lists.</param>
+    /// <param name="downloads">The Downloads folder of the import dialog's "Recent in Downloads".</param>
     public LibraryViewModel(
         ISessionStore store,
         TimeProvider time,
@@ -89,7 +93,10 @@ public sealed partial class LibraryViewModel : ObservableObject, IDisposable, IF
         IRecorder? recorder = null,
         ITranscriptStore? transcripts = null,
         ISettingsStore? settings = null,
-        ISpeakerNameStore? speakerNames = null)
+        ISpeakerNameStore? speakerNames = null,
+        IImportQueue? imports = null,
+        IMediaDecoder? mediaProbe = null,
+        IDownloadsFolder? downloads = null)
     {
         ArgumentNullException.ThrowIfNull(store);
         ArgumentNullException.ThrowIfNull(time);
@@ -103,6 +110,9 @@ public sealed partial class LibraryViewModel : ObservableObject, IDisposable, IF
         _speakerNames = speakerNames;
         _settings = settings is null ? null : SettingsWriter.For(settings);
         _settingsStore = settings;
+        _imports = imports;
+        _mediaProbe = mediaProbe;
+        _downloads = downloads;
         _post = post ?? (action => Avalonia.Threading.Dispatcher.UIThread.Post(action));
         if (processing is not null)
         {
