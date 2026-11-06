@@ -1,6 +1,7 @@
 <Styles xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:coll="using:Avalonia.Collections"
+        xmlns:sys="using:System"
         xmlns:controls="using:Murmur.App.Controls">
 
   <!--
@@ -66,6 +67,15 @@
       <Thickness x:Key="Margin.ImportLink">3,0,0,0</Thickness>
       <Thickness x:Key="Border.ImportEdgeBottom">0,0,0,1</Thickness>
       <Thickness x:Key="Border.ImportEdgeTop">0,1,0,0</Thickness>
+
+      <!-- The drop overlay (Idea7Import.dc.html, "Idea 7 / Drag anywhere"): inset 8 in the content area, a 12 px corner, a 2 px dashed Ink outline
+           (drawn inside the box: radius 12 - 1), the Canvas veil (rgba(253,252,252,.86)) at 86 %, an 18 px upload icon; it fades in 150 ms. -->
+      <Thickness x:Key="Margin.DropOverlay">8</Thickness>
+      <x:Double x:Key="Size.DropOverlayIcon">18</x:Double>
+      <x:Double x:Key="Size.DropOverlayStroke">2</x:Double>
+      <x:Double x:Key="Size.DropOverlayRadius">11</x:Double>
+      <x:Double x:Key="Opacity.DropOverlayVeil">0.86</x:Double>
+      <sys:TimeSpan x:Key="Duration.DropOverlayFade">0:0:0.15</sys:TimeSpan>
 
       <!-- Paths of the icons that are only used here (the 24 x 24 grid of the canvas SVG). -->
       <StreamGeometry x:Key="Import.Icon.Upload">M12 15V4M7 9l5-5 5 5M5 20h14</StreamGeometry>
@@ -487,5 +497,45 @@
   </Style>
   <Style Selector="Button.primary.importGo TextBlock">
     <Setter Property="Foreground" Value="{DynamicResource Brush.Canvas}" />
+  </Style>
+
+  <!-- ==== The drop overlay. It never takes the pointer; 150 ms fade, none under reduced motion (the "still" class). ===================== -->
+  <Style Selector="Panel.dropOverlay">
+    <Setter Property="Opacity" Value="0" />
+    <Setter Property="IsHitTestVisible" Value="False" />
+    <Setter Property="Transitions">
+      <Transitions>
+        <DoubleTransition Property="Opacity"
+                          Duration="{StaticResource Duration.DropOverlayFade}" />
+      </Transitions>
+    </Setter>
+  </Style>
+  <Style Selector="Panel.dropOverlay.still">
+    <Setter Property="Transitions" Value="{x:Null}" />
+  </Style>
+  <Style Selector="Panel.dropOverlay.shown">
+    <Setter Property="Opacity" Value="1" />
+  </Style>
+  <Style Selector="Border.dropOverlayVeil">
+    <Setter Property="Background" Value="{DynamicResource Brush.Canvas}" />
+    <Setter Property="Opacity" Value="{StaticResource Opacity.DropOverlayVeil}" />
+    <Setter Property="CornerRadius" Value="{StaticResource Radius.Panel}" />
+  </Style>
+  <Style Selector="Rectangle.dropOverlayOutline">
+    <Setter Property="RadiusX" Value="{StaticResource Size.DropOverlayRadius}" />
+    <Setter Property="RadiusY" Value="{StaticResource Size.DropOverlayRadius}" />
+    <Setter Property="Stroke" Value="{DynamicResource Brush.Ink}" />
+    <Setter Property="StrokeThickness" Value="{StaticResource Size.DropOverlayStroke}" />
+    <Setter Property="StrokeDashArray" Value="{StaticResource Import.Dash.Drop}" />
+  </Style>
+  <!-- 11, Smoke. -->
+  <Style Selector="TextBlock.dropOverlayHint">
+    <Setter Property="FontFamily" Value="{StaticResource Font.Body}" />
+    <Setter Property="FontWeight" Value="{StaticResource FontWeight.Body}" />
+    <Setter Property="FontSize" Value="{StaticResource FontSize.Tag}" />
+    <Setter Property="LineHeight" Value="{StaticResource LineHeight.Tag}" />
+    <Setter Property="LetterSpacing" Value="{StaticResource LetterSpacing.Tag}" />
+    <Setter Property="Foreground" Value="{DynamicResource Brush.Smoke}" />
+    <Setter Property="TextAlignment" Value="Center" />
   </Style>
 </Styles>

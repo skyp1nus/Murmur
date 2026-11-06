@@ -375,6 +375,29 @@ public sealed class WorkerAsrClientTests : IDisposable
         return new WorkerAsrClient(_models, new WorkerAsrClientOptions(FakeWorkerDll, threads, idleExitSeconds, cancelTimeout, startTimeout ?? Timeout));
     }
 
+    [Theory]
+    [InlineData("0.9", 0.9f)]
+    [InlineData("0.05", 0.05f)]
+    [InlineData("none", null)]
+    public async Task TheWorkersWordConfidence_ReachesTheTranscriptWords(string setting, float? expected)
+    {
+        // #58: --serve sends a confidence per word; an older worker sends none and the words stay unknown (never uncertain).
+        Configure("mode=normal", "segments=2", "confidence=" + setting);
+        await using var client = CreateClient(threads: 1);
+        var wav = TestWav.Silence(_dir.File("mic.wav"), TimeSpan.FromSeconds(2));
+
+        var segments = new List<TranscriptSegment>();
+        await foreach (var s in client.TranscribeAsync(new AsrRequest(wav, Speaker.Me), null, CancellationToken.None))
+        {
+            segments.Add(s);
+        }
+
+        Assert.Equal(2, segments.Count);
+        Assert.All(segments, s => Assert.Null(s.Words[0].Confidence));
+        Assert.All(segments, s => Assert.Equal(expected, s.Words[1].Confidence));
+        Assert.All(segments, s => Assert.Equal(expected is < TranscriptWord.UncertainThreshold, s.Words[1].IsUncertain));
+    }
+
     private void Configure(params string[] lines) => File.WriteAllLines(Path.Combine(_models.ParakeetDirectory, "fake-worker.ini"), lines);
 
     private string[] Log() => File.Exists(WorkerLog) ? File.ReadAllLines(WorkerLog) : [];

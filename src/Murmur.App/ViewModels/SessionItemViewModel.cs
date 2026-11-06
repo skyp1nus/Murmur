@@ -39,7 +39,7 @@ public sealed partial class SessionItemViewModel : ObservableObject
     private SessionProcessingStatus? _live;
     private ImportItem? _import;
 
-    /// <param name="import">The import queue's entry of an imported session (<c>null</c> = none); see <see cref="ApplyImport"/>.</param>
+    /// <param name="import">The import queue's entry of an imported session (<c>null</c> = none).</param>
     public SessionItemViewModel(
         SessionRecord record,
         TimeProvider time,
