@@ -271,6 +271,7 @@ public sealed partial class SessionViewModel : ObservableObject, IDisposable, IF
         await LoadTranscriptAsync().ConfigureAwait(true);
         await LoadSummaryAsync().ConfigureAwait(true);
         await LoadChaptersAsync().ConfigureAwait(true);
+        await LoadBookmarksAsync().ConfigureAwait(true);
     }
 
     /// <summary>Stops following the player and the pipeline and releases the player.</summary>
@@ -652,6 +653,7 @@ public sealed partial class SessionViewModel : ObservableObject, IDisposable, IF
         Meta = BuildMeta(transcript);
         ApplyTrackFilters();
         ApplySearch();
+        ApplyBookmarkMarks();
         if (rows.Length == 0)
         {
             SetStatus(TranscriptStatus.Empty, Strings.Session_NoSpeechTitle, Strings.Session_NoSpeechText, Strings.Session_TryAgain);
@@ -825,6 +827,10 @@ public sealed partial class SessionViewModel : ObservableObject, IDisposable, IF
         DurationText = UiFormat.Clock(value);
         Meta = BuildMeta(_transcript);
         OnPropertyChanged(nameof(PositionFraction));
+        if (_bookmarkRows.Length > 0)
+        {
+            RebuildBookmarkFlags();
+        }
     }
 
     partial void OnStatusChanged(TranscriptStatus value)

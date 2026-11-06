@@ -219,6 +219,7 @@ internal sealed class CompositionRoot : IDisposable
             Calls: _calls ??= new CallDetector(_audioSessions, TimeProvider.System),
             SpeakerNames: storage,
             Activity: activityFeed,
+            BookmarkStore: storage,
             Vocabulary: storage);
     }
 
