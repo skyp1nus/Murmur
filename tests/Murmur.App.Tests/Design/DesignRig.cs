@@ -192,6 +192,8 @@ internal sealed class DesignRig : IDisposable
             // Nor the "Follow along" switch of Idea4Transcript (#56), and with it off the board has no word chip and no auto-scroll.
             ShowFollowAlong = false,
             FollowAlong = false,
+            // Nor the keyboard shortcuts bar of Idea4Transcript (#61): an explicit switch, no ignore rectangle.
+            ShowShortcuts = false,
         };
     }
 

@@ -14,10 +14,6 @@
     starts with "session", so none of them collides with the shared styles).
   -->
 
-  <UserControl.KeyBindings>
-    <KeyBinding Gesture="Escape" Command="{Binding BackCommand}" />
-  </UserControl.KeyBindings>
-
   <UserControl.Resources>
     <ResourceDictionary>
       <!-- Layout of the canvas page: 960 wide at most, columns of 380 and 420 that wrap below 820. -->
@@ -26,6 +22,7 @@
       <x:Double x:Key="Session.RightBasis">420</x:Double>
       <x:Double x:Key="Session.MinRightHeight">520</x:Double>
       <Thickness x:Key="Session.PagePadding">24,16,24,32</Thickness>
+      <Thickness x:Key="Session.ShortcutsMargin">0,8,0,0</Thickness>
 
       <!-- Component sizes. -->
       <x:Double x:Key="Session.Avatar">24</x:Double>
@@ -489,551 +486,559 @@
     </Style>
   </UserControl.Styles>
 
-  <ScrollViewer x:Name="PageScroller"
-                HorizontalScrollBarVisibility="Disabled"
-                VerticalScrollBarVisibility="Auto">
-    <Border MaxWidth="{StaticResource Session.PageMaxWidth}"
-            Padding="{StaticResource Session.PagePadding}"
-            HorizontalAlignment="Stretch"
-            VerticalAlignment="Top">
-      <controls:SessionPagePanel x:Name="Page"
-                                 ColumnSpacing="{StaticResource Space.20}"
-                                 RowSpacing="{StaticResource Space.20}"
-                                 LeftBasis="{StaticResource Session.LeftBasis}"
-                                 RightBasis="{StaticResource Session.RightBasis}"
-                                 MinRightHeight="{StaticResource Session.MinRightHeight}">
+  <Grid RowDefinitions="*,Auto">
+    <ScrollViewer x:Name="PageScroller"
+                  Grid.Row="0"
+                  HorizontalScrollBarVisibility="Disabled"
+                  VerticalScrollBarVisibility="Auto">
+      <Border MaxWidth="{StaticResource Session.PageMaxWidth}"
+              Padding="{StaticResource Session.PagePadding}"
+              HorizontalAlignment="Stretch"
+              VerticalAlignment="Top">
+        <controls:SessionPagePanel x:Name="Page"
+                                   ColumnSpacing="{StaticResource Space.20}"
+                                   RowSpacing="{StaticResource Space.20}"
+                                   LeftBasis="{StaticResource Session.LeftBasis}"
+                                   RightBasis="{StaticResource Session.RightBasis}"
+                                   MinRightHeight="{StaticResource Session.MinRightHeight}">
 
-        <!-- Title and the facts under it -->
-        <StackPanel Spacing="{StaticResource Space.6}">
-          <TextBlock Classes="sessionTitle"
-                     TextTrimming="CharacterEllipsis"
-                     Text="{Binding Title}" />
-          <!-- parity-only: the canvas packs the fractional-width runs of this line without rounding; layout rounding widens each run and "Parakeet TDT v3" lands 2.3 px right. -->
-          <ItemsControl Classes="sessionMetaList"
-                        UseLayoutRounding="False"
-                        ItemsSource="{Binding Meta}">
-            <ItemsControl.ItemsPanel>
-              <ItemsPanelTemplate>
-                <WrapPanel ItemSpacing="{StaticResource Space.6}" />
-              </ItemsPanelTemplate>
-            </ItemsControl.ItemsPanel>
-            <ItemsControl.ItemTemplate>
-              <DataTemplate x:DataType="vm:MetaPart">
-                <TextBlock Classes="sessionMeta"
-                           Classes.mono="{Binding IsMono}"
-                           Classes.dot="{Binding IsSeparator}"
-                           Text="{Binding Text}" />
-              </DataTemplate>
-            </ItemsControl.ItemTemplate>
-          </ItemsControl>
-          <TextBlock Classes="sessionNote"
-                     IsVisible="{Binding HasActionMessage}"
-                     Text="{Binding ActionMessage}" />
-          <!-- Chapters of a long recording; hidden (no space) while there are none. -->
-          <views:ChapterStripView Margin="{StaticResource Session.ChapterMargin}"
-                                  IsVisible="{Binding HasChapters}" />
-        </StackPanel>
-
-        <!-- Left: the video and the player -->
-        <StackPanel Spacing="{StaticResource Space.12}">
-          <Border x:Name="VideoPanel"
-                  Classes="videoPanel"
-                  IsVisible="{Binding HasVideo}">
-            <controls:AspectRatioBox>
-              <Panel>
-                <controls:VideoSurface x:Name="Video"
-                                       Player="{Binding VideoPlayer}"
-                                       Active="{Binding IsVideoOpen}"
-                                       Revision="{Binding VideoRevision}" />
-                <StackPanel x:Name="VideoPlaceholder"
-                            HorizontalAlignment="Center"
-                            VerticalAlignment="Center"
-                            Spacing="{StaticResource Space.8}"
-                            IsVisible="{Binding ShowVideoPlaceholder}">
-                  <controls:IconControl Width="{StaticResource Session.VideoIcon}"
-                                        Height="{StaticResource Session.VideoIcon}"
-                                        HorizontalAlignment="Center"
-                                        Stroke="{StaticResource Session.VideoIconStroke}"
-                                        TextElement.Foreground="{DynamicResource Brush.Smoke}"
-                                        Data="{StaticResource Icon.Screen}" />
-                  <TextBlock Classes="sessionLabel"
-                             HorizontalAlignment="Center"
-                             TextAlignment="Center"
-                             TextWrapping="Wrap"
-                             Text="{Binding VideoPlaceholderText}" />
-                </StackPanel>
-                <Panel x:Name="VideoChip"
-                       Classes="videoChip"
-                       IsVisible="{Binding IsVideoOpen}">
-                  <Border Classes="videoChipBackground" />
-                  <TextBlock Classes="sessionChipText videoChipText"
-                             Text="{Binding VideoInfoText}" />
-                </Panel>
-              </Panel>
-            </controls:AspectRatioBox>
-          </Border>
-
-          <Border Classes="sessionPlayer">
-            <StackPanel Spacing="{StaticResource Space.12}">
-              <!-- Bookmark flags (#59): a band over the waveform, there only while the recording has bookmarks. -->
-              <controls:BookmarkFlagsControl x:Name="BookmarkFlags"
-                                             IsVisible="{Binding HasBookmarks}"
-                                             Flags="{Binding BookmarkFlags}" />
-              <controls:WaveformControl x:Name="Waveform"
-                                        Height="{StaticResource Session.WaveformHeight}"
-                                        Margin="{StaticResource Session.WaveformMargin}"
-                                        Peaks="{Binding Peaks}"
-                                        Fraction="{Binding PositionFraction}" />
-              <Grid ColumnDefinitions="Auto,*,Auto"
-                    ColumnSpacing="{StaticResource Space.10}">
-                <Button Grid.Column="0"
-                        Classes="sessionPlay"
-                        AutomationProperties.Name="{Binding PlayPauseLabel}"
-                        IsEnabled="{Binding CanPlay}"
-                        Command="{Binding PlayPauseCommand}">
-                  <Viewbox Width="{StaticResource Session.PlayIcon}"
-                           Height="{StaticResource Session.PlayIcon}">
-                    <Canvas Width="24" Height="24">
-                      <Path Data="{StaticResource Session.PlayGlyph}"
-                            Fill="{Binding $parent[Button].Foreground}"
-                            IsVisible="{Binding !IsPlaying}" />
-                      <Path Data="{StaticResource Session.PauseGlyph}"
-                            Fill="{Binding $parent[Button].Foreground}"
-                            IsVisible="{Binding IsPlaying}" />
-                    </Canvas>
-                  </Viewbox>
-                </Button>
-                <TextBlock Grid.Column="1"
-                           Classes="sessionMeta mono"
-                           VerticalAlignment="Center"
-                           Foreground="{DynamicResource Brush.Ink}">
-                  <Run Text="{Binding PositionText, StringFormat='{}{0} '}" /><Run Text="{Binding DurationText, StringFormat='/ {0}'}" Foreground="{DynamicResource Brush.Smoke}" />
-                </TextBlock>
-                <!--
-                  The canvas gap is 4 px. The pills are 43.78, 60.67 and 35.2 px wide in the canvas; layout rounding rounds each of them (and its text)
-                  up to whole pixels, which makes the group about 2 px wider than the canvas's. There is no margin or border to remove, so the gap
-                  gives the 2 px back: the group ends where the canvas's does (fitted at 100 % scale).
-                -->
-                <StackPanel Grid.Column="2"
-                            Orientation="Horizontal"
-                            Spacing="{StaticResource Space.2}">
-                  <ToggleButton Classes="sessionPill filter"
-                                IsEnabled="{Binding CanMuteTracks}"
-                                IsChecked="{Binding YouOn, Mode=TwoWay}"
-                                ToolTip.Tip="{x:Static res:Strings.Session_YouTip}">
-                    <TextBlock Classes="sessionSmallText"
-                               Text="{x:Static res:Strings.Segment_Me}" />
-                  </ToggleButton>
-                  <ToggleButton Classes="sessionPill filter"
-                                IsEnabled="{Binding CanMuteTracks}"
-                                IsChecked="{Binding OthersOn, Mode=TwoWay}"
-                                ToolTip.Tip="{x:Static res:Strings.Session_OthersTip}">
-                    <TextBlock Classes="sessionSmallText"
-                               Text="{x:Static res:Strings.Segment_Others}" />
-                  </ToggleButton>
-                  <Button Classes="sessionPill"
-                          Command="{Binding CycleSpeedCommand}"
-                          ToolTip.Tip="{x:Static res:Strings.Session_SpeedTip}">
-                    <TextBlock Classes="sessionSmallText mono"
-                               LetterSpacing="0"
-                               Text="{Binding SpeedText}" />
-                  </Button>
-                </StackPanel>
-              </Grid>
-              <TextBlock Classes="sessionNote"
-                         IsVisible="{Binding HasPlayerError}"
-                         Text="{Binding PlayerError}" />
-            </StackPanel>
-          </Border>
-
-          <!-- Bookmarks (#59): hidden, with no space, when the recording has no bookmark store (the design demo). -->
-          <views:BookmarksCardView IsVisible="{Binding ShowBookmarksCard}" />
-        </StackPanel>
-
-        <!-- Right: the tabs and what they show -->
-        <Grid RowDefinitions="Auto,*"
-              RowSpacing="{StaticResource Space.12}">
-          <StackPanel Grid.Row="0"
-                      Orientation="Horizontal"
-                      Spacing="{StaticResource Space.4}">
-            <ToggleButton Classes="sessionPill tab"
-                          IsChecked="{Binding IsTranscriptTab, Mode=TwoWay}">
-              <StackPanel Orientation="Horizontal"
-                          Spacing="{StaticResource Space.6}">
-                <Ellipse Classes="sessionDot"
-                         IsVisible="{Binding $parent[ToggleButton].IsChecked}" />
-                <TextBlock Classes="sessionTabText"
-                           Text="{x:Static res:Strings.Session_TabTranscript}" />
-              </StackPanel>
-            </ToggleButton>
-            <ToggleButton Classes="sessionPill tab"
-                          IsChecked="{Binding IsSummaryTab, Mode=TwoWay}">
-              <StackPanel Orientation="Horizontal"
-                          Spacing="{StaticResource Space.6}">
-                <Ellipse Classes="sessionDot"
-                         IsVisible="{Binding $parent[ToggleButton].IsChecked}" />
-                <TextBlock Classes="sessionTabText"
-                           Text="{x:Static res:Strings.Session_TabSummary}" />
-              </StackPanel>
-            </ToggleButton>
-            <ToggleButton Classes="sessionPill tab"
-                          IsChecked="{Binding IsAskTab, Mode=TwoWay}">
-              <StackPanel Orientation="Horizontal"
-                          Spacing="{StaticResource Space.6}">
-                <Ellipse Classes="sessionDot"
-                         IsVisible="{Binding $parent[ToggleButton].IsChecked}" />
-                <controls:IconControl Width="{StaticResource Session.TabIcon}"
-                                      Height="{StaticResource Session.TabIcon}"
-                                      Data="{StaticResource Icon.Ai}" />
-                <TextBlock Classes="sessionTabText"
-                           LetterSpacing="{StaticResource LetterSpacing.Small}"
-                           Text="{x:Static res:Strings.Common_AskAi}" />
-              </StackPanel>
-            </ToggleButton>
+          <!-- Title and the facts under it -->
+          <StackPanel Spacing="{StaticResource Space.6}">
+            <TextBlock Classes="sessionTitle"
+                       TextTrimming="CharacterEllipsis"
+                       Text="{Binding Title}" />
+            <!-- parity-only: the canvas packs the fractional-width runs of this line without rounding; layout rounding widens each run and "Parakeet TDT v3" lands 2.3 px right. -->
+            <ItemsControl Classes="sessionMetaList"
+                          UseLayoutRounding="False"
+                          ItemsSource="{Binding Meta}">
+              <ItemsControl.ItemsPanel>
+                <ItemsPanelTemplate>
+                  <WrapPanel ItemSpacing="{StaticResource Space.6}" />
+                </ItemsPanelTemplate>
+              </ItemsControl.ItemsPanel>
+              <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="vm:MetaPart">
+                  <TextBlock Classes="sessionMeta"
+                             Classes.mono="{Binding IsMono}"
+                             Classes.dot="{Binding IsSeparator}"
+                             Text="{Binding Text}" />
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+            <TextBlock Classes="sessionNote"
+                       IsVisible="{Binding HasActionMessage}"
+                       Text="{Binding ActionMessage}" />
+            <!-- Chapters of a long recording; hidden (no space) while there are none. -->
+            <views:ChapterStripView Margin="{StaticResource Session.ChapterMargin}"
+                                    IsVisible="{Binding HasChapters}" />
           </StackPanel>
 
-          <!-- Transcript: the search box, then the virtualised list of lines (or a card that says why there is none) -->
-          <Grid Grid.Row="1"
-                RowDefinitions="Auto,*"
-                RowSpacing="{StaticResource Space.8}"
-                IsVisible="{Binding IsTranscriptTab}">
-            <!-- The speaker chips (hidden, no space, while nothing can be renamed), then the search box. -->
-            <StackPanel Grid.Row="0"
-                        Spacing="{StaticResource Space.8}">
-              <!-- The header (Idea4Transcript.dc.html): the chips on the left, "Follow along" and its switch on the right. -->
-              <Grid ColumnDefinitions="*,Auto"
-                    ColumnSpacing="{StaticResource Space.10}">
-                <Grid.IsVisible>
-                  <MultiBinding Converter="{x:Static BoolConverters.Or}">
-                    <Binding Path="ShowSpeakerChips" />
-                    <Binding Path="ShowFollowAlongSwitch" />
-                  </MultiBinding>
-                </Grid.IsVisible>
-                <views:SpeakerChipsView Grid.Column="0"
-                                        IsVisible="{Binding ShowSpeakerChips}" />
-                <StackPanel Grid.Column="1"
-                            Orientation="Horizontal"
-                            Spacing="{StaticResource Space.6}"
-                            VerticalAlignment="Center"
-                            IsVisible="{Binding ShowFollowAlongSwitch}">
-                  <TextBlock Classes="followAlongLabel"
-                             Text="{x:Static res:Strings.Session_FollowAlong}" />
-                  <ToggleButton x:Name="FollowAlongSwitch"
-                                Classes="switch"
-                                AutomationProperties.Name="{x:Static res:Strings.Session_FollowAlong}"
-                                IsChecked="{Binding FollowAlong, Mode=TwoWay}" />
-                </StackPanel>
-              </Grid>
-              <Border Classes="searchBox"
-                      IsVisible="{Binding ShowTranscriptList}">
-                <Grid ColumnDefinitions="Auto,*"
-                      ColumnSpacing="{StaticResource Space.8}">
-                  <controls:IconControl Grid.Column="0"
-                                        Width="{StaticResource Size.SearchIcon}"
-                                        Height="{StaticResource Size.SearchIcon}"
-                                        TextElement.Foreground="{DynamicResource Brush.Smoke}"
-                                        Data="{StaticResource Icon.Search}" />
-                  <TextBox x:Name="SearchBox"
-                           Grid.Column="1"
-                           Classes="bare"
-                           AutomationProperties.Name="{x:Static res:Strings.Session_SearchPlaceholder}"
-                           PlaceholderText="{x:Static res:Strings.Session_SearchPlaceholder}"
-                           Text="{Binding SearchText, Mode=TwoWay}">
-                    <TextBox.KeyBindings>
-                      <KeyBinding Gesture="Enter" Command="{Binding NextHitCommand}" />
-                      <KeyBinding Gesture="Shift+Enter" Command="{Binding PreviousHitCommand}" />
-                    </TextBox.KeyBindings>
-                  </TextBox>
+          <!-- Left: the video and the player -->
+          <StackPanel Spacing="{StaticResource Space.12}">
+            <Border x:Name="VideoPanel"
+                    Classes="videoPanel"
+                    IsVisible="{Binding HasVideo}">
+              <controls:AspectRatioBox>
+                <Panel>
+                  <controls:VideoSurface x:Name="Video"
+                                         Player="{Binding VideoPlayer}"
+                                         Active="{Binding IsVideoOpen}"
+                                         Revision="{Binding VideoRevision}" />
+                  <StackPanel x:Name="VideoPlaceholder"
+                              HorizontalAlignment="Center"
+                              VerticalAlignment="Center"
+                              Spacing="{StaticResource Space.8}"
+                              IsVisible="{Binding ShowVideoPlaceholder}">
+                    <controls:IconControl Width="{StaticResource Session.VideoIcon}"
+                                          Height="{StaticResource Session.VideoIcon}"
+                                          HorizontalAlignment="Center"
+                                          Stroke="{StaticResource Session.VideoIconStroke}"
+                                          TextElement.Foreground="{DynamicResource Brush.Smoke}"
+                                          Data="{StaticResource Icon.Screen}" />
+                    <TextBlock Classes="sessionLabel"
+                               HorizontalAlignment="Center"
+                               TextAlignment="Center"
+                               TextWrapping="Wrap"
+                               Text="{Binding VideoPlaceholderText}" />
+                  </StackPanel>
+                  <Panel x:Name="VideoChip"
+                         Classes="videoChip"
+                         IsVisible="{Binding IsVideoOpen}">
+                    <Border Classes="videoChipBackground" />
+                    <TextBlock Classes="sessionChipText videoChipText"
+                               Text="{Binding VideoInfoText}" />
+                  </Panel>
+                </Panel>
+              </controls:AspectRatioBox>
+            </Border>
+
+            <Border Classes="sessionPlayer">
+              <StackPanel Spacing="{StaticResource Space.12}">
+                <!-- Bookmark flags (#59): a band over the waveform, there only while the recording has bookmarks. -->
+                <controls:BookmarkFlagsControl x:Name="BookmarkFlags"
+                                               IsVisible="{Binding HasBookmarks}"
+                                               Flags="{Binding BookmarkFlags}" />
+                <controls:WaveformControl x:Name="Waveform"
+                                          Height="{StaticResource Session.WaveformHeight}"
+                                          Margin="{StaticResource Session.WaveformMargin}"
+                                          Peaks="{Binding Peaks}"
+                                          Fraction="{Binding PositionFraction}" />
+                <Grid ColumnDefinitions="Auto,*,Auto"
+                      ColumnSpacing="{StaticResource Space.10}">
+                  <Button Grid.Column="0"
+                          Classes="sessionPlay"
+                          AutomationProperties.Name="{Binding PlayPauseLabel}"
+                          IsEnabled="{Binding CanPlay}"
+                          Command="{Binding PlayPauseCommand}">
+                    <Viewbox Width="{StaticResource Session.PlayIcon}"
+                             Height="{StaticResource Session.PlayIcon}">
+                      <Canvas Width="24" Height="24">
+                        <Path Data="{StaticResource Session.PlayGlyph}"
+                              Fill="{Binding $parent[Button].Foreground}"
+                              IsVisible="{Binding !IsPlaying}" />
+                        <Path Data="{StaticResource Session.PauseGlyph}"
+                              Fill="{Binding $parent[Button].Foreground}"
+                              IsVisible="{Binding IsPlaying}" />
+                      </Canvas>
+                    </Viewbox>
+                  </Button>
+                  <TextBlock Grid.Column="1"
+                             Classes="sessionMeta mono"
+                             VerticalAlignment="Center"
+                             Foreground="{DynamicResource Brush.Ink}">
+                    <Run Text="{Binding PositionText, StringFormat='{}{0} '}" /><Run Text="{Binding DurationText, StringFormat='/ {0}'}" Foreground="{DynamicResource Brush.Smoke}" />
+                  </TextBlock>
+                  <!--
+                    The canvas gap is 4 px. The pills are 43.78, 60.67 and 35.2 px wide in the canvas; layout rounding rounds each of them (and its text)
+                    up to whole pixels, which makes the group about 2 px wider than the canvas's. There is no margin or border to remove, so the gap
+                    gives the 2 px back: the group ends where the canvas's does (fitted at 100 % scale).
+                  -->
+                  <StackPanel Grid.Column="2"
+                              Orientation="Horizontal"
+                              Spacing="{StaticResource Space.2}">
+                    <ToggleButton Classes="sessionPill filter"
+                                  IsEnabled="{Binding CanMuteTracks}"
+                                  IsChecked="{Binding YouOn, Mode=TwoWay}"
+                                  ToolTip.Tip="{x:Static res:Strings.Session_YouTip}">
+                      <TextBlock Classes="sessionSmallText"
+                                 Text="{x:Static res:Strings.Segment_Me}" />
+                    </ToggleButton>
+                    <ToggleButton Classes="sessionPill filter"
+                                  IsEnabled="{Binding CanMuteTracks}"
+                                  IsChecked="{Binding OthersOn, Mode=TwoWay}"
+                                  ToolTip.Tip="{x:Static res:Strings.Session_OthersTip}">
+                      <TextBlock Classes="sessionSmallText"
+                                 Text="{x:Static res:Strings.Segment_Others}" />
+                    </ToggleButton>
+                    <Button Classes="sessionPill"
+                            Command="{Binding CycleSpeedCommand}"
+                            ToolTip.Tip="{x:Static res:Strings.Session_SpeedTip}">
+                      <TextBlock Classes="sessionSmallText mono"
+                                 LetterSpacing="0"
+                                 Text="{Binding SpeedText}" />
+                    </Button>
+                  </StackPanel>
                 </Grid>
-              </Border>
+                <TextBlock Classes="sessionNote"
+                           IsVisible="{Binding HasPlayerError}"
+                           Text="{Binding PlayerError}" />
+              </StackPanel>
+            </Border>
+
+            <!-- Bookmarks (#59): hidden, with no space, when the recording has no bookmark store (the design demo). -->
+            <views:BookmarksCardView IsVisible="{Binding ShowBookmarksCard}" />
+          </StackPanel>
+
+          <!-- Right: the tabs and what they show -->
+          <Grid RowDefinitions="Auto,*"
+                RowSpacing="{StaticResource Space.12}">
+            <StackPanel Grid.Row="0"
+                        Orientation="Horizontal"
+                        Spacing="{StaticResource Space.4}">
+              <ToggleButton Classes="sessionPill tab"
+                            IsChecked="{Binding IsTranscriptTab, Mode=TwoWay}">
+                <StackPanel Orientation="Horizontal"
+                            Spacing="{StaticResource Space.6}">
+                  <Ellipse Classes="sessionDot"
+                           IsVisible="{Binding $parent[ToggleButton].IsChecked}" />
+                  <TextBlock Classes="sessionTabText"
+                             Text="{x:Static res:Strings.Session_TabTranscript}" />
+                </StackPanel>
+              </ToggleButton>
+              <ToggleButton Classes="sessionPill tab"
+                            IsChecked="{Binding IsSummaryTab, Mode=TwoWay}">
+                <StackPanel Orientation="Horizontal"
+                            Spacing="{StaticResource Space.6}">
+                  <Ellipse Classes="sessionDot"
+                           IsVisible="{Binding $parent[ToggleButton].IsChecked}" />
+                  <TextBlock Classes="sessionTabText"
+                             Text="{x:Static res:Strings.Session_TabSummary}" />
+                </StackPanel>
+              </ToggleButton>
+              <ToggleButton Classes="sessionPill tab"
+                            IsChecked="{Binding IsAskTab, Mode=TwoWay}">
+                <StackPanel Orientation="Horizontal"
+                            Spacing="{StaticResource Space.6}">
+                  <Ellipse Classes="sessionDot"
+                           IsVisible="{Binding $parent[ToggleButton].IsChecked}" />
+                  <controls:IconControl Width="{StaticResource Session.TabIcon}"
+                                        Height="{StaticResource Session.TabIcon}"
+                                        Data="{StaticResource Icon.Ai}" />
+                  <TextBlock Classes="sessionTabText"
+                             LetterSpacing="{StaticResource LetterSpacing.Small}"
+                             Text="{x:Static res:Strings.Common_AskAi}" />
+                </StackPanel>
+              </ToggleButton>
             </StackPanel>
 
-            <ScrollViewer x:Name="TranscriptScroller"
-                          Grid.Row="1"
-                          Margin="{StaticResource Session.TranscriptShift}"
+            <!-- Transcript: the search box, then the virtualised list of lines (or a card that says why there is none) -->
+            <Grid Grid.Row="1"
+                  RowDefinitions="Auto,*"
+                  RowSpacing="{StaticResource Space.8}"
+                  IsVisible="{Binding IsTranscriptTab}">
+              <!-- The speaker chips (hidden, no space, while nothing can be renamed), then the search box. -->
+              <StackPanel Grid.Row="0"
+                          Spacing="{StaticResource Space.8}">
+                <!-- The header (Idea4Transcript.dc.html): the chips on the left, "Follow along" and its switch on the right. -->
+                <Grid ColumnDefinitions="*,Auto"
+                      ColumnSpacing="{StaticResource Space.10}">
+                  <Grid.IsVisible>
+                    <MultiBinding Converter="{x:Static BoolConverters.Or}">
+                      <Binding Path="ShowSpeakerChips" />
+                      <Binding Path="ShowFollowAlongSwitch" />
+                    </MultiBinding>
+                  </Grid.IsVisible>
+                  <views:SpeakerChipsView Grid.Column="0"
+                                          IsVisible="{Binding ShowSpeakerChips}" />
+                  <StackPanel Grid.Column="1"
+                              Orientation="Horizontal"
+                              Spacing="{StaticResource Space.6}"
+                              VerticalAlignment="Center"
+                              IsVisible="{Binding ShowFollowAlongSwitch}">
+                    <TextBlock Classes="followAlongLabel"
+                               Text="{x:Static res:Strings.Session_FollowAlong}" />
+                    <ToggleButton x:Name="FollowAlongSwitch"
+                                  Classes="switch"
+                                  AutomationProperties.Name="{x:Static res:Strings.Session_FollowAlong}"
+                                  IsChecked="{Binding FollowAlong, Mode=TwoWay}" />
+                  </StackPanel>
+                </Grid>
+                <Border Classes="searchBox"
+                        IsVisible="{Binding ShowTranscriptList}">
+                  <Grid ColumnDefinitions="Auto,*"
+                        ColumnSpacing="{StaticResource Space.8}">
+                    <controls:IconControl Grid.Column="0"
+                                          Width="{StaticResource Size.SearchIcon}"
+                                          Height="{StaticResource Size.SearchIcon}"
+                                          TextElement.Foreground="{DynamicResource Brush.Smoke}"
+                                          Data="{StaticResource Icon.Search}" />
+                    <TextBox x:Name="SearchBox"
+                             Grid.Column="1"
+                             Classes="bare"
+                             AutomationProperties.Name="{x:Static res:Strings.Session_SearchPlaceholder}"
+                             PlaceholderText="{x:Static res:Strings.Session_SearchPlaceholder}"
+                             Text="{Binding SearchText, Mode=TwoWay}">
+                      <TextBox.KeyBindings>
+                        <KeyBinding Gesture="Enter" Command="{Binding NextHitCommand}" />
+                        <KeyBinding Gesture="Shift+Enter" Command="{Binding PreviousHitCommand}" />
+                      </TextBox.KeyBindings>
+                    </TextBox>
+                  </Grid>
+                </Border>
+              </StackPanel>
+
+              <ScrollViewer x:Name="TranscriptScroller"
+                            Grid.Row="1"
+                            Margin="{StaticResource Session.TranscriptShift}"
+                            HorizontalScrollBarVisibility="Disabled"
+                            VerticalScrollBarVisibility="Auto"
+                            IsVisible="{Binding ShowTranscriptList}">
+                <ItemsControl x:Name="Transcript"
+                              ItemsSource="{Binding Segments}">
+                  <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                      <VirtualizingStackPanel />
+                    </ItemsPanelTemplate>
+                  </ItemsControl.ItemsPanel>
+                  <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="vm:SegmentViewModel">
+                      <!-- A row of the list: the line and, under it, the bookmark pills of its span (#59); a pill is a row of its own, so no word moves. -->
+                      <StackPanel>
+                        <ItemsControl IsVisible="{Binding HasMarksBefore}"
+                                      ItemsSource="{Binding MarksBefore}">
+                          <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="vm:BookmarkViewModel">
+                              <views:BookmarkPillView />
+                            </DataTemplate>
+                          </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                        <Button Classes="sessionRow"
+                                Classes.current="{Binding IsCurrent}"
+                                Classes.dimmed="{Binding IsDimmed}"
+                                Command="{Binding SeekCommand}">
+                          <Grid ColumnDefinitions="Auto,*"
+                                ColumnSpacing="{StaticResource Space.10}">
+                            <Border Grid.Column="0"
+                                    Classes="sessionAvatar"
+                                    Classes.me="{Binding IsMe}"
+                                    VerticalAlignment="Top">
+                              <TextBlock Classes="sessionAvatarText"
+                                         Text="{Binding Initial}" />
+                            </Border>
+                            <StackPanel Grid.Column="1"
+                                        Spacing="{StaticResource Space.2}">
+                              <StackPanel Orientation="Horizontal"
+                                          Spacing="{StaticResource Space.8}">
+                                <TextBlock Classes="sessionName"
+                                           VerticalAlignment="Center"
+                                           Text="{Binding SpeakerLabel}" />
+                                <Button Classes="sessionTime"
+                                        Command="{Binding SeekCommand}">
+                                  <TextBlock Classes="sessionTime"
+                                             Text="{Binding TimeText}" />
+                                </Button>
+                              </StackPanel>
+                              <controls:TranscriptTextControl Classes="sessionText"
+                                                              Text="{Binding Text}"
+                                                              WordStarts="{Binding WordStarts}"
+                                                              WordLengths="{Binding WordLengths}"
+                                                              ActiveWord="{Binding VisibleWord}"
+                                                              HighlightTerm="{Binding HighlightTerm}"
+                                                              Command="{Binding SeekWordCommand}" />
+                            </StackPanel>
+                          </Grid>
+                        </Button>
+                        <ItemsControl IsVisible="{Binding HasMarksAfter}"
+                                      ItemsSource="{Binding MarksAfter}">
+                          <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="vm:BookmarkViewModel">
+                              <views:BookmarkPillView />
+                            </DataTemplate>
+                          </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                      </StackPanel>
+                    </DataTemplate>
+                  </ItemsControl.ItemTemplate>
+                </ItemsControl>
+              </ScrollViewer>
+
+              <!-- State card: loading, progress, install hint, error, empty -->
+              <Border Grid.Row="0"
+                      Grid.RowSpan="2"
+                      Classes="card"
+                      Width="{StaticResource Session.StatusWidth}"
+                      HorizontalAlignment="Center"
+                      VerticalAlignment="Center"
+                      IsVisible="{Binding ShowStatusCard}">
+                <StackPanel Spacing="{StaticResource Space.16}">
+                  <TextBlock Classes="subheading"
+                             FontWeight="{StaticResource FontWeight.BodyMedium}"
+                             TextWrapping="Wrap"
+                             Text="{Binding StatusTitle}" />
+                  <TextBlock Classes="body"
+                             TextWrapping="Wrap"
+                             Foreground="{DynamicResource Brush.Graphite}"
+                             Text="{Binding StatusText}" />
+                  <ProgressBar Minimum="0"
+                               Maximum="100"
+                               Value="{Binding ProgressValue}"
+                               IsVisible="{Binding ShowProgress}" />
+                  <TextBlock Classes="mono"
+                             Foreground="{DynamicResource Brush.Smoke}"
+                             IsVisible="{Binding ShowProgress}"
+                             Text="{Binding ProgressText}" />
+                  <Button Classes="primary"
+                          HorizontalAlignment="Left"
+                          Content="{Binding RetryLabel}"
+                          IsVisible="{Binding CanRetry}"
+                          Command="{Binding RetryCommand}" />
+                </StackPanel>
+              </Border>
+            </Grid>
+
+            <!-- Summary: the empty state, progress, the three cards, or why it failed -->
+            <ScrollViewer Grid.Row="1"
                           HorizontalScrollBarVisibility="Disabled"
                           VerticalScrollBarVisibility="Auto"
-                          IsVisible="{Binding ShowTranscriptList}">
-              <ItemsControl x:Name="Transcript"
-                            ItemsSource="{Binding Segments}">
-                <ItemsControl.ItemsPanel>
-                  <ItemsPanelTemplate>
-                    <VirtualizingStackPanel />
-                  </ItemsPanelTemplate>
-                </ItemsControl.ItemsPanel>
-                <ItemsControl.ItemTemplate>
-                  <DataTemplate x:DataType="vm:SegmentViewModel">
-                    <!-- A row of the list: the line and, under it, the bookmark pills of its span (#59); a pill is a row of its own, so no word moves. -->
-                    <StackPanel>
-                      <ItemsControl IsVisible="{Binding HasMarksBefore}"
-                                    ItemsSource="{Binding MarksBefore}">
+                          IsVisible="{Binding IsSummaryTab}">
+              <StackPanel Spacing="{StaticResource Space.12}">
+
+                <Border Classes="sessionSurface"
+                        IsVisible="{Binding ShowSummaryEmpty}">
+                  <StackPanel Spacing="{StaticResource Space.10}">
+                    <TextBlock Classes="sessionCardTitle"
+                               Text="{x:Static res:Strings.Session_SummaryEmptyTitle}" />
+                    <TextBlock Classes="sessionNote"
+                               Text="{x:Static res:Strings.Session_SummaryEmptyText}" />
+                    <TextBlock Classes="sessionNote"
+                               Foreground="{DynamicResource Brush.Graphite}"
+                               IsVisible="{Binding HasSummaryNotice}"
+                               Text="{Binding SummaryNotice}" />
+                    <StackPanel Orientation="Horizontal"
+                                Spacing="{StaticResource Space.8}">
+                      <Button Classes="primary compact"
+                              HorizontalAlignment="Left"
+                              Content="{x:Static res:Strings.Session_SummarySummarize}"
+                              IsEnabled="{Binding CanSummarize}"
+                              Command="{Binding SummarizeCommand}" />
+                      <Button Classes="outline compact"
+                              Content="{x:Static res:Strings.Chat_CheckAgain}"
+                              IsVisible="{Binding SummaryNeedsModels}"
+                              Command="{Binding Chat.RefreshAvailabilityCommand}" />
+                    </StackPanel>
+                  </StackPanel>
+                </Border>
+
+                <Border Classes="sessionSurface"
+                        IsVisible="{Binding ShowSummaryWorking}">
+                  <StackPanel Spacing="{StaticResource Space.10}">
+                    <TextBlock Classes="sessionCardTitle"
+                               Text="{x:Static res:Strings.Session_SummaryWorking}" />
+                    <TextBlock Classes="sessionNote"
+                               Text="{x:Static res:Strings.Session_SummaryWorkingText}" />
+                    <ProgressBar Minimum="0"
+                                 Maximum="100"
+                                 Value="{Binding SummaryProgress}" />
+                    <Grid ColumnDefinitions="*,Auto">
+                      <TextBlock Grid.Column="0"
+                                 Classes="sessionMeta mono"
+                                 VerticalAlignment="Center"
+                                 Text="{Binding SummaryProgressText}" />
+                      <Button Grid.Column="1"
+                              Classes="outline compact"
+                              Content="{x:Static res:Strings.Common_Stop}"
+                              Command="{Binding CancelSummaryRunCommand}" />
+                    </Grid>
+                  </StackPanel>
+                </Border>
+
+                <Border Classes="sessionSurface"
+                        IsVisible="{Binding ShowSummaryFailed}">
+                  <StackPanel Spacing="{StaticResource Space.10}">
+                    <TextBlock Classes="sessionCardTitle"
+                               Text="{x:Static res:Strings.Session_SummaryFailedTitle}" />
+                    <TextBlock Classes="sessionNote"
+                               Foreground="{DynamicResource Brush.Graphite}"
+                               Text="{Binding SummaryError}" />
+                    <Button Classes="primary compact"
+                            HorizontalAlignment="Left"
+                            Content="{x:Static res:Strings.Session_TryAgain}"
+                            IsEnabled="{Binding CanSummarize}"
+                            Command="{Binding SummarizeCommand}" />
+                  </StackPanel>
+                </Border>
+
+                <StackPanel Spacing="{StaticResource Space.12}"
+                            IsVisible="{Binding ShowSummaryReady}">
+                  <Border Classes="sessionSurface">
+                    <StackPanel Spacing="{StaticResource Space.6}">
+                      <TextBlock Classes="sessionLabel"
+                                 Text="{x:Static res:Strings.Session_SummaryOverview}" />
+                      <TextBlock Classes="sessionOverview"
+                                 Text="{Binding SummaryOverview}" />
+                    </StackPanel>
+                  </Border>
+
+                  <Border Classes="sessionOutline"
+                          IsVisible="{Binding HasKeyPoints}">
+                    <StackPanel Spacing="{StaticResource Space.10}">
+                      <TextBlock Classes="sessionLabel"
+                                 Text="{x:Static res:Strings.Session_SummaryKeyPoints}" />
+                      <ItemsControl ItemsSource="{Binding KeyPoints}">
+                        <ItemsControl.ItemsPanel>
+                          <ItemsPanelTemplate>
+                            <StackPanel Spacing="{StaticResource Space.10}" />
+                          </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
                         <ItemsControl.ItemTemplate>
-                          <DataTemplate x:DataType="vm:BookmarkViewModel">
-                            <views:BookmarkPillView />
-                          </DataTemplate>
-                        </ItemsControl.ItemTemplate>
-                      </ItemsControl>
-                      <Button Classes="sessionRow"
-                              Classes.current="{Binding IsCurrent}"
-                              Classes.dimmed="{Binding IsDimmed}"
-                              Command="{Binding SeekCommand}">
-                        <Grid ColumnDefinitions="Auto,*"
-                              ColumnSpacing="{StaticResource Space.10}">
-                          <Border Grid.Column="0"
-                                  Classes="sessionAvatar"
-                                  Classes.me="{Binding IsMe}"
-                                  VerticalAlignment="Top">
-                            <TextBlock Classes="sessionAvatarText"
-                                       Text="{Binding Initial}" />
-                          </Border>
-                          <StackPanel Grid.Column="1"
-                                      Spacing="{StaticResource Space.2}">
-                            <StackPanel Orientation="Horizontal"
-                                        Spacing="{StaticResource Space.8}">
-                              <TextBlock Classes="sessionName"
-                                         VerticalAlignment="Center"
-                                         Text="{Binding SpeakerLabel}" />
-                              <Button Classes="sessionTime"
-                                      Command="{Binding SeekCommand}">
-                                <TextBlock Classes="sessionTime"
+                          <DataTemplate x:DataType="vm:SummaryItemViewModel">
+                            <Grid ColumnDefinitions="*,Auto"
+                                  ColumnSpacing="{StaticResource Space.10}">
+                              <TextBlock Grid.Column="0"
+                                         Classes="sessionBody"
+                                         Text="{Binding Text}" />
+                              <Button Grid.Column="1"
+                                      Classes="sessionChip"
+                                      IsVisible="{Binding HasTime}"
+                                      Command="{Binding PlayCommand}">
+                                <TextBlock Classes="sessionChipText"
                                            Text="{Binding TimeText}" />
                               </Button>
-                            </StackPanel>
-                            <controls:TranscriptTextControl Classes="sessionText"
-                                                            Text="{Binding Text}"
-                                                            WordStarts="{Binding WordStarts}"
-                                                            WordLengths="{Binding WordLengths}"
-                                                            ActiveWord="{Binding VisibleWord}"
-                                                            HighlightTerm="{Binding HighlightTerm}"
-                                                            Command="{Binding SeekWordCommand}" />
-                          </StackPanel>
-                        </Grid>
-                      </Button>
-                      <ItemsControl IsVisible="{Binding HasMarksAfter}"
-                                    ItemsSource="{Binding MarksAfter}">
-                        <ItemsControl.ItemTemplate>
-                          <DataTemplate x:DataType="vm:BookmarkViewModel">
-                            <views:BookmarkPillView />
+                            </Grid>
                           </DataTemplate>
                         </ItemsControl.ItemTemplate>
                       </ItemsControl>
                     </StackPanel>
-                  </DataTemplate>
-                </ItemsControl.ItemTemplate>
-              </ItemsControl>
-            </ScrollViewer>
+                  </Border>
 
-            <!-- State card: loading, progress, install hint, error, empty -->
-            <Border Grid.Row="0"
-                    Grid.RowSpan="2"
-                    Classes="card"
-                    Width="{StaticResource Session.StatusWidth}"
-                    HorizontalAlignment="Center"
-                    VerticalAlignment="Center"
-                    IsVisible="{Binding ShowStatusCard}">
-              <StackPanel Spacing="{StaticResource Space.16}">
-                <TextBlock Classes="subheading"
-                           FontWeight="{StaticResource FontWeight.BodyMedium}"
-                           TextWrapping="Wrap"
-                           Text="{Binding StatusTitle}" />
-                <TextBlock Classes="body"
-                           TextWrapping="Wrap"
-                           Foreground="{DynamicResource Brush.Graphite}"
-                           Text="{Binding StatusText}" />
-                <ProgressBar Minimum="0"
-                             Maximum="100"
-                             Value="{Binding ProgressValue}"
-                             IsVisible="{Binding ShowProgress}" />
-                <TextBlock Classes="mono"
-                           Foreground="{DynamicResource Brush.Smoke}"
-                           IsVisible="{Binding ShowProgress}"
-                           Text="{Binding ProgressText}" />
-                <Button Classes="primary"
-                        HorizontalAlignment="Left"
-                        Content="{Binding RetryLabel}"
-                        IsVisible="{Binding CanRetry}"
-                        Command="{Binding RetryCommand}" />
-              </StackPanel>
-            </Border>
-          </Grid>
+                  <Border Classes="sessionOutline"
+                          IsVisible="{Binding HasActionItems}">
+                    <StackPanel Spacing="{StaticResource Space.10}">
+                      <TextBlock Classes="sessionLabel"
+                                 Text="{x:Static res:Strings.Session_SummaryActionItems}" />
+                      <ItemsControl ItemsSource="{Binding ActionItems}">
+                        <ItemsControl.ItemsPanel>
+                          <ItemsPanelTemplate>
+                            <StackPanel Spacing="{StaticResource Space.10}" />
+                          </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                          <DataTemplate x:DataType="vm:SummaryItemViewModel">
+                            <Grid ColumnDefinitions="Auto,*,Auto"
+                                  ColumnSpacing="{StaticResource Space.10}">
+                              <CheckBox Grid.Column="0"
+                                        Classes="sessionCheck"
+                                        VerticalAlignment="Top"
+                                        IsChecked="{Binding IsDone, Mode=TwoWay}" />
+                              <TextBlock Grid.Column="1"
+                                         Classes="sessionBody"
+                                         Text="{Binding Text}" />
+                              <Button Grid.Column="2"
+                                      Classes="sessionChip"
+                                      IsVisible="{Binding HasTime}"
+                                      Command="{Binding PlayCommand}">
+                                <TextBlock Classes="sessionChipText"
+                                           Text="{Binding TimeText}" />
+                              </Button>
+                            </Grid>
+                          </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                      </ItemsControl>
+                    </StackPanel>
+                  </Border>
 
-          <!-- Summary: the empty state, progress, the three cards, or why it failed -->
-          <ScrollViewer Grid.Row="1"
-                        HorizontalScrollBarVisibility="Disabled"
-                        VerticalScrollBarVisibility="Auto"
-                        IsVisible="{Binding IsSummaryTab}">
-            <StackPanel Spacing="{StaticResource Space.12}">
-
-              <Border Classes="sessionSurface"
-                      IsVisible="{Binding ShowSummaryEmpty}">
-                <StackPanel Spacing="{StaticResource Space.10}">
-                  <TextBlock Classes="sessionCardTitle"
-                             Text="{x:Static res:Strings.Session_SummaryEmptyTitle}" />
-                  <TextBlock Classes="sessionNote"
-                             Text="{x:Static res:Strings.Session_SummaryEmptyText}" />
+                  <Grid ColumnDefinitions="*,Auto">
+                    <TextBlock Grid.Column="0"
+                               Classes="sessionFoot"
+                               VerticalAlignment="Center"
+                               Text="{Binding SummaryFooter}" />
+                    <Button Grid.Column="1"
+                            Classes="outline compact"
+                            Content="{x:Static res:Strings.Session_SummaryRegenerate}"
+                            IsEnabled="{Binding CanSummarize}"
+                            Command="{Binding SummarizeCommand}" />
+                  </Grid>
                   <TextBlock Classes="sessionNote"
                              Foreground="{DynamicResource Brush.Graphite}"
                              IsVisible="{Binding HasSummaryNotice}"
                              Text="{Binding SummaryNotice}" />
-                  <StackPanel Orientation="Horizontal"
-                              Spacing="{StaticResource Space.8}">
-                    <Button Classes="primary compact"
-                            HorizontalAlignment="Left"
-                            Content="{x:Static res:Strings.Session_SummarySummarize}"
-                            IsEnabled="{Binding CanSummarize}"
-                            Command="{Binding SummarizeCommand}" />
-                    <Button Classes="outline compact"
-                            Content="{x:Static res:Strings.Chat_CheckAgain}"
-                            IsVisible="{Binding SummaryNeedsModels}"
-                            Command="{Binding Chat.RefreshAvailabilityCommand}" />
-                  </StackPanel>
                 </StackPanel>
-              </Border>
-
-              <Border Classes="sessionSurface"
-                      IsVisible="{Binding ShowSummaryWorking}">
-                <StackPanel Spacing="{StaticResource Space.10}">
-                  <TextBlock Classes="sessionCardTitle"
-                             Text="{x:Static res:Strings.Session_SummaryWorking}" />
-                  <TextBlock Classes="sessionNote"
-                             Text="{x:Static res:Strings.Session_SummaryWorkingText}" />
-                  <ProgressBar Minimum="0"
-                               Maximum="100"
-                               Value="{Binding SummaryProgress}" />
-                  <Grid ColumnDefinitions="*,Auto">
-                    <TextBlock Grid.Column="0"
-                               Classes="sessionMeta mono"
-                               VerticalAlignment="Center"
-                               Text="{Binding SummaryProgressText}" />
-                    <Button Grid.Column="1"
-                            Classes="outline compact"
-                            Content="{x:Static res:Strings.Common_Stop}"
-                            Command="{Binding CancelSummaryRunCommand}" />
-                  </Grid>
-                </StackPanel>
-              </Border>
-
-              <Border Classes="sessionSurface"
-                      IsVisible="{Binding ShowSummaryFailed}">
-                <StackPanel Spacing="{StaticResource Space.10}">
-                  <TextBlock Classes="sessionCardTitle"
-                             Text="{x:Static res:Strings.Session_SummaryFailedTitle}" />
-                  <TextBlock Classes="sessionNote"
-                             Foreground="{DynamicResource Brush.Graphite}"
-                             Text="{Binding SummaryError}" />
-                  <Button Classes="primary compact"
-                          HorizontalAlignment="Left"
-                          Content="{x:Static res:Strings.Session_TryAgain}"
-                          IsEnabled="{Binding CanSummarize}"
-                          Command="{Binding SummarizeCommand}" />
-                </StackPanel>
-              </Border>
-
-              <StackPanel Spacing="{StaticResource Space.12}"
-                          IsVisible="{Binding ShowSummaryReady}">
-                <Border Classes="sessionSurface">
-                  <StackPanel Spacing="{StaticResource Space.6}">
-                    <TextBlock Classes="sessionLabel"
-                               Text="{x:Static res:Strings.Session_SummaryOverview}" />
-                    <TextBlock Classes="sessionOverview"
-                               Text="{Binding SummaryOverview}" />
-                  </StackPanel>
-                </Border>
-
-                <Border Classes="sessionOutline"
-                        IsVisible="{Binding HasKeyPoints}">
-                  <StackPanel Spacing="{StaticResource Space.10}">
-                    <TextBlock Classes="sessionLabel"
-                               Text="{x:Static res:Strings.Session_SummaryKeyPoints}" />
-                    <ItemsControl ItemsSource="{Binding KeyPoints}">
-                      <ItemsControl.ItemsPanel>
-                        <ItemsPanelTemplate>
-                          <StackPanel Spacing="{StaticResource Space.10}" />
-                        </ItemsPanelTemplate>
-                      </ItemsControl.ItemsPanel>
-                      <ItemsControl.ItemTemplate>
-                        <DataTemplate x:DataType="vm:SummaryItemViewModel">
-                          <Grid ColumnDefinitions="*,Auto"
-                                ColumnSpacing="{StaticResource Space.10}">
-                            <TextBlock Grid.Column="0"
-                                       Classes="sessionBody"
-                                       Text="{Binding Text}" />
-                            <Button Grid.Column="1"
-                                    Classes="sessionChip"
-                                    IsVisible="{Binding HasTime}"
-                                    Command="{Binding PlayCommand}">
-                              <TextBlock Classes="sessionChipText"
-                                         Text="{Binding TimeText}" />
-                            </Button>
-                          </Grid>
-                        </DataTemplate>
-                      </ItemsControl.ItemTemplate>
-                    </ItemsControl>
-                  </StackPanel>
-                </Border>
-
-                <Border Classes="sessionOutline"
-                        IsVisible="{Binding HasActionItems}">
-                  <StackPanel Spacing="{StaticResource Space.10}">
-                    <TextBlock Classes="sessionLabel"
-                               Text="{x:Static res:Strings.Session_SummaryActionItems}" />
-                    <ItemsControl ItemsSource="{Binding ActionItems}">
-                      <ItemsControl.ItemsPanel>
-                        <ItemsPanelTemplate>
-                          <StackPanel Spacing="{StaticResource Space.10}" />
-                        </ItemsPanelTemplate>
-                      </ItemsControl.ItemsPanel>
-                      <ItemsControl.ItemTemplate>
-                        <DataTemplate x:DataType="vm:SummaryItemViewModel">
-                          <Grid ColumnDefinitions="Auto,*,Auto"
-                                ColumnSpacing="{StaticResource Space.10}">
-                            <CheckBox Grid.Column="0"
-                                      Classes="sessionCheck"
-                                      VerticalAlignment="Top"
-                                      IsChecked="{Binding IsDone, Mode=TwoWay}" />
-                            <TextBlock Grid.Column="1"
-                                       Classes="sessionBody"
-                                       Text="{Binding Text}" />
-                            <Button Grid.Column="2"
-                                    Classes="sessionChip"
-                                    IsVisible="{Binding HasTime}"
-                                    Command="{Binding PlayCommand}">
-                              <TextBlock Classes="sessionChipText"
-                                         Text="{Binding TimeText}" />
-                            </Button>
-                          </Grid>
-                        </DataTemplate>
-                      </ItemsControl.ItemTemplate>
-                    </ItemsControl>
-                  </StackPanel>
-                </Border>
-
-                <Grid ColumnDefinitions="*,Auto">
-                  <TextBlock Grid.Column="0"
-                             Classes="sessionFoot"
-                             VerticalAlignment="Center"
-                             Text="{Binding SummaryFooter}" />
-                  <Button Grid.Column="1"
-                          Classes="outline compact"
-                          Content="{x:Static res:Strings.Session_SummaryRegenerate}"
-                          IsEnabled="{Binding CanSummarize}"
-                          Command="{Binding SummarizeCommand}" />
-                </Grid>
-                <TextBlock Classes="sessionNote"
-                           Foreground="{DynamicResource Brush.Graphite}"
-                           IsVisible="{Binding HasSummaryNotice}"
-                           Text="{Binding SummaryNotice}" />
               </StackPanel>
-            </StackPanel>
-          </ScrollViewer>
+            </ScrollViewer>
 
-          <!-- "Ask AI" tab: chat about this recording; chips seek the player -->
-          <Panel Grid.Row="1"
-                 IsVisible="{Binding IsAskTab}">
-            <views:ConversationView DataContext="{Binding Chat}" />
-          </Panel>
-        </Grid>
-      </controls:SessionPagePanel>
-    </Border>
-  </ScrollViewer>
+            <!-- "Ask AI" tab: chat about this recording; chips seek the player -->
+            <Panel Grid.Row="1"
+                   IsVisible="{Binding IsAskTab}">
+              <views:ConversationView DataContext="{Binding Chat}" />
+            </Panel>
+          </Grid>
+        </controls:SessionPagePanel>
+      </Border>
+    </ScrollViewer>
+
+  <!-- The keyboard shortcuts (#61), under the page like the mockup's footer; the design demo scene hides it (ShowShortcuts = false). -->
+  <views:ShortcutsBar Grid.Row="1"
+                      Margin="{StaticResource Session.ShortcutsMargin}"
+                      IsVisible="{Binding ShowShortcuts}" />
+  </Grid>
 </UserControl>

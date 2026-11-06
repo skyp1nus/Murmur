@@ -1747,4 +1747,40 @@
   <data name="Export_PreviewEmpty" xml:space="preserve">
     <value>У цьому діапазоні нічого не сказано.</value>
   </data>
+  <data name="Shortcuts_Space" xml:space="preserve">
+    <value>Пробіл</value>
+    <comment>the key cap of the Space key in the shortcuts bar under the recording</comment>
+  </data>
+  <data name="Shortcuts_Esc" xml:space="preserve">
+    <value>Esc</value>
+    <comment>the key cap of the Escape key in the shortcuts bar</comment>
+  </data>
+  <data name="Shortcuts_PlayPause" xml:space="preserve">
+    <value>Відтворити / пауза</value>
+    <comment>shortcuts bar: Space</comment>
+  </data>
+  <data name="Shortcuts_Seek" xml:space="preserve">
+    <value>−5 с / +5 с</value>
+    <comment>shortcuts bar: J and L seek five seconds back and forward</comment>
+  </data>
+  <data name="Shortcuts_Lines" xml:space="preserve">
+    <value>Попередній / наступний рядок</value>
+    <comment>shortcuts bar: the Up and Down arrows</comment>
+  </data>
+  <data name="Shortcuts_Bookmark" xml:space="preserve">
+    <value>Позначити момент</value>
+    <comment>shortcuts bar: M adds a bookmark at the playhead</comment>
+  </data>
+  <data name="Shortcuts_Follow" xml:space="preserve">
+    <value>Стежити за текстом</value>
+    <comment>shortcuts bar: F switches Follow along</comment>
+  </data>
+  <data name="Shortcuts_Close" xml:space="preserve">
+    <value>Закрити</value>
+    <comment>shortcuts bar: Esc closes the open popover, then goes back to the library</comment>
+  </data>
+  <data name="Shortcuts_BarName" xml:space="preserve">
+    <value>Гарячі клавіші</value>
+    <comment>accessible name of the shortcuts bar</comment>
+  </data>
 </root>

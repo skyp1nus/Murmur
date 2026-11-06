@@ -6,6 +6,7 @@ using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
+using Murmur.App.Controls;
 using Murmur.App.Services;
 using Murmur.App.ViewModels;
 
@@ -22,6 +23,7 @@ public partial class SessionView : UserControl
     private readonly DispatcherTimer _timer;
     private SessionViewModel? _viewModel;
     private TopLevel? _keyHost;
+    private bool _spaceHeld;
 
     public SessionView()
     {
@@ -49,20 +51,53 @@ public partial class SessionView : UserControl
         PageScroller.PropertyChanged += OnPageScrollerPropertyChanged;
     }
 
-    /// <summary>M (no modifiers) adds a bookmark at the playhead, unless a text box has the focus (the search box, a note, the chat).</summary>
-    private void OnBookmarkKeyDown(object? sender, KeyEventArgs e)
+    /// <summary>
+    /// Space and the arrows run before the controls see them (tunnel): a focused button would click on Space, and the list would scroll on
+    /// Up and Down. The rest of the keys bubble (<see cref="OnShortcutKeyDown"/>), so an open popup that handles a key keeps it.
+    /// </summary>
+    private void OnShortcutKeyTunnel(object? sender, KeyEventArgs e)
     {
-        if (e.Key != Key.M || e.KeyModifiers != KeyModifiers.None || e.Handled || _viewModel is null)
+        if (e.Key is not (Key.Space or Key.Up or Key.Down) || e.Handled || _viewModel is not { } viewModel || SessionShortcuts.IsBlocked(e, this, textBoxesBlock: true))
         {
             return;
         }
 
-        if (e.Source is TextBox || TopLevel.GetTopLevel(this)?.FocusManager?.GetFocusedElement() is TextBox)
+        // A transcript line with the keyboard focus (the uncertain words, #58) keeps Space: it opens the word's popover.
+        if (e.Key == Key.Space && SessionShortcuts.FocusedElement(this) is TranscriptTextControl)
         {
             return;
         }
 
-        _viewModel.AddBookmarkAtPlayheadCommand.Execute(null);
+        SessionShortcuts.Run(viewModel, e.Key);
+        e.Handled = true;
+        _spaceHeld |= e.Key == Key.Space;
+    }
+
+    /// <summary>A button clicks on the release of Space: the release of a Space this router took is taken too.</summary>
+    private void OnShortcutKeyUpTunnel(object? sender, KeyEventArgs e)
+    {
+        if (e.Key == Key.Space && _spaceHeld)
+        {
+            _spaceHeld = false;
+            e.Handled = true;
+        }
+    }
+
+    /// <summary>J, L, M, F and Esc: see <see cref="SessionShortcuts"/>.</summary>
+    private void OnShortcutKeyDown(object? sender, KeyEventArgs e)
+    {
+        if (e.Key is not (Key.J or Key.L or Key.M or Key.F or Key.Escape) || e.Handled || _viewModel is not { } viewModel)
+        {
+            return;
+        }
+
+        // Esc is also the way back from the search box; it is only the text keys that a text box keeps.
+        if (SessionShortcuts.IsBlocked(e, this, textBoxesBlock: e.Key != Key.Escape))
+        {
+            return;
+        }
+
+        SessionShortcuts.Run(viewModel, e.Key);
         e.Handled = true;
     }
 
@@ -116,17 +151,21 @@ public partial class SessionView : UserControl
         base.OnLoaded(e);
         UpdateTimer();
 
-        // M adds a bookmark at the playhead. This is the one place the key is bound (the keyboard shortcuts, #61, can move it with the others). It
-        // listens on the window, not on this view: with nothing focused the key goes to the window and never passes through the view.
+        // The keyboard shortcuts (#61): this is the one place the keys are bound. They listen on the window, not on this view: with nothing
+        // focused the key goes to the window and never passes through the view.
         _keyHost = TopLevel.GetTopLevel(this);
-        _keyHost?.AddHandler(KeyDownEvent, OnBookmarkKeyDown, RoutingStrategies.Bubble);
+        _keyHost?.AddHandler(KeyDownEvent, OnShortcutKeyTunnel, RoutingStrategies.Tunnel);
+        _keyHost?.AddHandler(KeyUpEvent, OnShortcutKeyUpTunnel, RoutingStrategies.Tunnel);
+        _keyHost?.AddHandler(KeyDownEvent, OnShortcutKeyDown, RoutingStrategies.Bubble);
     }
 
     protected override void OnUnloaded(RoutedEventArgs e)
     {
         base.OnUnloaded(e);
         _timer.Stop();
-        _keyHost?.RemoveHandler(KeyDownEvent, OnBookmarkKeyDown);
+        _keyHost?.RemoveHandler(KeyDownEvent, OnShortcutKeyTunnel);
+        _keyHost?.RemoveHandler(KeyUpEvent, OnShortcutKeyUpTunnel);
+        _keyHost?.RemoveHandler(KeyDownEvent, OnShortcutKeyDown);
         _keyHost = null;
     }
 
@@ -190,10 +229,10 @@ public partial class SessionView : UserControl
 
     private void OnUserScroll(object? sender, RoutedEventArgs e) => _viewModel?.NotifyUserScrolled();
 
-    /// <summary>The keys that scroll a list: the user moves the list by hand.</summary>
+    /// <summary>The keys that scroll a list: the user moves the list by hand. (Up and Down are shortcuts that seek, #61: the seek scrolls to the line itself.)</summary>
     private void OnTranscriptKeyDown(object? sender, KeyEventArgs e)
     {
-        if (e.Key is Key.Up or Key.Down or Key.PageUp or Key.PageDown or Key.Home or Key.End && e.Source is not TextBox)
+        if (e.Key is Key.PageUp or Key.PageDown or Key.Home or Key.End && e.Source is not TextBox)
         {
             _viewModel?.NotifyUserScrolled();
         }
