@@ -185,6 +185,9 @@ public sealed partial class ImportDialogViewModel : ObservableObject, IDisposabl
     /// <summary>Esc, the cross, Cancel or Import closed the dialog.</summary>
     public bool IsClosed => _closed;
 
+    /// <summary>The dialog was taken off the screen and released: files can no longer be added.</summary>
+    internal bool IsDisposed => _disposed;
+
     /// <summary>The search of the Downloads folder (for tests).</summary>
     internal Task RecentTask { get; }
 

@@ -16,6 +16,7 @@ using Murmur.Core.Settings;
 using Murmur.Core.Transcription;
 using Murmur.Intelligence;
 using Murmur.Intelligence.Rag;
+using Murmur.Intelligence.Suggestions;
 using Murmur.Intelligence.Summary;
 using Murmur.Models;
 using Murmur.Storage;
@@ -203,7 +204,8 @@ internal sealed class CompositionRoot : IDisposable
             storage,
             new AiServices(assistant, llm, models.ModelsDirectory, AccelerationProbe, llm, AccelerationRuntimeIds(modelManager),
                 new SessionSummarizer(llm, storage, SummarizerOptions.ForContext(new LocalLlmOptions().ContextSize), speakerNames: storage),
-                new ChapterGenerator(llm, storage, SummarizerOptions.ForContext(new LocalLlmOptions().ContextSize), speakerNames: storage)),
+                new ChapterGenerator(llm, storage, SummarizerOptions.ForContext(new LocalLlmOptions().ContextSize), speakerNames: storage),
+                new WordSuggester(llm)),
             settings,
             aiModels,
             modelManager.ActiveModelId,
@@ -224,7 +226,8 @@ internal sealed class CompositionRoot : IDisposable
             Imports: imports,
             MediaProbe: mediaDecoder,
             Downloads: _downloads ??= CreateDownloadsFolder(),
-            BookmarkStore: storage);
+            BookmarkStore: storage,
+            Vocabulary: storage);
     }
 
     public void Dispose()

@@ -62,7 +62,8 @@
                     VerticalContentAlignment="Stretch"
                     Content="{Binding Sidebar}" />
 
-    <Grid Grid.Column="1"
+    <Grid x:Name="ContentArea"
+          Grid.Column="1"
           RowDefinitions="Auto,*,Auto">
       <!-- The 48 px top bar of the main screens -->
       <Border Grid.Row="0"
@@ -83,6 +84,11 @@
       <ContentControl Grid.Row="2"
                       HorizontalContentAlignment="Stretch"
                       Content="{Binding StatusBar}" />
+
+      <!-- Files dragged over the window (#69): over the whole content area, never in the way of the pointer. -->
+      <views:DropOverlayView Grid.Row="0"
+                             Grid.RowSpan="3"
+                             DataContext="{Binding DropOverlay}" />
     </Grid>
   </Grid>
 </Window>

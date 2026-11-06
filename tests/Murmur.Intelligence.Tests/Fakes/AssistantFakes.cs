@@ -136,6 +136,12 @@ internal sealed class FakeStorage : IStorage
         ValueTask.FromResult(SpeakerNames.GetValueOrDefault(session) ?? Murmur.Core.Sessions.SpeakerNames.Default);
 
     public ValueTask SetSpeakerNameAsync(SessionId session, Speaker speaker, string? name, CancellationToken cancellationToken) => throw new NotSupportedException();
+
+    public ValueTask ReplaceWordAsync(SessionId session, int segmentIndex, int wordIndex, string text, CancellationToken cancellationToken) => throw new NotSupportedException();
+
+    public ValueTask<IReadOnlyList<string>> GetVocabularyAsync(CancellationToken cancellationToken) => throw new NotSupportedException();
+
+    public ValueTask AddVocabularyWordAsync(string word, CancellationToken cancellationToken) => throw new NotSupportedException();
 }
 
 /// <summary>Embeds "…{n}" style inputs deterministically and records every batch.</summary>

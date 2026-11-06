@@ -2,6 +2,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Murmur.App.Resources;
 using Murmur.App.Services;
+using Murmur.Core.Import;
 using Murmur.Core.Intelligence;
 using Murmur.Core.Models;
 using Murmur.Core.Recording;
@@ -48,6 +49,7 @@ public sealed partial class ShellViewModel : ObservableObject
     /// <param name="sessionStore">Names the recording a saved chat is scoped to.</param>
     /// <param name="chatModelChip">The model chip of the Ask AI header.</param>
     /// <param name="statusBar">The status bar at the bottom of the window; <c>null</c> = none (the design parity boards do not show it).</param>
+    /// <param name="imports">The import queue (#66): its supported extensions decide what the drop overlay counts (#69); <c>null</c> = files cannot be dropped to import.</param>
     public ShellViewModel(
         LibraryViewModel library,
         RecordingViewModel recording,
@@ -62,7 +64,8 @@ public sealed partial class ShellViewModel : ObservableObject
         IChatStore? chatStore = null,
         ISessionStore? sessionStore = null,
         ChatModelChipViewModel? chatModelChip = null,
-        StatusBarViewModel? statusBar = null)
+        StatusBarViewModel? statusBar = null,
+        IImportQueue? imports = null)
     {
         ArgumentNullException.ThrowIfNull(library);
         ArgumentNullException.ThrowIfNull(recording);
@@ -84,6 +87,7 @@ public sealed partial class ShellViewModel : ObservableObject
 
         library.CanAskAll = chatFactory is not null;
         library.NewRecordingRequested += ShowRecording;
+        InitializeImport(library, imports);
         library.StartRecordingRequested += OnStartRecordingRequested;
         library.SessionOpened += OnSessionOpened;
         library.SearchResultOpened += OnSearchResultOpened;
@@ -201,7 +205,7 @@ public sealed partial class ShellViewModel : ObservableObject
                 services.Time,
                 chat: CreateSavedChat(record.Id),
                 videoPlayback: services.VideoPlayback,
-                services: new SessionServices(ai?.Summarizer, services.Summaries, services.Sessions, SystemFolderLauncher.Instance, playback.CreatePlayer, ai?.ChapterGenerator, services.ChapterStore, services.SpeakerNames, store, services.BookmarkStore));
+                services: new SessionServices(ai?.Summarizer, services.Summaries, services.Sessions, SystemFolderLauncher.Instance, playback.CreatePlayer, ai?.ChapterGenerator, services.ChapterStore, services.SpeakerNames, store, services.BookmarkStore, services.Vocabulary, ai?.WordSuggester));
         }
 
         var settings = new SettingsViewModel(
@@ -238,7 +242,8 @@ public sealed partial class ShellViewModel : ObservableObject
             chatStore: services.Chats,
             sessionStore: services.Sessions,
             chatModelChip: new ChatModelChipViewModel(() => ActiveChatModelName(services, store), ai?.AccelerationSource),
-            statusBar: services.Activity is { } activity ? new StatusBarViewModel(activity, services.Recorder) : null);
+            statusBar: services.Activity is { } activity ? new StatusBarViewModel(activity, services.Recorder) : null,
+            imports: services.Imports);
     }
 
     /// <summary>"Recording 12:48" in the status bar leads to the Recording screen (not out of the onboarding, whose trial recording has its own page).</summary>
@@ -583,6 +588,7 @@ public sealed partial class ShellViewModel : ObservableObject
     {
         OnPropertyChanged(nameof(IsOnboarding));
         OnPropertyChanged(nameof(PageUsesFrameInset));
+        CloseImportDialog();
         UpdateTopBar(value);
         if (_sidebar is null)
         {

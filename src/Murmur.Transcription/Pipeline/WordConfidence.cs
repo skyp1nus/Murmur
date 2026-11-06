@@ -19,7 +19,7 @@ internal enum ConfidenceAggregation
 /// <see cref="WordBuilder"/> does (<see cref="WordBuilder.Spans"/>), so the result lines up one to one with the
 /// words of a segment. Punctuation-only tokens ("," "." "?") are left out of a word's score, because the transcript
 /// marks a word, not its punctuation, as uncertain; a word made only of such tokens is scored from all of them.
-/// Diagnostic / spike code (#53): the production protocol does not carry confidence yet.
+/// <c>--serve</c> sends the Min aggregation with every word (<see cref="PipelineOptions.IncludeConfidence"/>, #58); the other two are for the spike's evaluation (#53).
 /// </summary>
 internal static class WordConfidence
 {

@@ -43,4 +43,18 @@ public sealed class WordConfidenceProtocolTests
         Assert.NotEqual(word, word with { Confidence = 0.5f });
         Assert.Equal(0.5f, (word with { Confidence = 0.5f }).Confidence);
     }
+
+    [Theory]
+    [InlineData(null, false)]
+    [InlineData(0f, true)]
+    [InlineData(0.42f, true)]
+    [InlineData(0.5999f, true)]
+    [InlineData(0.6f, false)]
+    [InlineData(0.95f, false)]
+    [InlineData(1f, false)]
+    public void IsUncertain_MeansConfidenceBelowTheThreshold_AndUnknownIsNotUncertain(float? confidence, bool expected)
+    {
+        Assert.Equal(0.60f, TranscriptWord.UncertainThreshold);
+        Assert.Equal(expected, new TranscriptWord("w", TimeSpan.Zero, TimeSpan.FromSeconds(1)) { Confidence = confidence }.IsUncertain);
+    }
 }

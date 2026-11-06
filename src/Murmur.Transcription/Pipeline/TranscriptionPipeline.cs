@@ -33,9 +33,16 @@ internal sealed record PipelineOptions
     /// <summary>
     /// Off (null) by default. When set, receives every emitted segment together with its per-word confidence
     /// (<see cref="WordConfidence.Compute"/>; aligned with the segment's words, empty when the model gave no
-    /// log-probabilities), on the thread that emits segments. Diagnostics only (#53): the protocol has no confidence.
+    /// log-probabilities), on the thread that emits segments. Diagnostics (#53, <c>--transcribe --word-confidence</c>).
     /// </summary>
     public Action<WorkerSegment, float[]>? OnWordConfidence { get; init; }
+
+    /// <summary>
+    /// Off by default. When on, every emitted word carries its <see cref="WorkerWord.Confidence"/> (<see cref="WordConfidence.Compute"/>,
+    /// the Min aggregation of D-052; left null when the model gave no log-probabilities for the segment). <c>--serve</c> turns it on (#58),
+    /// so the app can mark uncertain words. Costs one pass over the segment's tokens after it is decoded, outside the audio path.
+    /// </summary>
+    public bool IncludeConfidence { get; init; }
 }
 
 /// <summary>What the pipeline needs from an ASR engine; implemented by <see cref="OfflineRecognizer"/>.</summary>
@@ -191,12 +198,29 @@ internal sealed class TranscriptionPipeline(ISpeechRecognizer recognizer, Func<I
                         }
 
                         var w = WordBuilder.Build(r.Tokens, r.Timestamps, r.Durations, start, end);
+                        float[]? confidence = null;
+                        if (_options.IncludeConfidence || _options.OnWordConfidence is not null)
+                        {
+                            confidence = WordConfidence.Compute(r.Tokens, r.LogProbs);
+                            if (confidence.Length != w.Count)
+                            {
+                                confidence = [];
+                            }
+                        }
+
+                        if (_options.IncludeConfidence && confidence is { Length: > 0 })
+                        {
+                            for (var k = 0; k < w.Count; k++)
+                            {
+                                w[k] = w[k] with { Confidence = confidence[k] };
+                            }
+                        }
+
                         var emitted = new WorkerSegment(WordBuilder.Round(start), WordBuilder.Round(end), r.Text, w);
                         onSegment(emitted);
                         if (_options.OnWordConfidence is { } onConfidence)
                         {
-                            var confidence = WordConfidence.Compute(r.Tokens, r.LogProbs);
-                            onConfidence(emitted, confidence.Length == w.Count ? confidence : []);
+                            onConfidence(emitted, confidence!);
                         }
                         segments++;
                         words += w.Count;

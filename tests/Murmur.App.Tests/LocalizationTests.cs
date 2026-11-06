@@ -435,7 +435,7 @@ public sealed partial class LocalizationTests
                     var result = (
                         window.GetVisualDescendants().OfType<TextBlock>().Where(t => t.IsEffectivelyVisible).Select(t => t.Text).ToArray(),
                         window.GetVisualDescendants().OfType<Button>().Where(b => b is not Avalonia.Controls.Primitives.ToggleButton && b.IsEffectivelyVisible && b.Content is string).Select(b => (string)b.Content!).ToArray(),
-                        window.GetVisualDescendants().OfType<Button>().Where(b => b.Classes.Contains("filter")).Select(b => b.GetVisualDescendants().OfType<TextBlock>().Single(t => t.IsEffectivelyVisible).Text).ToArray(),
+                        window.GetVisualDescendants().OfType<Button>().Where(b => b.Classes.Contains("filter") && b.IsEffectivelyVisible).Select(b => b.GetVisualDescendants().OfType<TextBlock>().Single(t => t.IsEffectivelyVisible).Text).ToArray(),
                         window.GetVisualDescendants().OfType<TextBox>().Single(t => t.IsEffectivelyVisible).PlaceholderText);
                     window.Close();
                     return result;
