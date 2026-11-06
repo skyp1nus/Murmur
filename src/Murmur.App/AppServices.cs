@@ -2,6 +2,7 @@ using Murmur.App.Services;
 using Murmur.Core.Activity;
 using Murmur.Core.Calls;
 using Murmur.Core.Capture;
+using Murmur.Core.Import;
 using Murmur.Core.Input;
 using Murmur.Core.Models;
 using Murmur.Core.Platform;
@@ -67,6 +68,15 @@ namespace Murmur.App;
 /// <param name="SpeakerNames">Keeps the names the user gave the speakers of a recording; <c>null</c> = the speaker chips are not offered (the lines say "You" / "Others").</param>
 /// <param name="BookmarkStore">Keeps the marked moments of a recording (#45, #59); <c>null</c> = a recording shows no bookmarks.</param>
 /// <param name="Activity">What runs or waits (recording, transcribing, indexing, model downloads) for the status bar; <c>null</c> = no status bar.</param>
+/// <param name="Imports">
+/// Imports audio and video files (#66); the Library's "Import files" pill opens the import dialog over it (#67). <c>null</c> = no import
+/// (the pill is hidden).
+/// </param>
+/// <param name="MediaProbe">
+/// Reads the kind, size and duration of a file the import dialog lists (the decoder the import queue uses); <c>null</c> = the dialog shows
+/// the size only and counts every supported file.
+/// </param>
+/// <param name="Downloads">The user's Downloads folder for the dialog's "Recent in Downloads" list; <c>null</c> = no such list.</param>
 public sealed record AppServices(
     IRecorder Recorder,
     ICapture Capture,
@@ -94,4 +104,7 @@ public sealed record AppServices(
     ICallDetector? Calls = null,
     ISpeakerNameStore? SpeakerNames = null,
     IActivityFeed? Activity = null,
+    IImportQueue? Imports = null,
+    IMediaDecoder? MediaProbe = null,
+    IDownloadsFolder? Downloads = null,
     IBookmarkStore? BookmarkStore = null);
