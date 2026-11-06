@@ -16,6 +16,7 @@ namespace Murmur.App.Services;
 /// <param name="Chapters">Keeps the chapters between visits; <c>null</c> = the strip shows none.</param>
 /// <param name="SpeakerNames">Keeps the names of the two speakers of the recording; <c>null</c> = the speaker chips are not offered.</param>
 /// <param name="Settings">Keeps the choices that belong to every recording (the "Follow along" switch); <c>null</c> = the choice lives only while the view is open.</param>
+/// <param name="Bookmarks">Keeps the marked moments of the recording (#45); <c>null</c> = the Bookmarks card, the flags above the waveform and the pills in the transcript are not offered.</param>
 /// <param name="CreatePlayer">Makes a new audio player; used to bring the playback back when deleting the recording failed (the first one was released for the delete). <c>null</c> = the playback stays closed then.</param>
 public sealed record SessionServices(
     ISessionSummarizer? Summarizer = null,
@@ -26,4 +27,5 @@ public sealed record SessionServices(
     IChapterGenerator? ChapterGenerator = null,
     IChapterStore? Chapters = null,
     ISpeakerNameStore? SpeakerNames = null,
-    ISettingsStore? Settings = null);
+    ISettingsStore? Settings = null,
+    IBookmarkStore? Bookmarks = null);
