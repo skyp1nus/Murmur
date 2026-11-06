@@ -3,6 +3,7 @@ using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
 using Avalonia.Headless;
 using Avalonia.Input;
+using Avalonia.Media;
 using Avalonia.Styling;
 using Avalonia.VisualTree;
 using Murmur.App.Localization;
@@ -169,6 +170,40 @@ public sealed class ImportDialogViewTests : IDisposable
         Assert.True(with.Library.CanImport);
         Assert.False(without.Library.CanImport);
         Assert.False(without.Library.OpenImportCommand.CanExecute(null));
+    }
+
+    /// <summary>Review of #90: a clipped sheet lost its own shadow; the sheet and the scrim use the modal tokens of the export dialog.</summary>
+    [Fact]
+    public async Task TheSheet_DrawsTheModalShadow_Unclipped_OverTheScrimToken()
+    {
+        var shell = await ShellAsync();
+
+        var (clipped, shadow, modal, scrim, scrimToken, scrimOpacity) = await Session.Dispatch(
+            () =>
+            {
+                var window = Show(shell);
+                var (dialog, _) = Open(window);
+                var sheet = Named<Border>(dialog, "Sheet");
+                var fill = Named<Border>(dialog, "ScrimFill");
+                window.TryFindResource("Shadow.Modal", window.ActualThemeVariant, out var modalShadow);
+                window.TryFindResource("Brush.Scrim", window.ActualThemeVariant, out var scrimBrush);
+                var result = (
+                    sheet.ClipToBounds,
+                    sheet.BoxShadow,
+                    (BoxShadows)modalShadow!,
+                    ((ISolidColorBrush)fill.Background!).Color,
+                    ((ISolidColorBrush)scrimBrush!).Color,
+                    fill.Opacity);
+                window.Close();
+                return result;
+            },
+            Ct);
+
+        Assert.False(clipped);
+        Assert.Equal(modal, shadow);
+        Assert.NotEqual(default, shadow);
+        Assert.Equal(scrimToken, scrim);
+        Assert.Equal(1, scrimOpacity);
     }
 
     [Fact]

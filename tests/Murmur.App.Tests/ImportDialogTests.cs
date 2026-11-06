@@ -154,25 +154,42 @@ public sealed class ImportDialogTests : IDisposable
 
     // Probing ---------------------------------------------------------------------------------------------------
 
+    /// <remarks>
+    /// The body runs on a dedicated (non-pool) thread that stays blocked until the probes are done: a pool caller could be handed a
+    /// later probe once it awaits, and a finished thread's id could be reused. Every probe must run on a pool thread, never the caller's.
+    /// </remarks>
     [Fact]
     public async Task EachFile_IsProbedOffTheCallersThread_AndShowsKindSizeAndDuration()
     {
         _decoder.Hold();
         using var vm = Create();
-        var caller = Environment.CurrentManagedThreadId;
 
-        vm.AddFiles([P("Zoom_Meeting_2026-10-30.mp4"), P("voice-memo-1029.m4a")]);
+        var caller = await Task.Factory.StartNew(
+            () =>
+            {
+                Assert.False(Thread.CurrentThread.IsThreadPoolThread);
+                vm.AddFiles([P("Zoom_Meeting_2026-10-30.mp4"), P("voice-memo-1029.m4a")]);
 
-        // AddFiles returned while the probes wait: the rows say "…" and nothing counts yet.
-        Assert.All(vm.Files, f => Assert.True(f.IsProbing));
-        Assert.All(vm.Files, f => Assert.Equal("…", f.Detail));
-        Assert.Equal(0, vm.ValidCount);
-        Assert.False(vm.ImportCommand.CanExecute(null));
+                // AddFiles returned while the probes wait: the rows say "…" and nothing counts yet.
+                Assert.All(vm.Files, f => Assert.True(f.IsProbing));
+                Assert.All(vm.Files, f => Assert.Equal("…", f.Detail));
+                Assert.Equal(0, vm.ValidCount);
+                Assert.False(vm.ImportCommand.CanExecute(null));
 
-        _decoder.Release();
-        await vm.WhenProbed();
+                _decoder.Release();
+                vm.WhenProbed().GetAwaiter().GetResult();
+                return Environment.CurrentManagedThreadId;
+            },
+            CancellationToken.None,
+            TaskCreationOptions.LongRunning,
+            TaskScheduler.Default);
 
-        Assert.All(_decoder.Threads, thread => Assert.NotEqual(caller, thread));
+        Assert.Equal(2, _decoder.Threads.Count);
+        Assert.All(_decoder.Threads, thread =>
+        {
+            Assert.True(thread.IsPool);
+            Assert.NotEqual(caller, thread.Id);
+        });
         Assert.Equal(["Video · 412 MB · 45:10", "Audio · 6 MB · 06:28"], vm.Files.Select(f => f.Detail));
         Assert.True(vm.Files[0].IsVideo);
         Assert.True(vm.Files[1].IsAudio);
@@ -393,6 +410,49 @@ public sealed class ImportDialogTests : IDisposable
         Assert.Empty(_queue.Requests);
     }
 
+    [Fact]
+    public async Task WhileTheFilesAreHandedOver_CancelAndTheCross_AreOff_AndCloseDoesNothing()
+    {
+        using var vm = await WithFilesAsync("voice-memo-1029.m4a");
+        var closed = 0;
+        vm.CloseRequested += () => closed++;
+        _queue.Gate = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        var import = vm.ImportCommand.ExecuteAsync(null);
+
+        Assert.True(vm.IsImporting);
+        Assert.False(vm.CanClose);
+        Assert.False(vm.CloseCommand.CanExecute(null));
+        vm.CloseCommand.Execute(null); // Esc and the scrim do not ask CanExecute
+        Assert.False(vm.IsClosed);
+
+        _queue.Gate.SetResult();
+        await import;
+
+        Assert.Equal(1, closed);
+        Assert.True(vm.IsClosed);
+        Assert.Single(_queue.Requests);
+    }
+
+    [Fact]
+    public async Task Dispose_ReleasesTheTokenAndTheProbeGate_OnceTheProbesHaveStopped_AndLeavesTheQueue()
+    {
+        _decoder.Hold();
+        var vm = Create();
+        vm.AddFiles([P("voice-memo-1029.m4a")]);
+        Assert.Equal(1, _queue.Subscribers);
+
+        vm.Dispose();
+        await vm.WhenReleased.WaitAsync(TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken);
+        await vm.WhenProbed().WaitAsync(TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken);
+
+        Assert.Equal(0, _queue.Subscribers);
+        Assert.True(vm.Files[0].IsProbing); // the cancelled probe left its row alone
+        vm.AddFiles([P("talk.wav")]);
+        Assert.Single(vm.Files);
+        vm.Dispose();
+    }
+
     // Recent in Downloads ---------------------------------------------------------------------------------------
 
     [Fact]
@@ -459,6 +519,61 @@ public sealed class ImportDialogTests : IDisposable
         vm.AddFiles([podcast]);
 
         Assert.True(vm.Recent[0].IsAdded);
+    }
+
+    [Fact]
+    public async Task ADownloadThatAlreadyWaitsInTheQueue_ShowsAsAdded_AndFollowsTheQueue()
+    {
+        var podcast = Download("podcast-ep42.mp3", TimeSpan.FromDays(8));
+        var memo = Download("memo.m4a", TimeSpan.FromDays(2));
+        var talk = Download("talk.wav", TimeSpan.FromDays(1));
+        _queue.Earlier.Add(new ImportItem(1, podcast, ImportState.Queued, 0, null, null));
+        _queue.Earlier.Add(new ImportItem(2, memo, ImportState.Done, 1, null, null));
+        _queue.Earlier.Add(new ImportItem(3, talk, ImportState.Failed, 0, null, "damaged"));
+        using var vm = Create(new FakeDownloadsFolder(P("Downloads")));
+        await vm.RecentTask;
+
+        bool Added(string path) => vm.Recent.Single(r => r.Path == path).IsAdded;
+        Assert.True(Added(podcast));
+        Assert.False(vm.Recent.Single(r => r.Path == podcast).AddCommand.CanExecute(null));
+        Assert.False(Added(memo));
+        Assert.False(Added(talk));
+        Assert.Empty(vm.Files);
+
+        // The podcast finished, the talk is retried: the rows follow the queue's Changed (raised off the UI thread).
+        _queue.Earlier[0] = _queue.Earlier[0] with { State = ImportState.Done };
+        _queue.Earlier[2] = _queue.Earlier[2] with { State = ImportState.Decoding };
+        await _queue.RaiseChanged();
+
+        Assert.False(Added(podcast));
+        Assert.False(Added(memo));
+        Assert.True(Added(talk));
+    }
+
+    [Fact]
+    public async Task AnError_Clears_AfterASuccessfulPick_OrAdd()
+    {
+        var podcast = Download("podcast-ep42.mp3", TimeSpan.FromDays(8));
+        using var vm = Create(new FakeDownloadsFolder(P("Downloads")));
+        await vm.RecentTask;
+
+        _picker.Fail = new InvalidOperationException("no portal");
+        await vm.BrowseCommand.ExecuteAsync(null);
+        Assert.True(vm.HasError);
+
+        _picker.Fail = null;
+        _picker.Answer(P("voice-memo-1029.m4a"));
+        await vm.BrowseCommand.ExecuteAsync(null);
+        Assert.Null(vm.Error);
+        Assert.False(vm.HasError);
+        await vm.WhenProbed();
+
+        _queue.Fail = new IOException("disk full");
+        await vm.ImportCommand.ExecuteAsync(null);
+        Assert.True(vm.HasError);
+
+        vm.Recent.Single(r => r.Path == podcast).AddCommand.Execute(null);
+        Assert.Null(vm.Error);
     }
 
     [Fact]
