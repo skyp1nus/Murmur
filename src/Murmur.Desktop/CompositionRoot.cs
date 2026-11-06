@@ -216,7 +216,8 @@ internal sealed class CompositionRoot : IDisposable
             AudioSessions: _audioSessions ??= CreateAudioSessionMonitor(),
             Calls: _calls ??= new CallDetector(_audioSessions, TimeProvider.System),
             SpeakerNames: storage,
-            Activity: activityFeed);
+            Activity: activityFeed,
+            BookmarkStore: storage);
     }
 
     public void Dispose()
