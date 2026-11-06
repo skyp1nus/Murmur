@@ -378,10 +378,17 @@ internal sealed class CompositionRoot : IDisposable
     }
 
     /// <summary>
-    /// The audio sessions call detection watches (#44). Only the null monitor for now (not supported: the Detect calls setting is
-    /// hidden); the WASAPI monitor of Murmur.Capture.Windows replaces it on Windows.
+    /// The audio sessions call detection watches (#44): the WASAPI session monitor on Windows; elsewhere the null monitor (not
+    /// supported: the Detect calls setting is hidden).
     /// </summary>
-    internal static IAudioSessionMonitor CreateAudioSessionMonitor() => new NullAudioSessionMonitor();
+    internal static IAudioSessionMonitor CreateAudioSessionMonitor()
+    {
+#if WINDOWS
+        return new Murmur.Capture.Windows.Audio.WasapiAudioSessionMonitor();
+#else
+        return new NullAudioSessionMonitor();
+#endif
+    }
 
     private static IAudioPlayback CreatePlayback()
     {
