@@ -77,6 +77,7 @@ namespace Murmur.App;
 /// the size only and counts every supported file.
 /// </param>
 /// <param name="Downloads">The user's Downloads folder for the dialog's "Recent in Downloads" list; <c>null</c> = no such list.</param>
+/// <param name="Vocabulary">The user's own words for the fixes of uncertain words ("Did you mean"); <c>null</c> = the fixes are not remembered.</param>
 public sealed record AppServices(
     IRecorder Recorder,
     ICapture Capture,
@@ -107,4 +108,5 @@ public sealed record AppServices(
     IImportQueue? Imports = null,
     IMediaDecoder? MediaProbe = null,
     IDownloadsFolder? Downloads = null,
-    IBookmarkStore? BookmarkStore = null);
+    IBookmarkStore? BookmarkStore = null,
+    IVocabularyStore? Vocabulary = null);

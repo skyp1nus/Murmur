@@ -45,6 +45,12 @@ public interface ITranscriptStore
     /// words. One entry per session that has a transcript (the others are absent); order is not specified.
     /// </summary>
     ValueTask<IReadOnlyList<TranscriptSummary>> GetTranscriptSummariesAsync(IReadOnlyList<SessionId> sessions, CancellationToken cancellationToken);
+
+    /// <summary>Replaces the text of one word (and the segment text and its full-text index entry) without touching the summary, chapters or other data.
+    /// The word's confidence becomes null (the user confirmed it). Unknown session / out-of-range indexes throw ArgumentOutOfRangeException.</summary>
+    /// <param name="segmentIndex">Position of the segment in the transcript <see cref="GetTranscriptAsync"/> returns.</param>
+    /// <param name="wordIndex">Position of the word in <see cref="TranscriptSegment.Words"/>.</param>
+    ValueTask ReplaceWordAsync(SessionId session, int segmentIndex, int wordIndex, string text, CancellationToken cancellationToken);
 }
 
 /// <summary>The language the transcript was recognised in (<c>null</c> when unknown) and the text of its first segment (<c>null</c> when it has none).</summary>
@@ -75,8 +81,8 @@ public interface ISearchIndex
     ValueTask<IReadOnlyList<SearchHit>> SearchVectorAsync(ReadOnlyMemory<float> embedding, SessionId? scope, int limit, CancellationToken cancellationToken);
 }
 
-/// <summary>Everything persisted: session metadata, transcripts, summaries, saved chats, chapters, bookmarks, speaker names, the import queue, search index and session files.</summary>
-public interface IStorage : ISessionStore, ITranscriptStore, ISearchIndex, ISummaryStore, IChatStore, IChapterStore, IBookmarkStore, ISpeakerNameStore, IImportStore
+/// <summary>Everything persisted: session metadata, transcripts, summaries, saved chats, chapters, bookmarks, speaker names, the import queue, the user's vocabulary, search index and session files.</summary>
+public interface IStorage : ISessionStore, ITranscriptStore, ISearchIndex, ISummaryStore, IChatStore, IChapterStore, IBookmarkStore, ISpeakerNameStore, IImportStore, IVocabularyStore
 {
     /// <summary>Folder that contains the database and every session folder.</summary>
     string RootDirectory { get; }

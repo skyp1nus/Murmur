@@ -284,6 +284,7 @@ public sealed partial class SessionViewModel : ObservableObject, IDisposable, IF
 
         _disposed = true;
         CancelSummary();
+        CloseDidYouMean();
         _player.StateChanged -= OnPlayerStateChanged;
         _processing.ProgressChanged -= OnProcessingChanged;
         Chat.CitationActivated -= OnCitationActivated;
@@ -451,7 +452,13 @@ public sealed partial class SessionViewModel : ObservableObject, IDisposable, IF
     // Transcript commands -----------------------------------------------------------------------------------------
 
     /// <summary>The user scrolled the list (wheel, scroll bar, keys, touch): auto-scroll waits until the playback reaches the next line or the user seeks.</summary>
-    public void NotifyUserScrolled() => _scrollPaused = true;
+    public void NotifyUserScrolled()
+    {
+        _scrollPaused = true;
+
+        // The word of "Did you mean" leaves its popover behind: a scroll by hand closes it.
+        CloseDidYouMean();
+    }
 
     [RelayCommand]
     private async Task RetryAsync()
@@ -630,9 +637,11 @@ public sealed partial class SessionViewModel : ObservableObject, IDisposable, IF
             {
                 ShowWord = IsPlaying && FollowAlong,
                 SpeakerName = _speakerNames[segments[i].Speaker],
+                OpenWord = OpenDidYouMean,
             };
         }
 
+        CloseDidYouMean();
         _transcript = transcript;
         _timeline = timeline;
         _currentWord = -1;
@@ -949,7 +958,8 @@ public sealed partial class SessionViewModel : ObservableObject, IDisposable, IF
         }
 
         // With Follow along off the playback does not move the list, but an explicit seek (forceScroll) still brings its target into view.
-        if (segment < 0 || _scrollPaused || (!FollowAlong && !forceScroll))
+        // While "Did you mean" is open the list holds still (like a manual scroll), or the popover would be left behind its word.
+        if (segment < 0 || _scrollPaused || (!FollowAlong && !forceScroll) || (DidYouMean is not null && !forceScroll))
         {
             return;
         }
