@@ -1964,4 +1964,12 @@
     <value>Drop the files again after you stop recording</value>
     <comment>second line of the drop overlay while a recording is running</comment>
   </data>
+  <data name="Library_FilterImported" xml:space="preserve">
+    <value>Imported</value>
+    <comment>a filter chip of the Library: only sessions made from imported audio or video files</comment>
+  </data>
+  <data name="Library_ImportedMeta" xml:space="preserve">
+    <value>Imported</value>
+    <comment>in the meta line of an imported session (library row, recording details), before the original file name</comment>
+  </data>
 </root>

@@ -3,6 +3,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Murmur.App.Resources;
 using Murmur.Core.Capture;
+using Murmur.Core.Sessions;
 using Murmur.Core.Transcription;
 
 namespace Murmur.App.ViewModels;
@@ -165,6 +166,16 @@ public sealed partial class SessionViewModel
         if (EngineNames.Of(transcript?.Engine) is { Length: > 0 } engine)
         {
             parts.Add(new MetaPart(engine, false));
+        }
+
+        if (_record.Source == SessionSource.Imported)
+        {
+            // An imported session was not recorded: "Imported" and the original file name stand where the recording sources would.
+            parts.Add(new MetaPart(Strings.Library_ImportedMeta, false));
+            if (SessionItemViewModel.FileNameOf(_record.OriginalPath) is { Length: > 0 } fileName)
+            {
+                parts.Add(new MetaPart(fileName, false));
+            }
         }
 
         var result = new List<MetaPart>(parts.Count * 2);

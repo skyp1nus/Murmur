@@ -83,6 +83,7 @@
       <StreamGeometry x:Key="Import.Icon.Audio">M4 10v4M8 7v10M12 4v16M16 8v8M20 11v2</StreamGeometry>
       <StreamGeometry x:Key="Import.Icon.Video">M5 6h9a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2z M16 10l5-3v10l-5-3z</StreamGeometry>
       <StreamGeometry x:Key="Import.Icon.File">M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z M14 3v5h5</StreamGeometry>
+      <StreamGeometry x:Key="Import.Icon.FileDown">M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z M14 3v5h5 M12 11v6M9 14l3 3 3-3</StreamGeometry>
       <StreamGeometry x:Key="Import.Icon.Lock">M7 11h10a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2v-6a2 2 0 0 1 2-2z M8 11V7a4 4 0 0 1 8 0v4</StreamGeometry>
     </ResourceDictionary>
   </Styles.Resources>

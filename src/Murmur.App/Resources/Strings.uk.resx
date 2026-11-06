@@ -1947,4 +1947,10 @@
   <data name="DropOverlay_RecordingHint" xml:space="preserve">
     <value>Перетягніть файли знову, коли зупините запис</value>
   </data>
+  <data name="Library_FilterImported" xml:space="preserve">
+    <value>Імпортовані</value>
+  </data>
+  <data name="Library_ImportedMeta" xml:space="preserve">
+    <value>Імпортовано</value>
+  </data>
 </root>

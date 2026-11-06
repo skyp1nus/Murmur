@@ -358,6 +358,20 @@
                          Text="{Binding RangeText}" />
             </StackPanel>
           </Button>
+          <Button x:Name="ImportedFilter"
+                  Classes="filter"
+                  Classes.on="{Binding IsImportedFilter}"
+                  IsVisible="{Binding ShowImportedFilter}"
+                  Command="{Binding ToggleImportedCommand}">
+            <StackPanel Orientation="Horizontal"
+                        Spacing="{StaticResource Space.6}">
+              <Ellipse Classes="chipDot"
+                       IsVisible="{Binding IsImportedFilter}" />
+              <TextBlock Classes="t12 plain"
+                         Foreground="{Binding $parent[ContentPresenter].Foreground}"
+                         Text="{x:Static res:Strings.Library_FilterImported}" />
+            </StackPanel>
+          </Button>
         </WrapPanel>
       </DataTemplate>
 
@@ -427,6 +441,11 @@
                                         Height="{StaticResource Size.NavIcon}"
                                         IsVisible="{Binding IsSystemAudioIcon}"
                                         Data="{StaticResource Icon.Speaker}" />
+                  <!-- Imported: the file icon of the mockup (14 px on the 32 px tile). -->
+                  <controls:IconControl Width="{StaticResource Size.SmallIcon}"
+                                        Height="{StaticResource Size.SmallIcon}"
+                                        IsVisible="{Binding IsFileIcon}"
+                                        Data="{StaticResource Import.Icon.FileDown}" />
                 </Panel>
               </Border>
 
@@ -438,7 +457,13 @@
                            Text="{Binding Title}" />
                 <TextBlock Classes="t12 muted"
                            TextTrimming="CharacterEllipsis"
+                           IsVisible="{Binding ShowMeta}"
                            Text="{Binding MetaText}" />
+                <!-- A queued import: the one word "Queued" (11, Smoke), no bar. -->
+                <TextBlock Classes="t11 muted"
+                           TextTrimming="CharacterEllipsis"
+                           IsVisible="{Binding ShowQueued}"
+                           Text="{Binding QueuedText}" />
                 <TextBlock Classes="t12 muted"
                            TextTrimming="CharacterEllipsis"
                            IsVisible="{Binding ShowSnippet}"
@@ -460,6 +485,7 @@
                          VerticalAlignment="Center"
                          Text="{Binding ClockText}" />
               <controls:IconControl Grid.Column="3"
+                                    IsVisible="{Binding CanOpen}"
                                     Width="{StaticResource Size.RowChevron}"
                                     Height="{StaticResource Size.RowChevron}"
                                     TextElement.Foreground="{DynamicResource Brush.Ash}"
