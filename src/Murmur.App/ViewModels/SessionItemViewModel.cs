@@ -135,7 +135,11 @@ public sealed partial class SessionItemViewModel : ObservableObject
     public partial bool ShowQueued { get; private set; }
 
     /// <summary>The ordinary meta line shows unless the queued word takes its place.</summary>
-    public bool ShowMeta => !ShowQueued;
+    /// <remarks>An imported row that is transcribing shows only its title and the bar, like the mockup's.</remarks>
+    public bool ShowMeta => !ShowQueued && !(IsImported && ShowProgress);
+
+    /// <summary>The row opens a session; a stand-in for a queued import has none yet (no chevron, the button is off).</summary>
+    public bool CanOpen => _open is not null;
 
     public string QueuedText => Strings.Processing_Queued;
 
@@ -165,6 +169,7 @@ public sealed partial class SessionItemViewModel : ObservableObject
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(MetaText))]
     [NotifyPropertyChangedFor(nameof(ShowSnippet))]
+    [NotifyPropertyChangedFor(nameof(ShowMeta))]
     [NotifyPropertyChangedFor(nameof(ProgressText))]
     public partial bool ShowProgress { get; private set; }
 
@@ -258,7 +263,7 @@ public sealed partial class SessionItemViewModel : ObservableObject
     }
 
     /// <summary>Opens the session.</summary>
-    [RelayCommand]
+    [RelayCommand(CanExecute = nameof(CanOpen))]
     private void Open() => _open?.Invoke(this);
 
     /// <summary>The transcript was read: its language code ("en") and first line.</summary>
@@ -273,13 +278,6 @@ public sealed partial class SessionItemViewModel : ObservableObject
     {
         ArgumentNullException.ThrowIfNull(status);
         _live = status;
-        ApplyStatus();
-    }
-
-    /// <summary>The import queue's entry of this imported session changed (it is queued, being decoded, done...).</summary>
-    internal void ApplyImport(ImportItem? item)
-    {
-        _import = item;
         ApplyStatus();
     }
 
@@ -302,6 +300,7 @@ public sealed partial class SessionItemViewModel : ObservableObject
         SourcesText = UiFormat.Sources(HasMicrophone, HasSystemAudio, HasScreen);
         Icon = record.Source == SessionSource.Imported ? RowIcon.File : HasScreen ? RowIcon.Screen : HasMicrophone && !HasSystemAudio ? RowIcon.Microphone : RowIcon.SystemAudio;
         OnPropertyChanged(nameof(IsImported));
+        OnPropertyChanged(nameof(ShowMeta));
         OnPropertyChanged(nameof(OriginalName));
         OnPropertyChanged(nameof(MetaText));
         ApplyStatus();

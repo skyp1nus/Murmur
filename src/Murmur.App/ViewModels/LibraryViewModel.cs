@@ -371,13 +371,16 @@ public sealed partial class LibraryViewModel : ObservableObject, IDisposable, IF
         {
             // The sidebar's Recent list is the same whatever the filter says; with a filter it needs a query of its own.
             var recent = Filter == LibraryFilter.All ? null : await ListRecentAsync();
+            var importedElsewhere = Filter == LibraryFilter.All ? null : await AnyImportedStoredAsync();
             var records = await _store.ListSessionsAsync(CreateQuery(), CancellationToken.None);
             if (version != _version)
             {
                 return;
             }
 
-            SnapshotImports();
+            // The queue is not read again here: a snapshot taken after the store read could drop the stand-in row of a session
+            // the read did not see. The constructor and OnImportsChanged snapshot before they load.
+            _importedStored = Filter == LibraryFilter.All ? records.Any(r => r.Source == SessionSource.Imported) : importedElsewhere ?? _importedStored;
             _loaded = records;
             _recentPool = recent ?? [.. records.Take(RecentPoolSize)];
             UpdateImportedKnown();
@@ -1156,6 +1159,12 @@ public sealed partial class LibraryViewModel : ObservableObject, IDisposable, IF
     private void RemoveGone(SessionId id)
     {
         _loaded = [.. _loaded.Where(r => r.Id != id)];
+        if (Filter == LibraryFilter.All)
+        {
+            _importedStored = _loaded.Any(r => r.Source == SessionSource.Imported);
+        }
+
+        UpdateImportedKnown();
         ApplySearch();
     }
 

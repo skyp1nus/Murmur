@@ -51,7 +51,10 @@ public sealed partial class LibraryViewModel
 
     private ImportItem[] _importSnapshot = [];
 
-    /// <summary>Some session of the library is imported (the Imported chip is shown); kept while a date filter hides them all.</summary>
+    /// <summary>The store holds an imported session, whatever the date filter says.</summary>
+    private bool _importedStored;
+
+    /// <summary>Some session of the library is imported (the Imported chip is shown).</summary>
     private bool _importedKnown;
 
     /// <summary>The Imported chip is on: only imported sessions are listed (combined with the date chips and the search).</summary>
@@ -150,17 +153,38 @@ public sealed partial class LibraryViewModel
         return true;
     }
 
-    /// <summary>A stand-in session for an import that has no session yet; it is dated now, so it heads the list under Today.</summary>
+    /// <summary>A stand-in session for an import that has no session yet; it is dated as the queue will date the session, so it does not change its day group.</summary>
     private SessionRecord PlaceholderOf(ImportItem item) => new()
     {
         Id = new SessionId(new Guid(unchecked((int)item.Id), unchecked((short)(item.Id >> 32)), unchecked((short)(item.Id >> 48)), 0x49, 0x4d, 0x50, 0x4f, 0x52, 0x54, 0x45, 0x44)),
         Title = TitleOf(item.Path),
-        StartedAt = _time.GetLocalNow(),
+        StartedAt = StartedAtOf(item.Path),
         State = item.State == ImportState.Failed ? SessionState.Failed : SessionState.Recording,
         HasSystemAudio = true,
         Source = SessionSource.Imported,
         OriginalPath = item.Path,
     };
+
+    /// <summary>What <c>ImportQueue.StartedAtOf</c> does: the file's creation time, else its last write time (unknown or implausible times fall back; a missing file reads as now).</summary>
+    private DateTimeOffset StartedAtOf(string path)
+    {
+        var now = _time.GetUtcNow().UtcDateTime;
+        DateTime created;
+        DateTime written;
+        try
+        {
+            created = File.GetCreationTimeUtc(path);
+            written = File.GetLastWriteTimeUtc(path);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException)
+        {
+            return new DateTimeOffset(now);
+        }
+
+        var floor = new DateTime(1980, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+        var at = created > floor && created <= now.AddDays(1) ? created : written > floor ? written : now;
+        return new DateTimeOffset(DateTime.SpecifyKind(at, DateTimeKind.Utc));
+    }
 
     /// <summary>The file name without its extension, underscores as spaces (what the queue names the session).</summary>
     private static string TitleOf(string path)
@@ -173,15 +197,24 @@ public sealed partial class LibraryViewModel
     /// <summary>The queue's entries that wait for a session (shown above the stored sessions), unless a date range hides "now".</summary>
     private IEnumerable<SessionRecord> ImportPlaceholders() => Filter == LibraryFilter.Range ? [] : _importRows;
 
-    /// <summary>Whether the Imported chip is shown, after a read of the list; under "All" the list says for sure, under a date filter only a hit counts.</summary>
+    /// <summary>Under a date filter the list cannot say whether an imported session exists: ask the store without the filter (<c>null</c> = it failed).</summary>
+    private async Task<bool?> AnyImportedStoredAsync()
+    {
+        try
+        {
+            var all = await _store.ListSessionsAsync(new SessionQuery(), CancellationToken.None);
+            return all.Any(r => r.Source == SessionSource.Imported);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            return null;
+        }
+    }
+
+    /// <summary>Whether the Imported chip is shown, after a read of the list; it goes (and the filter with it) when none is left.</summary>
     private void UpdateImportedKnown()
     {
-        var any = _importRows.Count > 0 || _loaded.Any(r => r.Source == SessionSource.Imported);
-        if (!any && Filter != LibraryFilter.All)
-        {
-            any = _recentPool.Any(r => r.Source == SessionSource.Imported) || _importedKnown;
-        }
-
+        var any = _importRows.Count > 0 || _importedStored;
         if (any == _importedKnown)
         {
             return;

@@ -99,7 +99,108 @@ public sealed class LibraryImportedTests : IDisposable
         Assert.False(row.ShowProgress);
         Assert.Equal(string.Empty, row.ClockText);
         Assert.Contains(row, vm.Entries);
-        Assert.True(row.OpenCommand.CanExecute(null));
+        Assert.False(row.CanOpen);
+        Assert.False(row.OpenCommand.CanExecute(null));
+    }
+
+    [Fact]
+    public async Task AStandInRow_IsDatedLikeTheSession_FromTheFilesTime()
+    {
+        var file = Path.Combine(Path.GetTempPath(), "murmur-standin-" + Guid.NewGuid().ToString("N") + ".mp3");
+        await File.WriteAllBytesAsync(file, [0], Ct);
+        try
+        {
+            File.SetCreationTimeUtc(file, Now.UtcDateTime.AddDays(-20));
+            File.SetLastWriteTimeUtc(file, Now.UtcDateTime.AddDays(-2));
+            _queue.Earlier.Add(new ImportItem(1, file, ImportState.Queued, 0, null, null));
+            var vm = Create();
+
+            await vm.LoadAsync();
+
+            var created = vm.Sessions[0].Record.StartedAt;
+            // Where the file system keeps no creation time the write time is used; either way it is not "now".
+            Assert.True(created < Now.AddDays(-1), created.ToString("O"));
+        }
+        finally
+        {
+            File.Delete(file);
+        }
+    }
+
+    [Fact]
+    public async Task AStandInRow_OfAFileThatIsGone_FallsBackToNow()
+    {
+        _queue.Earlier.Add(new ImportItem(1, "/no/such/file.mp3", ImportState.Queued, 0, null, null));
+        var vm = Create();
+
+        await vm.LoadAsync();
+
+        Assert.Equal(Now.UtcDateTime, vm.Sessions[0].Record.StartedAt.UtcDateTime);
+    }
+
+    [Fact]
+    public async Task ATranscribingImport_ShowsOnlyTheTitleAndTheBar()
+    {
+        var record = AddImported("Zoom Meeting", "/in/z.mp4", SessionState.Transcribing);
+        _processing.Set(new SessionProcessingStatus(record.Id, SessionProcessingStage.Transcribing, 0.2));
+        var vm = Create();
+
+        await vm.LoadAsync();
+
+        var row = vm.Sessions[0];
+        Assert.False(row.ShowMeta);
+        Assert.True(row.ShowProgress);
+        _processing.Raise(new SessionProcessingStatus(record.Id, SessionProcessingStage.Completed, 1));
+        Assert.True(row.ShowMeta);
+    }
+
+    /// <summary>Review round 1: the queue sets the session while the list is read; the stand-in row must not vanish until the session is in the list.</summary>
+    [Fact]
+    public async Task ASessionCreatedWhileTheListLoads_KeepsItsRow_UntilTheNextChange()
+    {
+        _queue.Earlier.Add(new ImportItem(1, "/in/Interview.mp3", ImportState.Decoding, 0, null, null));
+        var vm = Create();
+        var gate = new TaskCompletionSource();
+        _store.ListGate = gate.Task;
+
+        var load = vm.LoadAsync();
+
+        // The queue creates the session; it raises no Changed for that.
+        var record = AddImported("Interview", "/in/Interview.mp3", SessionState.Recording);
+        _queue.Earlier[0] = _queue.Earlier[0] with { Session = record.Id };
+        gate.SetResult();
+        await load;
+
+        var row = Assert.Single(vm.Sessions);
+        Assert.Equal("Interview", row.Title);
+        Assert.False(row.CanOpen, "still the stand-in: the list read did not see the session");
+
+        // The next Changed (the queue saved the entry) shows the real session.
+        await _queue.RaiseChanged();
+        await vm.LoadTask;
+        var real = Assert.Single(vm.Sessions);
+        Assert.Equal(record.Id, real.Id);
+        Assert.True(real.CanOpen);
+    }
+
+    [Fact]
+    public async Task TheChip_GoesAway_WhenTheLastImportedSessionIsGone_UnderADateFilter()
+    {
+        var record = AddImported("Old import", "/in/b.mp3", hoursAgo: 24 * 20);
+        AddRecorded("Today recording", hoursAgo: 2);
+        var vm = Create();
+        await vm.LoadAsync();
+        vm.SetFilterCommand.Execute(LibraryFilter.Today);
+        await vm.LoadTask;
+        Assert.True(vm.ShowImportedFilter);
+        vm.ToggleImportedCommand.Execute(null);
+
+        await _store.DeleteSessionAsync(record.Id, Ct);
+        vm.SetFilterCommand.Execute(LibraryFilter.Week);
+        await vm.LoadTask;
+
+        Assert.False(vm.ShowImportedFilter);
+        Assert.False(vm.IsImportedFilter);
     }
 
     [Fact]

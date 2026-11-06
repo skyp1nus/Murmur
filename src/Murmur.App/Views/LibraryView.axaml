@@ -485,6 +485,7 @@
                          VerticalAlignment="Center"
                          Text="{Binding ClockText}" />
               <controls:IconControl Grid.Column="3"
+                                    IsVisible="{Binding CanOpen}"
                                     Width="{StaticResource Size.RowChevron}"
                                     Height="{StaticResource Size.RowChevron}"
                                     TextElement.Foreground="{DynamicResource Brush.Ash}"
