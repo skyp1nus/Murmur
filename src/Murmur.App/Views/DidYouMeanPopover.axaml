@@ -1,0 +1,67 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Murmur.App.ViewModels"
+             xmlns:views="using:Murmur.App.Views"
+             x:Class="Murmur.App.Views.DidYouMeanPopover"
+             x:DataType="vm:SessionViewModel"
+             Width="0"
+             Height="0"
+             HorizontalAlignment="Left"
+             VerticalAlignment="Top">
+
+  <!--
+    "Did you mean" (Idea4Transcript.dc.html, "Idea 4 / Low-confidence fix", #58): opened by a click (or Enter) on an uncertain word, under
+    that word. The label, a chip per alternative (the first filled) and "Keep <word>" last. Left / Right move between the chips, Enter picks,
+    Esc (or a click elsewhere) closes. The host takes no room: it only holds the popup, anchored by the code-behind to the word that was
+    clicked in Target (the transcript list). The code-behind also keeps the card inside the window (16 px from its edges) instead of
+    the popup's own SlideX, which would slide the card, and the chip under the pointer, whenever it grows.
+  -->
+  <Popup x:Name="Popup"
+         IsOpen="{Binding IsDidYouMeanOpen, Mode=TwoWay}"
+         Placement="AnchorAndGravity"
+         PlacementAnchor="BottomLeft"
+         PlacementGravity="BottomRight"
+         VerticalOffset="{StaticResource Space.6}"
+         PlacementConstraintAdjustment="FlipY"
+         IsLightDismissEnabled="True"
+         OverlayDismissEventPassThrough="True"
+         Opened="OnPopupOpened"
+         Closed="OnPopupClosed">
+    <!-- The card is the popup's child (Avalonia places the popup by it, its margin only makes room for the shadow). -->
+    <Border x:Name="Card"
+            Classes="didYouMean"
+            views:SessionShortcuts.OwnsKeys="True"
+            DataContext="{Binding DidYouMean}">
+      <StackPanel x:DataType="vm:DidYouMeanViewModel"
+                  Orientation="Horizontal"
+                  Spacing="{StaticResource Space.4}"
+                  AutomationProperties.Name="{Binding Name}">
+        <StackPanel.KeyBindings>
+          <KeyBinding Gesture="Escape" Command="{Binding CloseCommand}" />
+        </StackPanel.KeyBindings>
+        <TextBlock Classes="didYouMeanLabel"
+                   Text="{Binding Title}" />
+        <ItemsControl x:Name="Chips"
+                      ItemsSource="{Binding Choices}">
+          <ItemsControl.ItemsPanel>
+            <ItemsPanelTemplate>
+              <StackPanel Orientation="Horizontal"
+                          Spacing="{StaticResource Space.4}" />
+            </ItemsPanelTemplate>
+          </ItemsControl.ItemsPanel>
+          <ItemsControl.ItemTemplate>
+            <DataTemplate x:DataType="vm:WordChoiceViewModel">
+              <Button Classes="didYouMeanChip"
+                      Classes.primary="{Binding IsPrimary}"
+                      Classes.outline="{Binding !IsPrimary}"
+                      Command="{Binding PickCommand}"
+                      AutomationProperties.Name="{Binding Text}">
+                <TextBlock Text="{Binding Text}" />
+              </Button>
+            </DataTemplate>
+          </ItemsControl.ItemTemplate>
+        </ItemsControl>
+      </StackPanel>
+    </Border>
+  </Popup>
+</UserControl>

@@ -1,0 +1,490 @@
+<Styles xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:coll="using:Avalonia.Collections"
+        xmlns:controls="using:Murmur.App.Controls">
+
+  <!--
+    The import of files (Idea7Import.dc.html): the "Import files" pill of the Library ("Idea 7 / Import files") and the import dialog
+    ("Idea 7 / Import dialog"): a 520 px card with a 48 px header, the scrolling body (drop zone, Recent in Downloads, the files to import,
+    the options) and a 52 px footer, on a scrim over the window. Like the other style files this one holds no literal colours or fonts:
+    they are token resources. The sizes below are the mockup's, named after the part they size.
+  -->
+  <Styles.Resources>
+    <ResourceDictionary>
+      <ResourceDictionary.MergedDictionaries>
+        <ResourceInclude Source="/Styles/Tokens.axaml" />
+      </ResourceDictionary.MergedDictionaries>
+
+      <x:Double x:Key="Size.ImportSheetWidth">520</x:Double>
+      <x:Double x:Key="Size.ImportHeader">48</x:Double>
+      <x:Double x:Key="Size.ImportFooter">52</x:Double>
+      <x:Double x:Key="Size.ImportClose">30</x:Double>
+      <x:Double x:Key="Size.ImportCloseIcon">14</x:Double>
+      <x:Double x:Key="Size.ImportBadge">20</x:Double>
+      <x:Double x:Key="Size.ImportDropPlate">36</x:Double>
+      <x:Double x:Key="Size.ImportDropIcon">17</x:Double>
+      <!-- The dashed outline of the drop zone: 1.5 px on the 16 px corner, drawn inside the box (radius 16 - 0.75). -->
+      <x:Double x:Key="Size.ImportDropRadius">15.25</x:Double>
+      <x:Double x:Key="Size.ImportTile">28</x:Double>
+      <x:Double x:Key="Size.ImportTileIcon">13</x:Double>
+      <x:Double x:Key="Size.ImportAdd">26</x:Double>
+      <x:Double x:Key="Size.ImportRemove">26</x:Double>
+      <x:Double x:Key="Size.ImportRemoveIcon">11</x:Double>
+      <x:Double x:Key="Size.ImportPillIcon">14</x:Double>
+      <x:Double x:Key="Size.ImportLockIcon">12</x:Double>
+      <x:Double x:Key="Opacity.ImportDimmed">0.55</x:Double>
+      <!-- The strokes of the icons in the 24 x 24 grid: the close cross 1.8, the row cross 2, the lock 1.7 (the others 1.6). -->
+      <x:Double x:Key="Stroke.ImportClose">1.8</x:Double>
+      <x:Double x:Key="Stroke.ImportRemove">2</x:Double>
+      <x:Double x:Key="Stroke.ImportLock">1.7</x:Double>
+      <!-- Dash and gap of the drop zone outline, in multiples of its stroke. -->
+      <coll:AvaloniaList x:Key="Import.Dash.Drop"
+                         x:TypeArguments="x:Double">
+        <x:Double>3</x:Double>
+        <x:Double>3</x:Double>
+      </coll:AvaloniaList>
+
+      <!-- The card keeps 40 px from the top and the bottom of the window (the mockup's top); in a 600 px window the body scrolls. -->
+      <Thickness x:Key="Margin.ImportSheet">0,40</Thickness>
+      <Thickness x:Key="Margin.ImportHeader">20,0,14,0</Thickness>
+      <Thickness x:Key="Margin.ImportBody">20,16</Thickness>
+      <!-- The drop zone: 18 px above and below, 16 at the sides, inside the 1.5 px outline (19.5 in all, split 19 / 20 so layout rounding keeps the height). -->
+      <Thickness x:Key="Margin.ImportDropContent">17.5,19,17.5,20</Thickness>
+      <Thickness x:Key="Margin.ImportDropPlate">0,0,0,2</Thickness>
+      <Thickness x:Key="Margin.ImportFormats">0,2,0,0</Thickness>
+      <!-- The step badges hang 18 px left of their section, in the body's 20 px margin; the drop zone's is 8 px down. -->
+      <Thickness x:Key="Margin.ImportBadgeDrop">-18,8,0,0</Thickness>
+      <Thickness x:Key="Margin.ImportBadge">-18,0,0,0</Thickness>
+      <Thickness x:Key="Margin.ImportRecentHeader">0,0,0,2</Thickness>
+      <Thickness x:Key="Margin.ImportRecentRow">0,6</Thickness>
+      <Thickness x:Key="Margin.ImportQueueRow">12,7,8,7</Thickness>
+      <Thickness x:Key="Margin.ImportMeta">0,1,0,0</Thickness>
+      <Thickness x:Key="Margin.ImportAdd">10,0</Thickness>
+      <Thickness x:Key="Margin.ImportPrimary">16,0</Thickness>
+      <Thickness x:Key="Margin.ImportPill">12,0</Thickness>
+      <Thickness x:Key="Margin.ImportLock">0,0,5,0</Thickness>
+      <Thickness x:Key="Margin.ImportLink">3,0,0,0</Thickness>
+      <Thickness x:Key="Border.ImportEdgeBottom">0,0,0,1</Thickness>
+      <Thickness x:Key="Border.ImportEdgeTop">0,1,0,0</Thickness>
+
+      <!-- Paths of the icons that are only used here (the 24 x 24 grid of the canvas SVG). -->
+      <StreamGeometry x:Key="Import.Icon.Upload">M12 15V4M7 9l5-5 5 5M5 20h14</StreamGeometry>
+      <StreamGeometry x:Key="Import.Icon.Close">M6 6l12 12M18 6L6 18</StreamGeometry>
+      <StreamGeometry x:Key="Import.Icon.Audio">M4 10v4M8 7v10M12 4v16M16 8v8M20 11v2</StreamGeometry>
+      <StreamGeometry x:Key="Import.Icon.Video">M5 6h9a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2z M16 10l5-3v10l-5-3z</StreamGeometry>
+      <StreamGeometry x:Key="Import.Icon.File">M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z M14 3v5h5</StreamGeometry>
+      <StreamGeometry x:Key="Import.Icon.Lock">M7 11h10a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2v-6a2 2 0 0 1 2-2z M8 11V7a4 4 0 0 1 8 0v4</StreamGeometry>
+    </ResourceDictionary>
+  </Styles.Resources>
+
+  <!-- ==== The "Import files" pill of the Library: 32 px, a 1.5 px Ink outline on the Canvas, the upload icon and 13 / 500. ======== -->
+  <Style Selector="Button.importPill">
+    <Setter Property="Height" Value="{StaticResource Size.Button}" />
+    <Setter Property="MinHeight" Value="0" />
+    <Setter Property="Padding" Value="{StaticResource Margin.ImportPill}" />
+    <Setter Property="CornerRadius" Value="{StaticResource Radius.Pill}" />
+    <Setter Property="Background" Value="{DynamicResource Brush.Canvas}" />
+    <Setter Property="Foreground" Value="{DynamicResource Brush.Ink}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource Brush.Ink}" />
+    <Setter Property="BorderThickness" Value="{StaticResource Emphasis.Thickness}" />
+    <Setter Property="HorizontalContentAlignment" Value="Center" />
+    <Setter Property="VerticalContentAlignment" Value="Center" />
+  </Style>
+  <Style Selector="Button.importPill:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="{DynamicResource Brush.FillHover}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource Brush.Ink}" />
+    <Setter Property="Foreground" Value="{DynamicResource Brush.Ink}" />
+  </Style>
+  <Style Selector="Button.importPill:pressed /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="{DynamicResource Brush.FillPressed}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource Brush.Ink}" />
+    <Setter Property="Foreground" Value="{DynamicResource Brush.Ink}" />
+  </Style>
+
+  <!-- ==== Text of the dialog. The canvas tracks every run by 0.13 px (0.01em of its 13 px page), the pills included (they are spans). === -->
+  <Style Selector="TextBlock.importTitle">
+    <Setter Property="FontFamily" Value="{StaticResource Font.Display}" />
+    <Setter Property="FontWeight" Value="{StaticResource FontWeight.Display}" />
+    <Setter Property="FontSize" Value="{StaticResource FontSize.CardTitle}" />
+    <Setter Property="LineHeight" Value="{StaticResource LineHeight.CardTitle}" />
+    <Setter Property="LetterSpacing" Value="{StaticResource LetterSpacing.CardTitle}" />
+    <Setter Property="VerticalAlignment" Value="Center" />
+  </Style>
+  <!-- 13 / 500: the line of the drop zone and the labels of the buttons. -->
+  <Style Selector="TextBlock.importStrong">
+    <Setter Property="FontFamily" Value="{StaticResource Font.Body}" />
+    <Setter Property="FontWeight" Value="{StaticResource FontWeight.BodyMedium}" />
+    <Setter Property="FontSize" Value="{StaticResource FontSize.MetaTight}" />
+    <Setter Property="LineHeight" Value="{StaticResource LineHeight.MetaTight}" />
+    <Setter Property="LetterSpacing" Value="{StaticResource LetterSpacing.MetaTight}" />
+  </Style>
+  <!-- 13: the choices of the language select. -->
+  <Style Selector="TextBlock.importOption">
+    <Setter Property="FontFamily" Value="{StaticResource Font.Body}" />
+    <Setter Property="FontWeight" Value="{StaticResource FontWeight.Body}" />
+    <Setter Property="FontSize" Value="{StaticResource FontSize.MetaTight}" />
+    <Setter Property="LineHeight" Value="{StaticResource LineHeight.MetaTight}" />
+    <Setter Property="LetterSpacing" Value="{StaticResource LetterSpacing.MetaTight}" />
+    <Setter Property="VerticalAlignment" Value="Center" />
+  </Style>
+  <!-- 12 / 500: the section titles, the labels of the options, the file names. -->
+  <Style Selector="TextBlock.importLabel">
+    <Setter Property="FontFamily" Value="{StaticResource Font.Body}" />
+    <Setter Property="FontWeight" Value="{StaticResource FontWeight.BodyMedium}" />
+    <Setter Property="FontSize" Value="{StaticResource FontSize.SmallTight}" />
+    <Setter Property="LineHeight" Value="{StaticResource LineHeight.SmallTight}" />
+    <Setter Property="LetterSpacing" Value="{StaticResource LetterSpacing.SmallTight}" />
+  </Style>
+  <!-- 12, Smoke: "or" of the drop zone. -->
+  <Style Selector="TextBlock.importSmall">
+    <Setter Property="FontFamily" Value="{StaticResource Font.Body}" />
+    <Setter Property="FontWeight" Value="{StaticResource FontWeight.Body}" />
+    <Setter Property="FontSize" Value="{StaticResource FontSize.SmallTight}" />
+    <Setter Property="LineHeight" Value="{StaticResource LineHeight.SmallTight}" />
+    <Setter Property="LetterSpacing" Value="{StaticResource LetterSpacing.SmallTight}" />
+    <Setter Property="Foreground" Value="{DynamicResource Brush.Smoke}" />
+  </Style>
+  <!-- 12, Graphite: the footer's "Transcribed on this PC" and the error line in its place. -->
+  <Style Selector="TextBlock.importNote">
+    <Setter Property="FontFamily" Value="{StaticResource Font.Body}" />
+    <Setter Property="FontWeight" Value="{StaticResource FontWeight.Body}" />
+    <Setter Property="FontSize" Value="{StaticResource FontSize.SmallTight}" />
+    <Setter Property="LineHeight" Value="{StaticResource LineHeight.SmallTight}" />
+    <Setter Property="LetterSpacing" Value="{StaticResource LetterSpacing.SmallTight}" />
+    <Setter Property="Foreground" Value="{DynamicResource Brush.Graphite}" />
+    <Setter Property="VerticalAlignment" Value="Center" />
+  </Style>
+  <Style Selector="TextBlock.importNote.error">
+    <Setter Property="Foreground" Value="{DynamicResource Brush.Ink}" />
+    <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+  </Style>
+  <!-- 11, Smoke: "Audio and video only" and the detail lines; an unsupported file's reason is Graphite. -->
+  <Style Selector="TextBlock.importMicro">
+    <Setter Property="FontFamily" Value="{StaticResource Font.Body}" />
+    <Setter Property="FontWeight" Value="{StaticResource FontWeight.Body}" />
+    <Setter Property="FontSize" Value="{StaticResource FontSize.Tag}" />
+    <Setter Property="LineHeight" Value="{StaticResource LineHeight.Tag}" />
+    <Setter Property="LetterSpacing" Value="{StaticResource LetterSpacing.Tag}" />
+    <Setter Property="Foreground" Value="{DynamicResource Brush.Smoke}" />
+  </Style>
+  <Style Selector="TextBlock.importMicro.dimmed">
+    <Setter Property="Foreground" Value="{DynamicResource Brush.Graphite}" />
+  </Style>
+  <!-- Geist Mono 10, Ash: the formats line, at the font's own line (the canvas's "normal"; Caption's 1.6 line is the avatars'). -->
+  <Style Selector="TextBlock.importFormats">
+    <Setter Property="FontFamily" Value="{StaticResource Font.Mono}" />
+    <Setter Property="FontWeight" Value="{StaticResource FontWeight.Mono}" />
+    <Setter Property="FontSize" Value="{StaticResource FontSize.Caption}" />
+    <Setter Property="LetterSpacing" Value="{StaticResource LetterSpacing.Caption}" />
+    <Setter Property="Foreground" Value="{DynamicResource Brush.Ash}" />
+    <Setter Property="TextAlignment" Value="Center" />
+    <Setter Property="TextWrapping" Value="Wrap" />
+  </Style>
+
+  <!-- ==== The card ======================================================================================================== -->
+  <Style Selector="Border.importScrim">
+    <Setter Property="Background" Value="{DynamicResource Brush.Scrim}" />
+  </Style>
+  <Style Selector="Border.importSheet">
+    <Setter Property="Width" Value="{StaticResource Size.ImportSheetWidth}" />
+    <Setter Property="Margin" Value="{StaticResource Margin.ImportSheet}" />
+    <Setter Property="HorizontalAlignment" Value="Center" />
+    <Setter Property="VerticalAlignment" Value="Center" />
+    <Setter Property="Background" Value="{DynamicResource Brush.Canvas}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource Brush.Hairline}" />
+    <Setter Property="BorderThickness" Value="{StaticResource Hairline.Thickness}" />
+    <Setter Property="CornerRadius" Value="{StaticResource Radius.CardLarge}" />
+    <!-- No ClipToBounds: Avalonia would clip the card's own shadow; only the body scrolls, and its ScrollViewer clips itself. -->
+    <Setter Property="BoxShadow" Value="{StaticResource Shadow.Modal}" />
+  </Style>
+  <Style Selector="Border.importHeader">
+    <Setter Property="Height" Value="{StaticResource Size.ImportHeader}" />
+    <Setter Property="Padding" Value="{StaticResource Margin.ImportHeader}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource Brush.Hairline}" />
+    <Setter Property="BorderThickness" Value="{StaticResource Border.ImportEdgeBottom}" />
+  </Style>
+  <Style Selector="Border.importFooter">
+    <Setter Property="Height" Value="{StaticResource Size.ImportFooter}" />
+    <Setter Property="Padding" Value="{StaticResource Margin.ImportHeader}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource Brush.Hairline}" />
+    <Setter Property="BorderThickness" Value="{StaticResource Border.ImportEdgeTop}" />
+  </Style>
+
+  <!-- The close cross: a 30 px round button that fills with Surface on hover. -->
+  <Style Selector="Button.importClose">
+    <Setter Property="Width" Value="{StaticResource Size.ImportClose}" />
+    <Setter Property="Height" Value="{StaticResource Size.ImportClose}" />
+    <Setter Property="MinWidth" Value="0" />
+    <Setter Property="MinHeight" Value="0" />
+    <Setter Property="Padding" Value="0" />
+    <Setter Property="CornerRadius" Value="{StaticResource Radius.Pill}" />
+    <Setter Property="HorizontalContentAlignment" Value="Center" />
+    <Setter Property="VerticalContentAlignment" Value="Center" />
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="BorderThickness" Value="0" />
+    <Setter Property="Foreground" Value="{DynamicResource Brush.Ink}" />
+  </Style>
+  <Style Selector="Button.importClose:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="{DynamicResource Brush.FillHover}" />
+    <Setter Property="Foreground" Value="{DynamicResource Brush.Ink}" />
+  </Style>
+  <Style Selector="Button.importClose:pressed /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="{DynamicResource Brush.FillPressed}" />
+    <Setter Property="Foreground" Value="{DynamicResource Brush.Ink}" />
+  </Style>
+
+  <!-- A step badge: a 20 px Ink disc with the number in 11 / 500 Canvas. -->
+  <Style Selector="Border.importBadge">
+    <Setter Property="Width" Value="{StaticResource Size.ImportBadge}" />
+    <Setter Property="Height" Value="{StaticResource Size.ImportBadge}" />
+    <Setter Property="CornerRadius" Value="{StaticResource Radius.Pill}" />
+    <Setter Property="Background" Value="{DynamicResource Brush.Ink}" />
+    <Setter Property="HorizontalAlignment" Value="Left" />
+    <Setter Property="VerticalAlignment" Value="Top" />
+    <Setter Property="Margin" Value="{StaticResource Margin.ImportBadge}" />
+  </Style>
+  <Style Selector="Border.importBadge.drop">
+    <Setter Property="Margin" Value="{StaticResource Margin.ImportBadgeDrop}" />
+  </Style>
+  <Style Selector="Border.importBadge TextBlock">
+    <Setter Property="FontFamily" Value="{StaticResource Font.Body}" />
+    <Setter Property="FontWeight" Value="{StaticResource FontWeight.BodyMedium}" />
+    <Setter Property="FontSize" Value="{StaticResource FontSize.Tag}" />
+    <Setter Property="LineHeight" Value="{StaticResource LineHeight.Tag}" />
+    <Setter Property="LetterSpacing" Value="{StaticResource LetterSpacing.Tag}" />
+    <Setter Property="Foreground" Value="{DynamicResource Brush.Canvas}" />
+    <Setter Property="HorizontalAlignment" Value="Center" />
+    <Setter Property="VerticalAlignment" Value="Center" />
+  </Style>
+
+  <!-- ==== Step 1: the drop zone ============================================================================================ -->
+  <Style Selector="Rectangle.importDropOutline">
+    <Setter Property="RadiusX" Value="{StaticResource Size.ImportDropRadius}" />
+    <Setter Property="RadiusY" Value="{StaticResource Size.ImportDropRadius}" />
+    <Setter Property="Stroke" Value="{DynamicResource Brush.DashedBorder}" />
+    <Setter Property="StrokeThickness" Value="{StaticResource Emphasis.Width}" />
+    <Setter Property="StrokeDashArray" Value="{StaticResource Import.Dash.Drop}" />
+    <Setter Property="IsHitTestVisible" Value="False" />
+  </Style>
+  <Style Selector="Border.importDropPlate">
+    <Setter Property="Width" Value="{StaticResource Size.ImportDropPlate}" />
+    <Setter Property="Height" Value="{StaticResource Size.ImportDropPlate}" />
+    <Setter Property="CornerRadius" Value="{StaticResource Radius.Pill}" />
+    <Setter Property="Background" Value="{DynamicResource Brush.Surface}" />
+    <Setter Property="Margin" Value="{StaticResource Margin.ImportDropPlate}" />
+    <Setter Property="HorizontalAlignment" Value="Center" />
+  </Style>
+  <!-- "browse this PC": an Ink link, underlined, 12 px; no button chrome. -->
+  <Style Selector="Button.importLink">
+    <Setter Property="Padding" Value="0" />
+    <Setter Property="MinHeight" Value="0" />
+    <Setter Property="MinWidth" Value="0" />
+    <Setter Property="Margin" Value="{StaticResource Margin.ImportLink}" />
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="BorderThickness" Value="0" />
+    <Setter Property="CornerRadius" Value="0" />
+    <Setter Property="VerticalAlignment" Value="Center" />
+  </Style>
+  <Style Selector="Button.importLink:pointerover /template/ ContentPresenter#PART_ContentPresenter, Button.importLink:pressed /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="Transparent" />
+  </Style>
+  <Style Selector="Button.importLink TextBlock">
+    <Setter Property="FontFamily" Value="{StaticResource Font.Body}" />
+    <Setter Property="FontWeight" Value="{StaticResource FontWeight.Body}" />
+    <Setter Property="FontSize" Value="{StaticResource FontSize.SmallTight}" />
+    <Setter Property="LineHeight" Value="{StaticResource LineHeight.SmallTight}" />
+    <Setter Property="LetterSpacing" Value="{StaticResource LetterSpacing.SmallTight}" />
+    <Setter Property="Foreground" Value="{DynamicResource Brush.Ink}" />
+    <Setter Property="TextDecorations" Value="Underline" />
+  </Style>
+  <Style Selector="Button.importLink:pointerover TextBlock">
+    <Setter Property="Foreground" Value="{DynamicResource Brush.Graphite}" />
+  </Style>
+  <Style Selector="Button.importLink:disabled TextBlock">
+    <Setter Property="Foreground" Value="{DynamicResource Brush.Ash}" />
+  </Style>
+
+  <!-- ==== Steps 2 and 3: the rows ========================================================================================== -->
+  <!-- The 28 px kind tile (Stone, the 8 px tile radius; the mockup's 7 has no token) with the 13 px icon. -->
+  <Style Selector="Border.importTile">
+    <Setter Property="Width" Value="{StaticResource Size.ImportTile}" />
+    <Setter Property="Height" Value="{StaticResource Size.ImportTile}" />
+    <Setter Property="CornerRadius" Value="{StaticResource Radius.Tile}" />
+    <Setter Property="Background" Value="{DynamicResource Brush.Stone}" />
+    <Setter Property="VerticalAlignment" Value="Center" />
+  </Style>
+  <Style Selector="controls|IconControl.importKind">
+    <Setter Property="Width" Value="{StaticResource Size.ImportTileIcon}" />
+    <Setter Property="Height" Value="{StaticResource Size.ImportTileIcon}" />
+    <Setter Property="HorizontalAlignment" Value="Center" />
+    <Setter Property="VerticalAlignment" Value="Center" />
+    <Setter Property="Data" Value="{StaticResource Import.Icon.File}" />
+  </Style>
+  <Style Selector="controls|IconControl.importKind.audio">
+    <Setter Property="Data" Value="{StaticResource Import.Icon.Audio}" />
+  </Style>
+  <Style Selector="controls|IconControl.importKind.video">
+    <Setter Property="Data" Value="{StaticResource Import.Icon.Video}" />
+  </Style>
+  <Style Selector=":is(Control).importDimmable.dimmed">
+    <Setter Property="Opacity" Value="{StaticResource Opacity.ImportDimmed}" />
+  </Style>
+
+  <Style Selector="Border.importQueue">
+    <Setter Property="BorderBrush" Value="{DynamicResource Brush.Hairline}" />
+    <Setter Property="BorderThickness" Value="{StaticResource Hairline.Thickness}" />
+    <Setter Property="CornerRadius" Value="{StaticResource Radius.Panel}" />
+    <Setter Property="ClipToBounds" Value="True" />
+  </Style>
+  <!-- Rows of the files to import: a hairline between them (none above the first). -->
+  <Style Selector="Border.importQueueRow">
+    <Setter Property="Padding" Value="{StaticResource Margin.ImportQueueRow}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource Brush.Hairline}" />
+    <Setter Property="BorderThickness" Value="{StaticResource Border.ImportEdgeTop}" />
+  </Style>
+  <Style Selector="ItemsControl.importQueueList ContentPresenter:nth-child(1) Border.importQueueRow">
+    <Setter Property="BorderThickness" Value="0" />
+  </Style>
+
+  <!-- The Add pill of a Downloads row: 26 px, 10 px inside, a hairline, 11 / 500. -->
+  <Style Selector="Button.importAdd">
+    <Setter Property="Height" Value="{StaticResource Size.ImportAdd}" />
+    <Setter Property="MinHeight" Value="0" />
+    <Setter Property="Padding" Value="{StaticResource Margin.ImportAdd}" />
+    <Setter Property="CornerRadius" Value="{StaticResource Radius.Pill}" />
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="BorderBrush" Value="{DynamicResource Brush.ButtonBorder}" />
+    <Setter Property="BorderThickness" Value="{StaticResource Hairline.Thickness}" />
+    <Setter Property="HorizontalContentAlignment" Value="Center" />
+    <Setter Property="VerticalContentAlignment" Value="Center" />
+    <Setter Property="VerticalAlignment" Value="Center" />
+  </Style>
+  <Style Selector="Button.importAdd:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="{DynamicResource Brush.FillHover}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource Brush.ButtonBorder}" />
+  </Style>
+  <Style Selector="Button.importAdd:pressed /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="{DynamicResource Brush.FillPressed}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource Brush.ButtonBorder}" />
+  </Style>
+  <Style Selector="Button.importAdd:disabled /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="BorderBrush" Value="{DynamicResource Brush.Stone}" />
+  </Style>
+  <Style Selector="Button.importAdd TextBlock">
+    <Setter Property="FontFamily" Value="{StaticResource Font.Body}" />
+    <Setter Property="FontWeight" Value="{StaticResource FontWeight.BodyMedium}" />
+    <Setter Property="FontSize" Value="{StaticResource FontSize.Tag}" />
+    <Setter Property="LineHeight" Value="{StaticResource LineHeight.Tag}" />
+    <Setter Property="LetterSpacing" Value="{StaticResource LetterSpacing.Tag}" />
+    <Setter Property="Foreground" Value="{DynamicResource Brush.Ink}" />
+  </Style>
+  <Style Selector="Button.importAdd:disabled TextBlock">
+    <Setter Property="Foreground" Value="{DynamicResource Brush.Ash}" />
+  </Style>
+
+  <!-- The cross of a row: 26 px, an 11 px Smoke cross that turns Ink on hover. -->
+  <Style Selector="Button.importRemove">
+    <Setter Property="Width" Value="{StaticResource Size.ImportRemove}" />
+    <Setter Property="Height" Value="{StaticResource Size.ImportRemove}" />
+    <Setter Property="MinWidth" Value="0" />
+    <Setter Property="MinHeight" Value="0" />
+    <Setter Property="Padding" Value="0" />
+    <Setter Property="CornerRadius" Value="{StaticResource Radius.Pill}" />
+    <Setter Property="HorizontalContentAlignment" Value="Center" />
+    <Setter Property="VerticalContentAlignment" Value="Center" />
+    <Setter Property="VerticalAlignment" Value="Center" />
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="BorderThickness" Value="0" />
+    <Setter Property="Foreground" Value="{DynamicResource Brush.Smoke}" />
+  </Style>
+  <Style Selector="Button.importRemove:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="{DynamicResource Brush.FillHover}" />
+    <Setter Property="Foreground" Value="{DynamicResource Brush.Ink}" />
+  </Style>
+  <Style Selector="Button.importRemove:pressed /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="{DynamicResource Brush.FillPressed}" />
+    <Setter Property="Foreground" Value="{DynamicResource Brush.Ink}" />
+  </Style>
+
+  <!-- ==== Options ========================================================================================================== -->
+  <!-- The language select: the 32 px picker of the Settings with the mockup's button-border outline. -->
+  <Style Selector="ComboBox.importLanguage /template/ Border#Background">
+    <Setter Property="BorderBrush" Value="{DynamicResource Brush.ButtonBorder}" />
+  </Style>
+  <Style Selector="ComboBox.importLanguage:pointerover /template/ Border#Background">
+    <Setter Property="BorderBrush" Value="{DynamicResource Brush.Ash}" />
+  </Style>
+  <Style Selector="ComboBox.importLanguage:dropdownopen /template/ Border#Background, ComboBox.importLanguage:focus-visible /template/ Border#Background">
+    <Setter Property="BorderBrush" Value="{DynamicResource Brush.Ink}" />
+  </Style>
+
+  <!-- Original file: a 32 px Surface pill with two halves; the chosen one is Ink with Canvas text, the other Graphite text. -->
+  <Style Selector="Border.importSegments">
+    <Setter Property="Height" Value="{StaticResource Size.Field}" />
+    <Setter Property="Padding" Value="{StaticResource Inset.3}" />
+    <Setter Property="CornerRadius" Value="{StaticResource Radius.Pill}" />
+    <Setter Property="Background" Value="{DynamicResource Brush.Surface}" />
+  </Style>
+  <Style Selector="RadioButton.importSegment">
+    <Setter Property="HorizontalAlignment" Value="Stretch" />
+    <Setter Property="VerticalAlignment" Value="Stretch" />
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="Template">
+      <ControlTemplate>
+        <Border Name="PART_Root"
+                CornerRadius="{StaticResource Radius.Pill}"
+                Background="{TemplateBinding Background}">
+          <ContentPresenter Name="PART_ContentPresenter"
+                            Content="{TemplateBinding Content}"
+                            HorizontalAlignment="Center"
+                            VerticalAlignment="Center" />
+        </Border>
+      </ControlTemplate>
+    </Setter>
+  </Style>
+  <Style Selector="RadioButton.importSegment:pointerover /template/ Border#PART_Root">
+    <Setter Property="Background" Value="{DynamicResource Brush.FillPressed}" />
+  </Style>
+  <Style Selector="RadioButton.importSegment:checked /template/ Border#PART_Root, RadioButton.importSegment:checked:pointerover /template/ Border#PART_Root">
+    <Setter Property="Background" Value="{DynamicResource Brush.Ink}" />
+  </Style>
+  <Style Selector="RadioButton.importSegment TextBlock">
+    <Setter Property="FontFamily" Value="{StaticResource Font.Body}" />
+    <Setter Property="FontWeight" Value="{StaticResource FontWeight.BodyMedium}" />
+    <Setter Property="FontSize" Value="{StaticResource FontSize.SmallTight}" />
+    <Setter Property="LineHeight" Value="{StaticResource LineHeight.SmallTight}" />
+    <Setter Property="LetterSpacing" Value="{StaticResource LetterSpacing.SmallTight}" />
+    <Setter Property="Foreground" Value="{DynamicResource Brush.Graphite}" />
+  </Style>
+  <Style Selector="RadioButton.importSegment:checked TextBlock">
+    <Setter Property="Foreground" Value="{DynamicResource Brush.Canvas}" />
+  </Style>
+  <Style Selector="RadioButton.importSegment:focus-visible /template/ Border#PART_Root">
+    <Setter Property="BorderBrush" Value="{DynamicResource Brush.Ink}" />
+    <Setter Property="BorderThickness" Value="{StaticResource Hairline.Thickness}" />
+  </Style>
+
+  <!-- ==== Footer =========================================================================================================== -->
+  <!-- Cancel and Import: the outline and primary pills, 32 px, 14 and 16 px inside; their labels are 13 / 500 TextBlocks. -->
+  <Style Selector="Button.outline.importCancel">
+    <Setter Property="Height" Value="{StaticResource Size.Button}" />
+    <Setter Property="MinHeight" Value="0" />
+    <Setter Property="VerticalAlignment" Value="Center" />
+  </Style>
+  <Style Selector="Button.outline.importCancel TextBlock">
+    <Setter Property="Foreground" Value="{DynamicResource Brush.Ink}" />
+  </Style>
+  <Style Selector="Button.outline.importCancel:disabled TextBlock">
+    <Setter Property="Foreground" Value="{DynamicResource Brush.Ash}" />
+  </Style>
+  <Style Selector="Button.primary.importGo">
+    <Setter Property="Height" Value="{StaticResource Size.Button}" />
+    <Setter Property="MinHeight" Value="0" />
+    <Setter Property="Padding" Value="{StaticResource Margin.ImportPrimary}" />
+    <Setter Property="VerticalAlignment" Value="Center" />
+  </Style>
+  <Style Selector="Button.primary.importGo TextBlock">
+    <Setter Property="Foreground" Value="{DynamicResource Brush.Canvas}" />
+  </Style>
+</Styles>

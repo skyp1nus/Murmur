@@ -72,6 +72,8 @@ public partial class SessionView : UserControl
         // A transcript line with the keyboard focus (the uncertain words, #58) keeps Space: it opens the word's popover.
         if (e.Key == Key.Space && SessionShortcuts.FocusedElement(this) is TranscriptTextControl)
         {
+            // The popover takes the focus on this press: its chip would be clicked by the release (and by key repeat), so both are swallowed.
+            _spaceHeld = true;
             return;
         }
 

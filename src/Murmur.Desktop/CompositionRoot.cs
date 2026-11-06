@@ -16,6 +16,7 @@ using Murmur.Core.Settings;
 using Murmur.Core.Transcription;
 using Murmur.Intelligence;
 using Murmur.Intelligence.Rag;
+using Murmur.Intelligence.Suggestions;
 using Murmur.Intelligence.Summary;
 using Murmur.Models;
 using Murmur.Storage;
@@ -34,6 +35,8 @@ internal sealed class CompositionRoot : IDisposable
     private JobQueue? _queue;
     private SessionProcessor? _processor;
     private ImportQueue? _imports;
+    private IMediaDecoder? _mediaDecoder;
+    private IDownloadsFolder? _downloads;
     private ActivityFeed? _activityFeed;
     private RecordingActivity? _activity;
     private RecordingMarks? _marks;
@@ -133,8 +136,10 @@ internal sealed class CompositionRoot : IDisposable
             isAiInstalled: () => llm.IsInstalled,
             languageOf: session => _imports?.LanguageOf(session));
 
-        // Imported files become sessions on the same queue (so they wait while recording) and go through the same pipeline.
-        var imports = _imports ??= new ImportQueue(storage, storage, CreateMediaDecoder(), queue, processor);
+        // Imported files become sessions on the same queue (so they wait while recording) and go through the same pipeline. The import
+        // dialog probes the files it lists with the same decoder.
+        var mediaDecoder = _mediaDecoder ??= CreateMediaDecoder();
+        var imports = _imports ??= new ImportQueue(storage, storage, mediaDecoder, queue, processor);
 
         // The status bar's feed: what runs or waits, from the recorder, the pipeline and the model downloads.
         var activityFeed = _activityFeed ??= new ActivityFeed(recorder, storage, processor, modelManager);
@@ -199,7 +204,8 @@ internal sealed class CompositionRoot : IDisposable
             storage,
             new AiServices(assistant, llm, models.ModelsDirectory, AccelerationProbe, llm, AccelerationRuntimeIds(modelManager),
                 new SessionSummarizer(llm, storage, SummarizerOptions.ForContext(new LocalLlmOptions().ContextSize), speakerNames: storage),
-                new ChapterGenerator(llm, storage, SummarizerOptions.ForContext(new LocalLlmOptions().ContextSize), speakerNames: storage)),
+                new ChapterGenerator(llm, storage, SummarizerOptions.ForContext(new LocalLlmOptions().ContextSize), speakerNames: storage),
+                new WordSuggester(llm)),
             settings,
             aiModels,
             modelManager.ActiveModelId,
@@ -217,7 +223,11 @@ internal sealed class CompositionRoot : IDisposable
             Calls: _calls ??= new CallDetector(_audioSessions, TimeProvider.System),
             SpeakerNames: storage,
             Activity: activityFeed,
-            BookmarkStore: storage);
+            Imports: imports,
+            MediaProbe: mediaDecoder,
+            Downloads: _downloads ??= CreateDownloadsFolder(),
+            BookmarkStore: storage,
+            Vocabulary: storage);
     }
 
     public void Dispose()
@@ -321,6 +331,12 @@ internal sealed class CompositionRoot : IDisposable
     /// Foundation decoder of Murmur.Capture.Windows goes before it (follow-up of #66).
     /// </summary>
     private static IMediaDecoder CreateMediaDecoder() => new CompositeMediaDecoder(new WavMediaDecoder());
+
+    /// <summary>
+    /// The Downloads folder of the import dialog's "Recent in Downloads": <c>%USERPROFILE%\Downloads</c> / <c>~/Downloads</c>. On Windows the
+    /// known folder of Murmur.Capture.Windows (a Downloads folder the user moved) replaces it (follow-up of #67).
+    /// </summary>
+    internal static IDownloadsFolder CreateDownloadsFolder() => new HomeDownloadsFolder();
 
     private static IAccelerationProbe CreateAccelerationProbe()
     {

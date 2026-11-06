@@ -3,6 +3,7 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Documents;
 using Avalonia.Input;
+using Avalonia.Interactivity;
 using Avalonia.Media;
 using Avalonia.Media.TextFormatting;
 using Avalonia.Utilities;
@@ -25,8 +26,16 @@ namespace Murmur.App.Controls;
 /// rounded box with the text in <see cref="MarkForeground"/>, 3 px wider on each side. The room for the box is real: a space
 /// (in a size that makes it 3 px wide) goes before and after the word in the laid-out text, so the words after it move as they do in the canvas; the
 /// offsets of <see cref="WordStarts"/> and of the pointer are translated, nothing outside this control sees the extra characters.</para>
+/// <para><b>Uncertain words (#58).</b> <see cref="UncertainWords"/> flags the words the recogniser doubted. Each gets a dotted
+/// underline (<see cref="UnderlineBrush"/>, <see cref="UnderlineThickness"/> thick, <see cref="UnderlineOffset"/> under the baseline, below
+/// the letters and digits of the word, not its punctuation) and its text in <see cref="UncertainForeground"/>, like the word of
+/// "Idea 4 / Low-confidence fix". Neither changes a metric. The underline segments are worked out once per layout and kept, so a frame
+/// only draws them. While the line is coloured for "Follow along" its colours win, and the word under the chip has no underline.</para>
 /// <para><b>Click.</b> A press is hit-tested against the layout, mapped to the nearest word and passed to
-/// <see cref="Command"/> as its parameter (the word index; 0 when the segment has no word timings).</para>
+/// <see cref="Command"/> as its parameter (the word index; 0 when the segment has no word timings). A press on an uncertain word
+/// raises <see cref="UncertainWordInvokedEvent"/> (with the word's bounds, for the popover) and runs <see cref="UncertainCommand"/> instead.</para>
+/// <para><b>Keyboard.</b> The control takes the focus (Tab) only while it has uncertain words: Left and Right move between them (a 1.5 px
+/// ring in <see cref="FocusBrush"/> shows which, when the focus came from the keyboard), Enter or Space opens it like a click.</para>
 /// </remarks>
 public sealed class TranscriptTextControl : Control
 {
@@ -75,6 +84,34 @@ public sealed class TranscriptTextControl : Control
     public static readonly StyledProperty<CornerRadius> HighlightCornerRadiusProperty =
         AvaloniaProperty.Register<TranscriptTextControl, CornerRadius>(nameof(HighlightCornerRadius));
 
+    public static readonly StyledProperty<bool[]?> UncertainWordsProperty =
+        AvaloniaProperty.Register<TranscriptTextControl, bool[]?>(nameof(UncertainWords));
+
+    public static readonly StyledProperty<IBrush?> UnderlineBrushProperty =
+        AvaloniaProperty.Register<TranscriptTextControl, IBrush?>(nameof(UnderlineBrush));
+
+    public static readonly StyledProperty<double> UnderlineThicknessProperty =
+        AvaloniaProperty.Register<TranscriptTextControl, double>(nameof(UnderlineThickness), 1);
+
+    public static readonly StyledProperty<double> UnderlineOffsetProperty =
+        AvaloniaProperty.Register<TranscriptTextControl, double>(nameof(UnderlineOffset), 2);
+
+    public static readonly StyledProperty<IBrush?> UncertainForegroundProperty =
+        AvaloniaProperty.Register<TranscriptTextControl, IBrush?>(nameof(UncertainForeground));
+
+    public static readonly StyledProperty<ICommand?> UncertainCommandProperty =
+        AvaloniaProperty.Register<TranscriptTextControl, ICommand?>(nameof(UncertainCommand));
+
+    public static readonly StyledProperty<IBrush?> FocusBrushProperty =
+        AvaloniaProperty.Register<TranscriptTextControl, IBrush?>(nameof(FocusBrush));
+
+    public static readonly StyledProperty<double> FocusThicknessProperty =
+        AvaloniaProperty.Register<TranscriptTextControl, double>(nameof(FocusThickness), 1.5);
+
+    /// <summary>A click (or Enter) on an uncertain word, raised before <see cref="UncertainCommand"/> runs; bubbles, so the popover host can anchor itself.</summary>
+    public static readonly RoutedEvent<UncertainWordEventArgs> UncertainWordInvokedEvent =
+        RoutedEvent.Register<TranscriptTextControl, UncertainWordEventArgs>(nameof(UncertainWordInvoked), RoutingStrategies.Bubble);
+
     public static readonly StyledProperty<IBrush?> ForegroundProperty = TextElement.ForegroundProperty.AddOwner<TranscriptTextControl>();
 
     public static readonly StyledProperty<FontFamily> FontFamilyProperty = TextElement.FontFamilyProperty.AddOwner<TranscriptTextControl>();
@@ -104,13 +141,38 @@ public sealed class TranscriptTextControl : Control
     private (int Start, int Length)[] _marks = [];
     private int[] _pads = [];
 
+    // The dotted underlines of the uncertain words: worked out for _underlineLayout and kept until the layout or the words change.
+    private UnderlineSegment[] _underlines = [];
+    private int _underlineCount;
+    private TextLayout? _underlineLayout;
+
+    // The round dots of those underlines as one geometry, for _dotsLayout without the word under the chip (_dotsSkip): a frame draws it
+    // with one call; it is rebuilt only when the layout, the chipped word or the thickness changes.
+    private StreamGeometry? _dots;
+    private TextLayout? _dotsLayout;
+    private int _dotsSkip = -1;
+    private double _dotsThickness;
+
+    // The keyboard ring around _ringWord in _ringLayout.
+    private Rect? _ring;
+    private TextLayout? _ringLayout;
+    private int _ringWord = -1;
+    private double _ringThickness;
+    private Pen? _focusPen;
+    private GenericTextRunProperties? _uncertainRun;
+
+    // The uncertain word the keyboard is on, and whether the focus came from the keyboard (only then the ring is drawn).
+    private int _focusedWord = -1;
+    private bool _focusVisible;
+
     static TranscriptTextControl()
     {
         AffectsMeasure<TranscriptTextControl>(
             TextProperty, FontFamilyProperty, FontSizeProperty, FontWeightProperty, LineHeightProperty, LetterSpacingProperty, HighlightTermProperty);
         AffectsRender<TranscriptTextControl>(
             WordStartsProperty, WordLengthsProperty, ActiveWordProperty, HighlightBrushProperty, HighlightBorderBrushProperty, HighlightCornerRadiusProperty, HighlightPaddingProperty, ForegroundProperty,
-            MarkBrushProperty, MarkForegroundProperty, MarkCornerRadiusProperty);
+            MarkBrushProperty, MarkForegroundProperty, MarkCornerRadiusProperty,
+            UncertainWordsProperty, UnderlineBrushProperty, UnderlineThicknessProperty, UnderlineOffsetProperty, FocusBrushProperty, FocusThicknessProperty);
     }
 
     public TranscriptTextControl()
@@ -244,6 +306,125 @@ public sealed class TranscriptTextControl : Control
         get => GetValue(HighlightCornerRadiusProperty);
         set => SetValue(HighlightCornerRadiusProperty, value);
     }
+
+    /// <summary>Per word of <see cref="WordStarts"/>: the recogniser doubted it (<c>null</c> = none is uncertain).</summary>
+    public bool[]? UncertainWords
+    {
+        get => GetValue(UncertainWordsProperty);
+        set => SetValue(UncertainWordsProperty, value);
+    }
+
+    /// <summary>Colour of the dotted underline of an uncertain word; <c>null</c> = no underline.</summary>
+    public IBrush? UnderlineBrush
+    {
+        get => GetValue(UnderlineBrushProperty);
+        set => SetValue(UnderlineBrushProperty, value);
+    }
+
+    /// <summary>Thickness of the underline, which is also the size of its round dots.</summary>
+    public double UnderlineThickness
+    {
+        get => GetValue(UnderlineThicknessProperty);
+        set => SetValue(UnderlineThicknessProperty, value);
+    }
+
+    /// <summary>How far under the baseline the underline starts (CSS <c>text-underline-offset</c>).</summary>
+    public double UnderlineOffset
+    {
+        get => GetValue(UnderlineOffsetProperty);
+        set => SetValue(UnderlineOffsetProperty, value);
+    }
+
+    /// <summary>Colour of the text of an uncertain word; <c>null</c> = it keeps <see cref="Foreground"/>.</summary>
+    public IBrush? UncertainForeground
+    {
+        get => GetValue(UncertainForegroundProperty);
+        set => SetValue(UncertainForegroundProperty, value);
+    }
+
+    /// <summary>Executed with the index of the uncertain word that was clicked (or opened with Enter); <c>null</c> = a click on it seeks like any other.</summary>
+    public ICommand? UncertainCommand
+    {
+        get => GetValue(UncertainCommandProperty);
+        set => SetValue(UncertainCommandProperty, value);
+    }
+
+    /// <summary>The ring around the uncertain word the keyboard is on.</summary>
+    public IBrush? FocusBrush
+    {
+        get => GetValue(FocusBrushProperty);
+        set => SetValue(FocusBrushProperty, value);
+    }
+
+    public double FocusThickness
+    {
+        get => GetValue(FocusThicknessProperty);
+        set => SetValue(FocusThicknessProperty, value);
+    }
+
+    /// <summary>See <see cref="UncertainWordInvokedEvent"/>.</summary>
+    public event EventHandler<UncertainWordEventArgs>? UncertainWordInvoked
+    {
+        add => AddHandler(UncertainWordInvokedEvent, value);
+        remove => RemoveHandler(UncertainWordInvokedEvent, value);
+    }
+
+    /// <summary>The uncertain word the keyboard is on, or -1 (for tests).</summary>
+    internal int FocusedWord => _focusedWord;
+
+    /// <summary>How many underline pieces the current layout draws (a word split over two lines has two; for tests).</summary>
+    internal int UnderlineCount
+    {
+        get
+        {
+            EnsureUnderlines(EnsureLayout(Bounds.Width));
+            return _underlineCount;
+        }
+    }
+
+    /// <summary>The underline pieces as (word, left, right, y) in this control (for tests).</summary>
+    internal IEnumerable<(int Word, double Left, double Right, double Y)> Underlines
+    {
+        get
+        {
+            EnsureUnderlines(EnsureLayout(Bounds.Width));
+            for (var i = 0; i < _underlineCount; i++)
+            {
+                var u = _underlines[i];
+                yield return (u.Word, u.Left, u.Right, u.Y);
+            }
+        }
+    }
+
+    /// <summary>The cached dots of the underlines (the same instance until the layout, the chipped word or the words change; for tests).</summary>
+    internal object? UnderlineStore => _dots;
+
+    /// <summary>The cached keyboard ring (for tests).</summary>
+    internal Rect? FocusRingRect => _ring;
+
+    /// <summary>The bounds of a word in this control (its first line when it wraps), or <c>null</c> when it is out of range.</summary>
+    internal Rect? WordBounds(int word)
+    {
+        var layout = EnsureLayout(Bounds.Width);
+        var starts = WordStarts;
+        var lengths = WordLengths;
+        if (layout is null || starts is null || lengths is null || word < 0 || word >= starts.Length || word >= lengths.Length || lengths[word] <= 0)
+        {
+            return null;
+        }
+
+        var first = ToLaidOut(starts[word]);
+        var last = ToLaidOut(starts[word] + lengths[word] - 1);
+        foreach (var rect in layout.HitTestTextRange(first, last - first + 1))
+        {
+            return rect;
+        }
+
+        return null;
+    }
+
+    /// <summary>The word is flagged as uncertain.</summary>
+    internal bool IsUncertain(int word) => UncertainWords is { } flags && word >= 0 && word < flags.Length && flags[word];
 
     public IBrush? Foreground
     {
@@ -385,7 +566,303 @@ public sealed class TranscriptTextControl : Control
             }
         }
 
+        DrawUncertain(context, layout, starts, lengths, active);
         layout.Draw(context, default);
+    }
+
+    /// <summary>The dotted underlines (one cached geometry: nothing of the control's is allocated per frame) and the keyboard ring.</summary>
+    private void DrawUncertain(DrawingContext context, TextLayout layout, int[]? starts, int[]? lengths, int active)
+    {
+        if (UncertainWords is null)
+        {
+            return;
+        }
+
+        // The chip of "Follow along" wins on the word it is on.
+        var chipped = HighlightBrush is not null && starts is not null && lengths is not null && active >= 0 && active < starts.Length && lengths[active] > 0 ? active : -1;
+        if (UnderlineBrush is { } brush && EnsureDots(layout, chipped) is { } dots)
+        {
+            context.DrawGeometry(brush, null, dots);
+        }
+
+        if (_focusVisible && IsFocused && FocusBrush is { } focus && IsUncertain(_focusedWord) && FocusRing(layout) is { } ring)
+        {
+            if (_focusPen is null || !ReferenceEquals(_focusPen.Brush, focus) || _focusPen.Thickness != FocusThickness)
+            {
+                _focusPen = new Pen(focus, FocusThickness);
+            }
+
+            var radius = MarkCornerRadius.TopLeft;
+            context.DrawRectangle(null, _focusPen, ring, radius, radius);
+        }
+    }
+
+    /// <summary>The ring around the focused uncertain word, worked out once per layout and word (a frame only draws it).</summary>
+    private Rect? FocusRing(TextLayout layout)
+    {
+        if (ReferenceEquals(_ringLayout, layout) && _ringWord == _focusedWord && _ringThickness.Equals(FocusThickness))
+        {
+            return _ring;
+        }
+
+        _ringLayout = layout;
+        _ringWord = _focusedWord;
+        _ringThickness = FocusThickness;
+        _ring = null;
+        if (WordBounds(_focusedWord) is { } word)
+        {
+            var padding = HighlightPadding;
+            var height = Math.Round(FontSize * 1.25);
+            _ring = new Rect(word.X - padding, word.Y + ((word.Height - height) / 2), word.Width + (2 * padding), height).Inflate(FocusThickness / 2);
+        }
+
+        return _ring;
+    }
+
+    /// <summary>
+    /// The dots of every underline piece except those of <paramref name="skip"/> (the word under the chip): round, as wide as
+    /// <see cref="UnderlineThickness"/>, one every two widths (CSS <c>dotted</c>). Kept until the layout, the skipped word or the thickness
+    /// changes; <c>null</c> when there is nothing to draw.
+    /// </summary>
+    private StreamGeometry? EnsureDots(TextLayout layout, int skip)
+    {
+        EnsureUnderlines(layout);
+        var thickness = UnderlineThickness;
+        if (ReferenceEquals(_dotsLayout, layout) && _dotsSkip == skip && _dotsThickness.Equals(thickness))
+        {
+            return _dots;
+        }
+
+        _dotsLayout = layout;
+        _dotsSkip = skip;
+        _dotsThickness = thickness;
+        _dots = null;
+        if (thickness <= 0)
+        {
+            return null;
+        }
+
+        var radius = thickness / 2;
+        var size = new Size(radius, radius);
+        StreamGeometry? geometry = null;
+        StreamGeometryContext? figures = null;
+        for (var i = 0; i < _underlineCount; i++)
+        {
+            var u = _underlines[i];
+            if (u.Word == skip)
+            {
+                continue;
+            }
+
+            for (var x = u.Left + radius; x + radius <= u.Right + 0.01; x += 2 * thickness)
+            {
+                if (figures is null)
+                {
+                    geometry = new StreamGeometry();
+                    figures = geometry.Open();
+                }
+
+                figures.BeginFigure(new Point(x + radius, u.Y), true);
+                figures.ArcTo(new Point(x - radius, u.Y), size, 0, false, SweepDirection.Clockwise);
+                figures.ArcTo(new Point(x + radius, u.Y), size, 0, false, SweepDirection.Clockwise);
+                figures.EndFigure(true);
+            }
+        }
+
+        figures?.Dispose();
+        _dots = geometry;
+        return _dots;
+    }
+
+    /// <summary>Works the underline pieces out for <paramref name="layout"/>, once: under the letters and digits of each uncertain word, on every line it spans.</summary>
+    private void EnsureUnderlines(TextLayout? layout)
+    {
+        if (layout is null)
+        {
+            _underlineCount = 0;
+            _underlineLayout = null;
+            return;
+        }
+
+        if (ReferenceEquals(layout, _underlineLayout))
+        {
+            return;
+        }
+
+        _underlineLayout = layout;
+        _underlineCount = 0;
+        var flags = UncertainWords;
+        var starts = WordStarts;
+        var lengths = WordLengths;
+        var text = Text;
+        if (flags is null || starts is null || lengths is null || text is null)
+        {
+            return;
+        }
+
+        var offset = UnderlineOffset + (UnderlineThickness / 2);
+        var count = Math.Min(flags.Length, Math.Min(starts.Length, lengths.Length));
+        for (var w = 0; w < count; w++)
+        {
+            if (!flags[w] || !Core(text, starts[w], lengths[w], out var from, out var length))
+            {
+                continue;
+            }
+
+            // The end is mapped on its own: a search mark inside the word puts room (pads) between its letters.
+            var first = ToLaidOut(from);
+            var end = ToLaidOut(from + length - 1) + 1;
+            foreach (var rect in layout.HitTestTextRange(first, end - first))
+            {
+                if (rect.Width <= 0)
+                {
+                    continue;
+                }
+
+                if (_underlineCount == _underlines.Length)
+                {
+                    Array.Resize(ref _underlines, Math.Max(4, _underlines.Length * 2));
+                }
+
+                _underlines[_underlineCount++] = new UnderlineSegment(w, rect.X, rect.Right, BaselineOf(layout, rect.Y) + offset);
+            }
+        }
+    }
+
+    /// <summary>The baseline of the line whose top is <paramref name="top"/> (as HitTestTextRange reports it).</summary>
+    private static double BaselineOf(TextLayout layout, double top)
+    {
+        var y = 0.0;
+        TextLine? last = null;
+        foreach (var line in layout.TextLines)
+        {
+            if (top < y + (line.Height / 2))
+            {
+                return y + line.Baseline;
+            }
+
+            last = line;
+            y += line.Height;
+        }
+
+        return last is null ? top : y - last.Height + last.Baseline;
+    }
+
+    /// <summary>The letters and digits of a word, without the punctuation around it ("parquet?" → "parquet"); the whole word when it has none.</summary>
+    private static bool Core(string text, int start, int length, out int from, out int coreLength)
+    {
+        from = start;
+        coreLength = 0;
+        if (length <= 0 || start < 0 || start + length > text.Length)
+        {
+            return false;
+        }
+
+        var end = start + length;
+        var first = start;
+        while (first < end && !char.IsLetterOrDigit(text[first]))
+        {
+            first++;
+        }
+
+        var last = end;
+        while (last > first && !char.IsLetterOrDigit(text[last - 1]))
+        {
+            last--;
+        }
+
+        if (first == last)
+        {
+            first = start;
+            last = end;
+        }
+
+        from = first;
+        coreLength = last - first;
+        return true;
+    }
+
+    /// <summary>Opens the uncertain word: tells the popover host where it is, then runs <see cref="UncertainCommand"/>.</summary>
+    private bool InvokeUncertain(int word, bool fromKeyboard)
+    {
+        if (!IsUncertain(word) || UncertainCommand is not { } command || !command.CanExecute(word))
+        {
+            return false;
+        }
+
+        _focusedWord = word;
+        RaiseEvent(new UncertainWordEventArgs(UncertainWordInvokedEvent, this, word, WordBounds(word) ?? new Rect(Bounds.Size), fromKeyboard));
+        command.Execute(word);
+        return true;
+    }
+
+    protected override void OnGotFocus(FocusChangedEventArgs e)
+    {
+        base.OnGotFocus(e);
+        _focusVisible = e.NavigationMethod is NavigationMethod.Tab or NavigationMethod.Directional;
+        if (!IsUncertain(_focusedWord))
+        {
+            _focusedWord = NextUncertain(-1, 1);
+        }
+
+        InvalidateVisual();
+    }
+
+    protected override void OnLostFocus(FocusChangedEventArgs e)
+    {
+        base.OnLostFocus(e);
+        InvalidateVisual();
+    }
+
+    protected override void OnKeyDown(KeyEventArgs e)
+    {
+        base.OnKeyDown(e);
+        if (e.Handled || UncertainWords is null || e.KeyModifiers != KeyModifiers.None)
+        {
+            return;
+        }
+
+        switch (e.Key)
+        {
+            case Key.Left or Key.Right:
+                var next = NextUncertain(_focusedWord, e.Key == Key.Right ? 1 : -1);
+                if (next >= 0)
+                {
+                    _focusedWord = next;
+                    _focusVisible = true;
+                    InvalidateVisual();
+                    e.Handled = true;
+                }
+
+                break;
+            case Key.Enter or Key.Space:
+                if (!IsUncertain(_focusedWord))
+                {
+                    _focusedWord = NextUncertain(-1, 1);
+                }
+
+                e.Handled = InvokeUncertain(_focusedWord, fromKeyboard: true);
+                break;
+        }
+    }
+
+    /// <summary>The next uncertain word after <paramref name="from"/> in <paramref name="direction"/> (+1 / -1), or -1.</summary>
+    private int NextUncertain(int from, int direction)
+    {
+        if (UncertainWords is not { } flags)
+        {
+            return -1;
+        }
+
+        for (var w = from + direction; w >= 0 && w < flags.Length; w += direction)
+        {
+            if (flags[w])
+            {
+                return w;
+            }
+        }
+
+        return -1;
     }
 
     protected override void OnPointerPressed(PointerPressedEventArgs e)
@@ -397,6 +874,13 @@ public sealed class TranscriptTextControl : Control
         }
 
         var word = WordAt(e.GetPosition(this));
+        if (InvokeUncertain(word, fromKeyboard: false))
+        {
+            _focusVisible = false;
+            e.Handled = true;
+            return;
+        }
+
         if (word < 0 || Command is not { } command || !command.CanExecute(word))
         {
             return;
@@ -414,11 +898,44 @@ public sealed class TranscriptTextControl : Control
             || change.Property == LetterSpacingProperty || change.Property == ForegroundProperty
             || change.Property == HighlightTermProperty || change.Property == MarkForegroundProperty
             || change.Property == HighlightForegroundProperty || change.Property == UpcomingForegroundProperty
+            || change.Property == UncertainForegroundProperty
+            || (change.Property == UncertainWordsProperty && UncertainForeground is not null)
             || ((change.Property == ActiveWordProperty || change.Property == WordStartsProperty || change.Property == WordLengthsProperty) && ColoursActiveLine))
         {
             _layout?.Dispose();
             _layout = null;
         }
+
+        if (change.Property == UncertainWordsProperty || change.Property == WordStartsProperty || change.Property == WordLengthsProperty
+            || change.Property == UnderlineOffsetProperty || change.Property == UnderlineThicknessProperty)
+        {
+            // The underlines are worked out again for the next frame; the control is a tab stop only while it has an uncertain word.
+            _underlineLayout = null;
+            _dotsLayout = null;
+            Focusable = HasUncertain(UncertainWords);
+            if (!IsUncertain(_focusedWord))
+            {
+                _focusedWord = -1;
+            }
+        }
+    }
+
+    private static bool HasUncertain(bool[]? flags)
+    {
+        if (flags is null)
+        {
+            return false;
+        }
+
+        foreach (var flag in flags)
+        {
+            if (flag)
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /// <summary>The active word or the rest of the line has a colour of its own, so the colours of the layout depend on <see cref="ActiveWord"/>.</summary>
@@ -471,8 +988,51 @@ public sealed class TranscriptTextControl : Control
     private (string Text, IReadOnlyList<ValueSpan<TextRunProperties>>? Overrides) Mark(string text, Typeface typeface)
     {
         var (shown, spans) = MarkTerm(text, typeface);
-        spans = ColourActiveLine(shown.Length, spans, typeface);
+        spans = IsActiveLineColoured ? ColourActiveLine(shown.Length, spans, typeface) : ColourUncertain(text, spans, typeface);
         return (shown, spans);
+    }
+
+    /// <summary>The colours of "Follow along" are on this line (they win over the colour of the uncertain words).</summary>
+    private bool IsActiveLineColoured =>
+        ColoursActiveLine && WordStarts is { } starts && WordLengths is { } lengths && ActiveWord >= 0 && ActiveWord < starts.Length && ActiveWord < lengths.Length && lengths[ActiveWord] > 0;
+
+    /// <summary>Gives the letters of every uncertain word <see cref="UncertainForeground"/>; what the search mark colours is left to it.</summary>
+    private List<ValueSpan<TextRunProperties>>? ColourUncertain(string text, List<ValueSpan<TextRunProperties>>? taken, Typeface typeface)
+    {
+        var flags = UncertainWords;
+        var starts = WordStarts;
+        var lengths = WordLengths;
+        if (UncertainForeground is not { } brush || flags is null || starts is null || lengths is null)
+        {
+            return taken;
+        }
+
+        List<ValueSpan<TextRunProperties>>? spans = taken;
+        var occupied = taken?.Count ?? 0;
+        var count = Math.Min(flags.Length, Math.Min(starts.Length, lengths.Length));
+        for (var w = 0; w < count; w++)
+        {
+            if (!flags[w] || !Core(text, starts[w], lengths[w], out var from, out var length))
+            {
+                continue;
+            }
+
+            if (spans is null)
+            {
+                spans = _activeSpans;
+                spans.Clear();
+            }
+
+            var first = ToLaidOut(from);
+            AddOutside(spans, occupied, first, ToLaidOut(from + length - 1) + 1 - first, Run(ref _uncertainRun, brush, typeface));
+        }
+
+        if (spans is not null && spans.Count > occupied)
+        {
+            spans.Sort(static (a, b) => a.Start.CompareTo(b.Start));
+        }
+
+        return spans;
     }
 
     private (string Text, List<ValueSpan<TextRunProperties>>? Overrides) MarkTerm(string text, Typeface typeface)
@@ -679,4 +1239,19 @@ public sealed class TranscriptTextControl : Control
 
         return Math.Max(0, laidOut - inserted);
     }
+
+    private readonly record struct UnderlineSegment(int Word, double Left, double Right, double Y);
+}
+
+/// <summary>An uncertain word of a <see cref="TranscriptTextControl"/> was clicked or opened with the keyboard.</summary>
+public sealed class UncertainWordEventArgs(RoutedEvent routedEvent, object source, int word, Rect wordBounds, bool fromKeyboard = false) : RoutedEventArgs(routedEvent, source)
+{
+    /// <summary>Opened with Enter or Space (the popover then shows where the keyboard focus is), not with the pointer.</summary>
+    public bool FromKeyboard { get; } = fromKeyboard;
+
+    /// <summary>Index of the word in the segment.</summary>
+    public int Word { get; } = word;
+
+    /// <summary>Where the word is, in the coordinates of the control that raised the event (its first line when it wraps).</summary>
+    public Rect WordBounds { get; } = wordBounds;
 }

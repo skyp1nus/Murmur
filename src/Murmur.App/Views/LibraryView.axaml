@@ -144,16 +144,32 @@
                     </ToggleButton>
                   </WrapPanel>
 
-                  <StackPanel Orientation="Horizontal"
-                              Spacing="{StaticResource Space.10}">
+                  <!-- Start recording, "Import files" (Idea7Import.dc.html; only when the app can import) and the record hotkey; the row wraps like the canvas's. -->
+                  <WrapPanel ItemSpacing="{StaticResource Space.10}"
+                             LineSpacing="{StaticResource Space.10}">
                     <Button Classes="start"
                             Command="{Binding StartRecordingCommand}"
                             Content="{x:Static res:Strings.Recording_Start}" />
+                    <Button x:Name="ImportFilesButton"
+                            Classes="importPill"
+                            IsVisible="{Binding CanImport}"
+                            Command="{Binding OpenImportCommand}">
+                      <StackPanel Orientation="Horizontal"
+                                  Spacing="{StaticResource Space.6}">
+                        <controls:IconControl Width="{StaticResource Size.ImportPillIcon}"
+                                              Height="{StaticResource Size.ImportPillIcon}"
+                                              VerticalAlignment="Center"
+                                              Data="{StaticResource Import.Icon.Upload}" />
+                        <TextBlock Classes="importStrong"
+                                   VerticalAlignment="Center"
+                                   Text="{x:Static res:Strings.Library_ImportFiles}" />
+                      </StackPanel>
+                    </Button>
                     <TextBlock Classes="monoMeta muted"
                                VerticalAlignment="Center"
                                IsVisible="{Binding HasRecordHotkey}"
                                Text="{Binding RecordHotkeyText}" />
-                  </StackPanel>
+                  </WrapPanel>
                 </StackPanel>
               </Grid>
             </Border>

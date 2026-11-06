@@ -77,12 +77,18 @@ public sealed partial class SessionViewModel
     private void SeekToLine(IReadOnlyList<SegmentViewModel> rows, int index) => SeekTo(rows[index].Start);
 
     /// <summary>
-    /// Esc, first step: closes the popover that is open on this page (the rename popover of a speaker, a bookmark's note box) and says whether
+    /// Esc, first step: closes the popover that is open on this page (the "Did you mean" popover of an uncertain word, #58; the rename popover of a speaker, a bookmark's note box) and says whether
     /// there was one. Only when nothing was open does Esc go back to the library.
     /// </summary>
     internal bool CloseOpenPopover()
     {
         var closed = false;
+        if (IsDidYouMeanOpen)
+        {
+            CloseDidYouMean();
+            closed = true;
+        }
+
         foreach (var chip in SpeakerChips)
         {
             if (chip.IsEditing)

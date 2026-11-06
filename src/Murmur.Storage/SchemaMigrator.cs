@@ -167,6 +167,18 @@ internal static class SchemaMigrator
         );
         CREATE INDEX ix_imports_session ON imports (session_id);
         """,
+
+        // 10: the user's vocabulary (#58): words picked or kept in "Did you mean", shared by every session. key is the word in lower case
+        // (ToLowerInvariant, so Cyrillic folds too: SQLite's NOCASE folds ASCII only) and makes a repeat move to the front (a higher seq)
+        // instead of being added twice; word keeps the spelling of the latest add.
+        """
+        CREATE TABLE vocabulary (
+            key  TEXT    PRIMARY KEY NOT NULL,
+            word TEXT    NOT NULL,
+            seq  INTEGER NOT NULL
+        );
+        CREATE INDEX ix_vocabulary_seq ON vocabulary (seq DESC);
+        """,
     ];
 
     public static int LatestVersion => Migrations.Length;
