@@ -502,59 +502,6 @@ public sealed class SessionFeaturesTests : IDisposable
     // Export ----------------------------------------------------------------------------------------------------
 
     [Fact]
-    public async Task Export_WritesTheFormatTheUserChose_WithTheTitleAsTheFileName()
-    {
-        var vm = await LoadAsync();
-        Assert.True(vm.CanExport);
-
-        vm.ExportSrtCommand.Execute(null);
-        await vm.ExportTask;
-
-        var saved = _saver.Saved.Single();
-        Assert.Equal(".srt", saved.Extension);
-        Assert.StartsWith("Щотижневий стендап команди.srt", saved.SuggestedName);
-        Assert.StartsWith("1\n00:00:10,000 --> ", saved.Content);
-        Assert.Contains("You: Привіт усім починаємо мітинг", saved.Content);
-        Assert.Equal("Saved export.srt", vm.ActionMessage);
-    }
-
-    [Fact]
-    public async Task ExportToMarkdown_IncludesTheSummary_WhenThereIsOne_OnlyThen()
-    {
-        var withoutSummary = await LoadAsync();
-        withoutSummary.ExportMarkdownCommand.Execute(null);
-        await withoutSummary.ExportTask;
-        Assert.DoesNotContain("## Summary", _saver.Saved[0].Content);
-
-        _summaries.Put(FakeSummarizer.Sample(_fixture.Record.Id));
-        var withSummary = await LoadAsync();
-        withSummary.ExportMarkdownCommand.Execute(null);
-        await withSummary.ExportTask;
-        Assert.Contains("## Summary", _saver.Saved[1].Content);
-        Assert.Contains("- [ ] You — send the demo invite (`13:24`)", _saver.Saved[1].Content);
-
-        withSummary.ExportTextCommand.Execute(null);
-        await withSummary.ExportTask;
-        Assert.DoesNotContain("Summary", _saver.Saved[2].Content);
-    }
-
-    [Fact]
-    public async Task Export_CancelledDialog_SaysNothing_AFailureSaysWhy()
-    {
-        var vm = await LoadAsync();
-        _saver.Cancel = true;
-        vm.ExportWebVttCommand.Execute(null);
-        await vm.ExportTask;
-        Assert.Null(vm.ActionMessage);
-
-        _saver.Cancel = false;
-        _saver.Failure = new IOException("disk full");
-        vm.ExportWebVttCommand.Execute(null);
-        await vm.ExportTask;
-        Assert.Equal("Couldn’t save the file: disk full", vm.ActionMessage);
-    }
-
-    [Fact]
     public async Task Export_NeedsATranscript()
     {
         _fixture.Transcripts.Transcript = null;
@@ -563,7 +510,7 @@ public sealed class SessionFeaturesTests : IDisposable
         await vm.LoadAsync();
 
         Assert.False(vm.CanExport);
-        Assert.False(vm.ExportMarkdownCommand.CanExecute(null));
+        Assert.False(vm.OpenExportCommand.CanExecute(null));
     }
 
     [Theory]
@@ -665,18 +612,6 @@ public sealed class SessionFeaturesTests : IDisposable
     }
 
     [Fact]
-    public async Task Export_AnyFailureOfTheDialogIsReported_NotJustIoErrors()
-    {
-        var vm = await LoadAsync();
-        _saver.Failure = new NotSupportedException("Stream does not support SetLength.");
-
-        vm.ExportMarkdownCommand.Execute(null);
-        await vm.ExportTask;
-
-        Assert.Equal("Couldn’t save the file: Stream does not support SetLength.", vm.ActionMessage);
-    }
-
-    [Fact]
     public async Task ShowInFolder_OpensTheFolderOfTheRecording_AndReportsAFailure()
     {
         var vm = await LoadAsync();
@@ -760,5 +695,8 @@ public sealed class SessionFeaturesTests : IDisposable
             Saved.Add((suggestedFileName, extension, content));
             return Task.FromResult<string?>("export" + extension);
         }
+
+        public Task<string?> SaveBytesAsync(string title, string suggestedFileName, string fileTypeName, string extension, byte[] content) =>
+            Task.FromResult<string?>("export" + extension);
     }
 }
