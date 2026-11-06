@@ -1907,4 +1907,20 @@
   <data name="Export_PreviewEmpty" xml:space="preserve">
     <value>У цьому діапазоні нічого не сказано.</value>
   </data>
+  <data name="DidYouMean_Title" xml:space="preserve">
+    <value>Ви мали на увазі</value>
+    <comment>Label in front of the alternatives for a word the recogniser was unsure about</comment>
+  </data>
+  <data name="DidYouMean_Keep" xml:space="preserve">
+    <value>Залишити {0}</value>
+    <comment>{0} = the uncertain word as it is; the chip that confirms it</comment>
+  </data>
+  <data name="DidYouMean_Name" xml:space="preserve">
+    <value>Варіанти для «{0}»</value>
+    <comment>{0} = the uncertain word; accessible name of the popover</comment>
+  </data>
+  <data name="DidYouMean_FixFailed" xml:space="preserve">
+    <value>Не вдалося виправити слово: {0}</value>
+    <comment>{0} = error message</comment>
+  </data>
 </root>

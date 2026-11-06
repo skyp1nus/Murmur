@@ -38,9 +38,11 @@
       <ResourceDictionary.ThemeDictionaries>
         <ResourceDictionary x:Key="Light">
           <StaticResource x:Key="Speaker.PopoverShadow" ResourceKey="Shadow.Popover" />
+          <StaticResource x:Key="DidYouMean.Shadow" ResourceKey="Shadow.Popover" />
         </ResourceDictionary>
         <ResourceDictionary x:Key="Dark">
           <StaticResource x:Key="Speaker.PopoverShadow" ResourceKey="Shadow.PopoverDark" />
+          <StaticResource x:Key="DidYouMean.Shadow" ResourceKey="Shadow.PopoverDark" />
         </ResourceDictionary>
       </ResourceDictionary.ThemeDictionaries>
 
@@ -50,6 +52,21 @@
 
       <!-- The chip behind the spoken word (Idea4Transcript.dc.html, "Idea 4 / Active line – follow along"): 3 px beyond the word on each side. -->
       <x:Double x:Key="Size.WordChipPadding">3</x:Double>
+
+      <!--
+        Uncertain words (Idea4Transcript.dc.html, "Idea 4 / Low-confidence fix"): the canvas's text-decoration "underline dotted", 2 px thick,
+        text-underline-offset 4 px; the word itself is Ink. The ring of the keyboard focus is the Emphasis width (1.5).
+      -->
+      <x:Double x:Key="Size.UncertainUnderline">2</x:Double>
+      <x:Double x:Key="Size.UncertainUnderlineOffset">4</x:Double>
+      <x:Double x:Key="Size.UncertainFocusRing">1.5</x:Double>
+      <!-- "Did you mean": chips 26 high with 10 px at the sides (at most 160 wide, so four fit a 900 px window), the label 4 px in from its edges. -->
+      <x:Double x:Key="Size.DidYouMeanChip">26</x:Double>
+      <x:Double x:Key="Size.DidYouMeanChipMax">160</x:Double>
+      <Thickness x:Key="Margin.DidYouMeanChip">10,0</Thickness>
+      <Thickness x:Key="Margin.DidYouMeanLabel">4,0</Thickness>
+      <!-- The pill has no outline, only the popover shadow: the popup child carries a margin as big as the shadow reaches (as Margin.SpeakerPopover). -->
+      <Thickness x:Key="Margin.DidYouMeanPopover">28,18,28,38</Thickness>
 
       <!--
         Bookmarks (Idea4Transcript.dc.html, "Idea 4 / Waveform with bookmarks", "Bookmarks list", "Inline bookmark"): the flags above the waveform
@@ -77,6 +94,84 @@
       <StreamGeometry x:Key="Session.Dots">M3.4 12a1.6 1.6 0 1 0 3.2 0a1.6 1.6 0 1 0 -3.2 0 M10.4 12a1.6 1.6 0 1 0 3.2 0a1.6 1.6 0 1 0 -3.2 0 M17.4 12a1.6 1.6 0 1 0 3.2 0a1.6 1.6 0 1 0 -3.2 0</StreamGeometry>
     </ResourceDictionary>
   </Styles.Resources>
+
+  <!-- An uncertain word in a transcript line: Ink letters over a dotted Graphite underline; the keyboard ring is Ink. -->
+  <Style Selector="controls|TranscriptTextControl.sessionText">
+    <Setter Property="UnderlineBrush" Value="{DynamicResource Brush.Graphite}" />
+    <Setter Property="UnderlineThickness" Value="{StaticResource Size.UncertainUnderline}" />
+    <Setter Property="UnderlineOffset" Value="{StaticResource Size.UncertainUnderlineOffset}" />
+    <Setter Property="UncertainForeground" Value="{DynamicResource Brush.Ink}" />
+    <Setter Property="FocusBrush" Value="{DynamicResource Brush.Ink}" />
+    <Setter Property="FocusThickness" Value="{StaticResource Size.UncertainFocusRing}" />
+  </Style>
+
+  <!-- "Did you mean": a Canvas pill lifted by the popover shadow, 4 px inside and between its parts. -->
+  <Style Selector="Border.didYouMean">
+    <Setter Property="Margin" Value="{StaticResource Margin.DidYouMeanPopover}" />
+    <Setter Property="Padding" Value="{StaticResource Inset.4}" />
+    <Setter Property="Background" Value="{DynamicResource Brush.Canvas}" />
+    <Setter Property="CornerRadius" Value="{StaticResource Radius.Pill}" />
+    <Setter Property="BoxShadow" Value="{DynamicResource DidYouMean.Shadow}" />
+  </Style>
+  <!-- The label: 11 px Smoke. -->
+  <Style Selector="TextBlock.didYouMeanLabel">
+    <Setter Property="FontFamily" Value="{StaticResource Font.Body}" />
+    <Setter Property="FontWeight" Value="{StaticResource FontWeight.Body}" />
+    <Setter Property="FontSize" Value="{StaticResource FontSize.Tag}" />
+    <Setter Property="LineHeight" Value="{StaticResource LineHeight.Tag}" />
+    <Setter Property="LetterSpacing" Value="{StaticResource LetterSpacing.Tag}" />
+    <Setter Property="Foreground" Value="{DynamicResource Brush.Smoke}" />
+    <Setter Property="Margin" Value="{StaticResource Margin.DidYouMeanLabel}" />
+    <Setter Property="VerticalAlignment" Value="Center" />
+  </Style>
+  <!-- A chip: the primary (filled, the most likely alternative) or outline pill of the app, 26 high, 12 px / 400. -->
+  <Style Selector="Button.didYouMeanChip">
+    <Setter Property="Height" Value="{StaticResource Size.DidYouMeanChip}" />
+    <Setter Property="MinHeight" Value="0" />
+    <Setter Property="MinWidth" Value="0" />
+    <Setter Property="MaxWidth" Value="{StaticResource Size.DidYouMeanChipMax}" />
+    <Setter Property="Padding" Value="{StaticResource Margin.DidYouMeanChip}" />
+    <Setter Property="FontWeight" Value="{StaticResource FontWeight.Body}" />
+    <Setter Property="FontSize" Value="{StaticResource FontSize.Small}" />
+    <Setter Property="VerticalAlignment" Value="Center" />
+  </Style>
+  <!--
+    The keyboard focus: a pill ring on the edge of the chip (the Fluent adorner is a square box, and an adorner is clipped to the chip): an Ink
+    edge with a Canvas line inside it, so it shows on the filled chip (the Canvas line) and on the outlined ones (the Ink edge) alike.
+  -->
+  <Style Selector="Button.didYouMeanChip">
+    <Setter Property="FocusAdorner">
+      <FocusAdornerTemplate>
+        <Border CornerRadius="{StaticResource Radius.Pill}"
+                BorderBrush="{DynamicResource Brush.Ink}"
+                BorderThickness="{StaticResource Emphasis.Thickness}">
+          <Border CornerRadius="{StaticResource Radius.Pill}"
+                  BorderBrush="{DynamicResource Brush.Canvas}"
+                  BorderThickness="{StaticResource Emphasis.Thickness}" />
+        </Border>
+      </FocusAdornerTemplate>
+    </Setter>
+  </Style>
+  <!-- The text of a chip (a TextBlock, so a long word is cut): Canvas on the filled chip, Ink on the outlined ones. -->
+  <Style Selector="Button.didYouMeanChip TextBlock">
+    <Setter Property="Foreground" Value="{DynamicResource Brush.Ink}" />
+  </Style>
+  <Style Selector="Button.didYouMeanChip.primary TextBlock">
+    <Setter Property="Foreground" Value="{DynamicResource Brush.Canvas}" />
+  </Style>
+  <Style Selector="Button.didYouMeanChip:disabled TextBlock">
+    <Setter Property="Foreground" Value="{DynamicResource Brush.Ash}" />
+  </Style>
+  <Style Selector="Button.didYouMeanChip.primary:disabled TextBlock">
+    <Setter Property="Foreground" Value="{DynamicResource Brush.Canvas}" />
+  </Style>
+  <Style Selector="Button.didYouMeanChip TextBlock">
+    <Setter Property="LineHeight" Value="{StaticResource LineHeight.Small}" />
+    <Setter Property="LetterSpacing" Value="{StaticResource LetterSpacing.Small}" />
+    <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+    <Setter Property="TextWrapping" Value="NoWrap" />
+    <Setter Property="VerticalAlignment" Value="Center" />
+  </Style>
 
   <!-- Export and "...": 32 px pills, a ButtonBorder hairline on the Canvas, 13 px / 500 without tracking. -->
   <Style Selector="Button.sessionGhost">
