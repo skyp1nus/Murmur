@@ -344,6 +344,91 @@ public sealed class SessionShortcutsTests : IDisposable
         });
     }
 
+    [Fact]
+    public async Task Esc_InAnOpenMenuFlyout_ClosesTheMenuOnly_AndDoesNotGoBack()
+    {
+        var shell = await OpenAsync();
+
+        var (opened, closed) = await InWindowAsync(shell, window =>
+        {
+            var more = window.GetVisualDescendants().OfType<Button>().Single(b => b.Name == "MoreButton");
+            more.Flyout!.ShowAt(more);
+            UiHarness.Pump(6);
+            var open = more.Flyout.IsOpen;
+            Press(window, PhysicalKey.Escape);
+            UiHarness.Pump(6);
+            return (open, !more.Flyout.IsOpen);
+        });
+
+        Assert.True(opened);
+        Assert.True(closed);
+        Assert.NotNull(shell.Session);
+    }
+
+    [Fact]
+    public async Task Space_OnAButtonOutsideThePage_ClicksIt_AndDoesNotTogglePlayback()
+    {
+        var shell = await OpenAsync();
+
+        var clicked = await InWindowAsync(shell, window =>
+        {
+            var more = window.GetVisualDescendants().OfType<Button>().Single(b => b.Name == "MoreButton");
+            more.Focus();
+            UiHarness.Pump();
+            Press(window, PhysicalKey.Space);
+            return more.Flyout!.IsOpen;
+        });
+
+        Assert.True(clicked);
+        Assert.Equal(0, _fixture.Player.Plays);
+    }
+
+    [Fact]
+    public async Task WhileTheRenameBoxHasTheFocus_TheLettersAreTyped_NotShortcuts()
+    {
+        var shell = await OpenAsync();
+        var follow = shell.Session!.FollowAlong;
+
+        await InWindowAsync(shell, window =>
+        {
+            var more = window.GetVisualDescendants().OfType<Button>().Single(b => b.Name == "MoreButton");
+            more.Flyout!.ShowAt(more);
+            UiHarness.Pump(6);
+            ((SessionActionsViewModel)more.DataContext!).BeginRenameCommand.Execute(null);
+            UiHarness.Pump(6);
+            var box = (TextBox)(((Flyout)more.Flyout).Content as Visual)!.GetVisualDescendants().OfType<TextBox>().Single();
+            box.Focus();
+            UiHarness.Pump();
+            Press(window, PhysicalKey.F);
+            Press(window, PhysicalKey.J);
+            Press(window, PhysicalKey.Space);
+            return 0;
+        });
+
+        Assert.Equal(follow, shell.Session.FollowAlong);
+        Assert.Equal(0, _fixture.Player.Plays);
+        Assert.Empty(_fixture.Player.Seeks);
+    }
+
+    [Fact]
+    public async Task HoldingSpace_TogglesOnce()
+    {
+        var shell = await OpenAsync();
+
+        await InWindowAsync(shell, window =>
+        {
+            window.KeyPressQwerty(PhysicalKey.Space, RawInputModifiers.None);
+            window.KeyPressQwerty(PhysicalKey.Space, RawInputModifiers.None);
+            window.KeyPressQwerty(PhysicalKey.Space, RawInputModifiers.None);
+            window.KeyReleaseQwerty(PhysicalKey.Space, RawInputModifiers.None);
+            UiHarness.Pump();
+            return 0;
+        });
+
+        Assert.Equal(1, _fixture.Player.Plays);
+        Assert.Equal(0, _fixture.Player.Pauses);
+    }
+
     // The guards --------------------------------------------------------------------------------------------------
 
     [Theory]

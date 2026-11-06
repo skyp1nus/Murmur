@@ -57,8 +57,15 @@ public partial class SessionView : UserControl
     /// </summary>
     private void OnShortcutKeyTunnel(object? sender, KeyEventArgs e)
     {
-        if (e.Key is not (Key.Space or Key.Up or Key.Down) || e.Handled || _viewModel is not { } viewModel || SessionShortcuts.IsBlocked(e, this, textBoxesBlock: true))
+        if (e.Key is not (Key.Space or Key.Up or Key.Down) || e.Handled || _viewModel is not { } viewModel || !IsForThisPage(e) || SessionShortcuts.IsBlocked(e, this, textBoxesBlock: true))
         {
+            return;
+        }
+
+        // The key repeats while Space is held: one press is one toggle.
+        if (e.Key == Key.Space && _spaceHeld)
+        {
+            e.Handled = true;
             return;
         }
 
@@ -73,6 +80,13 @@ public partial class SessionView : UserControl
         _spaceHeld |= e.Key == Key.Space;
     }
 
+    /// <summary>
+    /// The key was pressed on this page or on the window itself (nothing focused): not in the top bar, the sidebar or the status bar, whose
+    /// buttons and flyouts keep their keys (an Esc that closes the "..." menu must not also go back).
+    /// </summary>
+    private bool IsForThisPage(KeyEventArgs e) =>
+        e.Source is Visual source && (source is TopLevel || this.IsVisualAncestorOf(source));
+
     /// <summary>A button clicks on the release of Space: the release of a Space this router took is taken too.</summary>
     private void OnShortcutKeyUpTunnel(object? sender, KeyEventArgs e)
     {
@@ -86,7 +100,7 @@ public partial class SessionView : UserControl
     /// <summary>J, L, M, F and Esc: see <see cref="SessionShortcuts"/>.</summary>
     private void OnShortcutKeyDown(object? sender, KeyEventArgs e)
     {
-        if (e.Key is not (Key.J or Key.L or Key.M or Key.F or Key.Escape) || e.Handled || _viewModel is not { } viewModel)
+        if (e.Key is not (Key.J or Key.L or Key.M or Key.F or Key.Escape) || e.Handled || _viewModel is not { } viewModel || !IsForThisPage(e))
         {
             return;
         }

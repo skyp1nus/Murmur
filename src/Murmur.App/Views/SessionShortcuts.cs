@@ -49,16 +49,12 @@ public static class SessionShortcuts
             return true;
         }
 
-        foreach (var element in new IInputElement?[] { focused, e.Source as IInputElement })
-        {
-            if (element is Visual visual && (TopLevel.GetTopLevel(visual) != TopLevel.GetTopLevel(view) || (visual is Control control && GetOwnsKeys(control))))
-            {
-                return true;
-            }
-        }
-
-        return false;
+        return OwnsOrLeavesWindow(focused, view) || OwnsOrLeavesWindow(e.Source as IInputElement, view);
     }
+
+    /// <summary>The element is in another top level (a popup) or inside something marked <see cref="OwnsKeysProperty"/>.</summary>
+    private static bool OwnsOrLeavesWindow(IInputElement? element, Visual view) =>
+        element is Visual visual && (TopLevel.GetTopLevel(visual) != TopLevel.GetTopLevel(view) || (visual is Control control && GetOwnsKeys(control)));
 
     /// <summary>Runs the shortcut of <paramref name="key"/>; <c>false</c> when the key is none of them.</summary>
     internal static bool Run(SessionViewModel viewModel, Key key)
