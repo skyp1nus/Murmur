@@ -227,7 +227,8 @@ internal sealed class CompositionRoot : IDisposable
             MediaProbe: mediaDecoder,
             Downloads: _downloads ??= CreateDownloadsFolder(),
             BookmarkStore: storage,
-            Vocabulary: storage);
+            Vocabulary: storage,
+            FloatingWindowStyle: CreateFloatingWindowStyle());
     }
 
     public void Dispose()
@@ -364,6 +365,16 @@ internal sealed class CompositionRoot : IDisposable
         return ((Murmur.Capture.Windows.WindowsCapture)capture).CreateGlobalHotkeys();
 #else
         return new UnsupportedGlobalHotkeys();
+#endif
+    }
+
+    /// <summary>Keeps the floating orb's window from taking focus: the Windows window style on Windows, nothing elsewhere.</summary>
+    internal static IFloatingWindowStyle? CreateFloatingWindowStyle()
+    {
+#if WINDOWS
+        return Murmur.Capture.Windows.WindowsCapture.CreateFloatingWindowStyle();
+#else
+        return null;
 #endif
     }
 
