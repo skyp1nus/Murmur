@@ -119,6 +119,21 @@ public sealed class ChapterGeneratorTests
     }
 
     [Fact]
+    public async Task ThePrompt_UsesTheNamesTheUserGaveTheSpeakers()
+    {
+        var llm = new ScriptedLlm(_ => Answer);
+        var storage = StorageWith(Talk(20));
+        storage.SpeakerNames[Id] = new SpeakerNames("Олена", "Marek W.");
+
+        await new ChapterGenerator(llm, storage, null, storage).GenerateChaptersAsync(Id, null, Ct);
+
+        var request = Assert.Single(llm.Requests);
+        Assert.Contains("[00:07] Олена: Line number 0 of the talk.", request.User);
+        Assert.Contains("[01:00] Marek W.: Line number 1 of the talk.", request.User);
+        Assert.Contains("\"Олена\" is the user, \"Marek W.\" stands for the other people", request.System);
+    }
+
+    [Fact]
     public async Task ThePrompt_CarriesTheTimestampedTranscript_TheLanguageAndTheLimits()
     {
         var llm = new ScriptedLlm(_ => Answer);

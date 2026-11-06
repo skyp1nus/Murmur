@@ -26,10 +26,12 @@ public sealed partial class SessionSummarizer : ISessionSummarizer
 
     private readonly ILlm _llm;
     private readonly ITranscriptStore _transcripts;
+    private readonly ISpeakerNameStore? _speakerNames;
     private readonly SummarizerOptions _options;
     private readonly TimeProvider _time;
 
-    public SessionSummarizer(ILlm llm, ITranscriptStore transcripts, SummarizerOptions? options = null, TimeProvider? time = null)
+    /// <param name="speakerNames">The names the user gave the speakers: the model sees them instead of "Me" / "Others". <c>null</c> = always the defaults.</param>
+    public SessionSummarizer(ILlm llm, ITranscriptStore transcripts, SummarizerOptions? options = null, TimeProvider? time = null, ISpeakerNameStore? speakerNames = null)
     {
         ArgumentNullException.ThrowIfNull(llm);
         ArgumentNullException.ThrowIfNull(transcripts);
@@ -37,6 +39,7 @@ public sealed partial class SessionSummarizer : ISessionSummarizer
         _transcripts = transcripts;
         _options = options ?? new SummarizerOptions();
         _time = time ?? TimeProvider.System;
+        _speakerNames = speakerNames;
     }
 
     public async ValueTask<SessionSummary> SummarizeAsync(SessionId session, IProgress<double>? progress, CancellationToken cancellationToken)
@@ -44,7 +47,9 @@ public sealed partial class SessionSummarizer : ISessionSummarizer
         cancellationToken.ThrowIfCancellationRequested();
         var transcript = await _transcripts.GetTranscriptAsync(session, cancellationToken).ConfigureAwait(false)
             ?? throw new InvalidOperationException($"Session {session} has no transcript to summarise.");
-        var lines = BuildLines(transcript, _options.ChunkCharacters);
+        var names = _speakerNames is null ? SpeakerNames.Default : await _speakerNames.GetSpeakerNamesAsync(session, cancellationToken).ConfigureAwait(false);
+        names = names.ForModel();
+        var lines = BuildLines(transcript, _options.ChunkCharacters, names);
         if (lines.Count == 0)
         {
             throw new InvalidOperationException($"The transcript of session {session} has no speech to summarise.");
@@ -59,7 +64,7 @@ public sealed partial class SessionSummarizer : ISessionSummarizer
         string answer;
         if (chunks.Count == 1)
         {
-            answer = await AskAsync(chat, Prompts.System(language), Prompts.Summary(chunks[0], _options), _options.SummaryMaxOutputTokens, cancellationToken).ConfigureAwait(false);
+            answer = await AskAsync(chat, Prompts.System(language, names), Prompts.Summary(chunks[0], _options), _options.SummaryMaxOutputTokens, cancellationToken).ConfigureAwait(false);
             reporter.Step();
         }
         else
@@ -67,7 +72,7 @@ public sealed partial class SessionSummarizer : ISessionSummarizer
             var notes = new List<string>(chunks.Count);
             for (var i = 0; i < chunks.Count; i++)
             {
-                notes.Add(await AskAsync(chat, Prompts.System(language), Prompts.Notes(chunks[i], i + 1, chunks.Count), _options.NotesMaxOutputTokens, cancellationToken).ConfigureAwait(false));
+                notes.Add(await AskAsync(chat, Prompts.System(language, names), Prompts.Notes(chunks[i], i + 1, chunks.Count), _options.NotesMaxOutputTokens, cancellationToken).ConfigureAwait(false));
                 reporter.Step();
             }
 
@@ -84,7 +89,7 @@ public sealed partial class SessionSummarizer : ISessionSummarizer
                 var condensed = new List<string>(groups.Count);
                 for (var i = 0; i < groups.Count; i++)
                 {
-                    condensed.Add(await AskAsync(chat, Prompts.System(language), Prompts.Condense(groups[i]), _options.NotesMaxOutputTokens, cancellationToken).ConfigureAwait(false));
+                    condensed.Add(await AskAsync(chat, Prompts.System(language, names), Prompts.Condense(groups[i]), _options.NotesMaxOutputTokens, cancellationToken).ConfigureAwait(false));
                     reporter.Step();
                 }
 
@@ -92,7 +97,7 @@ public sealed partial class SessionSummarizer : ISessionSummarizer
             }
 
             var merged = Clip(string.Join("\n\n", notes), _options.ReduceCharacters);
-            answer = await AskAsync(chat, Prompts.System(language), Prompts.Merge(merged, _options), _options.SummaryMaxOutputTokens, cancellationToken).ConfigureAwait(false);
+            answer = await AskAsync(chat, Prompts.System(language, names), Prompts.Merge(merged, _options), _options.SummaryMaxOutputTokens, cancellationToken).ConfigureAwait(false);
             reporter.Step();
         }
 
@@ -129,8 +134,11 @@ public sealed partial class SessionSummarizer : ISessionSummarizer
     }
 
     /// <summary>The model's input: one line per segment, <c>[12:34] Me: text</c>; very long segments are cut at word boundaries.</summary>
-    internal static List<string> BuildLines(Transcript transcript, int chunkCharacters)
+    internal static List<string> BuildLines(Transcript transcript, int chunkCharacters, SpeakerNames? names = null)
     {
+        names = names.ForModel();
+        var meLabel = names.Me ?? MeLabel;
+        var othersLabel = names.Others ?? OthersLabel;
         var lines = new List<string>(transcript.Segments.Count);
         foreach (var segment in transcript.Segments)
         {
@@ -140,7 +148,7 @@ public sealed partial class SessionSummarizer : ISessionSummarizer
                 continue;
             }
 
-            var prefix = "[" + Timestamps.Format(segment.Start) + "] " + (segment.Speaker == Speaker.Me ? MeLabel : OthersLabel) + ": ";
+            var prefix = "[" + Timestamps.Format(segment.Start) + "] " + (segment.Speaker == Speaker.Me ? meLabel : othersLabel) + ": ";
             var room = Math.Max(200, chunkCharacters - prefix.Length);
             while (text.Length > room)
             {
@@ -478,6 +486,19 @@ public sealed partial class SessionSummarizer : ISessionSummarizer
         }
     }
 
+    /// <summary>
+    /// The sentence of a system prompt that says how the transcript lines look and who the speakers are: <c>"[12:34] Me: text"</c>, with the
+    /// names the user gave the speakers (as <see cref="SpeakerNamesForModel.ForModel"/> makes them) in place of "Me" / "Others".
+    /// </summary>
+    internal static string SpeakerIntro(SpeakerNames? names)
+    {
+        names = names.ForModel();
+        var me = names.Me ?? MeLabel;
+        var others = names.Others ?? OthersLabel;
+        return "The transcript lines look like \"[12:34] " + me + ": text\" or \"[12:34] " + others + ": text\": "
+            + "\"" + me + "\" is the user, \"" + others + "\" stands for the other people on the call.";
+    }
+
     /// <summary>The prompts. Model input, not UI text.</summary>
     private static class Prompts
     {
@@ -487,12 +508,13 @@ public sealed partial class SessionSummarizer : ISessionSummarizer
             + "KEY POINTS:\n- [mm:ss] <one point>\n"
             + "ACTION ITEMS:\n- [mm:ss] <who does what>\n";
 
-        public static string System(string language) =>
-            "You write meeting summaries for the Murmur recorder. The transcript lines look like \"[12:34] Me: text\" or \"[12:34] Others: text\": "
-            + "\"Me\" is the user, \"Others\" are the other people on the call. Use only what the transcript says; invent nothing. "
-            + (language.Length > 0
-                ? "Write the summary in " + language + ", the language of the transcript."
-                : "Write the summary in the language of the transcript (English or Ukrainian).");
+        public static string System(string language, SpeakerNames names)
+        {
+            return "You write meeting summaries for the Murmur recorder. " + SpeakerIntro(names) + " Use only what the transcript says; invent nothing. "
+                + (language.Length > 0
+                    ? "Write the summary in " + language + ", the language of the transcript."
+                    : "Write the summary in the language of the transcript (English or Ukrainian).");
+        }
 
         public static string Summary(string transcript, SummarizerOptions options) =>
             "Summarise this meeting transcript.\n" + Rules(options) + Format + "\nTranscript:\n" + transcript;

@@ -10,6 +10,16 @@ public readonly record struct SessionId(Guid Value)
     public override string ToString() => Value.ToString("N");
 }
 
+/// <summary>How a session came into the library.</summary>
+public enum SessionSource
+{
+    /// <summary>Recorded by Murmur (microphone and/or system audio, optionally the screen).</summary>
+    Recorded,
+
+    /// <summary>Made from an audio or video file the user imported (one mixed track, stored as the system track).</summary>
+    Imported,
+}
+
 public enum SessionState
 {
     Recording,
@@ -46,6 +56,11 @@ public sealed record SessionRecord
     public bool HasSystemAudio { get; init; }
 
     public IReadOnlyList<ScreenSegment> ScreenSegments { get; init; } = [];
+
+    public SessionSource Source { get; init; } = SessionSource.Recorded;
+
+    /// <summary>The imported file: inside the session folder when copied, else the user's original path.</summary>
+    public string? OriginalPath { get; init; }
 
     /// <summary>Last processing error, if <see cref="State"/> is <see cref="SessionState.Failed"/>.</summary>
     public string? Error { get; init; }

@@ -1,5 +1,6 @@
 using Murmur.Core.Intelligence;
 using Murmur.Core.Sessions;
+using Murmur.Core.Settings;
 
 namespace Murmur.App.Services;
 
@@ -13,6 +14,11 @@ namespace Murmur.App.Services;
 /// <param name="Folders">Opens the recording's folder in the file manager; <c>null</c> = "Show in folder" is not offered.</param>
 /// <param name="ChapterGenerator">Splits the transcript into chapters with the local model, right after each summary; <c>null</c> = no chapters are made.</param>
 /// <param name="Chapters">Keeps the chapters between visits; <c>null</c> = the strip shows none.</param>
+/// <param name="SpeakerNames">Keeps the names of the two speakers of the recording; <c>null</c> = the speaker chips are not offered.</param>
+/// <param name="Settings">Keeps the choices that belong to every recording (the "Follow along" switch); <c>null</c> = the choice lives only while the view is open.</param>
+/// <param name="Bookmarks">Keeps the marked moments of the recording (#45); <c>null</c> = the Bookmarks card, the flags above the waveform and the pills in the transcript are not offered.</param>
+/// <param name="Vocabulary">The user's own words: "Did you mean" offers them first and keeps every fix in them; <c>null</c> = the fixes are not remembered.</param>
+/// <param name="WordSuggester">Asks the local model for alternatives to an uncertain word; <c>null</c> = only the vocabulary's.</param>
 /// <param name="CreatePlayer">Makes a new audio player; used to bring the playback back when deleting the recording failed (the first one was released for the delete). <c>null</c> = the playback stays closed then.</param>
 public sealed record SessionServices(
     ISessionSummarizer? Summarizer = null,
@@ -21,4 +27,9 @@ public sealed record SessionServices(
     IFolderLauncher? Folders = null,
     Func<Core.Capture.IAudioPlayer>? CreatePlayer = null,
     IChapterGenerator? ChapterGenerator = null,
-    IChapterStore? Chapters = null);
+    IChapterStore? Chapters = null,
+    ISpeakerNameStore? SpeakerNames = null,
+    ISettingsStore? Settings = null,
+    IBookmarkStore? Bookmarks = null,
+    IVocabularyStore? Vocabulary = null,
+    IWordSuggester? WordSuggester = null);

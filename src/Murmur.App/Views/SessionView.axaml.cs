@@ -16,11 +16,12 @@ public partial class SessionView : UserControl
     /// <summary>Position poll while playing: about 30 Hz. The timer does not exist as a running object while idle.</summary>
     private static readonly TimeSpan PollInterval = TimeSpan.FromMilliseconds(33);
 
-    /// <summary>Where the current segment is placed in the viewport: this fraction of its height from the top.</summary>
-    private const double ReadingLine = 0.2;
+    /// <summary>Where the current line is placed in the viewport: this fraction of the viewport's height from the top (a third, #56).</summary>
+    internal const double ReadingLine = 1.0 / 3;
 
     private readonly DispatcherTimer _timer;
     private SessionViewModel? _viewModel;
+    private TopLevel? _keyHost;
 
     public SessionView()
     {
@@ -32,15 +33,37 @@ public partial class SessionView : UserControl
         Waveform.Scrubbed += fraction => _viewModel?.ScrubTo(fraction);
         Waveform.ScrubCompleted += fraction => _viewModel?.EndScrub(fraction);
 
+        BookmarkFlags.FlagActivated += index => _viewModel?.SeekToBookmarkFlag(index);
+
         // Wheel and scroll-bar drags are the user's scrolls; programmatic ScrollIntoView raises neither.
         TranscriptScroller.AddHandler(PointerWheelChangedEvent, OnUserScroll, RoutingStrategies.Tunnel | RoutingStrategies.Bubble, handledEventsToo: true);
         TranscriptScroller.AddHandler(PointerPressedEvent, OnTranscriptPointerPressed, RoutingStrategies.Tunnel);
+        TranscriptScroller.AddHandler(KeyDownEvent, OnTranscriptKeyDown, RoutingStrategies.Tunnel);
+        // A touch or pen drag scrolls the list through this gesture; it is raised only by the user, never by a programmatic scroll or a tap.
+        TranscriptScroller.AddHandler(ScrollGestureEvent, OnUserScroll, RoutingStrategies.Bubble, handledEventsToo: true);
 
         // The "back" button of a mouse goes back, like Esc.
         AddHandler(PointerReleasedEvent, OnPointerReleasedForBack, RoutingStrategies.Tunnel);
 
         // The right column is as tall as the window leaves room for, so the transcript list scrolls inside it (and stays virtualised).
         PageScroller.PropertyChanged += OnPageScrollerPropertyChanged;
+    }
+
+    /// <summary>M (no modifiers) adds a bookmark at the playhead, unless a text box has the focus (the search box, a note, the chat).</summary>
+    private void OnBookmarkKeyDown(object? sender, KeyEventArgs e)
+    {
+        if (e.Key != Key.M || e.KeyModifiers != KeyModifiers.None || e.Handled || _viewModel is null)
+        {
+            return;
+        }
+
+        if (e.Source is TextBox || TopLevel.GetTopLevel(this)?.FocusManager?.GetFocusedElement() is TextBox)
+        {
+            return;
+        }
+
+        _viewModel.AddBookmarkAtPlayheadCommand.Execute(null);
+        e.Handled = true;
     }
 
     private void OnPointerReleasedForBack(object? sender, PointerReleasedEventArgs e)
@@ -92,12 +115,19 @@ public partial class SessionView : UserControl
     {
         base.OnLoaded(e);
         UpdateTimer();
+
+        // M adds a bookmark at the playhead. This is the one place the key is bound (the keyboard shortcuts, #61, can move it with the others). It
+        // listens on the window, not on this view: with nothing focused the key goes to the window and never passes through the view.
+        _keyHost = TopLevel.GetTopLevel(this);
+        _keyHost?.AddHandler(KeyDownEvent, OnBookmarkKeyDown, RoutingStrategies.Bubble);
     }
 
     protected override void OnUnloaded(RoutedEventArgs e)
     {
         base.OnUnloaded(e);
         _timer.Stop();
+        _keyHost?.RemoveHandler(KeyDownEvent, OnBookmarkKeyDown);
+        _keyHost = null;
     }
 
     private void OnViewModelPropertyChanged(object? sender, PropertyChangedEventArgs e)
@@ -124,8 +154,9 @@ public partial class SessionView : UserControl
     private void OnTick(object? sender, EventArgs e) => _viewModel?.Tick();
 
     /// <summary>
-    /// Brings the segment into view (which also realises its row), then, once laid out, moves it to about a fifth
-    /// of the way down so the reader sees what was just said and what comes next.
+    /// Brings the segment into view (which also realises its row), then, once laid out, moves it to about a third
+    /// of the way down so the reader sees what was just said and what comes next. The list always jumps there: nothing in the
+    /// transcript animates per frame, so reduced motion needs no other path.
     /// </summary>
     private void OnScrollToSegment(int index)
     {
@@ -146,12 +177,27 @@ public partial class SessionView : UserControl
             return;
         }
 
-        var wanted = TranscriptScroller.Viewport.Height * ReadingLine;
         var offset = TranscriptScroller.Offset;
-        TranscriptScroller.Offset = new Vector(offset.X, Math.Max(0, offset.Y + top.Y - wanted));
+        TranscriptScroller.Offset = new Vector(offset.X, AlignedOffset(offset.Y, top.Y, TranscriptScroller.Viewport.Height, TranscriptScroller.Extent.Height));
     }
 
+    /// <summary>
+    /// The scroll offset that puts a row, now <paramref name="rowTop"/> below the top of the viewport at scroll offset
+    /// <paramref name="offset"/>, <see cref="ReadingLine"/> of the way down; never before the start or past the end of the list.
+    /// </summary>
+    internal static double AlignedOffset(double offset, double rowTop, double viewport, double extent) =>
+        Math.Clamp(offset + rowTop - (viewport * ReadingLine), 0, Math.Max(0, extent - viewport));
+
     private void OnUserScroll(object? sender, RoutedEventArgs e) => _viewModel?.NotifyUserScrolled();
+
+    /// <summary>The keys that scroll a list: the user moves the list by hand.</summary>
+    private void OnTranscriptKeyDown(object? sender, KeyEventArgs e)
+    {
+        if (e.Key is Key.Up or Key.Down or Key.PageUp or Key.PageDown or Key.Home or Key.End && e.Source is not TextBox)
+        {
+            _viewModel?.NotifyUserScrolled();
+        }
+    }
 
     private void OnTranscriptPointerPressed(object? sender, PointerPressedEventArgs e)
     {

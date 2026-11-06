@@ -1409,9 +1409,6 @@
   <data name="Session_ExportMarkdown" xml:space="preserve">
     <value>Markdown</value>
   </data>
-  <data name="Session_ExportText" xml:space="preserve">
-    <value>Text</value>
-  </data>
   <data name="Session_ExportSrt" xml:space="preserve">
     <value>SRT subtitles</value>
   </data>
@@ -1588,6 +1585,42 @@
     <value>Go to chapter "{0}"</value>
     <comment>{0} = chapter title; tooltip of a chapter segment, which jumps there</comment>
   </data>
+  <data name="Session_Bookmarks" xml:space="preserve">
+    <value>Bookmarks</value>
+    <comment>Title of the Bookmarks card under the player (#59)</comment>
+  </data>
+  <data name="Session_BookmarksHint" xml:space="preserve">
+    <value>Marked during the call</value>
+    <comment>Right side of the Bookmarks card title</comment>
+  </data>
+  <data name="Session_BookmarkPlaceholder" xml:space="preserve">
+    <value>Add a note</value>
+    <comment>Shown in a bookmark row that has no note; click to write one</comment>
+  </data>
+  <data name="Session_BookmarksEmpty" xml:space="preserve">
+    <value>No bookmarks yet. Press M to add one.</value>
+    <comment>Bookmarks card of a recording without bookmarks</comment>
+  </data>
+  <data name="Session_BookmarkTip" xml:space="preserve">
+    <value>Go to {0}</value>
+    <comment>{0} = time of the bookmark, e.g. 12:41; tooltip of a row and a pill, which jump there</comment>
+  </data>
+  <data name="Session_BookmarkName" xml:space="preserve">
+    <value>Bookmark {0}</value>
+    <comment>{0} = time of the bookmark; name of a bookmark row, pill and flag (screen readers)</comment>
+  </data>
+  <data name="Session_BookmarkEdit" xml:space="preserve">
+    <value>Edit note</value>
+    <comment>Tooltip of the pencil of a bookmark row</comment>
+  </data>
+  <data name="Session_BookmarkDelete" xml:space="preserve">
+    <value>Delete bookmark</value>
+    <comment>Tooltip of the cross of a bookmark row</comment>
+  </data>
+  <data name="Session_BookmarkNoteBox" xml:space="preserve">
+    <value>Bookmark note</value>
+    <comment>Name of the box where a bookmark's note is edited (screen readers)</comment>
+  </data>
   <data name="FloatingOrb_Recording" xml:space="preserve">
     <value>Recording — show controls</value>
     <comment>Name of the floating orb while a recording runs (screen readers, tooltip); a click opens the buttons</comment>
@@ -1642,5 +1675,313 @@
   </data>
   <data name="Calls_TryIt" xml:space="preserve">
     <value>Try it</value>
+  </data>
+  <data name="Speakers_Title" xml:space="preserve">
+    <value>Speakers</value>
+    <comment>the label of the row of speaker chips above the transcript</comment>
+  </data>
+  <data name="Speakers_RenameTitle" xml:space="preserve">
+    <value>Rename speaker</value>
+    <comment>title of the popover that renames a speaker</comment>
+  </data>
+  <data name="Speakers_NameLabel" xml:space="preserve">
+    <value>Speaker name</value>
+    <comment>accessible name of the name box</comment>
+  </data>
+  <data name="Speakers_ChipTip" xml:space="preserve">
+    <value>Rename {0}</value>
+    <comment>{0} = speaker name; tooltip of a speaker chip</comment>
+  </data>
+  <data name="Speakers_HintOne" xml:space="preserve">
+    <value>Applies to {0} line in this recording</value>
+    <comment>{0} = number of lines of the speaker (1)</comment>
+  </data>
+  <data name="Speakers_HintMany" xml:space="preserve">
+    <value>Applies to {0} lines in this recording</value>
+    <comment>{0} = number of lines of the speaker (not 1)</comment>
+  </data>
+  <data name="Speakers_RenameFailed" xml:space="preserve">
+    <value>Couldn’t save the speaker name: {0}</value>
+    <comment>{0} = error message</comment>
+  </data>
+  <data name="Session_FollowAlong" xml:space="preserve">
+    <value>Follow along</value>
+    <comment>the label of the switch in the transcript header: the spoken word is marked and the list follows the playback</comment>
+  </data>
+  <data name="Library_ImportFiles" xml:space="preserve">
+    <value>Import files</value>
+    <comment>the outline pill next to Start recording that opens the import dialog</comment>
+  </data>
+  <data name="Import_Title" xml:space="preserve">
+    <value>Import recordings</value>
+    <comment>title of the import dialog</comment>
+  </data>
+  <data name="Import_Close" xml:space="preserve">
+    <value>Close</value>
+    <comment>accessible name of the cross in the import dialog header</comment>
+  </data>
+  <data name="Import_DropTitle" xml:space="preserve">
+    <value>Drop audio or video files here</value>
+    <comment>the bold line of the drop zone of the import dialog</comment>
+  </data>
+  <data name="Import_DropOr" xml:space="preserve">
+    <value>or</value>
+    <comment>the word before the browse link of the drop zone</comment>
+  </data>
+  <data name="Import_Browse" xml:space="preserve">
+    <value>browse this PC</value>
+    <comment>the link of the drop zone that opens the file dialog</comment>
+  </data>
+  <data name="Import_FormatSeparator" xml:space="preserve">
+    <value> · </value>
+    <comment>the separator between the formats of the drop zone (MP3 · WAV)</comment>
+  </data>
+  <data name="Import_PickerTitle" xml:space="preserve">
+    <value>Choose audio or video files</value>
+    <comment>title of the system file dialog of the import</comment>
+  </data>
+  <data name="Import_FileTypeName" xml:space="preserve">
+    <value>Audio and video</value>
+    <comment>the name of the file type filter of the import file dialog</comment>
+  </data>
+  <data name="Import_PickFailed" xml:space="preserve">
+    <value>Couldn’t open the file dialog: {0}</value>
+    <comment>{0} = error message</comment>
+  </data>
+  <data name="Import_RecentTitle" xml:space="preserve">
+    <value>Recent in Downloads</value>
+    <comment>title of the list of recent media files of the Downloads folder</comment>
+  </data>
+  <data name="Import_RecentNote" xml:space="preserve">
+    <value>Audio and video only</value>
+    <comment>the note next to the Recent in Downloads title</comment>
+  </data>
+  <data name="Import_RecentDetail" xml:space="preserve">
+    <value>{0} · {1}</value>
+    <comment>{0} = file size (58 MB), {1} = when it was written (Last week)</comment>
+  </data>
+  <data name="Import_AgeLastWeek" xml:space="preserve">
+    <value>Last week</value>
+    <comment>a file of the Downloads folder written 7 to 13 days ago</comment>
+  </data>
+  <data name="Import_Add" xml:space="preserve">
+    <value>Add</value>
+    <comment>the pill of a Recent in Downloads row that adds the file to the import list</comment>
+  </data>
+  <data name="Import_Added" xml:space="preserve">
+    <value>Added</value>
+    <comment>the disabled pill of a Recent in Downloads row whose file is in the import list</comment>
+  </data>
+  <data name="Import_AddFile" xml:space="preserve">
+    <value>Add {0}</value>
+    <comment>{0} = file name; accessible name of the Add pill</comment>
+  </data>
+  <data name="Import_CountOne" xml:space="preserve">
+    <value>{0} file to import</value>
+    <comment>{0} = number of files (one form: 1, 21, 31...)</comment>
+  </data>
+  <data name="Import_CountFew" xml:space="preserve">
+    <value>{0} files to import</value>
+    <comment>{0} = number of files (Ukrainian few form: 2-4, 22-24...)</comment>
+  </data>
+  <data name="Import_CountMany" xml:space="preserve">
+    <value>{0} files to import</value>
+    <comment>{0} = number of files (other numbers: 0, 5-20, 25...)</comment>
+  </data>
+  <data name="Import_KindVideo" xml:space="preserve">
+    <value>Video</value>
+    <comment>the kind of a file in the import list</comment>
+  </data>
+  <data name="Import_KindAudio" xml:space="preserve">
+    <value>Audio</value>
+    <comment>the kind of a file in the import list</comment>
+  </data>
+  <data name="Import_FileDetail" xml:space="preserve">
+    <value>{0} · {1} · {2}</value>
+    <comment>{0} = Video / Audio, {1} = size (412 MB), {2} = duration (45:10)</comment>
+  </data>
+  <data name="Import_Probing" xml:space="preserve">
+    <value>…</value>
+    <comment>the detail line of a file of the import list while it is being read</comment>
+  </data>
+  <data name="Import_Unsupported" xml:space="preserve">
+    <value>Not supported — pick an audio or video file</value>
+    <comment>a file of the import list in a format the import does not take</comment>
+  </data>
+  <data name="Import_Damaged" xml:space="preserve">
+    <value>Can’t read this file — it may be damaged</value>
+    <comment>a file of the import list that is damaged or holds no audio</comment>
+  </data>
+  <data name="Import_Missing" xml:space="preserve">
+    <value>File not found</value>
+    <comment>a file of the import list that is gone</comment>
+  </data>
+  <data name="Import_ReadFailed" xml:space="preserve">
+    <value>Couldn’t open the file: {0}</value>
+    <comment>{0} = error message; a file of the import list that cannot be opened</comment>
+  </data>
+  <data name="Import_Remove" xml:space="preserve">
+    <value>Remove {0}</value>
+    <comment>{0} = file name; accessible name of the cross of an import list row</comment>
+  </data>
+  <data name="Import_Language" xml:space="preserve">
+    <value>Spoken language</value>
+    <comment>label of the spoken language select of the import dialog</comment>
+  </data>
+  <data name="Import_AutoDetect" xml:space="preserve">
+    <value>Auto-detect</value>
+    <comment>the first choice of the spoken language select</comment>
+  </data>
+  <data name="Import_OriginalFile" xml:space="preserve">
+    <value>Original file</value>
+    <comment>label of the original file choice of the import dialog</comment>
+  </data>
+  <data name="Import_CopyToLibrary" xml:space="preserve">
+    <value>Copy to library</value>
+    <comment>the original file is copied into the library</comment>
+  </data>
+  <data name="Import_LeaveInPlace" xml:space="preserve">
+    <value>Leave in place</value>
+    <comment>the original file stays where it is</comment>
+  </data>
+  <data name="Import_Local" xml:space="preserve">
+    <value>Transcribed on this PC</value>
+    <comment>the privacy note in the footer of the import dialog</comment>
+  </data>
+  <data name="Import_Cancel" xml:space="preserve">
+    <value>Cancel</value>
+    <comment>the button that closes the import dialog</comment>
+  </data>
+  <data name="Import_ButtonOne" xml:space="preserve">
+    <value>Import {0} file</value>
+    <comment>{0} = number of files (one form: 1, 21, 31...)</comment>
+  </data>
+  <data name="Import_ButtonFew" xml:space="preserve">
+    <value>Import {0} files</value>
+    <comment>{0} = number of files (Ukrainian few form: 2-4, 22-24...)</comment>
+  </data>
+  <data name="Import_ButtonMany" xml:space="preserve">
+    <value>Import {0} files</value>
+    <comment>{0} = number of files (other numbers: 0, 5-20, 25...)</comment>
+  </data>
+  <data name="Import_Failed" xml:space="preserve">
+    <value>Couldn’t start the import: {0}</value>
+    <comment>{0} = error message</comment>
+  </data>
+  <data name="Export_Close" xml:space="preserve">
+    <value>Close</value>
+  </data>
+  <data name="Export_Format" xml:space="preserve">
+    <value>Format</value>
+  </data>
+  <data name="Export_FormatPlainText" xml:space="preserve">
+    <value>Plain text</value>
+  </data>
+  <data name="Export_FormatSubtitles" xml:space="preserve">
+    <value>Subtitles</value>
+  </data>
+  <data name="Export_FormatWord" xml:space="preserve">
+    <value>Word</value>
+  </data>
+  <data name="Export_Include" xml:space="preserve">
+    <value>Include</value>
+  </data>
+  <data name="Export_IncludeTimestamps" xml:space="preserve">
+    <value>Timestamps</value>
+  </data>
+  <data name="Export_IncludeSpeakers" xml:space="preserve">
+    <value>Speaker names</value>
+  </data>
+  <data name="Export_SubtitlesNote" xml:space="preserve">
+    <value>Subtitles carry only the spoken lines.</value>
+  </data>
+  <data name="Export_Range" xml:space="preserve">
+    <value>Range</value>
+  </data>
+  <data name="Export_RangeWhole" xml:space="preserve">
+    <value>Whole recording</value>
+  </data>
+  <data name="Export_RangeChapter" xml:space="preserve">
+    <value>Chapter: {0}</value>
+    <comment>{0} = chapter title; the range option that exports only that chapter</comment>
+  </data>
+  <data name="Export_Preview" xml:space="preserve">
+    <value>Preview</value>
+  </data>
+  <data name="Export_Copy" xml:space="preserve">
+    <value>Copy</value>
+  </data>
+  <data name="Export_SaveAs" xml:space="preserve">
+    <value>Save {0}</value>
+    <comment>{0} = file extension with the dot (.md); the button that saves the export</comment>
+  </data>
+  <data name="Export_Copied" xml:space="preserve">
+    <value>Copied to clipboard</value>
+  </data>
+  <data name="Export_CopyFailed" xml:space="preserve">
+    <value>Couldn’t copy: {0}</value>
+    <comment>{0} = error message</comment>
+  </data>
+  <data name="Export_PreviewFailed" xml:space="preserve">
+    <value>Couldn’t build the preview.</value>
+  </data>
+  <data name="Export_PreviewEmpty" xml:space="preserve">
+    <value>Nothing was said in this range.</value>
+  </data>
+  <data name="DidYouMean_Title" xml:space="preserve">
+    <value>Did you mean</value>
+    <comment>Label in front of the alternatives for a word the recogniser was unsure about</comment>
+  </data>
+  <data name="DidYouMean_Keep" xml:space="preserve">
+    <value>Keep {0}</value>
+    <comment>{0} = the uncertain word as it is; the chip that confirms it</comment>
+  </data>
+  <data name="DidYouMean_Name" xml:space="preserve">
+    <value>Suggestions for “{0}”</value>
+    <comment>{0} = the uncertain word; accessible name of the popover</comment>
+  </data>
+  <data name="DidYouMean_FixFailed" xml:space="preserve">
+    <value>Couldn’t fix the word: {0}</value>
+    <comment>{0} = error message</comment>
+  </data>
+  <data name="DropOverlay_TitleOne" xml:space="preserve">
+    <value>Drop to import {0} file</value>
+    <comment>title of the drop overlay; {0} = number of supported files (one form: 1, 21, 31...)</comment>
+  </data>
+  <data name="DropOverlay_TitleFew" xml:space="preserve">
+    <value>Drop to import {0} files</value>
+    <comment>title of the drop overlay; {0} = number of files (Ukrainian few form: 2-4, 22-24...)</comment>
+  </data>
+  <data name="DropOverlay_TitleMany" xml:space="preserve">
+    <value>Drop to import {0} files</value>
+    <comment>title of the drop overlay; {0} = number of files (other numbers)</comment>
+  </data>
+  <data name="DropOverlay_Hint" xml:space="preserve">
+    <value>They’ll be transcribed one by one</value>
+    <comment>second line of the drop overlay</comment>
+  </data>
+  <data name="DropOverlay_Unsupported" xml:space="preserve">
+    <value>These files can’t be imported</value>
+    <comment>title of the drop overlay when only unsupported files are dragged</comment>
+  </data>
+  <data name="DropOverlay_UnsupportedHint" xml:space="preserve">
+    <value>Only audio and video files can be imported</value>
+    <comment>second line of the drop overlay when only unsupported files are dragged</comment>
+  </data>
+  <data name="DropOverlay_Recording" xml:space="preserve">
+    <value>Imports wait until the recording stops</value>
+    <comment>title of the drop overlay while a recording is running</comment>
+  </data>
+  <data name="DropOverlay_RecordingHint" xml:space="preserve">
+    <value>Drop the files again after you stop recording</value>
+    <comment>second line of the drop overlay while a recording is running</comment>
+  </data>
+  <data name="Library_FilterImported" xml:space="preserve">
+    <value>Imported</value>
+    <comment>a filter chip of the Library: only sessions made from imported audio or video files</comment>
+  </data>
+  <data name="Library_ImportedMeta" xml:space="preserve">
+    <value>Imported</value>
+    <comment>in the meta line of an imported session (library row, recording details), before the original file name</comment>
   </data>
 </root>

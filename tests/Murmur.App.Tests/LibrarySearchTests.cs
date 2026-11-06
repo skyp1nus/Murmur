@@ -3,6 +3,7 @@ using Murmur.App.Tests.Fakes;
 using Murmur.App.ViewModels;
 using Murmur.Core.Capture;
 using Murmur.Core.Sessions;
+using Murmur.Core.Transcription;
 
 namespace Murmur.App.Tests;
 
@@ -98,6 +99,56 @@ public sealed class LibrarySearchTests : IDisposable
     }
 
     // Fallback ----------------------------------------------------------------------------------------------------
+
+    [Fact]
+    public async Task TheKeywordFallback_ShowsTheSpeakerNames_OfARecordingThatHasThem_TheDefaultWordForTheOtherSpeaker()
+    {
+        var standup = Add("Стендап");
+        var plain = Add("Без імен");
+        var names = new FakeSpeakerNameStore();
+        names.Put(standup.Id, new SpeakerNames(null, "Марек"));
+        var transcripts = new FakeTranscriptStore();
+        transcripts.PerSession[standup.Id] = new Transcript(
+            standup.Id,
+            [TranscriptFactory.Segment(Speaker.Me, 5, "перший", "рядок"), TranscriptFactory.Segment(Speaker.Others, 65, "бюджет", "на", "квартал")],
+            "fake");
+        transcripts.PerSession[plain.Id] = new Transcript(plain.Id, [TranscriptFactory.Segment(Speaker.Others, 65, "бюджет", "на", "квартал")], "fake");
+        _assistant.SearchFailure = new InvalidOperationException("embedding server crashed");
+        _keyword.KeywordResult =
+        [
+            Hits.Make(standup.Id, 65, "бюджет на квартал", Core.Sessions.SearchSource.Keyword),
+            Hits.Make(standup.Id, 5, "перший рядок", Core.Sessions.SearchSource.Keyword),
+            Hits.Make(plain.Id, 65, "бюджет на квартал", Core.Sessions.SearchSource.Keyword),
+        ];
+        var vm = new LibraryViewModel(_store, _time, post: action => action(), keywordSearch: _keyword, assistant: _assistant, transcripts: transcripts, speakerNames: names);
+        await vm.LoadAsync();
+
+        vm.SearchText = "бюджет";
+        _time.Advance(Debounce);
+        await vm.SearchTask;
+
+        Assert.Equal(
+            ["Марек: бюджет на квартал", "Я: перший рядок", "бюджет на квартал"],
+            vm.SearchResults.Select(r => r.Snippet).ToArray());
+    }
+
+    [Fact]
+    public async Task TheKeywordFallback_KeepsTheHits_WhenTheNamesCannotBeRead()
+    {
+        var standup = Add("Стендап");
+        var names = new FakeSpeakerNameStore { GetFailure = new TimeoutException("locked") };
+        _assistant.SearchFailure = new InvalidOperationException("embedding server crashed");
+        _keyword.KeywordResult = [Hits.Make(standup.Id, 65, "бюджет на квартал", Core.Sessions.SearchSource.Keyword)];
+        var vm = new LibraryViewModel(_store, _time, post: action => action(), keywordSearch: _keyword, assistant: _assistant, transcripts: new FakeTranscriptStore(), speakerNames: names);
+        await vm.LoadAsync();
+
+        vm.SearchText = "бюджет";
+        _time.Advance(Debounce);
+        await vm.SearchTask;
+
+        Assert.Equal("бюджет на квартал", Assert.Single(vm.SearchResults).Snippet);
+        Assert.Null(vm.SearchError);
+    }
 
     [Fact]
     public async Task WhenTheAssistantFails_TheKeywordIndexAnswers()

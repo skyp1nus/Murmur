@@ -1,5 +1,6 @@
 using System.Runtime.CompilerServices;
 using Microsoft.Extensions.AI;
+using Murmur.Core.Import;
 using Murmur.Core.Intelligence;
 using Murmur.Core.Sessions;
 using Murmur.Core.Transcription;
@@ -49,8 +50,23 @@ internal sealed class FakeStorage : IStorage
         return ValueTask.CompletedTask;
     }
 
-    public ValueTask<Transcript?> GetTranscriptAsync(SessionId id, CancellationToken cancellationToken) =>
-        ValueTask.FromResult(Transcripts.GetValueOrDefault(id));
+    /// <summary>How many times a transcript was read.</summary>
+    public int TranscriptReads { get; private set; }
+
+    /// <summary>Thrown by <see cref="GetTranscriptAsync"/> when set.</summary>
+    public Exception? TranscriptFailure { get; set; }
+
+    /// <summary>Runs once, while a transcript is being read (after the read started, before it is answered): lets a test do something in between.</summary>
+    public Action? DuringNextTranscriptRead { get; set; }
+
+    public ValueTask<Transcript?> GetTranscriptAsync(SessionId id, CancellationToken cancellationToken)
+    {
+        TranscriptReads++;
+        var hook = DuringNextTranscriptRead;
+        DuringNextTranscriptRead = null;
+        hook?.Invoke();
+        return TranscriptFailure is { } failure ? throw failure : ValueTask.FromResult(Transcripts.GetValueOrDefault(id));
+    }
 
     public ValueTask<IReadOnlyList<TranscriptSummary>> GetTranscriptSummariesAsync(IReadOnlyList<SessionId> sessions, CancellationToken cancellationToken) =>
         ValueTask.FromResult<IReadOnlyList<TranscriptSummary>>(
@@ -86,6 +102,12 @@ internal sealed class FakeStorage : IStorage
 
     public ValueTask DeleteBookmarkAsync(long id, CancellationToken cancellationToken) => throw new NotSupportedException();
 
+    public ValueTask<ImportItem> SaveImportAsync(StoredImport import, CancellationToken cancellationToken) => throw new NotSupportedException();
+
+    public ValueTask<IReadOnlyList<StoredImport>> LoadImportsAsync(CancellationToken cancellationToken) => throw new NotSupportedException();
+
+    public ValueTask DeleteImportAsync(long id, CancellationToken cancellationToken) => throw new NotSupportedException();
+
     public ValueTask<IReadOnlyList<ChatThread>> ListThreadsAsync(int limit, CancellationToken cancellationToken) => throw new NotSupportedException();
 
     public ValueTask<ChatThread> CreateThreadAsync(string title, SessionId? scope, CancellationToken cancellationToken) => throw new NotSupportedException();
@@ -107,6 +129,19 @@ internal sealed class FakeStorage : IStorage
     public ValueTask SaveChaptersAsync(SessionId session, IReadOnlyList<Chapter> chapters, CancellationToken cancellationToken) => throw new NotSupportedException();
 
     public ValueTask<IReadOnlyList<Chapter>> GetChaptersAsync(SessionId session, CancellationToken cancellationToken) => throw new NotSupportedException();
+
+    public Dictionary<SessionId, SpeakerNames> SpeakerNames { get; } = [];
+
+    public ValueTask<SpeakerNames> GetSpeakerNamesAsync(SessionId session, CancellationToken cancellationToken) =>
+        ValueTask.FromResult(SpeakerNames.GetValueOrDefault(session) ?? Murmur.Core.Sessions.SpeakerNames.Default);
+
+    public ValueTask SetSpeakerNameAsync(SessionId session, Speaker speaker, string? name, CancellationToken cancellationToken) => throw new NotSupportedException();
+
+    public ValueTask ReplaceWordAsync(SessionId session, int segmentIndex, int wordIndex, string text, CancellationToken cancellationToken) => throw new NotSupportedException();
+
+    public ValueTask<IReadOnlyList<string>> GetVocabularyAsync(CancellationToken cancellationToken) => throw new NotSupportedException();
+
+    public ValueTask AddVocabularyWordAsync(string word, CancellationToken cancellationToken) => throw new NotSupportedException();
 }
 
 /// <summary>Embeds "…{n}" style inputs deterministically and records every batch.</summary>

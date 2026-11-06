@@ -18,6 +18,7 @@
     Space.<n>           double, spacing scale          Inset.<n>      uniform Thickness from the scale
     Inset.<Component>   Thickness (horizontal, vertical) pairs taken from the scale, see TokenGenerator.Insets
     Radius.<Name>       CornerRadius                   Hairline.*     border hairline width / thickness (brush: Brush.Hairline)
+                        Emphasis.*     the 1.5 px edit outline, width / thickness (brush: Brush.Ink)
     Shadow.<Name>       BoxShadows (rgba converted to #AARRGGBB, px dropped; Avalonia parses unitless numbers)
     Orb.<Layer>         Color of a layer of the orb gradient (+ X, Y, Stop doubles); Orb.Base the lavender under them. Not themed.
     Glass.<Orb>.<Name>  x:Double of a canvas orb painted by GlassOrbControl (Recording, Welcome, Voice), from "glassOrbs":
@@ -43,6 +44,7 @@
       <Color x:Key="Color.ButtonBorder">#e5e5e5</Color>
       <Color x:Key="Color.InkHover">#262422</Color>
       <Color x:Key="Color.DashedBorder">#d6d1cb</Color>
+      <Color x:Key="Color.Scrim">#52141312</Color>
       <Color x:Key="Color.AccentViolet">#0447ff</Color>
       <Color x:Key="Color.AccentEmber">#ff4704</Color>
       <SolidColorBrush x:Key="Brush.Canvas" Color="{StaticResource Color.Canvas}" />
@@ -55,6 +57,7 @@
       <SolidColorBrush x:Key="Brush.ButtonBorder" Color="{StaticResource Color.ButtonBorder}" />
       <SolidColorBrush x:Key="Brush.InkHover" Color="{StaticResource Color.InkHover}" />
       <SolidColorBrush x:Key="Brush.DashedBorder" Color="{StaticResource Color.DashedBorder}" />
+      <SolidColorBrush x:Key="Brush.Scrim" Color="{StaticResource Color.Scrim}" />
       <SolidColorBrush x:Key="Brush.AccentViolet" Color="{StaticResource Color.AccentViolet}" />
       <SolidColorBrush x:Key="Brush.AccentEmber" Color="{StaticResource Color.AccentEmber}" />
       <SolidColorBrush x:Key="Brush.Hairline" Color="{StaticResource Color.Stone}" />
@@ -79,6 +82,7 @@
       <Color x:Key="Color.ButtonBorder">#33302c</Color>
       <Color x:Key="Color.InkHover">#e3dfda</Color>
       <Color x:Key="Color.DashedBorder">#45413c</Color>
+      <Color x:Key="Color.Scrim">#80000000</Color>
       <Color x:Key="Color.AccentViolet">#0447ff</Color>
       <Color x:Key="Color.AccentEmber">#ff4704</Color>
       <SolidColorBrush x:Key="Brush.Canvas" Color="{StaticResource Color.Canvas}" />
@@ -91,6 +95,7 @@
       <SolidColorBrush x:Key="Brush.ButtonBorder" Color="{StaticResource Color.ButtonBorder}" />
       <SolidColorBrush x:Key="Brush.InkHover" Color="{StaticResource Color.InkHover}" />
       <SolidColorBrush x:Key="Brush.DashedBorder" Color="{StaticResource Color.DashedBorder}" />
+      <SolidColorBrush x:Key="Brush.Scrim" Color="{StaticResource Color.Scrim}" />
       <SolidColorBrush x:Key="Brush.AccentViolet" Color="{StaticResource Color.AccentViolet}" />
       <SolidColorBrush x:Key="Brush.AccentEmber" Color="{StaticResource Color.AccentEmber}" />
       <SolidColorBrush x:Key="Brush.Hairline" Color="{StaticResource Color.Stone}" />
@@ -336,9 +341,15 @@
   <x:Double x:Key="Hairline.Width">1</x:Double>
   <Thickness x:Key="Hairline.Thickness">1</Thickness>
 
+  <!-- Emphasis border: the 1.5 px Ink outline of a chip or a field that is being edited (the colour is Brush.Ink) -->
+  <x:Double x:Key="Emphasis.Width">1.5</x:Double>
+  <Thickness x:Key="Emphasis.Thickness">1.5</Thickness>
+
   <!-- Shadows -->
   <BoxShadows x:Key="Shadow.Subtle">0 0 1 0 #66000000, 0 1 1 0 #0A000000, 0 2 4 0 #0A000000</BoxShadows>
   <BoxShadows x:Key="Shadow.PopoverDark">0 8 24 0 #80000000</BoxShadows>
+  <BoxShadows x:Key="Shadow.Popover">0 10 28 0 #1F000000, 0 0 1 0 #4D000000</BoxShadows>
+  <BoxShadows x:Key="Shadow.Modal">0 20 56 0 #4D000000</BoxShadows>
 
   <!-- Orb gradient (theme-independent; first layer paints on top) -->
   <Color x:Key="Orb.Base">#d8c8f0</Color>

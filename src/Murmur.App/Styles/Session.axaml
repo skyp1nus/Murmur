@@ -1,5 +1,7 @@
 <Styles xmlns="https://github.com/avaloniaui"
-        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:coll="using:Avalonia.Collections"
+        xmlns:controls="using:Murmur.App.Controls">
 
   <!--
     Styles of the buttons the recording puts in the top bar (Session.dc.html): the Export and "..." pills and the menus they open.
@@ -16,14 +18,160 @@
       <x:Double x:Key="Size.SessionMenuWidth">220</x:Double>
       <x:Double x:Key="Size.SessionRenameWidth">280</x:Double>
 
+      <!-- The speaker chips above the transcript (Idea4Transcript.dc.html, "Idea 4 / Speakers"): the chip, its avatar and the padding around them. -->
+      <x:Double x:Key="Size.SpeakerChip">28</x:Double>
+      <x:Double x:Key="Size.SpeakerChipMax">200</x:Double>
+      <x:Double x:Key="Size.SpeakerAvatar">22</x:Double>
+      <x:Double x:Key="Size.SpeakerPencil">11</x:Double>
+      <Thickness x:Key="Margin.SpeakerChip">3,0,10,0</Thickness>
+      <!-- The gap between the "Speakers" label and the chips: the 2 px the canvas adds to the 6 px gap of the row. -->
+      <Thickness x:Key="Margin.SpeakersTitle">0,0,2,0</Thickness>
+      <!-- The name box of the rename popover: 10 px at the sides, no padding above and below (the box is 32 high). -->
+      <Thickness x:Key="Margin.SpeakerField">10,0</Thickness>
+      <!--
+        The rename popover (Idea4Transcript.dc.html, "Idea 4 / Rename speaker popover"): the card has no outline, only Shadow.Popover (0 10 28),
+        so the popup child carries a margin as big as the shadow reaches (28 at the sides, 28 - 10 above, 28 + 10 below) or the window of the
+        popup would cut it. Avalonia places the popup by the card, not by that margin: the card is Space.10 under the chip, left edges aligned.
+      -->
+      <Thickness x:Key="Margin.SpeakerPopover">28,18,28,38</Thickness>
+
+      <ResourceDictionary.ThemeDictionaries>
+        <ResourceDictionary x:Key="Light">
+          <StaticResource x:Key="Speaker.PopoverShadow" ResourceKey="Shadow.Popover" />
+          <StaticResource x:Key="DidYouMean.Shadow" ResourceKey="Shadow.Popover" />
+        </ResourceDictionary>
+        <ResourceDictionary x:Key="Dark">
+          <StaticResource x:Key="Speaker.PopoverShadow" ResourceKey="Shadow.PopoverDark" />
+          <StaticResource x:Key="DidYouMean.Shadow" ResourceKey="Shadow.PopoverDark" />
+        </ResourceDictionary>
+      </ResourceDictionary.ThemeDictionaries>
+
       <!-- The chapter strip above the player: the height of a segment and its side padding (Idea4Transcript.dc.html, "Idea 4 / Chapters"). -->
       <x:Double x:Key="Size.ChapterStrip">40</x:Double>
       <Thickness x:Key="Margin.ChapterSegment">8,0</Thickness>
+
+      <!-- The chip behind the spoken word (Idea4Transcript.dc.html, "Idea 4 / Active line – follow along"): 3 px beyond the word on each side. -->
+      <x:Double x:Key="Size.WordChipPadding">3</x:Double>
+
+      <!--
+        Uncertain words (Idea4Transcript.dc.html, "Idea 4 / Low-confidence fix"): the canvas's text-decoration "underline dotted", 2 px thick,
+        text-underline-offset 4 px; the word itself is Ink. The ring of the keyboard focus is the Emphasis width (1.5).
+      -->
+      <x:Double x:Key="Size.UncertainUnderline">2</x:Double>
+      <x:Double x:Key="Size.UncertainUnderlineOffset">4</x:Double>
+      <x:Double x:Key="Size.UncertainFocusRing">1.5</x:Double>
+      <!-- "Did you mean": chips 26 high with 10 px at the sides (at most 160 wide, so four fit a 900 px window), the label 4 px in from its edges. -->
+      <x:Double x:Key="Size.DidYouMeanChip">26</x:Double>
+      <x:Double x:Key="Size.DidYouMeanChipMax">160</x:Double>
+      <Thickness x:Key="Margin.DidYouMeanChip">10,0</Thickness>
+      <Thickness x:Key="Margin.DidYouMeanLabel">4,0</Thickness>
+      <!-- The pill has no outline, only the popover shadow: the popup child carries a margin as big as the shadow reaches (as Margin.SpeakerPopover). -->
+      <Thickness x:Key="Margin.DidYouMeanPopover">28,18,28,38</Thickness>
+
+      <!--
+        Bookmarks (Idea4Transcript.dc.html, "Idea 4 / Waveform with bookmarks", "Bookmarks list", "Inline bookmark"): the flags above the waveform
+        (a 14 px band, 12 px flags), the card's rows (6 x 4 inside, pulled 6 px out so the hover reaches the card padding) and the dashed
+        pill between two transcript lines (3 px above and below, 10 px aside, a radius of half its height).
+      -->
+      <x:Double x:Key="Size.BookmarkFlagBand">14</x:Double>
+      <x:Double x:Key="Size.BookmarkFlag">12</x:Double>
+      <x:Double x:Key="Size.BookmarkAction">22</x:Double>
+      <x:Double x:Key="Size.BookmarkActionIcon">12</x:Double>
+      <x:Double x:Key="Size.BookmarksMaxHeight">168</x:Double>
+      <x:Double x:Key="Size.BookmarkPillRadius">14</x:Double>
+      <Thickness x:Key="Margin.BookmarkPill">10,3</Thickness>
+      <Thickness x:Key="Margin.BookmarkRows">-6,0</Thickness>
+      <Thickness x:Key="Margin.BookmarkRowPadding">6,4</Thickness>
+      <coll:AvaloniaList x:Key="Bookmark.Dash"
+                         x:TypeArguments="x:Double">
+        <x:Double>3</x:Double>
+        <x:Double>3</x:Double>
+      </coll:AvaloniaList>
+      <!-- The cross of a bookmark row (24 x 24 grid, stroked like the other icons). -->
+      <StreamGeometry x:Key="Session.Cross">M6 6l12 12M18 6L6 18</StreamGeometry>
 
       <!-- The three dots of "..." (filled circles on the 24 x 24 grid of the canvas SVG). -->
       <StreamGeometry x:Key="Session.Dots">M3.4 12a1.6 1.6 0 1 0 3.2 0a1.6 1.6 0 1 0 -3.2 0 M10.4 12a1.6 1.6 0 1 0 3.2 0a1.6 1.6 0 1 0 -3.2 0 M17.4 12a1.6 1.6 0 1 0 3.2 0a1.6 1.6 0 1 0 -3.2 0</StreamGeometry>
     </ResourceDictionary>
   </Styles.Resources>
+
+  <!-- An uncertain word in a transcript line: Ink letters over a dotted Graphite underline; the keyboard ring is Ink. -->
+  <Style Selector="controls|TranscriptTextControl.sessionText">
+    <Setter Property="UnderlineBrush" Value="{DynamicResource Brush.Graphite}" />
+    <Setter Property="UnderlineThickness" Value="{StaticResource Size.UncertainUnderline}" />
+    <Setter Property="UnderlineOffset" Value="{StaticResource Size.UncertainUnderlineOffset}" />
+    <Setter Property="UncertainForeground" Value="{DynamicResource Brush.Ink}" />
+    <Setter Property="FocusBrush" Value="{DynamicResource Brush.Ink}" />
+    <Setter Property="FocusThickness" Value="{StaticResource Size.UncertainFocusRing}" />
+  </Style>
+
+  <!-- "Did you mean": a Canvas pill lifted by the popover shadow, 4 px inside and between its parts. -->
+  <Style Selector="Border.didYouMean">
+    <Setter Property="Margin" Value="{StaticResource Margin.DidYouMeanPopover}" />
+    <Setter Property="Padding" Value="{StaticResource Inset.4}" />
+    <Setter Property="Background" Value="{DynamicResource Brush.Canvas}" />
+    <Setter Property="CornerRadius" Value="{StaticResource Radius.Pill}" />
+    <Setter Property="BoxShadow" Value="{DynamicResource DidYouMean.Shadow}" />
+  </Style>
+  <!-- The label: 11 px Smoke. -->
+  <Style Selector="TextBlock.didYouMeanLabel">
+    <Setter Property="FontFamily" Value="{StaticResource Font.Body}" />
+    <Setter Property="FontWeight" Value="{StaticResource FontWeight.Body}" />
+    <Setter Property="FontSize" Value="{StaticResource FontSize.Tag}" />
+    <Setter Property="LineHeight" Value="{StaticResource LineHeight.Tag}" />
+    <Setter Property="LetterSpacing" Value="{StaticResource LetterSpacing.Tag}" />
+    <Setter Property="Foreground" Value="{DynamicResource Brush.Smoke}" />
+    <Setter Property="Margin" Value="{StaticResource Margin.DidYouMeanLabel}" />
+    <Setter Property="VerticalAlignment" Value="Center" />
+  </Style>
+  <!-- A chip: the primary (filled, the most likely alternative) or outline pill of the app, 26 high, 12 px / 400. -->
+  <Style Selector="Button.didYouMeanChip">
+    <Setter Property="Height" Value="{StaticResource Size.DidYouMeanChip}" />
+    <Setter Property="MinHeight" Value="0" />
+    <Setter Property="MinWidth" Value="0" />
+    <Setter Property="MaxWidth" Value="{StaticResource Size.DidYouMeanChipMax}" />
+    <Setter Property="Padding" Value="{StaticResource Margin.DidYouMeanChip}" />
+    <Setter Property="FontWeight" Value="{StaticResource FontWeight.Body}" />
+    <Setter Property="FontSize" Value="{StaticResource FontSize.Small}" />
+    <Setter Property="VerticalAlignment" Value="Center" />
+  </Style>
+  <!--
+    The keyboard focus: a pill ring on the edge of the chip (the Fluent adorner is a square box, and an adorner is clipped to the chip): an Ink
+    edge with a Canvas line inside it, so it shows on the filled chip (the Canvas line) and on the outlined ones (the Ink edge) alike.
+  -->
+  <Style Selector="Button.didYouMeanChip">
+    <Setter Property="FocusAdorner">
+      <FocusAdornerTemplate>
+        <Border CornerRadius="{StaticResource Radius.Pill}"
+                BorderBrush="{DynamicResource Brush.Ink}"
+                BorderThickness="{StaticResource Emphasis.Thickness}">
+          <Border CornerRadius="{StaticResource Radius.Pill}"
+                  BorderBrush="{DynamicResource Brush.Canvas}"
+                  BorderThickness="{StaticResource Emphasis.Thickness}" />
+        </Border>
+      </FocusAdornerTemplate>
+    </Setter>
+  </Style>
+  <!-- The text of a chip (a TextBlock, so a long word is cut): Canvas on the filled chip, Ink on the outlined ones. -->
+  <Style Selector="Button.didYouMeanChip TextBlock">
+    <Setter Property="Foreground" Value="{DynamicResource Brush.Ink}" />
+  </Style>
+  <Style Selector="Button.didYouMeanChip.primary TextBlock">
+    <Setter Property="Foreground" Value="{DynamicResource Brush.Canvas}" />
+  </Style>
+  <Style Selector="Button.didYouMeanChip:disabled TextBlock">
+    <Setter Property="Foreground" Value="{DynamicResource Brush.Ash}" />
+  </Style>
+  <Style Selector="Button.didYouMeanChip.primary:disabled TextBlock">
+    <Setter Property="Foreground" Value="{DynamicResource Brush.Canvas}" />
+  </Style>
+  <Style Selector="Button.didYouMeanChip TextBlock">
+    <Setter Property="LineHeight" Value="{StaticResource LineHeight.Small}" />
+    <Setter Property="LetterSpacing" Value="{StaticResource LetterSpacing.Small}" />
+    <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+    <Setter Property="TextWrapping" Value="NoWrap" />
+    <Setter Property="VerticalAlignment" Value="Center" />
+  </Style>
 
   <!-- Export and "...": 32 px pills, a ButtonBorder hairline on the Canvas, 13 px / 500 without tracking. -->
   <Style Selector="Button.sessionGhost">
@@ -102,5 +250,186 @@
   </Style>
   <Style Selector="Button.sessionMenuItem:disabled /template/ ContentPresenter#PART_ContentPresenter">
     <Setter Property="Foreground" Value="{DynamicResource Brush.Ash}" />
+  </Style>
+
+  <!-- ==== Bookmarks (#59) ============================================================================================================ -->
+  <!-- The flags above the waveform: Ink, 12 px, in a 14 px band. -->
+  <Style Selector="controls|BookmarkFlagsControl">
+    <Setter Property="Height" Value="{StaticResource Size.BookmarkFlagBand}" />
+    <Setter Property="FlagSize" Value="{StaticResource Size.BookmarkFlag}" />
+    <Setter Property="FlagBrush" Value="{DynamicResource Brush.Ink}" />
+    <Setter Property="Icon" Value="{StaticResource Icon.Mark}" />
+  </Style>
+
+  <!-- The card: Surface, radius 16, 16 x 12 inside. -->
+  <Style Selector="Border.bookmarksCard">
+    <Setter Property="Background" Value="{DynamicResource Brush.Surface}" />
+    <Setter Property="CornerRadius" Value="{StaticResource Radius.Card}" />
+    <Setter Property="Padding" Value="{StaticResource Inset.GroupRow}" />
+  </Style>
+  <Style Selector="TextBlock.bookmarksTitle">
+    <Setter Property="FontFamily" Value="{StaticResource Font.Body}" />
+    <Setter Property="FontWeight" Value="{StaticResource FontWeight.BodyMedium}" />
+    <Setter Property="FontSize" Value="{StaticResource FontSize.SmallTight}" />
+    <Setter Property="LineHeight" Value="{StaticResource LineHeight.SmallTight}" />
+    <Setter Property="LetterSpacing" Value="0" />
+    <Setter Property="Foreground" Value="{DynamicResource Brush.Ink}" />
+    <Setter Property="VerticalAlignment" Value="Center" />
+  </Style>
+  <Style Selector="TextBlock.bookmarksHint">
+    <Setter Property="FontFamily" Value="{StaticResource Font.Body}" />
+    <Setter Property="FontWeight" Value="{StaticResource FontWeight.Body}" />
+    <Setter Property="FontSize" Value="{StaticResource FontSize.Tag}" />
+    <Setter Property="LineHeight" Value="{StaticResource LineHeight.Tag}" />
+    <Setter Property="LetterSpacing" Value="{StaticResource LetterSpacing.Tag}" />
+    <Setter Property="Foreground" Value="{DynamicResource Brush.Smoke}" />
+    <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+    <Setter Property="VerticalAlignment" Value="Center" />
+  </Style>
+  <Style Selector="TextBlock.bookmarksEmpty">
+    <Setter Property="FontFamily" Value="{StaticResource Font.Body}" />
+    <Setter Property="FontWeight" Value="{StaticResource FontWeight.Body}" />
+    <Setter Property="FontSize" Value="{StaticResource FontSize.MetaTight}" />
+    <Setter Property="LineHeight" Value="{StaticResource LineHeight.MetaTight}" />
+    <Setter Property="LetterSpacing" Value="{StaticResource LetterSpacing.MetaTight}" />
+    <Setter Property="Foreground" Value="{DynamicResource Brush.Smoke}" />
+    <Setter Property="TextWrapping" Value="Wrap" />
+  </Style>
+  <Style Selector="ScrollViewer.bookmarksScroll">
+    <Setter Property="MaxHeight" Value="{StaticResource Size.BookmarksMaxHeight}" />
+  </Style>
+
+  <!-- A row: transparent, Stone under the pointer. -->
+  <Style Selector="Border.bookmarkRow">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="CornerRadius" Value="{StaticResource Radius.Small}" />
+    <Setter Property="Padding" Value="{StaticResource Margin.BookmarkRowPadding}" />
+  </Style>
+  <Style Selector="Border.bookmarkRow:pointerover">
+    <Setter Property="Background" Value="{DynamicResource Brush.Stone}" />
+  </Style>
+  <Style Selector="StackPanel.bookmarkActions">
+    <Setter Property="Opacity" Value="0" />
+    <Setter Property="IsHitTestVisible" Value="False" />
+    <Setter Property="VerticalAlignment" Value="Center" />
+  </Style>
+  <Style Selector="Border.bookmarkRow:pointerover StackPanel.bookmarkActions, Border.bookmarkRow:focus-within StackPanel.bookmarkActions">
+    <Setter Property="Opacity" Value="1" />
+    <Setter Property="IsHitTestVisible" Value="True" />
+  </Style>
+
+  <!-- The buttons inside a row and the pill carry no chrome of their own. -->
+  <Style Selector="Button.bookmarkSeek, Button.bookmarkNote, Button.bookmarkAction, Button.bookmarkPill">
+    <Setter Property="MinHeight" Value="0" />
+    <Setter Property="MinWidth" Value="0" />
+    <Setter Property="Padding" Value="0" />
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="BorderThickness" Value="0" />
+    <Setter Property="HorizontalContentAlignment" Value="Left" />
+    <Setter Property="VerticalContentAlignment" Value="Center" />
+    <Setter Property="VerticalAlignment" Value="Center" />
+    <Setter Property="Foreground" Value="{DynamicResource Brush.Ink}" />
+  </Style>
+  <Style Selector="Button.bookmarkSeek /template/ ContentPresenter#PART_ContentPresenter, Button.bookmarkSeek:pointerover /template/ ContentPresenter#PART_ContentPresenter, Button.bookmarkSeek:pressed /template/ ContentPresenter#PART_ContentPresenter, Button.bookmarkNote /template/ ContentPresenter#PART_ContentPresenter, Button.bookmarkNote:pointerover /template/ ContentPresenter#PART_ContentPresenter, Button.bookmarkNote:pressed /template/ ContentPresenter#PART_ContentPresenter, Button.bookmarkPill /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="Foreground" Value="{DynamicResource Brush.Ink}" />
+  </Style>
+  <Style Selector="Button.bookmarkNote">
+    <Setter Property="HorizontalAlignment" Value="Stretch" />
+  </Style>
+
+  <!-- The flag, the time (Geist Mono 11 in Graphite) and the note (13, Ash while it is the placeholder). -->
+  <Style Selector="controls|IconControl.bookmarkFlag">
+    <Setter Property="Width" Value="{StaticResource Size.BookmarkFlag}" />
+    <Setter Property="Height" Value="{StaticResource Size.BookmarkFlag}" />
+    <Setter Property="IsFilled" Value="True" />
+    <Setter Property="VerticalAlignment" Value="Center" />
+    <Setter Property="TextElement.Foreground" Value="{DynamicResource Brush.Ink}" />
+  </Style>
+  <Style Selector="TextBlock.bookmarkTime">
+    <Setter Property="FontFamily" Value="{StaticResource Font.Mono}" />
+    <Setter Property="FontWeight" Value="{StaticResource FontWeight.Mono}" />
+    <Setter Property="FontSize" Value="{StaticResource FontSize.MonoSmall}" />
+    <Setter Property="LineHeight" Value="{StaticResource LineHeight.MonoSmall}" />
+    <Setter Property="LetterSpacing" Value="{StaticResource LetterSpacing.MonoSmall}" />
+    <Setter Property="Foreground" Value="{DynamicResource Brush.Graphite}" />
+    <Setter Property="VerticalAlignment" Value="Center" />
+  </Style>
+  <Style Selector="TextBlock.bookmarkNoteText">
+    <Setter Property="FontFamily" Value="{StaticResource Font.Body}" />
+    <Setter Property="FontWeight" Value="{StaticResource FontWeight.Body}" />
+    <Setter Property="FontSize" Value="{StaticResource FontSize.MetaTight}" />
+    <Setter Property="LineHeight" Value="{StaticResource LineHeight.MetaTight}" />
+    <Setter Property="LetterSpacing" Value="{StaticResource LetterSpacing.MetaTight}" />
+    <Setter Property="Foreground" Value="{DynamicResource Brush.Ink}" />
+    <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+    <Setter Property="TextWrapping" Value="NoWrap" />
+  </Style>
+  <Style Selector="Button.bookmarkNote.empty TextBlock.bookmarkNoteText">
+    <Setter Property="Foreground" Value="{DynamicResource Brush.Ash}" />
+  </Style>
+  <Style Selector="TextBox.bookmarkEditor">
+    <Setter Property="MinHeight" Value="0" />
+    <Setter Property="Padding" Value="{StaticResource Inset.SessionChip}" />
+    <Setter Property="FontSize" Value="{StaticResource FontSize.MetaTight}" />
+    <Setter Property="VerticalAlignment" Value="Center" />
+  </Style>
+
+  <!-- The pencil and the cross: 22 px round, Smoke, Ink under the pointer. -->
+  <Style Selector="Button.bookmarkAction">
+    <Setter Property="Width" Value="{StaticResource Size.BookmarkAction}" />
+    <Setter Property="Height" Value="{StaticResource Size.BookmarkAction}" />
+    <Setter Property="HorizontalContentAlignment" Value="Center" />
+    <Setter Property="CornerRadius" Value="{StaticResource Radius.Pill}" />
+  </Style>
+  <Style Selector="Button.bookmarkAction /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="CornerRadius" Value="{StaticResource Radius.Pill}" />
+  </Style>
+  <Style Selector="Button.bookmarkAction:pointerover /template/ ContentPresenter#PART_ContentPresenter, Button.bookmarkAction:pressed /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="{DynamicResource Brush.Canvas}" />
+  </Style>
+  <Style Selector="controls|IconControl.bookmarkActionIcon">
+    <Setter Property="Width" Value="{StaticResource Size.BookmarkActionIcon}" />
+    <Setter Property="Height" Value="{StaticResource Size.BookmarkActionIcon}" />
+    <Setter Property="TextElement.Foreground" Value="{DynamicResource Brush.Smoke}" />
+  </Style>
+  <Style Selector="Button.bookmarkAction:pointerover controls|IconControl.bookmarkActionIcon">
+    <Setter Property="TextElement.Foreground" Value="{DynamicResource Brush.Ink}" />
+  </Style>
+
+  <!-- The pill between two lines: a dashed 1 px outline (DashedBorder), 12 x 6 inside, the whole width. -->
+  <Style Selector="Button.bookmarkPill">
+    <Setter Property="Margin" Value="{StaticResource Margin.BookmarkPill}" />
+    <Setter Property="HorizontalAlignment" Value="Stretch" />
+    <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+    <Setter Property="CornerRadius" Value="{StaticResource Radius.Pill}" />
+  </Style>
+  <Style Selector="Button.bookmarkPill:pointerover /template/ ContentPresenter#PART_ContentPresenter, Button.bookmarkPill:pressed /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="{DynamicResource Brush.Surface}" />
+    <Setter Property="Foreground" Value="{DynamicResource Brush.Ink}" />
+    <Setter Property="CornerRadius" Value="{StaticResource Radius.Pill}" />
+  </Style>
+  <Style Selector="Rectangle.bookmarkOutline">
+    <Setter Property="RadiusX" Value="{StaticResource Size.BookmarkPillRadius}" />
+    <Setter Property="RadiusY" Value="{StaticResource Size.BookmarkPillRadius}" />
+    <Setter Property="Stroke" Value="{DynamicResource Brush.DashedBorder}" />
+    <Setter Property="StrokeThickness" Value="{StaticResource Hairline.Width}" />
+    <Setter Property="StrokeDashArray" Value="{StaticResource Bookmark.Dash}" />
+    <Setter Property="IsHitTestVisible" Value="False" />
+  </Style>
+  <Style Selector="StackPanel.bookmarkPillContent">
+    <Setter Property="Margin" Value="{StaticResource Inset.Input}" />
+  </Style>
+  <Style Selector="TextBlock.bookmarkPillNote">
+    <Setter Property="FontFamily" Value="{StaticResource Font.Body}" />
+    <Setter Property="FontWeight" Value="{StaticResource FontWeight.Body}" />
+    <Setter Property="FontSize" Value="{StaticResource FontSize.SmallTight}" />
+    <Setter Property="LineHeight" Value="{StaticResource LineHeight.SmallTight}" />
+    <Setter Property="LetterSpacing" Value="{StaticResource LetterSpacing.Small}" />
+    <Setter Property="Foreground" Value="{DynamicResource Brush.Ink}" />
+    <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+    <Setter Property="TextWrapping" Value="NoWrap" />
+    <Setter Property="VerticalAlignment" Value="Center" />
   </Style>
 </Styles>

@@ -16,9 +16,10 @@ public sealed partial class SegmentViewModel : ObservableObject
 {
     private static readonly int[] NoOffsets = [];
 
-    private readonly TranscriptSegment _segment;
+    private TranscriptSegment _segment;
     private readonly Action<SegmentViewModel, int> _seek;
     private string? _text;
+    private string? _speakerName;
     private int[] _wordStarts = NoOffsets;
     private int[] _wordLengths = NoOffsets;
     private RelayCommand<int>? _seekWordCommand;
@@ -44,11 +45,28 @@ public sealed partial class SegmentViewModel : ObservableObject
 
     public Speaker Speaker => _segment.Speaker;
 
-    /// <summary>"You" for the microphone track, "Others" for the loopback track (the UI language).</summary>
-    public string SpeakerLabel => _segment.Speaker == Speaker.Me ? Strings.Segment_Me : Strings.Segment_Others;
+    /// <summary>The name the user gave the speaker of this recording, or <c>null</c> for the default label.</summary>
+    internal string? SpeakerName
+    {
+        get => _speakerName;
+        set
+        {
+            if (_speakerName == value)
+            {
+                return;
+            }
 
-    /// <summary>The letter in the avatar: "Y" / "O" (the first letter of the label).</summary>
-    public string Initial => SpeakerLabel.Length > 0 ? SpeakerLabel[..1].ToUpperInvariant() : string.Empty;
+            _speakerName = value;
+            OnPropertyChanged(nameof(SpeakerLabel));
+            OnPropertyChanged(nameof(Initial));
+        }
+    }
+
+    /// <summary>The user's name for the speaker; else "You" for the microphone track and "Others" for the loopback track (the UI language).</summary>
+    public string SpeakerLabel => SpeakerLabels.Of(_segment.Speaker, _speakerName);
+
+    /// <summary>The letter in the avatar: "Y" / "O" for the defaults, else the first letter of the name.</summary>
+    public string Initial => SpeakerLabels.Initial(SpeakerLabel);
 
     /// <summary>The avatar of the microphone track is filled with the ink, the other one with Stone.</summary>
     public bool IsMe => _segment.Speaker == Speaker.Me;
@@ -111,6 +129,34 @@ public sealed partial class SegmentViewModel : ObservableObject
     /// <summary>The text the transcript search looks for (every occurrence in this row is marked), or <c>null</c>.</summary>
     [ObservableProperty]
     public partial string? HighlightTerm { get; set; }
+
+    /// <summary>The bookmarks (#59) that stand in front of this row: only the first row has any (a moment before the first line).</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasMarksBefore))]
+    public partial IReadOnlyList<BookmarkViewModel> MarksBefore { get; private set; } = [];
+
+    /// <summary>The bookmarks (#59) whose moment is in this row's span (from its start up to the next row): the dashed pills drawn under it.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasMarksAfter))]
+    public partial IReadOnlyList<BookmarkViewModel> MarksAfter { get; private set; } = [];
+
+    public bool HasMarksBefore => MarksBefore.Count > 0;
+
+    public bool HasMarksAfter => MarksAfter.Count > 0;
+
+    /// <summary>Sets the pills of the row; nothing is raised when they are the ones it already has.</summary>
+    internal void SetMarks(IReadOnlyList<BookmarkViewModel> before, IReadOnlyList<BookmarkViewModel> after)
+    {
+        if (!before.SequenceEqual(MarksBefore))
+        {
+            MarksBefore = before;
+        }
+
+        if (!after.SequenceEqual(MarksAfter))
+        {
+            MarksAfter = after;
+        }
+    }
 
     /// <summary>The segment's text contains <paramref name="term"/> (any case).</summary>
     internal bool Contains(string term) => Text.Contains(term, StringComparison.OrdinalIgnoreCase);

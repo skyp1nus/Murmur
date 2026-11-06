@@ -365,6 +365,23 @@
       <Setter Property="MarkBrush" Value="{DynamicResource Brush.Ink}" />
       <Setter Property="MarkForeground" Value="{DynamicResource Brush.Canvas}" />
       <Setter Property="MarkCornerRadius" Value="{StaticResource Radius.Input}" />
+      <!-- Follow along: the spoken word is white on an Ink chip (radius 4), the rest of the line still to be said is Ash. -->
+      <Setter Property="HighlightBrush" Value="{DynamicResource Brush.Ink}" />
+      <Setter Property="HighlightBorderBrush" Value="{x:Null}" />
+      <Setter Property="HighlightForeground" Value="{DynamicResource Brush.Canvas}" />
+      <Setter Property="UpcomingForeground" Value="{DynamicResource Brush.Ash}" />
+      <Setter Property="HighlightPadding" Value="{StaticResource Size.WordChipPadding}" />
+    </Style>
+
+    <!-- "Follow along" in the transcript header: 12 px Graphite beside the switch. -->
+    <Style Selector="TextBlock.followAlongLabel">
+      <Setter Property="FontFamily" Value="{StaticResource Font.Body}" />
+      <Setter Property="FontWeight" Value="{StaticResource FontWeight.Body}" />
+      <Setter Property="FontSize" Value="{StaticResource FontSize.Small}" />
+      <Setter Property="LineHeight" Value="{StaticResource LineHeight.Small}" />
+      <Setter Property="LetterSpacing" Value="{StaticResource LetterSpacing.Small}" />
+      <Setter Property="Foreground" Value="{DynamicResource Brush.Graphite}" />
+      <Setter Property="VerticalAlignment" Value="Center" />
     </Style>
 
     <!-- The avatar of a speaker: the ink for the microphone, Stone for the other side. -->
@@ -558,6 +575,10 @@
 
           <Border Classes="sessionPlayer">
             <StackPanel Spacing="{StaticResource Space.12}">
+              <!-- Bookmark flags (#59): a band over the waveform, there only while the recording has bookmarks. -->
+              <controls:BookmarkFlagsControl x:Name="BookmarkFlags"
+                                             IsVisible="{Binding HasBookmarks}"
+                                             Flags="{Binding BookmarkFlags}" />
               <controls:WaveformControl x:Name="Waveform"
                                         Height="{StaticResource Session.WaveformHeight}"
                                         Margin="{StaticResource Session.WaveformMargin}"
@@ -624,6 +645,9 @@
                          Text="{Binding PlayerError}" />
             </StackPanel>
           </Border>
+
+          <!-- Bookmarks (#59): hidden, with no space, when the recording has no bookmark store (the design demo). -->
+          <views:BookmarksCardView IsVisible="{Binding ShowBookmarksCard}" />
         </StackPanel>
 
         <!-- Right: the tabs and what they show -->
@@ -673,29 +697,56 @@
                 RowDefinitions="Auto,*"
                 RowSpacing="{StaticResource Space.8}"
                 IsVisible="{Binding IsTranscriptTab}">
-            <Border Grid.Row="0"
-                    Classes="searchBox"
-                    IsVisible="{Binding ShowTranscriptList}">
-              <Grid ColumnDefinitions="Auto,*"
-                    ColumnSpacing="{StaticResource Space.8}">
-                <controls:IconControl Grid.Column="0"
-                                      Width="{StaticResource Size.SearchIcon}"
-                                      Height="{StaticResource Size.SearchIcon}"
-                                      TextElement.Foreground="{DynamicResource Brush.Smoke}"
-                                      Data="{StaticResource Icon.Search}" />
-                <TextBox x:Name="SearchBox"
-                         Grid.Column="1"
-                         Classes="bare"
-                         AutomationProperties.Name="{x:Static res:Strings.Session_SearchPlaceholder}"
-                         PlaceholderText="{x:Static res:Strings.Session_SearchPlaceholder}"
-                         Text="{Binding SearchText, Mode=TwoWay}">
-                  <TextBox.KeyBindings>
-                    <KeyBinding Gesture="Enter" Command="{Binding NextHitCommand}" />
-                    <KeyBinding Gesture="Shift+Enter" Command="{Binding PreviousHitCommand}" />
-                  </TextBox.KeyBindings>
-                </TextBox>
+            <!-- The speaker chips (hidden, no space, while nothing can be renamed), then the search box. -->
+            <StackPanel Grid.Row="0"
+                        Spacing="{StaticResource Space.8}">
+              <!-- The header (Idea4Transcript.dc.html): the chips on the left, "Follow along" and its switch on the right. -->
+              <Grid ColumnDefinitions="*,Auto"
+                    ColumnSpacing="{StaticResource Space.10}">
+                <Grid.IsVisible>
+                  <MultiBinding Converter="{x:Static BoolConverters.Or}">
+                    <Binding Path="ShowSpeakerChips" />
+                    <Binding Path="ShowFollowAlongSwitch" />
+                  </MultiBinding>
+                </Grid.IsVisible>
+                <views:SpeakerChipsView Grid.Column="0"
+                                        IsVisible="{Binding ShowSpeakerChips}" />
+                <StackPanel Grid.Column="1"
+                            Orientation="Horizontal"
+                            Spacing="{StaticResource Space.6}"
+                            VerticalAlignment="Center"
+                            IsVisible="{Binding ShowFollowAlongSwitch}">
+                  <TextBlock Classes="followAlongLabel"
+                             Text="{x:Static res:Strings.Session_FollowAlong}" />
+                  <ToggleButton x:Name="FollowAlongSwitch"
+                                Classes="switch"
+                                AutomationProperties.Name="{x:Static res:Strings.Session_FollowAlong}"
+                                IsChecked="{Binding FollowAlong, Mode=TwoWay}" />
+                </StackPanel>
               </Grid>
-            </Border>
+              <Border Classes="searchBox"
+                      IsVisible="{Binding ShowTranscriptList}">
+                <Grid ColumnDefinitions="Auto,*"
+                      ColumnSpacing="{StaticResource Space.8}">
+                  <controls:IconControl Grid.Column="0"
+                                        Width="{StaticResource Size.SearchIcon}"
+                                        Height="{StaticResource Size.SearchIcon}"
+                                        TextElement.Foreground="{DynamicResource Brush.Smoke}"
+                                        Data="{StaticResource Icon.Search}" />
+                  <TextBox x:Name="SearchBox"
+                           Grid.Column="1"
+                           Classes="bare"
+                           AutomationProperties.Name="{x:Static res:Strings.Session_SearchPlaceholder}"
+                           PlaceholderText="{x:Static res:Strings.Session_SearchPlaceholder}"
+                           Text="{Binding SearchText, Mode=TwoWay}">
+                    <TextBox.KeyBindings>
+                      <KeyBinding Gesture="Enter" Command="{Binding NextHitCommand}" />
+                      <KeyBinding Gesture="Shift+Enter" Command="{Binding PreviousHitCommand}" />
+                    </TextBox.KeyBindings>
+                  </TextBox>
+                </Grid>
+              </Border>
+            </StackPanel>
 
             <ScrollViewer x:Name="TranscriptScroller"
                           Grid.Row="1"
@@ -712,46 +763,71 @@
                 </ItemsControl.ItemsPanel>
                 <ItemsControl.ItemTemplate>
                   <DataTemplate x:DataType="vm:SegmentViewModel">
-                    <Button Classes="sessionRow"
-                            Classes.current="{Binding IsCurrent}"
-                            Classes.dimmed="{Binding IsDimmed}"
-                            Command="{Binding SeekCommand}">
-                      <Grid ColumnDefinitions="Auto,*"
-                            ColumnSpacing="{StaticResource Space.10}">
-                        <Border Grid.Column="0"
-                                Classes="sessionAvatar"
-                                Classes.me="{Binding IsMe}"
-                                VerticalAlignment="Top">
-                          <TextBlock Classes="sessionAvatarText"
-                                     Text="{Binding Initial}" />
-                        </Border>
-                        <StackPanel Grid.Column="1"
-                                    Spacing="{StaticResource Space.2}">
-                          <StackPanel Orientation="Horizontal"
-                                      Spacing="{StaticResource Space.8}">
-                            <TextBlock Classes="sessionName"
-                                       VerticalAlignment="Center"
-                                       Text="{Binding SpeakerLabel}" />
-                            <Button Classes="sessionTime"
-                                    Command="{Binding SeekCommand}">
-                              <TextBlock Classes="sessionTime"
-                                         Text="{Binding TimeText}" />
-                            </Button>
+                    <!-- A row of the list: the line and, under it, the bookmark pills of its span (#59); a pill is a row of its own, so no word moves. -->
+                    <StackPanel>
+                      <ItemsControl IsVisible="{Binding HasMarksBefore}"
+                                    ItemsSource="{Binding MarksBefore}">
+                        <ItemsControl.ItemTemplate>
+                          <DataTemplate x:DataType="vm:BookmarkViewModel">
+                            <views:BookmarkPillView />
+                          </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                      </ItemsControl>
+                      <Button Classes="sessionRow"
+                              Classes.current="{Binding IsCurrent}"
+                              Classes.dimmed="{Binding IsDimmed}"
+                              Command="{Binding SeekCommand}">
+                        <Grid ColumnDefinitions="Auto,*"
+                              ColumnSpacing="{StaticResource Space.10}">
+                          <Border Grid.Column="0"
+                                  Classes="sessionAvatar"
+                                  Classes.me="{Binding IsMe}"
+                                  VerticalAlignment="Top">
+                            <TextBlock Classes="sessionAvatarText"
+                                       Text="{Binding Initial}" />
+                          </Border>
+                          <StackPanel Grid.Column="1"
+                                      Spacing="{StaticResource Space.2}">
+                            <StackPanel Orientation="Horizontal"
+                                        Spacing="{StaticResource Space.8}">
+                              <TextBlock Classes="sessionName"
+                                         VerticalAlignment="Center"
+                                         Text="{Binding SpeakerLabel}" />
+                              <Button Classes="sessionTime"
+                                      Command="{Binding SeekCommand}">
+                                <TextBlock Classes="sessionTime"
+                                           Text="{Binding TimeText}" />
+                              </Button>
+                            </StackPanel>
+                            <controls:TranscriptTextControl Classes="sessionText"
+                                                            Text="{Binding Text}"
+                                                            WordStarts="{Binding WordStarts}"
+                                                            WordLengths="{Binding WordLengths}"
+                                                            ActiveWord="{Binding VisibleWord}"
+                                                            HighlightTerm="{Binding HighlightTerm}"
+                                                            UncertainWords="{Binding UncertainWords}"
+                                                            UncertainCommand="{Binding OpenWordCommand}"
+                                                            Command="{Binding SeekWordCommand}" />
                           </StackPanel>
-                          <controls:TranscriptTextControl Classes="sessionText"
-                                                          Text="{Binding Text}"
-                                                          WordStarts="{Binding WordStarts}"
-                                                          WordLengths="{Binding WordLengths}"
-                                                          ActiveWord="{Binding VisibleWord}"
-                                                          HighlightTerm="{Binding HighlightTerm}"
-                                                          Command="{Binding SeekWordCommand}" />
-                        </StackPanel>
-                      </Grid>
-                    </Button>
+                        </Grid>
+                      </Button>
+                      <ItemsControl IsVisible="{Binding HasMarksAfter}"
+                                    ItemsSource="{Binding MarksAfter}">
+                        <ItemsControl.ItemTemplate>
+                          <DataTemplate x:DataType="vm:BookmarkViewModel">
+                            <views:BookmarkPillView />
+                          </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                      </ItemsControl>
+                    </StackPanel>
                   </DataTemplate>
                 </ItemsControl.ItemTemplate>
               </ItemsControl>
             </ScrollViewer>
+
+            <!-- "Did you mean" for the uncertain word clicked in the list (#58); takes no room. -->
+            <views:DidYouMeanPopover Grid.Row="1"
+                                     Target="{Binding #TranscriptScroller}" />
 
             <!-- State card: loading, progress, install hint, error, empty -->
             <Border Grid.Row="0"

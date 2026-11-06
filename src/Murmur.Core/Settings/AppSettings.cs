@@ -92,6 +92,14 @@ public sealed record AppSettings
     /// read back equals the settings that were saved) and <c>null</c> reads as empty.
     /// </remarks>
     public IReadOnlyList<string> CallAllowlist { get; init => field = ProcessNameList.From(value); } = ProcessNameList.Empty;
+
+    // ---- Transcript 2.0 (#48) ---------------------------------------------------------------------------------------------
+
+    /// <summary>
+    /// The "Follow along" switch of the transcript (#56): while a recording plays, the spoken word is marked and the list keeps the
+    /// current line in view. On by default; the choice is kept for every recording.
+    /// </summary>
+    public bool FollowAlong { get; init; } = true;
 }
 
 /// <summary>Where the floating recorder orb was left (#46): the top-left of the orb, in DIPs.</summary>

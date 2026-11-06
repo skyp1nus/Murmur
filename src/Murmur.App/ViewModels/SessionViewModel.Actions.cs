@@ -3,11 +3,12 @@ using CommunityToolkit.Mvvm.Input;
 using Murmur.App.Resources;
 using Murmur.App.Services;
 using Murmur.Core.Sessions;
+using Murmur.Core.Transcription;
 
 namespace Murmur.App.ViewModels;
 
 /// <summary>
-/// What the buttons of the top bar do: export the recording to a file (Markdown with the summary, text, SRT, WebVTT), rename it,
+/// What the buttons of the top bar do: open the export dialog (Markdown with the summary, text, SRT, Word), rename the recording,
 /// show its folder, transcribe it again and delete it.
 /// </summary>
 public sealed partial class SessionViewModel
@@ -43,83 +44,69 @@ public sealed partial class SessionViewModel
     /// <summary>"Show in folder" is offered.</summary>
     public bool CanShowFolder => _services.Folders is not null;
 
-    /// <summary>The last export (for tests); completes when the file is written or the dialog was cancelled.</summary>
-    internal Task ExportTask { get; private set; } = Task.CompletedTask;
+    /// <summary>The Export button was pressed: the view shows this dialog (a modal over the window). It closes itself with <see cref="ExportDialogViewModel.CloseRequested"/>.</summary>
+    public event Action<ExportDialogViewModel>? ExportDialogRequested;
 
     /// <summary>The last delete or rename (for tests).</summary>
     internal Task EditTask { get; private set; } = Task.CompletedTask;
 
     private bool CanRunExport() => CanExport;
 
+    /// <summary>The Export button: opens the export dialog.</summary>
     [RelayCommand(CanExecute = nameof(CanRunExport))]
-    private void ExportMarkdown() => ExportTask = ExportAsync(ExportFormat.Markdown);
-
-    [RelayCommand(CanExecute = nameof(CanRunExport))]
-    private void ExportText() => ExportTask = ExportAsync(ExportFormat.PlainText);
-
-    [RelayCommand(CanExecute = nameof(CanRunExport))]
-    private void ExportSrt() => ExportTask = ExportAsync(ExportFormat.Srt);
-
-    [RelayCommand(CanExecute = nameof(CanRunExport))]
-    private void ExportWebVtt() => ExportTask = ExportAsync(ExportFormat.WebVtt);
-
-    /// <summary>Tells the buttons that the transcript, or the place to save it, changed.</summary>
-    internal void RefreshExport()
+    private void OpenExport()
     {
-        OnPropertyChanged(nameof(CanExport));
-        ExportMarkdownCommand.NotifyCanExecuteChanged();
-        ExportTextCommand.NotifyCanExecuteChanged();
-        ExportSrtCommand.NotifyCanExecuteChanged();
-        ExportWebVttCommand.NotifyCanExecuteChanged();
+        if (CreateExportDialog() is { } dialog)
+        {
+            ExportDialogRequested?.Invoke(dialog);
+        }
     }
 
-    private async Task ExportAsync(ExportFormat format)
+    /// <summary>
+    /// The dialog for this recording: the transcript on screen, the summary when there is one, the names of the speakers, and the chapter the
+    /// playhead is in as a second range (it ends where the next chapter starts, the last one at the end of the recording). <c>null</c> without
+    /// a transcript or a place to save.
+    /// </summary>
+    internal ExportDialogViewModel? CreateExportDialog()
     {
         if (FileSaver is not { } saver || _transcript is not { } transcript)
         {
             ActionMessage = Strings.Session_ExportNoTranscript;
-            return;
+            return null;
         }
 
-        try
+        ExportChapterRange? chapter = null;
+        if (CurrentChapter is { } current)
         {
-            var labels = ExportTexts();
-            var summary = format == ExportFormat.Markdown ? _stored : null;
-            var content = TranscriptExport.Format(format, _record with { Title = Title }, transcript, summary, labels);
-            var extension = TranscriptExport.Extension(format);
-            var saved = await saver.SaveTextAsync(
-                Strings.Session_ExportTitle,
-                FileNames.Safe(Title) + extension,
-                ExportTypeName(format),
-                extension,
-                content).ConfigureAwait(true);
-            ActionMessage = saved is null ? null : UiText.Format(Strings.Session_ExportSaved, saved);
+            var chapters = Chapters;
+            var next = chapters.FirstOrDefault(c => c.Start > current.Start);
+            var end = next?.Start ?? ExportDialogViewModel.EndOfRecording(_record with { Title = Title, Duration = Duration }, transcript);
+            if (end > current.Start)
+            {
+                chapter = new ExportChapterRange(current.Title, current.Start, end);
+            }
         }
-        catch (Exception ex) when (ex is not OperationCanceledException)
-        {
-            // The dialog, the file system and the stream can each fail in their own way (NotSupportedException, a COM error ...).
-            ActionMessage = UiText.Format(Strings.Session_ExportFailed, ex.Message);
-        }
+
+        return new ExportDialogViewModel(_record with { Title = Title, Duration = Duration }, transcript, _stored, ExportTexts(_speakerNames), saver, chapter);
     }
 
-    /// <summary>The speakers and the headings of the exported file, in the UI language.</summary>
-    internal static ExportLabels ExportTexts() => new(
-        Strings.Segment_Me,
-        Strings.Segment_Others,
+    /// <summary>Tells the Export button that the transcript, or the place to save it, changed.</summary>
+    internal void RefreshExport()
+    {
+        OnPropertyChanged(nameof(CanExport));
+        OpenExportCommand.NotifyCanExecuteChanged();
+    }
+
+    /// <summary>The speakers (the names the user chose, else "You" / "Others") and the headings of the exported file, in the UI language.</summary>
+    internal static ExportLabels ExportTexts(SpeakerNames? names = null) => new(
+        SpeakerLabels.Of(Speaker.Me, names?.Me),
+        SpeakerLabels.Of(Speaker.Others, names?.Others),
         Strings.Session_TabSummary,
         Strings.Session_SummaryOverview,
         Strings.Session_SummaryKeyPoints,
         Strings.Session_SummaryActionItems,
         Strings.Session_TabTranscript,
         Strings.Common_UntitledRecording);
-
-    private static string ExportTypeName(ExportFormat format) => format switch
-    {
-        ExportFormat.Markdown => Strings.Session_ExportMarkdown,
-        ExportFormat.PlainText => Strings.Session_ExportText,
-        ExportFormat.Srt => Strings.Session_ExportSrt,
-        _ => Strings.Session_ExportWebVtt,
-    };
 
     /// <summary>Gives the recording a new title; a blank one is ignored. The breadcrumb and the library follow.</summary>
     internal async Task RenameAsync(string title)
