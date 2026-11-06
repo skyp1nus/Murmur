@@ -1659,6 +1659,7 @@
   <data name="Session_FollowAlong" xml:space="preserve">
     <value>Follow along</value>
     <comment>the label of the switch in the transcript header: the spoken word is marked and the list follows the playback</comment>
+  </data>
   <data name="Export_Close" xml:space="preserve">
     <value>Close</value>
   </data>
