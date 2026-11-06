@@ -8,7 +8,7 @@
   <!-- Idea 7 / Drag anywhere: the dashed Ink outline, the Surface veil, the upload icon and two lines. Opacity 0 until a drag is over the window. -->
   <Panel x:Name="Root"
          Classes="dropOverlay"
-         Classes.shown="{Binding IsVisible}"
+         IsVisible="False"
          Margin="{StaticResource Margin.DropOverlay}">
     <Border Classes="dropOverlayVeil" />
     <Rectangle Classes="dropOverlayOutline" />

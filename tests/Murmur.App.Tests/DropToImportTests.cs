@@ -65,8 +65,7 @@ public sealed class DropToImportTests : IDisposable
         var shell = new ShellViewModel(
             library,
             recording,
-            imports: imports ? _queue : null,
-            importDialogFactory: imports ? picker => new ImportDialogViewModel(_queue, _decoder, null, picker, time, action => action()) : null);
+            imports: imports ? _queue : null);
         await library.LoadAsync();
         return shell;
     }
@@ -200,6 +199,33 @@ public sealed class DropToImportTests : IDisposable
         Assert.False(overlay.Drop(["/a/talk.mp3"]));
     }
 
+    [Fact]
+    public void Extensions_AreComparedWithoutCase_WhateverTheQueuesSetDoes()
+    {
+        var overlay = new DropOverlayViewModel(new HashSet<string>(StringComparer.Ordinal) { ".mp3" }, () => false);
+
+        overlay.DragOver(["/a/TALK.Mp3"]);
+
+        Assert.Equal("Drop to import 1 file", overlay.Title);
+    }
+
+    [Fact]
+    public void WithTheDialogOpen_TheOverlayStaysHidden_ButTheDropIsStillTaken()
+    {
+        var overlay = new DropOverlayViewModel(_queue.SupportedExtensions, () => false, dialogOpen: () => true);
+        var dropped = new List<IReadOnlyList<string>>();
+        overlay.FilesDropped += dropped.Add;
+        IReadOnlyList<string> files = ["/a/talk.mp3"];
+
+        var accepted = overlay.DragOver(files);
+        var taken = overlay.Drop(files);
+
+        Assert.True(accepted);
+        Assert.False(overlay.IsVisible);
+        Assert.True(taken);
+        Assert.Single(dropped);
+    }
+
     // The shell -----------------------------------------------------------------------------------------------------
 
     [Fact]
@@ -259,6 +285,22 @@ public sealed class DropToImportTests : IDisposable
         Assert.Equal(2, requested.Count);
         Assert.Same(requested[1], shell.OpenImportDialog);
         requested[1].Dispose();
+    }
+
+    [Fact]
+    public async Task ChangingThePage_ClosesTheDialogOfADrop()
+    {
+        var shell = await ShellAsync();
+        var requested = new List<ImportDialogViewModel>();
+        shell.ImportDialogRequested += requested.Add;
+        shell.DropOverlay!.Drop([P("a.mp3")]);
+        var dialog = Assert.Single(requested);
+
+        shell.ShowRecording();
+
+        Assert.True(dialog.IsClosed);
+        Assert.Null(shell.OpenImportDialog);
+        dialog.Dispose();
     }
 
     [Fact]
@@ -381,6 +423,65 @@ public sealed class DropToImportTests : IDisposable
         Assert.Equal("Drop to import 2 files", title);
         Assert.Equal(DragDropEffects.Copy, effect);
         Assert.True(afterLeave, "leaving the window hides it");
+    }
+
+    [Fact]
+    public async Task MovingOverOtherElements_KeepsTheOverlay_AndParsesTheFilesOnce()
+    {
+        var shell = await ShellAsync();
+        var first = P("a.mp3");
+
+        var (stayed, left) = await Session.Dispatch(
+            async () =>
+            {
+                var window = Show(shell);
+                var data = await FilesAsync(window, first);
+                window.DragDrop(InContent(window), RawDragEventType.DragEnter, data, DragDropEffects.Copy, RawInputModifiers.None);
+                var title = Named(window, "TitleText").Text;
+                window.DragDrop(new Point(120, 60), RawDragEventType.DragOver, data, DragDropEffects.Copy, RawInputModifiers.None);
+                window.DragDrop(new Point(300, 300), RawDragEventType.DragOver, data, DragDropEffects.Copy, RawInputModifiers.None);
+                UiHarness.Pump(3);
+                var still = shell.DropOverlay!.IsVisible && Named(window, "TitleText").Text == title;
+                window.DragDrop(new Point(300, 300), RawDragEventType.DragLeave, data, DragDropEffects.Copy, RawInputModifiers.None);
+                UiHarness.Pump(3);
+                var gone = !shell.DropOverlay.IsVisible;
+                window.Close();
+                return (still, gone);
+            },
+            Ct);
+
+        Assert.True(stayed, "moving between elements keeps the overlay");
+        Assert.True(left, "leaving the window hides it");
+
+        static TextBlock Named(Window w, string name) => OverlayOf(w).GetVisualDescendants().OfType<TextBlock>().First(t => t.Name == name);
+    }
+
+    [Fact]
+    public async Task TheHiddenOverlay_LeavesTheTree_AfterTheFade_AndAtOnceUnderReducedMotion()
+    {
+        var shell = await ShellAsync();
+
+        var (initially, shown, reducedGone) = await Session.Dispatch(
+            () =>
+            {
+                var window = Show(shell);
+                var root = RootOf(window);
+                var start = root.IsVisible;
+                shell.DropOverlay!.DragOver(["/a/talk.mp3"]);
+                UiHarness.Pump(2);
+                var visible = root.IsVisible;
+                Motion.SetReduceMotion(window, true);
+                shell.DropOverlay.DragLeave();
+                UiHarness.Pump(2);
+                var gone = !root.IsVisible;
+                window.Close();
+                return (start, visible, gone);
+            },
+            Ct);
+
+        Assert.False(initially);
+        Assert.True(shown);
+        Assert.True(reducedGone);
     }
 
     [Fact]

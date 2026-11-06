@@ -50,7 +50,6 @@ public sealed partial class ShellViewModel : ObservableObject
     /// <param name="chatModelChip">The model chip of the Ask AI header.</param>
     /// <param name="statusBar">The status bar at the bottom of the window; <c>null</c> = none (the design parity boards do not show it).</param>
     /// <param name="imports">The import queue (#66): its supported extensions decide what the drop overlay counts (#69); <c>null</c> = files cannot be dropped to import.</param>
-    /// <param name="importDialogFactory">Builds the import dialog (given the window's file dialog) for the files dropped on the window; needs <paramref name="imports"/>.</param>
     public ShellViewModel(
         LibraryViewModel library,
         RecordingViewModel recording,
@@ -66,8 +65,7 @@ public sealed partial class ShellViewModel : ObservableObject
         ISessionStore? sessionStore = null,
         ChatModelChipViewModel? chatModelChip = null,
         StatusBarViewModel? statusBar = null,
-        IImportQueue? imports = null,
-        Func<IMediaFilePicker?, ImportDialogViewModel>? importDialogFactory = null)
+        IImportQueue? imports = null)
     {
         ArgumentNullException.ThrowIfNull(library);
         ArgumentNullException.ThrowIfNull(recording);
@@ -89,7 +87,7 @@ public sealed partial class ShellViewModel : ObservableObject
 
         library.CanAskAll = chatFactory is not null;
         library.NewRecordingRequested += ShowRecording;
-        InitializeImport(library, imports, importDialogFactory);
+        InitializeImport(library, imports);
         library.StartRecordingRequested += OnStartRecordingRequested;
         library.SessionOpened += OnSessionOpened;
         library.SearchResultOpened += OnSearchResultOpened;
@@ -245,10 +243,7 @@ public sealed partial class ShellViewModel : ObservableObject
             sessionStore: services.Sessions,
             chatModelChip: new ChatModelChipViewModel(() => ActiveChatModelName(services, store), ai?.AccelerationSource),
             statusBar: services.Activity is { } activity ? new StatusBarViewModel(activity, services.Recorder) : null,
-            imports: services.Imports,
-            importDialogFactory: services.Imports is { } queue
-                ? picker => new ImportDialogViewModel(queue, services.MediaProbe, services.Downloads, picker, services.Time)
-                : null);
+            imports: services.Imports);
     }
 
     /// <summary>"Recording 12:48" in the status bar leads to the Recording screen (not out of the onboarding, whose trial recording has its own page).</summary>
@@ -593,6 +588,7 @@ public sealed partial class ShellViewModel : ObservableObject
     {
         OnPropertyChanged(nameof(IsOnboarding));
         OnPropertyChanged(nameof(PageUsesFrameInset));
+        CloseImportDialog();
         UpdateTopBar(value);
         if (_sidebar is null)
         {

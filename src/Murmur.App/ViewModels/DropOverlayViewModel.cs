@@ -15,18 +15,26 @@ namespace Murmur.App.ViewModels;
 /// </remarks>
 public sealed partial class DropOverlayViewModel : ObservableObject
 {
-    private readonly IReadOnlySet<string> _supported;
+    private readonly HashSet<string> _supported;
     private readonly Func<bool> _recordingActive;
     private readonly Func<bool> _enabled;
+    private readonly Func<bool> _dialogOpen;
+
+    // What the last DragOver showed: the same dragged list in the same state is not formatted again on every mouse move.
+    private IReadOnlyList<string>? _lastFiles;
+    private bool _lastRecording;
+    private bool _lastDialog;
 
     /// <param name="supportedExtensions">The extensions the import accepts, lower case with the dot (<c>IImportQueue.SupportedExtensions</c>).</param>
     /// <param name="recordingActive">A recording is running or starting/stopping: imports wait and drops are ignored.</param>
     /// <param name="enabled">Dropping is possible on the page on screen (not during the onboarding); <c>null</c> = always.</param>
-    public DropOverlayViewModel(IReadOnlySet<string> supportedExtensions, Func<bool> recordingActive, Func<bool>? enabled = null)
+    /// <param name="dialogOpen">The import dialog is open: its scrim covers the page, so the overlay stays hidden (the drop is still taken); <c>null</c> = never.</param>
+    public DropOverlayViewModel(IReadOnlySet<string> supportedExtensions, Func<bool> recordingActive, Func<bool>? enabled = null, Func<bool>? dialogOpen = null)
     {
         ArgumentNullException.ThrowIfNull(supportedExtensions);
         ArgumentNullException.ThrowIfNull(recordingActive);
-        _supported = supportedExtensions;
+        _supported = new HashSet<string>(supportedExtensions, StringComparer.OrdinalIgnoreCase);
+        _dialogOpen = dialogOpen ?? (static () => false);
         _recordingActive = recordingActive;
         _enabled = enabled ?? (static () => true);
     }
@@ -61,7 +69,17 @@ public sealed partial class DropOverlayViewModel : ObservableObject
             return false;
         }
 
-        if (_recordingActive())
+        var recording = _recordingActive();
+        var dialog = _dialogOpen();
+        if (ReferenceEquals(files, _lastFiles) && recording == _lastRecording && dialog == _lastDialog)
+        {
+            return CanDrop;
+        }
+
+        _lastFiles = files;
+        _lastRecording = recording;
+        _lastDialog = dialog;
+        if (recording)
         {
             Show(Strings.DropOverlay_Recording, Strings.DropOverlay_RecordingHint, canDrop: false);
             return false;
@@ -105,7 +123,7 @@ public sealed partial class DropOverlayViewModel : ObservableObject
         var count = 0;
         foreach (var file in files)
         {
-            if (_supported.Contains(Path.GetExtension(file).ToLowerInvariant()))
+            if (_supported.Contains(Path.GetExtension(file)))
             {
                 count++;
             }
@@ -119,11 +137,12 @@ public sealed partial class DropOverlayViewModel : ObservableObject
         Title = title;
         Hint = hint;
         CanDrop = canDrop;
-        IsVisible = true;
+        IsVisible = !_dialogOpen();
     }
 
     private void Hide()
     {
+        _lastFiles = null;
         CanDrop = false;
         IsVisible = false;
     }

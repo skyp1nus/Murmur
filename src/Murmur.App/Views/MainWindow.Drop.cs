@@ -2,6 +2,7 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Platform.Storage;
+using Avalonia.Threading;
 using Murmur.App.Services;
 using Murmur.App.ViewModels;
 
@@ -15,6 +16,12 @@ public partial class MainWindow
 {
     private ImportDialog? _importDialog;
     private bool _dropWired;
+    private ShellViewModel? _shell;
+
+    // The dragged paths, read once when the drag enters and kept until it leaves or drops (every mouse move would otherwise rebuild them).
+    private List<string>? _dragPaths;
+    private bool _dragParsed;
+    private bool _leavePending;
 
     /// <summary>The import dialog a drop opened and that is still on screen (for tests), or <c>null</c>.</summary>
     internal ImportDialog? DropImportDialog => _importDialog is { IsOpen: true } ? _importDialog : null;
@@ -30,7 +37,7 @@ public partial class MainWindow
         // The window takes the events (not only the content area): the import dialog sits on the overlay layer above the content and a drop
         // on its scrim must still reach us; the position decides whether the sidebar or the content area is meant.
         DragDrop.SetAllowDrop(this, true);
-        AddHandler(DragDrop.DragEnterEvent, OnDragOver);
+        AddHandler(DragDrop.DragEnterEvent, OnDragEnter);
         AddHandler(DragDrop.DragOverEvent, OnDragOver);
         AddHandler(DragDrop.DragLeaveEvent, OnDragLeave);
         AddHandler(DragDrop.DropEvent, OnDrop);
@@ -38,13 +45,23 @@ public partial class MainWindow
 
     private void OnShellChanged(ShellViewModel? shell)
     {
-        if (shell is null)
+        if (ReferenceEquals(_shell, shell))
         {
             return;
         }
 
-        shell.MediaFilePicker = new TopLevelMediaFilePicker(() => this);
-        shell.ImportDialogRequested += OnImportDialogRequested;
+        if (_shell is not null)
+        {
+            _shell.ImportDialogRequested -= OnImportDialogRequested;
+        }
+
+        _shell = shell;
+        if (shell is not null)
+        {
+            // The dialog of a drop is the Library's dialog: it gets the file dialog of this window.
+            shell.Library.MediaFilePicker ??= new TopLevelMediaFilePicker(() => this);
+            shell.ImportDialogRequested += OnImportDialogRequested;
+        }
     }
 
     private void OnImportDialogRequested(ImportDialogViewModel dialog)
@@ -57,29 +74,77 @@ public partial class MainWindow
         }
     }
 
+    private void OnDragEnter(object? sender, DragEventArgs e)
+    {
+        // Moving from one element to another raises a leave and, in the same step, an enter: the files stay read then.
+        if (!_leavePending)
+        {
+            _dragParsed = false;
+            _dragPaths = null;
+        }
+
+        OnDragOver(sender, e);
+    }
+
     private void OnDragOver(object? sender, DragEventArgs e)
     {
+        _leavePending = false;
         if (DataContext is not ShellViewModel { DropOverlay: { } overlay })
         {
             e.DragEffects = DragDropEffects.None;
             return;
         }
 
-        e.DragEffects = HandleDragOver(overlay, PathsOf(e), e.GetPosition(ContentArea)) ? DragDropEffects.Copy : DragDropEffects.None;
+        if (!_dragParsed)
+        {
+            _dragPaths = PathsOf(e);
+            _dragParsed = true;
+        }
+
+        e.DragEffects = HandleDragOver(overlay, _dragPaths, e.GetPosition(ContentArea)) ? DragDropEffects.Copy : DragDropEffects.None;
         e.Handled = true;
     }
 
-    private void OnDragLeave(object? sender, DragEventArgs e) => (DataContext as ShellViewModel)?.DropOverlay?.DragLeave();
+    /// <summary>
+    /// Avalonia raises a leave for the element the pointer left, also when it moves to another element of the window, and the enter of the
+    /// next one follows at once. So the overlay is hidden only when no enter, over or drop has come by the time the queued step runs.
+    /// </summary>
+    private void OnDragLeave(object? sender, DragEventArgs e)
+    {
+        _leavePending = true;
+        Dispatcher.UIThread.Post(
+            () =>
+            {
+                if (!_leavePending)
+                {
+                    return;
+                }
+
+                _leavePending = false;
+                EndDrag();
+                _shell?.DropOverlay?.DragLeave();
+            },
+            DispatcherPriority.Normal);
+    }
 
     private void OnDrop(object? sender, DragEventArgs e)
     {
+        var files = _dragParsed ? _dragPaths : PathsOf(e);
+        _leavePending = false;
+        EndDrag();
         if (DataContext is not ShellViewModel { DropOverlay: { } overlay })
         {
             return;
         }
 
-        HandleDrop(overlay, PathsOf(e), e.GetPosition(ContentArea));
+        HandleDrop(overlay, files, e.GetPosition(ContentArea));
         e.Handled = true;
+    }
+
+    private void EndDrag()
+    {
+        _dragPaths = null;
+        _dragParsed = false;
     }
 
     /// <summary>A drag moved over the window at <paramref name="position"/> (in the content area's coordinates); true = a drop would be taken.</summary>

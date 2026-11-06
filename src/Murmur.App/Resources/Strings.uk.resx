@@ -1926,9 +1926,9 @@
     <value>Імпортувати можна лише аудіо- та відеофайли</value>
   </data>
   <data name="DropOverlay_Recording" xml:space="preserve">
-    <value>Імпорт почнеться після зупинки запису</value>
+    <value>Імпорт чекає, доки запис зупиниться</value>
   </data>
   <data name="DropOverlay_RecordingHint" xml:space="preserve">
-    <value>Скиньте файли ще раз, коли зупините запис</value>
+    <value>Перетягніть файли знову, коли зупините запис</value>
   </data>
 </root>
