@@ -109,9 +109,9 @@ public sealed class DropToImportTests : IDisposable
         overlay.DragOver(["/a/1.mp3", "/a/2.mp3", "/a/3.mp3", "/a/4.mp3", "/a/5.mp3"]);
         var many = overlay.Title;
 
-        Assert.Equal("Скиньте, щоб імпортувати 1 файл", one);
-        Assert.Equal("Скиньте, щоб імпортувати 2 файли", few);
-        Assert.Equal("Скиньте, щоб імпортувати 5 файлів", many);
+        Assert.Equal("Відпустіть, щоб імпортувати 1 файл", one);
+        Assert.Equal("Відпустіть, щоб імпортувати 2 файли", few);
+        Assert.Equal("Відпустіть, щоб імпортувати 5 файлів", many);
     }
 
     [Fact]
@@ -431,27 +431,51 @@ public sealed class DropToImportTests : IDisposable
         var shell = await ShellAsync();
         var first = P("a.mp3");
 
-        var (stayed, left) = await Session.Dispatch(
+        var (visibleChanges, leaves, parses, stillVisible, title, gone) = await Session.Dispatch(
             async () =>
             {
                 var window = Show(shell);
                 var data = await FilesAsync(window, first);
-                window.DragDrop(InContent(window), RawDragEventType.DragEnter, data, DragDropEffects.Copy, RawInputModifiers.None);
-                var title = Named(window, "TitleText").Text;
-                window.DragDrop(new Point(120, 60), RawDragEventType.DragOver, data, DragDropEffects.Copy, RawInputModifiers.None);
-                window.DragDrop(new Point(300, 300), RawDragEventType.DragOver, data, DragDropEffects.Copy, RawInputModifiers.None);
+                var leaveEvents = 0;
+                window.AddHandler(DragDrop.DragLeaveEvent, (_, _) => leaveEvents++, Avalonia.Interactivity.RoutingStrategies.Bubble, handledEventsToo: true);
+                var content = InContent(window);
+                window.DragDrop(content, RawDragEventType.DragEnter, data, DragDropEffects.Copy, RawInputModifiers.None);
+                var firstTitle = Named(window, "TitleText").Text;
+                var changes = 0;
+                shell.DropOverlay!.PropertyChanged += (_, e) => changes += e.PropertyName == nameof(DropOverlayViewModel.IsVisible) ? 1 : 0;
+
+                // The pointer crosses elements of the window: one raw move raises the leave of the old element and, at once, the enter of
+                // the next one. Sweep the content area so that it crosses several.
+                var width = window.ClientSize.Width;
+                var height = window.ClientSize.Height;
+                for (var y = 60.0; y < height - 20; y += 40)
+                {
+                    for (var x = width - 20; x > width - 700; x -= 60)
+                    {
+                        window.DragDrop(new Point(x, y), RawDragEventType.DragOver, data, DragDropEffects.Copy, RawInputModifiers.None);
+                    }
+                }
+
                 UiHarness.Pump(3);
-                var still = shell.DropOverlay!.IsVisible && Named(window, "TitleText").Text == title;
-                window.DragDrop(new Point(300, 300), RawDragEventType.DragLeave, data, DragDropEffects.Copy, RawInputModifiers.None);
+                var still = shell.DropOverlay.IsVisible;
+                var parseCount = window.DragParseCount;
+                var changesInWindow = changes;
+                var leavesInWindow = leaveEvents;
+                var sameTitle = Named(window, "TitleText").Text;
+                window.DragDrop(content, RawDragEventType.DragLeave, data, DragDropEffects.Copy, RawInputModifiers.None);
                 UiHarness.Pump(3);
-                var gone = !shell.DropOverlay.IsVisible;
+                var hidden = !shell.DropOverlay.IsVisible;
                 window.Close();
-                return (still, gone);
+                return (changesInWindow, leavesInWindow, parseCount, still, sameTitle == firstTitle, hidden);
             },
             Ct);
 
-        Assert.True(stayed, "moving between elements keeps the overlay");
-        Assert.True(left, "leaving the window hides it");
+        Assert.True(leaves >= 3, "the window really saw a DragLeave between the moves");
+        Assert.Equal(0, visibleChanges);
+        Assert.True(stillVisible, "moving between elements keeps the overlay");
+        Assert.True(title);
+        Assert.Equal(1, parses);
+        Assert.True(gone, "leaving the window hides it");
 
         static TextBlock Named(Window w, string name) => OverlayOf(w).GetVisualDescendants().OfType<TextBlock>().First(t => t.Name == name);
     }
@@ -656,7 +680,7 @@ public sealed class DropToImportTests : IDisposable
             },
             Ct);
 
-        Assert.Equal(language == "uk" ? "Скиньте, щоб імпортувати 3 файли" : "Drop to import 3 files", title);
+        Assert.Equal(language == "uk" ? "Відпустіть, щоб імпортувати 3 файли" : "Drop to import 3 files", title);
         Assert.True(new FileInfo(path).Length > 10_000, "Screenshot looks empty.");
     }
 }

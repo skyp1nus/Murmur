@@ -23,6 +23,9 @@ public partial class MainWindow
     private bool _dragParsed;
     private bool _leavePending;
 
+    /// <summary>How many times the dragged files were read from the drag data (for tests: one per drag, not one per mouse move).</summary>
+    internal int DragParseCount { get; private set; }
+
     /// <summary>The import dialog a drop opened and that is still on screen (for tests), or <c>null</c>.</summary>
     internal ImportDialog? DropImportDialog => _importDialog is { IsOpen: true } ? _importDialog : null;
 
@@ -99,6 +102,7 @@ public partial class MainWindow
         {
             _dragPaths = PathsOf(e);
             _dragParsed = true;
+            DragParseCount++;
         }
 
         e.DragEffects = HandleDragOver(overlay, _dragPaths, e.GetPosition(ContentArea)) ? DragDropEffects.Copy : DragDropEffects.None;

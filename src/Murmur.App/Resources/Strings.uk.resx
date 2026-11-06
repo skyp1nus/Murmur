@@ -1908,13 +1908,13 @@
     <value>У цьому діапазоні нічого не сказано.</value>
   </data>
   <data name="DropOverlay_TitleOne" xml:space="preserve">
-    <value>Скиньте, щоб імпортувати {0} файл</value>
+    <value>Відпустіть, щоб імпортувати {0} файл</value>
   </data>
   <data name="DropOverlay_TitleFew" xml:space="preserve">
-    <value>Скиньте, щоб імпортувати {0} файли</value>
+    <value>Відпустіть, щоб імпортувати {0} файли</value>
   </data>
   <data name="DropOverlay_TitleMany" xml:space="preserve">
-    <value>Скиньте, щоб імпортувати {0} файлів</value>
+    <value>Відпустіть, щоб імпортувати {0} файлів</value>
   </data>
   <data name="DropOverlay_Hint" xml:space="preserve">
     <value>Їх транскрибуватимуть по одному</value>
