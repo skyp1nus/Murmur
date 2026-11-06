@@ -18,8 +18,19 @@ internal sealed class DesignRig : IDisposable
 {
     private SessionFixture? _fixture;
 
-    public DesignRig(bool onboarding = false)
+    /// <param name="onboarding">The first-run state: the onboarding is the page on screen.</param>
+    /// <param name="statusBar">
+    /// The shell has the status bar (the window-fit tests). The 22 parity boards do not show it, so the boards' rig is built without:
+    /// no feed, no <see cref="ShellViewModel.StatusBar"/>, no row under the page (see "design parity" in docs/design/README.md).
+    /// </param>
+    public DesignRig(bool onboarding = false, bool statusBar = false)
     {
+        if (statusBar)
+        {
+            Activity = new FakeActivityFeed();
+            Activity.Set(DesignDemoData.ActivityItems);
+        }
+
         Store = new FakeSettingsStore(new AppSettings
         {
             Language = "en",
@@ -94,8 +105,12 @@ internal sealed class DesignRig : IDisposable
             post: action => action(),
             chatStore: ChatStore,
             sessionStore: SessionStore,
-            chatModelChip: new ChatModelChipViewModel(() => ChatModelName, null, action => action()));
+            chatModelChip: new ChatModelChipViewModel(() => ChatModelName, null, action => action()),
+            statusBar: Activity is null ? null : new StatusBarViewModel(Activity, Recorder, action => action()));
     }
+
+    /// <summary>The activity feed of the status bar; <c>null</c> in the boards' rig.</summary>
+    public FakeActivityFeed? Activity { get; }
 
     public FakeSettingsStore Store { get; }
 
@@ -170,8 +185,22 @@ internal sealed class DesignRig : IDisposable
             action => action(),
             new ChatViewModel(Assistant, Llm, Recorder, record.Id, "/models", action => action(), ChatStore, SessionStore, Time),
             new FakeVideoPlayback(VideoPlayer),
-            new SessionServices(Summarizer, SummaryStore, SessionStore, Folders));
+            new SessionServices(Summarizer, SummaryStore, SessionStore, Folders, Bookmarks: Bookmarks))
+        {
+            // The Session boards do not show the speaker chips of Idea4Transcript (#55); like ShowMark, an explicit switch instead of an ignore rectangle.
+            ShowSpeakers = false,
+            // Nor the "Follow along" switch of Idea4Transcript (#56), and with it off the board has no word chip and no auto-scroll.
+            ShowFollowAlong = false,
+            FollowAlong = false,
+        };
     }
+
+    /// <summary>
+    /// The bookmark store of the opened recording. <c>null</c> for the boards: the Session boards (Session.dc.html) do not show the Bookmarks card, the
+    /// flags or the pills of Idea4Transcript (#59), and without a store the view has none of them (see "design parity" in docs/design/README.md). Screenshot
+    /// tests of the feature set it before the recording is opened.
+    /// </summary>
+    public FakeBookmarkStore? Bookmarks { get; set; }
 
     public FakeSummarizer Summarizer { get; } = new();
 

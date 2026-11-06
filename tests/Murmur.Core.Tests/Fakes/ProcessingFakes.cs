@@ -49,6 +49,9 @@ internal sealed class InMemoryTranscriptStore : ITranscriptStore
             return ValueTask.FromResult(result);
         }
     }
+
+    public ValueTask ReplaceWordAsync(SessionId session, int segmentIndex, int wordIndex, string text, CancellationToken cancellationToken) =>
+        throw new NotSupportedException();
 }
 
 /// <summary>
@@ -62,6 +65,9 @@ internal sealed class FakeAsr : IAsr
     private int _busy;
 
     public bool Installed { get; set; } = true;
+
+    /// <summary>The confidence every emitted word carries (#58); <c>null</c> = unknown, like an older worker.</summary>
+    public float? WordConfidence { get; set; }
 
     /// <summary>When set, each request waits for it before emitting (cancellable).</summary>
     public SemaphoreSlim? Gate { get; set; }
@@ -110,7 +116,7 @@ internal sealed class FakeAsr : IAsr
             foreach (var (start, end, text) in segments)
             {
                 cancellationToken.ThrowIfCancellationRequested();
-                yield return new TranscriptSegment(request.Speaker, TimeSpan.FromSeconds(start), TimeSpan.FromSeconds(end), text, [new TranscriptWord(text, TimeSpan.FromSeconds(start), TimeSpan.FromSeconds(end))]);
+                yield return new TranscriptSegment(request.Speaker, TimeSpan.FromSeconds(start), TimeSpan.FromSeconds(end), text, [new TranscriptWord(text, TimeSpan.FromSeconds(start), TimeSpan.FromSeconds(end)) { Confidence = WordConfidence }]);
                 progress?.Report(new AsrProgress(TimeSpan.FromSeconds(end), TimeSpan.FromSeconds(total)));
                 if (FailOn == name)
                 {

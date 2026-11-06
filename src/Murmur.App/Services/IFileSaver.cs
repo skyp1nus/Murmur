@@ -4,7 +4,7 @@ using Avalonia.Platform.Storage;
 
 namespace Murmur.App.Services;
 
-/// <summary>Lets the user choose where to save a text file (the export of a recording) and writes it.</summary>
+/// <summary>Lets the user choose where to save a file (the export of a recording) and writes it.</summary>
 public interface IFileSaver
 {
     /// <summary>
@@ -16,6 +16,9 @@ public interface IFileSaver
     /// <param name="fileTypeName">The name of the file type in the dialog's filter ("Markdown").</param>
     /// <param name="extension">The extension with the dot (".md"); the dialog adds it when the user leaves it out.</param>
     Task<string?> SaveTextAsync(string title, string suggestedFileName, string fileTypeName, string extension, string content);
+
+    /// <summary>The same for a binary file (the .docx): <paramref name="content"/> is written as it is.</summary>
+    Task<string?> SaveBytesAsync(string title, string suggestedFileName, string fileTypeName, string extension, byte[] content);
 }
 
 /// <summary><see cref="IFileSaver"/> over the storage provider of the window the session is shown in.</summary>
@@ -23,7 +26,13 @@ public sealed class TopLevelFileSaver(Func<TopLevel?> topLevel) : IFileSaver
 {
     private static readonly UTF8Encoding Utf8 = new(encoderShouldEmitUTF8Identifier: false);
 
-    public async Task<string?> SaveTextAsync(string title, string suggestedFileName, string fileTypeName, string extension, string content)
+    public Task<string?> SaveTextAsync(string title, string suggestedFileName, string fileTypeName, string extension, string content) =>
+        SaveAsync(title, suggestedFileName, fileTypeName, extension, Utf8.GetBytes(content));
+
+    public Task<string?> SaveBytesAsync(string title, string suggestedFileName, string fileTypeName, string extension, byte[] content) =>
+        SaveAsync(title, suggestedFileName, fileTypeName, extension, content);
+
+    private async Task<string?> SaveAsync(string title, string suggestedFileName, string fileTypeName, string extension, byte[] bytes)
     {
         if (topLevel() is not { } top || !top.StorageProvider.CanSave)
         {
@@ -52,7 +61,6 @@ public sealed class TopLevelFileSaver(Func<TopLevel?> topLevel) : IFileSaver
             {
                 // A file that was there is overwritten, not appended to.
                 stream.SetLength(0);
-                var bytes = Utf8.GetBytes(content);
                 await stream.WriteAsync(bytes);
                 await stream.FlushAsync();
             }

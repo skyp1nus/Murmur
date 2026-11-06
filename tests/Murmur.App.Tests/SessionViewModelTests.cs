@@ -336,7 +336,59 @@ public sealed class SessionViewModelTests : IDisposable
     }
 
     [Fact]
-    public async Task AutoScroll_IsSuspendedForThreeSecondsAfterTheUserScrolled()
+    public async Task AutoScroll_IsPausedByAManualScroll_UntilThePlaybackReachesTheNextLine()
+    {
+        _fixture.UseTranscript(TranscriptFactory.Make(_fixture.Record.Id, 120));
+        var vm = _fixture.Create();
+        await vm.LoadAsync();
+        var requested = new List<int>();
+        vm.ScrollToSegmentRequested += requested.Add;
+        _fixture.Player.Position = vm.Segments[1].Start;
+        vm.Tick();
+        requested.Clear();
+
+        vm.NotifyUserScrolled();
+        Assert.True(vm.AutoScrollSuspended);
+
+        // Time alone does not end the pause, and neither does staying in the same line.
+        _fixture.Time.Advance(S(60));
+        _fixture.Player.Position = vm.Segments[1].Start + S(1);
+        vm.Tick();
+        Assert.Empty(requested);
+        Assert.True(vm.AutoScrollSuspended);
+
+        // The next line: the pause is over and the list comes to it.
+        _fixture.Player.Position = vm.Segments[2].Start;
+        vm.Tick();
+        Assert.False(vm.AutoScrollSuspended);
+        Assert.Equal([2], requested);
+
+        // Delivered once: further ticks within the same line stay quiet.
+        vm.Tick();
+        Assert.Equal([2], requested);
+    }
+
+    [Fact]
+    public async Task AutoScroll_AfterAPause_ScrollsToTheLineThePlaybackIsIn_WhenSeveralWereSkippedAtOnce()
+    {
+        _fixture.UseTranscript(TranscriptFactory.Make(_fixture.Record.Id, 120));
+        var vm = _fixture.Create();
+        await vm.LoadAsync();
+        var requested = new List<int>();
+        vm.ScrollToSegmentRequested += requested.Add;
+        _fixture.Player.Position = vm.Segments[1].Start;
+        vm.Tick();
+        requested.Clear();
+
+        vm.NotifyUserScrolled();
+        _fixture.Player.Position = vm.Segments[3].Start;
+        vm.Tick();
+
+        Assert.Equal([3], requested);
+    }
+
+    [Fact]
+    public async Task AutoScroll_AClickOnALine_EndsThePauseAtOnce()
     {
         var vm = await LoadShortAsync();
         var requested = new List<int>();
@@ -344,66 +396,13 @@ public sealed class SessionViewModelTests : IDisposable
         _fixture.Player.Position = S(10);
         vm.Tick();
         requested.Clear();
-
         vm.NotifyUserScrolled();
-        Assert.True(vm.AutoScrollSuspended);
-        _fixture.Time.Advance(S(2.9));
-        _fixture.Player.Position = S(20);
-        vm.Tick();
-        Assert.Empty(requested);
-        Assert.True(vm.AutoScrollSuspended);
 
-        _fixture.Time.Advance(S(0.2));
+        // The time chip of the same line the playback is in: a seek inside the line still brings it into view.
+        vm.Segments[0].SeekCommand.Execute(null);
+
         Assert.False(vm.AutoScrollSuspended);
-    }
-
-    [Fact]
-    public async Task AutoScroll_DeliversTheSuppressedRequest_OnTheFirstTickAfterTheHold()
-    {
-        _fixture.UseTranscript(TranscriptFactory.Make(_fixture.Record.Id, 120));
-        var vm = _fixture.Create();
-        await vm.LoadAsync();
-        var requested = new List<int>();
-        vm.ScrollToSegmentRequested += requested.Add;
-        _fixture.Player.Position = vm.Segments[1].Start;
-        vm.Tick();
-        requested.Clear();
-
-        vm.NotifyUserScrolled();
-        _fixture.Player.Position = vm.Segments[2].Start;
-        vm.Tick();
-        Assert.Empty(requested);
-
-        _fixture.Time.Advance(S(3));
-        vm.Tick();
-        Assert.Equal([2], requested);
-
-        // Delivered once: further ticks within the same segment stay quiet.
-        vm.Tick();
-        Assert.Equal([2], requested);
-    }
-
-    [Fact]
-    public async Task AutoScroll_AfterTheHold_ScrollsToTheLatestSegment_WhenSeveralWereSkipped()
-    {
-        _fixture.UseTranscript(TranscriptFactory.Make(_fixture.Record.Id, 120));
-        var vm = _fixture.Create();
-        await vm.LoadAsync();
-        var requested = new List<int>();
-        vm.ScrollToSegmentRequested += requested.Add;
-        _fixture.Player.Position = vm.Segments[1].Start;
-        vm.Tick();
-        requested.Clear();
-
-        vm.NotifyUserScrolled();
-        _fixture.Player.Position = vm.Segments[2].Start;
-        vm.Tick();
-        _fixture.Player.Position = vm.Segments[3].Start;
-        vm.Tick();
-        _fixture.Time.Advance(S(3));
-        vm.Tick();
-
-        Assert.Equal([3], requested);
+        Assert.Equal([0], requested);
     }
 
     [Fact]

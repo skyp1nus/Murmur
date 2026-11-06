@@ -103,7 +103,8 @@ public sealed partial class SqliteStorage
         using var command = connection.CreateCommand();
         command.CommandText =
             "UPDATE sessions SET started_at = $started, duration_ms = $duration, state = $state, " +
-            "has_mic = $mic, has_system = $system, screen_segments = $segments, error = $error WHERE id = $id";
+            "has_mic = $mic, has_system = $system, screen_segments = $segments, error = $error, " +
+            "source = $source, original_path = $original WHERE id = $id";
         command.Parameters.AddWithValue("$id", session.Id.ToString());
         command.Parameters.AddWithValue("$started", session.StartedAt.ToUnixTimeMilliseconds());
         command.Parameters.AddWithValue("$duration", (long)session.Duration.TotalMilliseconds);
@@ -112,6 +113,8 @@ public sealed partial class SqliteStorage
         command.Parameters.AddWithValue("$system", session.HasSystemAudio ? 1 : 0);
         command.Parameters.AddWithValue("$segments", SerializeSegments(session.ScreenSegments));
         command.Parameters.AddWithValue("$error", (object?)session.Error ?? DBNull.Value);
+        command.Parameters.AddWithValue("$source", (int)session.Source);
+        command.Parameters.AddWithValue("$original", (object?)session.OriginalPath ?? DBNull.Value);
         if (command.ExecuteNonQuery() == 0)
         {
             throw new KeyNotFoundException($"Session {session.Id} does not exist.");
@@ -229,6 +232,8 @@ public sealed partial class SqliteStorage
         HasSystemAudio = reader.GetInt32(6) != 0,
         ScreenSegments = DeserializeSegments(reader.GetString(7)),
         Error = reader.IsDBNull(8) ? null : reader.GetString(8),
+        Source = (SessionSource)reader.GetInt32(9),
+        OriginalPath = reader.IsDBNull(10) ? null : reader.GetString(10),
     };
 
     private static string SerializeSegments(IReadOnlyList<ScreenSegment> segments)

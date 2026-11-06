@@ -22,14 +22,17 @@ public sealed partial class ChapterGenerator : IChapterGenerator
     private readonly ILlm _llm;
     private readonly ITranscriptStore _transcripts;
     private readonly SummarizerOptions _options;
+    private readonly ISpeakerNameStore? _speakerNames;
 
-    public ChapterGenerator(ILlm llm, ITranscriptStore transcripts, SummarizerOptions? options = null)
+    /// <param name="speakerNames">The names the user gave the speakers: the model sees them instead of "Me" / "Others". <c>null</c> = always the defaults.</param>
+    public ChapterGenerator(ILlm llm, ITranscriptStore transcripts, SummarizerOptions? options = null, ISpeakerNameStore? speakerNames = null)
     {
         ArgumentNullException.ThrowIfNull(llm);
         ArgumentNullException.ThrowIfNull(transcripts);
         _llm = llm;
         _transcripts = transcripts;
         _options = options ?? new SummarizerOptions();
+        _speakerNames = speakerNames;
     }
 
     public TimeSpan MinimumDuration => _options.ChapterMinimumDuration;
@@ -39,7 +42,8 @@ public sealed partial class ChapterGenerator : IChapterGenerator
         cancellationToken.ThrowIfCancellationRequested();
         var transcript = await _transcripts.GetTranscriptAsync(session, cancellationToken).ConfigureAwait(false)
             ?? throw new InvalidOperationException($"Session {session} has no transcript to split into chapters.");
-        var lines = SessionSummarizer.BuildLines(transcript, _options.ChunkCharacters);
+        var names = _speakerNames is null ? SpeakerNames.Default : await _speakerNames.GetSpeakerNamesAsync(session, cancellationToken).ConfigureAwait(false);
+        var lines = SessionSummarizer.BuildLines(transcript, _options.ChunkCharacters, names);
         if (lines.Count == 0)
         {
             throw new InvalidOperationException($"The transcript of session {session} has no speech to split into chapters.");
@@ -62,7 +66,7 @@ public sealed partial class ChapterGenerator : IChapterGenerator
         string answer;
         if (chunks.Count == 1)
         {
-            answer = await AskAsync(chat, Prompts.System(language, _options), Prompts.Chapters(chunks[0], minutes, _options), cancellationToken).ConfigureAwait(false);
+            answer = await AskAsync(chat, Prompts.System(language, _options, names), Prompts.Chapters(chunks[0], minutes, _options), cancellationToken).ConfigureAwait(false);
             reporter.Step();
         }
         else
@@ -70,7 +74,7 @@ public sealed partial class ChapterGenerator : IChapterGenerator
             var candidates = new List<string>(chunks.Count);
             for (var i = 0; i < chunks.Count; i++)
             {
-                candidates.Add(await AskAsync(chat, Prompts.System(language, _options), Prompts.Candidates(chunks[i], i + 1, chunks.Count), cancellationToken).ConfigureAwait(false));
+                candidates.Add(await AskAsync(chat, Prompts.System(language, _options, names), Prompts.Candidates(chunks[i], i + 1, chunks.Count), cancellationToken).ConfigureAwait(false));
                 reporter.Step();
             }
 
@@ -87,7 +91,7 @@ public sealed partial class ChapterGenerator : IChapterGenerator
                 var condensed = new List<string>(groups.Count);
                 for (var i = 0; i < groups.Count; i++)
                 {
-                    condensed.Add(await AskAsync(chat, Prompts.System(language, _options), Prompts.Condense(groups[i]), cancellationToken).ConfigureAwait(false));
+                    condensed.Add(await AskAsync(chat, Prompts.System(language, _options, names), Prompts.Condense(groups[i]), cancellationToken).ConfigureAwait(false));
                     reporter.Step();
                 }
 
@@ -95,7 +99,7 @@ public sealed partial class ChapterGenerator : IChapterGenerator
             }
 
             var merged = SessionSummarizer.Clip(string.Join("\n", candidates), _options.ReduceCharacters);
-            answer = await AskAsync(chat, Prompts.System(language, _options), Prompts.Merge(merged, minutes, _options), cancellationToken).ConfigureAwait(false);
+            answer = await AskAsync(chat, Prompts.System(language, _options, names), Prompts.Merge(merged, minutes, _options), cancellationToken).ConfigureAwait(false);
             reporter.Step();
         }
 
@@ -283,9 +287,8 @@ public sealed partial class ChapterGenerator : IChapterGenerator
     {
         private const string Format = "Reply with one chapter per line, in chronological order, in exactly this form and nothing else:\n- [mm:ss] <title>\n";
 
-        public static string System(string language, SummarizerOptions options) =>
-            "You split meeting transcripts into chapters for the Murmur recorder. The transcript lines look like \"[12:34] Me: text\" or \"[12:34] Others: text\": "
-            + "\"Me\" is the user, \"Others\" are the other people on the call. Use only what the transcript says; invent nothing. "
+        public static string System(string language, SummarizerOptions options, SpeakerNames names) =>
+            "You split meeting transcripts into chapters for the Murmur recorder. " + SessionSummarizer.SpeakerIntro(names) + " Use only what the transcript says; invent nothing. "
             + (language.Length > 0
                 ? "Write the chapter titles in " + language + ", the language of the transcript."
                 : "Write the chapter titles in the language of the transcript (English or Ukrainian).")

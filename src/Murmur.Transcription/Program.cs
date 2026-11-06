@@ -93,6 +93,13 @@ internal static class Program
         };
     }
 
+    /// <summary>The engine of <c>--serve</c>: the app marks uncertain words (#58), so every word of the protocol carries its confidence (D-052).</summary>
+    internal static EngineOptions ServeEngineOptions(CliOptions o)
+    {
+        var options = EngineOptionsFrom(o);
+        return options with { Pipeline = options.Pipeline with { IncludeConfidence = true } };
+    }
+
     private static int Serve(string[] args)
     {
         // stdout carries protocol JSON only: keep a private writer for it and point Console.Out at stderr, so a stray
@@ -110,7 +117,7 @@ internal static class Program
         }
 
         stderr.WriteLine($"murmur-asr: serving (threads={options.Threads}: {options.EffectiveParallelism} worker(s) x {options.OrtThreadsPerWorker} ORT thread(s), batch={options.BatchSize}, idle-exit={options.IdleExitSeconds:0.#} s)");
-        var engineOptions = EngineOptionsFrom(options);
+        var engineOptions = ServeEngineOptions(options);
         var protocol = new ProtocolWriter(stdout);
 
         // Last line of defence (the server's own threads catch everything): report, then exit 1 instead of crashing.

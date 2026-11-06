@@ -1,3 +1,4 @@
+using Murmur.Core.Activity;
 using Murmur.Core.Capture;
 using Murmur.Core.Models;
 using Murmur.Core.Sessions;
@@ -207,6 +208,18 @@ internal static class DesignDemoData
     // ---- What the app cannot show yet -----------------------------------------------------------------------------------
 
     /// <summary>
+    /// What the status bar and the Activity popover of <c>features/Idea5Activity.dc.html</c> show: the widest case (a recording, a
+    /// transcription, a queued index and a model download). The 22 boards do not show the bar, so only the window-fit tests use it.
+    /// </summary>
+    public static ActivityItem[] ActivityItems { get; } =
+    [
+        new("rec", ActivityKind.Recording, "Untitled recording", null, false),
+        new("asr:1", ActivityKind.Transcribing, "Weekly team sync", 0.64, false),
+        new("model:gemma", ActivityKind.DownloadingModel, "Gemma 4 26B", 0.42, false),
+        new("idx:1", ActivityKind.Indexing, "Weekly team sync", null, true),
+    ];
+
+    /// <summary>
     /// Content of the artboards that the app has no way to show yet (screen, feature). The harness leaves it out; the screen
     /// tasks add the feature and then the data here.
     /// </summary>
@@ -214,7 +227,7 @@ internal static class DesignDemoData
     [
         ("Library", "The two visually hidden form labels of the canvas ('Question for your library', 'Search recordings') are accessibility names in the app, not text; the language of a recording that is still transcribing comes from a transcript Core only stores when it is done"),
         ("Recording", "The strip of the Tracks bars is drawn from live levels, the canvas draws it from a formula (ignored rectangles); the 'future' bars are light stubs, not a formula"),
-        ("Session", "The empty search box together with the hit 'timestamps' (the app marks a hit only for a typed query: the harness marks the rows directly); the Summary tab shows 'Decisions' where the app says 'Key points' (DEVIATIONS.md); the video frame (ignored)"),
+        ("Session", "The empty search box together with the hit 'timestamps' (the app marks a hit only for a typed query: the harness marks the rows directly); the Summary tab shows 'Decisions' where the app says 'Key points' (DEVIATIONS.md); the video frame (ignored); the speaker chips row above the search box (Idea4Transcript.dc.html) is a feature of its own: the demo scene switches it off with SessionViewModel.ShowSpeakers = false"),
         ("Settings", "The segmented control says CPU / Vulkan / CUDA (D-042: llama.cpp has no DirectML backend); the screen option names the display and its size, not the encoder line; [VERSION] and [LICENSE] placeholders; the Preferences section (theme, languages, recording defaults, the introduction) follows About and is not on the canvas"),
         ("Onboarding", "Placeholders [X.X] GB, [XX] GB and [N] GB free are replaced by the real sizes"),
     ];

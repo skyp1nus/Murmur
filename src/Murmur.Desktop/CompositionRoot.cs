@@ -1,8 +1,10 @@
 using Murmur.App;
 using Murmur.App.Services;
+using Murmur.Core.Activity;
 using Murmur.Core.Calls;
 using Murmur.Core.Capture;
 using Murmur.Core.Capture.Synthetic;
+using Murmur.Core.Import;
 using Murmur.Core.Input;
 using Murmur.Core.Intelligence;
 using Murmur.Core.Jobs;
@@ -14,6 +16,7 @@ using Murmur.Core.Settings;
 using Murmur.Core.Transcription;
 using Murmur.Intelligence;
 using Murmur.Intelligence.Rag;
+using Murmur.Intelligence.Suggestions;
 using Murmur.Intelligence.Summary;
 using Murmur.Models;
 using Murmur.Storage;
@@ -31,6 +34,10 @@ internal sealed class CompositionRoot : IDisposable
     private WorkerAsrClient? _asr;
     private JobQueue? _queue;
     private SessionProcessor? _processor;
+    private ImportQueue? _imports;
+    private IMediaDecoder? _mediaDecoder;
+    private IDownloadsFolder? _downloads;
+    private ActivityFeed? _activityFeed;
     private RecordingActivity? _activity;
     private RecordingMarks? _marks;
     private RecordingHeapTrimmer? _heapTrimmer;
@@ -110,7 +117,7 @@ internal sealed class CompositionRoot : IDisposable
         // recorder is busy, and the moment a recording starts its llama-server processes are killed.
         var activity = _activity ??= new RecordingActivity(recorder);
         var llm = _llm ??= CreateLlm(models.ModelsDirectory, activity, settings);
-        var assistant = _assistant ??= new Assistant(llm, storage);
+        var assistant = _assistant ??= new Assistant(llm, storage, displayLabel: static speaker => speaker == Speaker.Me ? Murmur.App.Resources.Strings.Segment_Me : Murmur.App.Resources.Strings.Segment_Others);
 
         // The model manager installs into the same folder the ASR and the AI read from. Its active-model lookup is handed
         // to the UI as a delegate because IModelManager does not expose it.
@@ -126,7 +133,16 @@ internal sealed class CompositionRoot : IDisposable
             asr,
             queue,
             indexer: (session, cancellationToken) => assistant.IndexSessionAsync(session, cancellationToken).AsTask(),
-            isAiInstalled: () => llm.IsInstalled);
+            isAiInstalled: () => llm.IsInstalled,
+            languageOf: session => _imports?.LanguageOf(session));
+
+        // Imported files become sessions on the same queue (so they wait while recording) and go through the same pipeline. The import
+        // dialog probes the files it lists with the same decoder.
+        var mediaDecoder = _mediaDecoder ??= CreateMediaDecoder();
+        var imports = _imports ??= new ImportQueue(storage, storage, mediaDecoder, queue, processor);
+
+        // The status bar's feed: what runs or waits, from the recorder, the pipeline and the model downloads.
+        var activityFeed = _activityFeed ??= new ActivityFeed(recorder, storage, processor, modelManager);
 
         // AI installed in the app while it runs: sessions finished without it get their vectors now, not at the next start.
         if (_reindex is null)
@@ -173,6 +189,10 @@ internal sealed class CompositionRoot : IDisposable
                 // Tracks still held by an antivirus/indexer right after a crash: retry just those sessions later.
                 _recoveryRetry = new CancellationTokenSource();
                 _ = recovery.RetryBusyInBackgroundAsync(_recoveryRetry.Token);
+
+                // After the recovery (which would take a half-made import session for a crashed recording) and before the
+                // pipeline resumes (so an imported session's language is known when its transcription restarts).
+                await imports.StartAsync(cancellationToken).ConfigureAwait(false);
                 await processor.ResumePendingAsync(cancellationToken).ConfigureAwait(false);
 
                 // Sessions finished while the AI was not installed get their vectors now (a no-op without the models).
@@ -183,8 +203,9 @@ internal sealed class CompositionRoot : IDisposable
             new SessionProcessingAdapter(processor, models),
             storage,
             new AiServices(assistant, llm, models.ModelsDirectory, AccelerationProbe, llm, AccelerationRuntimeIds(modelManager),
-                new SessionSummarizer(llm, storage, SummarizerOptions.ForContext(new LocalLlmOptions().ContextSize)),
-                new ChapterGenerator(llm, storage, SummarizerOptions.ForContext(new LocalLlmOptions().ContextSize))),
+                new SessionSummarizer(llm, storage, SummarizerOptions.ForContext(new LocalLlmOptions().ContextSize), speakerNames: storage),
+                new ChapterGenerator(llm, storage, SummarizerOptions.ForContext(new LocalLlmOptions().ContextSize), speakerNames: storage),
+                new WordSuggester(llm)),
             settings,
             aiModels,
             modelManager.ActiveModelId,
@@ -199,7 +220,14 @@ internal sealed class CompositionRoot : IDisposable
             ChapterStore: storage,
             Marks: marks,
             AudioSessions: _audioSessions ??= CreateAudioSessionMonitor(),
-            Calls: _calls ??= new CallDetector(_audioSessions, TimeProvider.System));
+            Calls: _calls ??= new CallDetector(_audioSessions, TimeProvider.System),
+            SpeakerNames: storage,
+            Activity: activityFeed,
+            Imports: imports,
+            MediaProbe: mediaDecoder,
+            Downloads: _downloads ??= CreateDownloadsFolder(),
+            BookmarkStore: storage,
+            Vocabulary: storage);
     }
 
     public void Dispose()
@@ -216,6 +244,8 @@ internal sealed class CompositionRoot : IDisposable
         _heapTrimmer?.Dispose();
         _marks?.Dispose();
         _reindex?.Dispose();
+        _activityFeed?.Dispose();
+        _imports?.Dispose();
         _processor?.Dispose();
         _queue?.DisposeAsync().AsTask().GetAwaiter().GetResult();
         _activity?.Dispose();
@@ -295,6 +325,18 @@ internal sealed class CompositionRoot : IDisposable
 
         return false;
     }
+
+    /// <summary>
+    /// The decoders of the import, tried in order by extension: the managed WAV decoder works everywhere; on Windows the Media
+    /// Foundation decoder of Murmur.Capture.Windows goes before it (follow-up of #66).
+    /// </summary>
+    private static IMediaDecoder CreateMediaDecoder() => new CompositeMediaDecoder(new WavMediaDecoder());
+
+    /// <summary>
+    /// The Downloads folder of the import dialog's "Recent in Downloads": <c>%USERPROFILE%\Downloads</c> / <c>~/Downloads</c>. On Windows the
+    /// known folder of Murmur.Capture.Windows (a Downloads folder the user moved) replaces it (follow-up of #67).
+    /// </summary>
+    internal static IDownloadsFolder CreateDownloadsFolder() => new HomeDownloadsFolder();
 
     private static IAccelerationProbe CreateAccelerationProbe()
     {

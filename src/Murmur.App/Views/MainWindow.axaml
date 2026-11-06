@@ -34,6 +34,9 @@
     <DataTemplate DataType="vm:OnboardingViewModel">
       <views:OnboardingView />
     </DataTemplate>
+    <DataTemplate DataType="vm:StatusBarViewModel">
+      <views:StatusBarView />
+    </DataTemplate>
 
     <!-- The top bar's two sides: a screen puts any of these (or its own template, added here) in TopBar.Leading / TopBar.Trailing. -->
     <DataTemplate DataType="vm:BreadcrumbViewModel">
@@ -59,8 +62,9 @@
                     VerticalContentAlignment="Stretch"
                     Content="{Binding Sidebar}" />
 
-    <Grid Grid.Column="1"
-          RowDefinitions="Auto,*">
+    <Grid x:Name="ContentArea"
+          Grid.Column="1"
+          RowDefinitions="Auto,*,Auto">
       <!-- The 48 px top bar of the main screens -->
       <Border Grid.Row="0"
               IsVisible="{Binding !IsOnboarding}">
@@ -75,6 +79,16 @@
                       HorizontalContentAlignment="Stretch"
                       VerticalContentAlignment="Stretch"
                       Content="{Binding CurrentPage}" />
+
+      <!-- The 28 px status bar under every page; nothing when the shell has none. -->
+      <ContentControl Grid.Row="2"
+                      HorizontalContentAlignment="Stretch"
+                      Content="{Binding StatusBar}" />
+
+      <!-- Files dragged over the window (#69): over the whole content area, never in the way of the pointer. -->
+      <views:DropOverlayView Grid.Row="0"
+                             Grid.RowSpan="3"
+                             DataContext="{Binding DropOverlay}" />
     </Grid>
   </Grid>
 </Window>

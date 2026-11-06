@@ -63,7 +63,10 @@ internal sealed class FakeSessionStore : ISessionStore
     public ValueTask<SessionRecord?> GetSessionAsync(SessionId id, CancellationToken cancellationToken) =>
         ValueTask.FromResult(_sessions.Find(s => s.Id == id));
 
-    public ValueTask<IReadOnlyList<SessionRecord>> ListSessionsAsync(SessionQuery query, CancellationToken cancellationToken)
+    /// <summary>When set, the next <see cref="ListSessionsAsync"/> reads its data at once but answers only after this task (a slow database).</summary>
+    public Task? ListGate { get; set; }
+
+    public async ValueTask<IReadOnlyList<SessionRecord>> ListSessionsAsync(SessionQuery query, CancellationToken cancellationToken)
     {
         Queries.Add(query);
         if (ListFailure is { } failure)
@@ -78,7 +81,13 @@ internal sealed class FakeSessionStore : ISessionStore
                 .OrderByDescending(s => s.StartedAt)
                 .Take(query.Limit),
         ];
-        return ValueTask.FromResult(result);
+        if (ListGate is { } gate)
+        {
+            ListGate = null;
+            await gate;
+        }
+
+        return result;
     }
 
     /// <summary>Ids passed to <see cref="DeleteSessionAsync"/>, in order.</summary>

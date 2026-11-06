@@ -13,7 +13,7 @@ namespace Murmur.Storage;
 public sealed partial class SqliteStorage : IStorage, IDisposable
 {
     private const string SessionColumns =
-        "id, title, started_at, duration_ms, state, has_mic, has_system, screen_segments, error";
+        "id, title, started_at, duration_ms, state, has_mic, has_system, screen_segments, error, source, original_path";
 
     private readonly StoragePaths _paths;
     private readonly Func<string?>? _recordingsFolder;

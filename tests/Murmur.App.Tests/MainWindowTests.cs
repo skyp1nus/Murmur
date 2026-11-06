@@ -30,7 +30,7 @@ public sealed class MainWindowTests
                 var texts = window.GetVisualDescendants().OfType<TextBlock>().Where(t => t.IsEffectivelyVisible).Select(t => t.Text).ToArray();
                 var buttons = window.GetVisualDescendants().OfType<Button>().Where(b => b is not ToggleButton && b.IsEffectivelyVisible && b.Content is string).Select(b => (string)b.Content!).ToArray();
                 var search = window.GetVisualDescendants().OfType<TextBox>().Single(t => t.IsEffectivelyVisible);
-                var pills = window.GetVisualDescendants().OfType<Button>().Where(b => b.Classes.Contains("filter")).Select(b => b.GetVisualDescendants().OfType<TextBlock>().Single(t => t.IsEffectivelyVisible).Text).ToArray();
+                var pills = window.GetVisualDescendants().OfType<Button>().Where(b => b.Classes.Contains("filter") && b.IsEffectivelyVisible).Select(b => b.GetVisualDescendants().OfType<TextBlock>().Single(t => t.IsEffectivelyVisible).Text).ToArray();
                 var result = (window.Title, window.Width, window.Height, window.MinWidth, window.MinHeight, texts, buttons, pills, search.PlaceholderText);
                 window.Close();
                 return result;

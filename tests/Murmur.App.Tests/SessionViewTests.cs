@@ -222,40 +222,46 @@ public sealed class SessionViewTests : IDisposable
     }
 
     [Fact]
-    public async Task AfterTheUserScrolledTheList_AutoScrollWaitsForThreeSeconds()
+    public async Task AfterTheUserScrolledTheList_AutoScrollWaitsForTheNextLine()
     {
         _fixture.UseTranscript(TranscriptFactory.Make(_fixture.Record.Id, 10_000));
         var (_, shell) = await OpenAsync();
 
-        var (suspended, offsetWhileSuspended, offsetAfterHold) = await Session.Dispatch(
+        var (suspended, offsetWhileSuspended, offsetAtNextLine) = await Session.Dispatch(
             () =>
             {
                 var window = UiHarness.Show(shell);
                 var scroller = window.GetVisualDescendants().OfType<ScrollViewer>().Single(v => v.Name == "TranscriptScroller");
+                var session = shell.Session!;
+                _fixture.Player.Position = session.Segments[10].Start;
+                session.Tick();
+                UiHarness.Pump();
+
                 var inWindow = scroller.TranslatePoint(new Point(100, 100), window)!.Value;
                 window.MouseWheel(inWindow, new Vector(0, -1));
                 UiHarness.Pump();
-                var wasSuspended = shell.Session!.AutoScrollSuspended;
+                var wasSuspended = session.AutoScrollSuspended;
                 var userOffset = scroller.Offset.Y;
 
-                _fixture.Player.Position = shell.Session.Segments[500].Start;
-                shell.Session.Tick();
+                // Time passes and the playback stays in the same line: the list stays where the user left it.
+                _fixture.Time.Advance(TimeSpan.FromSeconds(60));
+                _fixture.Player.Position = session.Segments[10].Start + TimeSpan.FromSeconds(1);
+                session.Tick();
                 UiHarness.Pump();
                 var whileSuspended = scroller.Offset.Y;
 
-                _fixture.Time.Advance(TimeSpan.FromSeconds(3));
-                _fixture.Player.Position = shell.Session.Segments[600].Start;
-                shell.Session.Tick();
+                _fixture.Player.Position = session.Segments[600].Start;
+                session.Tick();
                 UiHarness.Pump();
-                var afterHold = scroller.Offset.Y;
+                var atNextLine = scroller.Offset.Y;
                 window.Close();
-                return (wasSuspended, whileSuspended - userOffset, afterHold);
+                return (wasSuspended, whileSuspended - userOffset, atNextLine);
             },
             TestContext.Current.CancellationToken);
 
         Assert.True(suspended);
         Assert.Equal(0, offsetWhileSuspended);
-        Assert.True(offsetAfterHold > 30_000, $"Offset after the hold: {offsetAfterHold}.");
+        Assert.True(offsetAtNextLine > 30_000, $"Offset at the next line: {offsetAtNextLine}.");
     }
 
     [Fact]
@@ -292,7 +298,7 @@ public sealed class SessionViewTests : IDisposable
     }
 
     [Fact]
-    public async Task TheTopBar_HasExportAndTheMenu_AndExportListsTheFourFormats()
+    public async Task TheTopBar_HasExportAndTheMenu_AndExportOpensTheDialogInsteadOfAMenu()
     {
         _fixture.UseShortTranscript();
         var (_, shell) = await OpenAsync();
@@ -306,7 +312,7 @@ public sealed class SessionViewTests : IDisposable
                 var export = view.GetVisualDescendants().OfType<Button>().First(b => b.Classes.Contains("sessionGhost") && !b.Classes.Contains("round"));
                 var more = view.GetVisualDescendants().OfType<Button>().First(b => b.Classes.Contains("round"));
                 var labels = VisibleTexts(window);
-                var result = (labels, export.IsEnabled, more.Flyout is not null && export.Flyout is not null);
+                var result = (labels, export.IsEnabled, more.Flyout is not null && export.Flyout is null);
                 window.Close();
                 return result;
             },
