@@ -8,7 +8,8 @@ namespace Murmur.App.ViewModels;
 /// Uncertain words (#58, Idea4Transcript.dc.html "Idea 4 / Low-confidence fix"). A word the recogniser doubted
 /// (<see cref="TranscriptWord.IsUncertain"/>) is underlined in its line; a click on it (or Enter) opens "Did you mean" (<see cref="DidYouMean"/>)
 /// under it. The alternatives come from the user's vocabulary at once and from the local model when it answers (it never holds the popover
-/// up; its ideas rank after the vocabulary's close matches and before words that only start alike); picking one stores the fix (<see cref="ITranscriptStore.ReplaceWordAsync"/>: the line, the stored transcript and the search index)
+/// up; its ideas rank after the vocabulary's close matches and before words that only start alike, which wait for it so no chip on screen
+/// ever changes); picking one stores the fix (<see cref="ITranscriptStore.ReplaceWordAsync"/>: the line, the stored transcript and the search index)
 /// and adds the word to the vocabulary; "Keep" stores the word as it is, which only takes its doubt away (in this recording).
 /// </summary>
 /// <remarks>
@@ -96,7 +97,14 @@ public sealed partial class SessionViewModel
             return;
         }
 
-        popover.SetAlternatives(WordSuggestions.Merge(popover.Word, close, prefix));
+        // A chip, once shown, never changes: the model's ideas rank before the words that only start like this one (a weak hint), so
+        // those wait for the model and the answer only adds chips after the ones on screen (close words, then ideas, then the rest).
+        var modelAsked = _services.WordSuggester is not null && _transcript is not null;
+        popover.SetAlternatives(modelAsked ? WordSuggestions.Merge(popover.Word, close) : WordSuggestions.Merge(popover.Word, close, prefix));
+        if (!modelAsked)
+        {
+            return;
+        }
 
         IReadOnlyList<string> ideas;
         try
@@ -108,8 +116,7 @@ public sealed partial class SessionViewModel
             return;
         }
 
-        // The model's ideas go before the words that only start like this one: a shared beginning is a weak hint.
-        if (ideas.Count > 0 && ReferenceEquals(DidYouMean, popover))
+        if (ReferenceEquals(DidYouMean, popover))
         {
             popover.SetAlternatives(WordSuggestions.Merge(popover.Word, close, ideas, prefix));
         }

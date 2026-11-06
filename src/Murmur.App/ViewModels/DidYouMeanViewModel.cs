@@ -66,7 +66,11 @@ public sealed partial class DidYouMeanViewModel : ObservableObject
     /// <summary>Esc: closes without changing anything.</summary>
     public ICommand CloseCommand => _closeCommand ??= new RelayCommand(_close);
 
-    /// <summary>Shows these alternatives (at most <see cref="WordSuggestions.MaxAlternatives"/>, already merged) in front of "Keep"; chips that stay keep their place.</summary>
+    /// <summary>
+    /// Shows these alternatives (at most <see cref="WordSuggestions.MaxAlternatives"/>, already merged) in front of "Keep"; chips that stay keep
+    /// their place and their button. The session only ever appends (<see cref="SessionViewModel"/> holds back what would rank in front of a
+    /// later answer), so a chip under the pointer or the keyboard focus never turns into another word.
+    /// </summary>
     internal void SetAlternatives(IReadOnlyList<string> alternatives)
     {
         var keep = Choices[^1];

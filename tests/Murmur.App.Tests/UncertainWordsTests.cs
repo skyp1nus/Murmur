@@ -96,7 +96,7 @@ public sealed class UncertainWordsTests : IDisposable
     // The suggestions ------------------------------------------------------------------------------------------------
 
     [Fact]
-    public async Task ThePopover_OpensAtOnce_WithTheVocabulary_AndKeepLast_WhileTheModelThinks()
+    public async Task ThePopover_OpensAtOnce_WithKeep_AndTheWordsThatOnlyStartAlikeWaitForTheModel()
     {
         var vm = await LoadAsync();
 
@@ -107,10 +107,18 @@ public sealed class UncertainWordsTests : IDisposable
         Assert.Equal("parquet", popover.Word);
         Assert.Equal("Did you mean", popover.Title);
 
-        // The model has not answered, the vocabulary has: the words that share "par", the closest first (3, 4 and 4 edits; Gemma looks nothing like it).
+        // The model has not answered. The vocabulary's words only share "par" (3, 4 and 4 edits; Gemma looks nothing like it): they rank after
+        // the model's ideas, so they wait for it rather than give their places away later.
         Assert.False(vm.LastSuggestions.IsCompleted);
-        Assert.Equal(["parakeet", "Parakeets", "Paris"], popover.Alternatives);
+        Assert.Empty(popover.Alternatives);
+        var keep = Assert.Single(popover.Choices);
+        Assert.True(keep.IsKeep);
+
+        // The model has nothing to add: then they come, the closest first, in front of the same Keep chip.
+        _suggester.Answer();
+        await vm.LastSuggestions;
         Assert.Equal(["parakeet", "Parakeets", "Paris", "Keep parquet"], popover.Choices.Select(c => c.Text));
+        Assert.Same(keep, popover.Choices[^1]);
         Assert.True(popover.Choices[0].IsPrimary);
         Assert.False(popover.Choices[1].IsPrimary);
         Assert.True(popover.Choices[^1].IsKeep);
@@ -128,10 +136,14 @@ public sealed class UncertainWordsTests : IDisposable
         await vm.LoadAsync();
 
         vm.Segments[1].OpenWordCommand.Execute(5);
-        Assert.Equal(["parquets", "Parakeet"], vm.DidYouMean!.Alternatives);
+        Assert.Equal(["parquets"], vm.DidYouMean!.Alternatives);
+        var shown = vm.DidYouMean.Choices[0];
 
         _suggester.Answer("parakeet", "parquet", "Paraquat", "Parkit");
         await vm.LastSuggestions;
+
+        // The chip on screen keeps its place (and its object, so its button); the answer only adds chips after it.
+        Assert.Same(shown, vm.DidYouMean!.Choices[0]);
 
         // The model's "parakeet" is the vocabulary's "Parakeet" (any case) and takes its place; "parquet" is the word itself; three at most.
         Assert.Equal(["parquets", "parakeet", "Paraquat"], vm.DidYouMean!.Alternatives);
@@ -309,6 +321,8 @@ public sealed class UncertainWordsTests : IDisposable
     {
         var vm = await LoadAsync();
         vm.Segments[1].OpenWordCommand.Execute(5);
+        _suggester.Answer();
+        await vm.LastSuggestions;
         vm.DidYouMean!.Choices[0].PickCommand.Execute(null);
         await WaitForAsync(() => _vocabulary.Adds.Count > 0);
 
@@ -714,12 +728,17 @@ public sealed class UncertainWordsTests : IDisposable
 
     // The view -------------------------------------------------------------------------------------------------------
 
-    private async Task<ShellViewModel> OpenShellAsync()
+    private async Task<ShellViewModel> OpenShellAsync(FakeVocabularyStore? vocabulary = null)
     {
         UseTranscript();
         var harness = new UiHarness();
         harness.Store.Add(_fixture.Record);
-        var shell = harness.CreateShell(_ => Create(), _fixture.Processing);
+        var shell = harness.CreateShell(
+            _ => vocabulary is null
+                ? Create()
+                : new SessionViewModel(_fixture.Record, _fixture.Files, _fixture.Transcripts, _fixture.Player, _fixture.Processing, _fixture.Time, action => action(),
+                    services: new SessionServices(Vocabulary: vocabulary, WordSuggester: _suggester)),
+            _fixture.Processing);
         await shell.Library.LoadAsync();
         shell.Library.SelectedSession = shell.Library.Sessions[0];
         await shell.SessionLoadTask;
@@ -729,6 +748,7 @@ public sealed class UncertainWordsTests : IDisposable
     [Fact]
     public async Task InTheApp_TheKeyboardAlone_OpensPicksAndCloses()
     {
+        _suggester.Immediate = ["Paraquat"];
         var shell = await OpenShellAsync();
 
         var (chipsFocused, afterRight, closedByEscape, focusBack, picked) = await Session.Dispatch(
@@ -1039,4 +1059,136 @@ public sealed class UncertainWordsTests : IDisposable
             }
         }
     }
+
+    // Review round 2 ---------------------------------------------------------------------------------------------------
+
+    [Fact]
+    public async Task ALateAnswer_KeepsTheKeyboardOnItsChip_AndTheChipsInTheirPlaces()
+    {
+        // "parquets" is one edit away (shown at once); "Parakeet" only starts alike (waits for the model).
+        var shell = await OpenShellAsync(new FakeVocabularyStore("Parakeet", "parquets"));
+
+        var (before, onKeep, after, stillOnKeep, left) = await Session.Dispatch(
+            async () =>
+            {
+                var window = UiHarness.Show(shell);
+                UiHarness.Pump(4);
+                var line = window.GetVisualDescendants().OfType<TranscriptTextControl>().First(c => c.UncertainWords is not null);
+                var host = window.GetVisualDescendants().OfType<DidYouMeanPopover>().Single();
+                line.Focus(NavigationMethod.Tab);
+                window.KeyPressQwerty(PhysicalKey.Enter, RawInputModifiers.None);
+                window.KeyReleaseQwerty(PhysicalKey.Enter, RawInputModifiers.None);
+                UiHarness.Pump(6);
+                var first = host.ChipButtons();
+                var texts = first.Select(ChipText).ToArray();
+                window.KeyPressQwerty(PhysicalKey.ArrowRight, RawInputModifiers.None);
+                UiHarness.Pump(2);
+                var keep = first[^1];
+                var focusedKeep = keep.IsFocused;
+
+                _suggester.Answer("Paraquat", "Parkit");
+                for (var tick = 0; tick < 200 && host.ChipButtons().Count < 4; tick++)
+                {
+                    await Task.Delay(5, Ct);
+                    UiHarness.Pump(1);
+                }
+
+                UiHarness.Pump(4);
+                var chips = host.ChipButtons();
+                var now = chips.Select(ChipText).ToArray();
+                var still = keep.IsFocused && ReferenceEquals(first[0], chips[0]) && ReferenceEquals(keep, chips[^1]);
+
+                // The arrows still move between the chips.
+                window.KeyPressQwerty(PhysicalKey.ArrowLeft, RawInputModifiers.None);
+                UiHarness.Pump(2);
+                var result = (texts, focusedKeep, now, still, ChipText(chips.Single(c => c.IsFocused)));
+                window.Close();
+                return result;
+            },
+            Ct);
+
+        Assert.Equal(["parquets", "Keep parquet"], before);
+        Assert.True(onKeep);
+        Assert.Equal(["parquets", "Paraquat", "Parkit", "Keep parquet"], after);
+        Assert.True(stillOnKeep, "The focused Keep chip and the chip before it are the same buttons after the answer.");
+        Assert.Equal("Parkit", left);
+    }
+
+    [Fact]
+    public async Task ALateAnswer_LeavesTheChipUnderThePointerAsItWas()
+    {
+        var shell = await OpenShellAsync(new FakeVocabularyStore("parquets"));
+
+        var (textBefore, textAfter, sameButton, movedBy) = await Session.Dispatch(
+            async () =>
+            {
+                var window = new MainWindow { DataContext = shell, Width = 900, Height = 600 };
+                window.Show();
+                UiHarness.Pump(4);
+                var line = window.GetVisualDescendants().OfType<TranscriptTextControl>().First(c => c.UncertainWords is not null);
+                var host = window.GetVisualDescendants().OfType<DidYouMeanPopover>().Single();
+                var at = line.TranslatePoint(line.WordBounds(5)!.Value.Center, window)!.Value;
+                window.MouseDown(at, MouseButton.Left);
+                window.MouseUp(at, MouseButton.Left);
+                UiHarness.Pump(6);
+
+                // The pointer rests on the first chip, about to click it, when the model answers.
+                var chip = host.ChipButtons()[0];
+                var root = TopLevel.GetTopLevel(chip)!;
+                var center = chip.TranslatePoint(new Point(chip.Bounds.Width / 2, chip.Bounds.Height / 2), root)!.Value;
+                root.MouseMove(center);
+                UiHarness.Pump(2);
+                var before = (ChipText(chip), chip.TranslatePoint(default, root)!.Value);
+
+                _suggester.Answer("Paraquat", "Parkit");
+                for (var tick = 0; tick < 200 && host.ChipButtons().Count < 4; tick++)
+                {
+                    await Task.Delay(5, Ct);
+                    UiHarness.Pump(1);
+                }
+
+                UiHarness.Pump(4);
+                var after = host.ChipButtons()[0];
+                var result = (before.Item1, ChipText(after), ReferenceEquals(chip, after), after.TranslatePoint(default, root)!.Value - before.Item2);
+                window.Close();
+                return result;
+            },
+            Ct);
+
+        Assert.Equal("parquets", textBefore);
+        Assert.Equal("parquets", textAfter);
+        Assert.True(sameButton);
+        Assert.Equal(default, movedBy);
+    }
+
+    [Fact]
+    public async Task IfTheChipsChangeUnderTheFocus_TheFocusStaysInThePopover()
+    {
+        var shell = await OpenShellAsync(new FakeVocabularyStore("parquets"));
+
+        var focusedInCard = await Session.Dispatch(
+            () =>
+            {
+                var window = UiHarness.Show(shell);
+                UiHarness.Pump(4);
+                var line = window.GetVisualDescendants().OfType<TranscriptTextControl>().First(c => c.UncertainWords is not null);
+                var host = window.GetVisualDescendants().OfType<DidYouMeanPopover>().Single();
+                line.Focus(NavigationMethod.Tab);
+                window.KeyPressQwerty(PhysicalKey.Enter, RawInputModifiers.None);
+                UiHarness.Pump(6);
+                Assert.True(host.ChipButtons()[0].IsFocused);
+
+                // Nothing in the app does this any more; the popover still catches it.
+                shell.Session!.DidYouMean!.SetAlternatives(["something else"]);
+                UiHarness.Pump(6);
+                var result = host.ChipButtons().Exists(c => c.IsFocused);
+                window.Close();
+                return result;
+            },
+            Ct);
+
+        Assert.True(focusedInCard);
+    }
+
+    private static string ChipText(Button chip) => chip.GetVisualDescendants().OfType<TextBlock>().First().Text ?? string.Empty;
 }

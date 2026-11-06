@@ -12,7 +12,8 @@
     "Did you mean" (Idea4Transcript.dc.html, "Idea 4 / Low-confidence fix", #58): opened by a click (or Enter) on an uncertain word, under
     that word. The label, a chip per alternative (the first filled) and "Keep <word>" last. Left / Right move between the chips, Enter picks,
     Esc (or a click elsewhere) closes. The host takes no room: it only holds the popup, anchored by the code-behind to the word that was
-    clicked in Target (the transcript list).
+    clicked in Target (the transcript list). The code-behind also keeps the card inside the window (16 px from its edges) instead of
+    the popup's own SlideX, which would slide the card, and the chip under the pointer, whenever it grows.
   -->
   <Popup x:Name="Popup"
          IsOpen="{Binding IsDidYouMeanOpen, Mode=TwoWay}"
@@ -20,7 +21,7 @@
          PlacementAnchor="BottomLeft"
          PlacementGravity="BottomRight"
          VerticalOffset="{StaticResource Space.6}"
-         PlacementConstraintAdjustment="SlideX,FlipY"
+         PlacementConstraintAdjustment="FlipY"
          IsLightDismissEnabled="True"
          OverlayDismissEventPassThrough="True"
          Opened="OnPopupOpened"

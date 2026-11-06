@@ -27,13 +27,98 @@ public partial class DidYouMeanPopover : UserControl
     private Control? _returnFocus;
     private bool _fromKeyboard;
 
+    // The chip that had the keyboard focus last (its word and place), so a change of the chips can give the focus back.
+    private string? _focusedValue;
+    private int _focusedIndex = -1;
+    private NavigationMethod _focusMethod;
+    private DidYouMeanViewModel? _watched;
+    private bool _clampPending;
+
     public DidYouMeanPopover()
     {
         InitializeComponent();
         Card.AddHandler(KeyDownEvent, OnCardKeyDown, RoutingStrategies.Bubble);
 
-        // The card grows when the model's chips arrive: it is kept inside the window again.
-        Card.SizeChanged += (_, _) => ClampToWindow();
+        // The card grows when the model's chips arrive: it is kept inside the window again, but not while the pointer is on it (the chip
+        // under the pointer must not slide away just before a click); then it moves when the pointer leaves.
+        Card.SizeChanged += (_, _) => ClampUnlessPointed();
+        Card.PointerExited += (_, _) =>
+        {
+            if (_clampPending)
+            {
+                _clampPending = false;
+                ClampToWindow();
+            }
+        };
+
+        Card.AddHandler(GotFocusEvent, OnChipGotFocus, RoutingStrategies.Bubble);
+        Card.DataContextChanged += (_, _) => Watch(Card.DataContext as DidYouMeanViewModel);
+    }
+
+    private void ClampUnlessPointed()
+    {
+        if (Card.IsPointerOver)
+        {
+            _clampPending = true;
+            return;
+        }
+
+        ClampToWindow();
+    }
+
+    private void OnChipGotFocus(object? sender, FocusChangedEventArgs e)
+    {
+        if (e.Source is Button { DataContext: WordChoiceViewModel choice } button)
+        {
+            _focusedValue = choice.Value;
+            _focusedIndex = ChipButtons().IndexOf(button);
+            _focusMethod = e.NavigationMethod;
+        }
+    }
+
+    private void Watch(DidYouMeanViewModel? popover)
+    {
+        if (_watched is not null)
+        {
+            _watched.Choices.CollectionChanged -= OnChoicesChanged;
+        }
+
+        _watched = popover;
+        _focusedValue = null;
+        _focusedIndex = -1;
+        if (popover is not null)
+        {
+            popover.Choices.CollectionChanged += OnChoicesChanged;
+        }
+    }
+
+    /// <summary>
+    /// A safety net: when the chips change while one has the focus and its button goes, the focus goes to the chip with the same word, else
+    /// to the one in the same place, instead of falling back to the transcript line.
+    /// </summary>
+    private void OnChoicesChanged(object? sender, System.Collections.Specialized.NotifyCollectionChangedEventArgs e)
+    {
+        if (_focusedValue is null)
+        {
+            return;
+        }
+
+        var value = _focusedValue;
+        var index = _focusedIndex;
+        var method = _focusMethod;
+        Dispatcher.UIThread.Post(
+            () =>
+            {
+                var chips = ChipButtons();
+                if (!Popup.IsOpen || chips.Count == 0 || chips.Exists(c => c.IsFocused))
+                {
+                    return;
+                }
+
+                var same = chips.Find(c => c.DataContext is WordChoiceViewModel choice && choice.Value == value);
+                (same ?? chips[Math.Clamp(index, 0, chips.Count - 1)]).Focus(method);
+            },
+            DispatcherPriority.Input);
     }
 
     /// <summary>The element whose transcript lines open the popover (the transcript list).</summary>
@@ -76,6 +161,7 @@ public partial class DidYouMeanPopover : UserControl
         Popup.PlacementTarget = line;
         Popup.PlacementRect = e.WordBounds;
         Popup.HorizontalOffset = 0;
+        _clampPending = false;
         _returnFocus = line;
         _fromKeyboard = e.FromKeyboard;
     }
