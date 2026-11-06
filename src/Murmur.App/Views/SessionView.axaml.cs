@@ -57,15 +57,16 @@ public partial class SessionView : UserControl
     /// </summary>
     private void OnShortcutKeyTunnel(object? sender, KeyEventArgs e)
     {
-        if (e.Key is not (Key.Space or Key.Up or Key.Down) || e.Handled || _viewModel is not { } viewModel || !IsForThisPage(e) || SessionShortcuts.IsBlocked(e, this, textBoxesBlock: true))
-        {
-            return;
-        }
-
-        // The key repeats while Space is held: one press is one toggle.
+        // The key repeats while Space is held: one press is one toggle. Repeats may come from inside a popup the press opened (not this page),
+        // so this check comes first: they must not reach its chips.
         if (e.Key == Key.Space && _spaceHeld)
         {
             e.Handled = true;
+            return;
+        }
+
+        if (e.Key is not (Key.Space or Key.Up or Key.Down) || e.Handled || _viewModel is not { } viewModel || !IsForThisPage(e) || SessionShortcuts.IsBlocked(e, this, textBoxesBlock: true))
+        {
             return;
         }
 
@@ -88,6 +89,9 @@ public partial class SessionView : UserControl
     /// </summary>
     private bool IsForThisPage(KeyEventArgs e) =>
         e.Source is Visual source && (source is TopLevel || this.IsVisualAncestorOf(source));
+
+    /// <summary>The window lost the focus: the release of a held Space will not come to this page.</summary>
+    private void OnHostDeactivated(object? sender, EventArgs e) => _spaceHeld = false;
 
     /// <summary>A button clicks on the release of Space: the release of a Space this router took is taken too.</summary>
     private void OnShortcutKeyUpTunnel(object? sender, KeyEventArgs e)
@@ -173,6 +177,10 @@ public partial class SessionView : UserControl
         _keyHost?.AddHandler(KeyDownEvent, OnShortcutKeyTunnel, RoutingStrategies.Tunnel);
         _keyHost?.AddHandler(KeyUpEvent, OnShortcutKeyUpTunnel, RoutingStrategies.Tunnel);
         _keyHost?.AddHandler(KeyDownEvent, OnShortcutKeyDown, RoutingStrategies.Bubble);
+        if (_keyHost is WindowBase window)
+        {
+            window.Deactivated += OnHostDeactivated;
+        }
     }
 
     protected override void OnUnloaded(RoutedEventArgs e)
@@ -182,6 +190,12 @@ public partial class SessionView : UserControl
         _keyHost?.RemoveHandler(KeyDownEvent, OnShortcutKeyTunnel);
         _keyHost?.RemoveHandler(KeyUpEvent, OnShortcutKeyUpTunnel);
         _keyHost?.RemoveHandler(KeyDownEvent, OnShortcutKeyDown);
+        if (_keyHost is WindowBase window)
+        {
+            window.Deactivated -= OnHostDeactivated;
+        }
+
+        _spaceHeld = false;
         _keyHost = null;
     }
 

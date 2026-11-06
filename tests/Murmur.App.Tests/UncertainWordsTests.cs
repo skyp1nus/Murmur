@@ -773,6 +773,108 @@ public sealed class UncertainWordsTests : IDisposable
     }
 
     [Fact]
+    public async Task SessionShortcuts_SpaceHeldOnAFocusedLine_RepeatsDoNotPressTheFirstChip()
+    {
+        _suggester.Immediate = ["Paraquat"];
+        var shell = await OpenShellAsync();
+
+        var (pressed, clicked, playing, opened) = await Session.Dispatch(
+            () =>
+            {
+                var window = UiHarness.Show(shell);
+                UiHarness.Pump(4);
+                var line = window.GetVisualDescendants().OfType<TranscriptTextControl>().First(c => c.UncertainWords is not null);
+                var host = window.GetVisualDescendants().OfType<DidYouMeanPopover>().Single();
+                line.Focus(NavigationMethod.Tab);
+                window.KeyPressQwerty(PhysicalKey.Space, RawInputModifiers.None);
+                UiHarness.Pump(6);
+                var chips = host.ChipButtons();
+                var clicks = 0;
+                chips[0].Click += (_, _) => clicks++;
+                // Auto-repeat: more presses before the release, now coming from inside the popup.
+                window.KeyPressQwerty(PhysicalKey.Space, RawInputModifiers.None);
+                window.KeyPressQwerty(PhysicalKey.Space, RawInputModifiers.None);
+                UiHarness.Pump(2);
+                var isPressed = chips[0].IsPressed;
+                window.KeyReleaseQwerty(PhysicalKey.Space, RawInputModifiers.None);
+                UiHarness.Pump(4);
+                var result = (isPressed || chips[0].IsPressed, clicks, shell.Session!.IsPlaying, shell.Session.IsDidYouMeanOpen);
+                window.Close();
+                return result;
+            },
+            Ct);
+
+        Assert.False(pressed);
+        Assert.Equal(0, clicked);
+        Assert.False(playing);
+        Assert.True(opened);
+    }
+
+    [Fact]
+    public async Task SessionShortcuts_SpaceHeld_IsForgottenWhenTheWindowIsDeactivated()
+    {
+        var shell = await OpenShellAsync();
+
+        var (plays, playing) = await Session.Dispatch(
+            () =>
+            {
+                var window = UiHarness.Show(shell);
+                UiHarness.Pump(4);
+                window.KeyPressQwerty(PhysicalKey.Space, RawInputModifiers.None);
+                UiHarness.Pump(2);
+                // The release never arrives (alt-tab); a later press is a new press, not a repeat.
+                var deactivated = typeof(WindowBase).GetMethod("HandleDeactivated", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!;
+                deactivated.Invoke(window, null);
+                window.KeyPressQwerty(PhysicalKey.Space, RawInputModifiers.None);
+                window.KeyReleaseQwerty(PhysicalKey.Space, RawInputModifiers.None);
+                UiHarness.Pump(4);
+                var result = (_fixture.Player.Plays, shell.Session!.IsPlaying);
+                window.Close();
+                return result;
+            },
+            Ct);
+
+        Assert.Equal(1, plays);
+        Assert.False(playing);
+    }
+
+    [Fact]
+    public async Task SessionShortcuts_EscWithTheDidYouMeanPopoverOpen_ClosesItFirst_ThenGoesBack()
+    {
+        _suggester.Immediate = ["Paraquat"];
+        var shell = await OpenShellAsync();
+
+        var (closedFirst, stillOpen, wentBack) = await Session.Dispatch(
+            () =>
+            {
+                var window = UiHarness.Show(shell);
+                UiHarness.Pump(4);
+                var line = window.GetVisualDescendants().OfType<TranscriptTextControl>().First(c => c.UncertainWords is not null);
+                line.Focus(NavigationMethod.Tab);
+                window.KeyPressQwerty(PhysicalKey.Enter, RawInputModifiers.None);
+                window.KeyReleaseQwerty(PhysicalKey.Enter, RawInputModifiers.None);
+                UiHarness.Pump(6);
+                var opened = shell.Session!.IsDidYouMeanOpen;
+                window.KeyPressQwerty(PhysicalKey.Escape, RawInputModifiers.None);
+                window.KeyReleaseQwerty(PhysicalKey.Escape, RawInputModifiers.None);
+                UiHarness.Pump(4);
+                var first = opened && !shell.Session.IsDidYouMeanOpen;
+                var open = shell.Session is not null;
+                window.KeyPressQwerty(PhysicalKey.Escape, RawInputModifiers.None);
+                window.KeyReleaseQwerty(PhysicalKey.Escape, RawInputModifiers.None);
+                UiHarness.Pump(4);
+                var result = (first, open, shell.Session is null);
+                window.Close();
+                return result;
+            },
+            Ct);
+
+        Assert.True(closedFirst);
+        Assert.True(stillOpen);
+        Assert.True(wentBack);
+    }
+
+    [Fact]
     public async Task SessionShortcuts_UpAndDownInThePopover_MoveBetweenChips_AndDoNotSeek()
     {
         _suggester.Immediate = ["Paraquat"];
