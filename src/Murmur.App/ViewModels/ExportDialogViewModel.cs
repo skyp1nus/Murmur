@@ -96,7 +96,7 @@ public sealed partial class ExportDialogViewModel : ObservableObject, IDisposabl
 
     /// <summary>"Whole recording" (<c>true</c>) or "Chapter: ..." (<c>false</c>).</summary>
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(IsChapterRange))]
+    [NotifyPropertyChangedFor(nameof(IsChapterRange), nameof(HasSpeech), nameof(CanCopy), nameof(CanSave))]
     public partial bool IsWholeRange { get; set; } = true;
 
     /// <summary>The preview text (the whole export, cut at <see cref="MaxPreviewChars"/>).</summary>
@@ -219,9 +219,12 @@ public sealed partial class ExportDialogViewModel : ObservableObject, IDisposabl
     public bool PreviewIsMono => Format is not (ExportFormat.Markdown or ExportFormat.Docx);
 
     /// <summary>A .docx cannot be put on the clipboard as text.</summary>
-    public bool CanCopy => Clipboard is not null && Format != ExportFormat.Docx && !IsBusy;
+    public bool CanCopy => Clipboard is not null && Format != ExportFormat.Docx && !IsBusy && HasSpeech;
 
-    public bool CanSave => !IsBusy;
+    public bool CanSave => !IsBusy && HasSpeech;
+
+    /// <summary><c>false</c> while the range holds no speech: the preview shows the empty-state line and there is nothing to copy or save.</summary>
+    public bool HasSpeech => Range is not { } part || _transcript.Segments.Any(segment => Overlaps(part, segment));
 
     /// <summary>The last preview run (for tests); completes when the preview shows the current options.</summary>
     internal Task PreviewTask { get; private set; }
@@ -259,6 +262,8 @@ public sealed partial class ExportDialogViewModel : ObservableObject, IDisposabl
     partial void OnIsWholeRangeChanged(bool value)
     {
         Status = string.Empty;
+        CopyCommand.NotifyCanExecuteChanged();
+        SaveCommand.NotifyCanExecuteChanged();
         PreviewTask = RefreshPreviewAsync(immediately: false);
     }
 

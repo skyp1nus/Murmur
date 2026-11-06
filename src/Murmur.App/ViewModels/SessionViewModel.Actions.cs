@@ -87,7 +87,7 @@ public sealed partial class SessionViewModel
             }
         }
 
-        return new ExportDialogViewModel(_record with { Title = Title }, transcript, _stored, ExportTexts(_speakerNames), saver, chapter);
+        return new ExportDialogViewModel(_record with { Title = Title, Duration = Duration }, transcript, _stored, ExportTexts(_speakerNames), saver, chapter);
     }
 
     /// <summary>Tells the Export button that the transcript, or the place to save it, changed.</summary>

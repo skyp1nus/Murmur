@@ -561,6 +561,121 @@ public sealed class ExportDialogTests : IDisposable
     }
 
     /// <summary>An <see cref="IFileSaver"/> that remembers what it was asked to write.</summary>
+    // End to end: the preview, Copy and Save agree (#60) ----------------------------------------------------------
+
+    public static TheoryData<ExportFormat, bool> FormatsAndRanges()
+    {
+        var data = new TheoryData<ExportFormat, bool>();
+        foreach (var format in new[] { ExportFormat.Markdown, ExportFormat.PlainText, ExportFormat.Srt, ExportFormat.Docx })
+        {
+            data.Add(format, true);
+            data.Add(format, false);
+        }
+
+        return data;
+    }
+
+    [Theory]
+    [MemberData(nameof(FormatsAndRanges))]
+    public async Task ThePreview_Copy_AndSave_Agree_ForEveryCombinationOfTheBoxes(ExportFormat format, bool whole)
+    {
+        using var vm = await Settled(Create(Chapter));
+        vm.Format = format;
+        vm.IsWholeRange = whole;
+        var range = whole ? (ExportRange?)null : new ExportRange(Chapter.Start, Chapter.End);
+        var ct = TestContext.Current.CancellationToken;
+
+        for (var mask = 0; mask < 16; mask++)
+        {
+            bool summary = (mask & 1) != 0, actions = (mask & 2) != 0, stamps = (mask & 4) != 0, names = (mask & 8) != 0;
+            vm.IncludeSummary = summary;
+            vm.IncludeActionItems = actions;
+            vm.IncludeTimestamps = stamps;
+            vm.IncludeSpeakerNames = names;
+            await vm.PreviewTask;
+            var expectedOptions = new ExportOptions(summary, actions, stamps, names);
+            var expectedText = TranscriptExport.Format(format, Record, Transcript, Summary, ExportLabels.English, expectedOptions, range, ct);
+            var where = $"{format} whole={whole} mask={mask}";
+
+            Assert.True(expectedText == vm.Preview, "preview differs: " + where);
+            _saver.Texts.Clear();
+            _saver.Binaries.Clear();
+            _clipboard.Clear();
+            if (format == ExportFormat.Docx)
+            {
+                Assert.False(vm.CopyCommand.CanExecute(null));
+                vm.SaveCommand.Execute(null);
+                await vm.ActionTask;
+                var saved = Assert.Single(_saver.Binaries);
+                Assert.Equal(".docx", saved.Extension);
+                Assert.Equal("Client demo_ Q4_roadmap.docx", saved.SuggestedName);
+                Assert.True(TranscriptExport.ToDocx(Record, Transcript, Summary, ExportLabels.English, expectedOptions, range).AsSpan().SequenceEqual(saved.Content), "docx bytes differ: " + where);
+                AssertDocx(saved.Content, summary, actions, stamps, names, whole);
+            }
+            else
+            {
+                vm.CopyCommand.Execute(null);
+                await vm.ActionTask;
+                vm.SaveCommand.Execute(null);
+                await vm.ActionTask;
+                var saved = Assert.Single(_saver.Texts);
+                var extension = TranscriptExport.Extension(format);
+                Assert.Equal(extension, saved.Extension);
+                Assert.Equal("Client demo_ Q4_roadmap" + extension, saved.SuggestedName);
+                Assert.True(vm.Preview == saved.Content, "saved differs from preview: " + where);
+                Assert.True(vm.Preview == Assert.Single(_clipboard), "copied differs from preview: " + where);
+            }
+        }
+    }
+
+    private static void AssertDocx(byte[] bytes, bool summary, bool actions, bool stamps, bool names, bool whole)
+    {
+        using var zip = new ZipArchive(new MemoryStream(bytes), ZipArchiveMode.Read);
+        var entry = zip.GetEntry("word/document.xml");
+        Assert.NotNull(entry);
+        using var stream = entry.Open();
+        var document = System.Xml.Linq.XDocument.Load(stream);
+        System.Xml.Linq.XNamespace w = "http://schemas.openxmlformats.org/wordprocessingml/2006/main";
+        var paragraphs = document.Descendants(w + "p").Select(p => string.Concat(p.Descendants(w + "t").Select(t => t.Value))).ToList();
+        var all = string.Join("\n", paragraphs);
+
+        Assert.Contains("Client demo: Q4/roadmap", all, StringComparison.Ordinal);
+        Assert.Contains("Transcript", paragraphs);
+        Assert.Equal(summary, paragraphs.Contains("Summary"));
+        Assert.Equal(actions, paragraphs.Contains("Action items"));
+        Assert.Equal(names, document.Descendants(w + "t").Any(t => t.Value is "You" or "Others"));
+        Assert.Equal(stamps, all.Contains("12:08", StringComparison.Ordinal));
+        Assert.Contains("Does search match exact words?", all, StringComparison.Ordinal);
+        Assert.Equal(whole, all.Contains("Okay, a quick run through the roadmap.", StringComparison.Ordinal));
+        Assert.True(document.Descendants(w + "pStyle").Any(style => style.Attribute(w + "val")?.Value is "Heading1"), "no Heading1");
+    }
+
+    [Fact]
+    public async Task ARangeWithoutSpeech_DisablesCopyAndSave_UntilTheWholeRecordingIsChosen()
+    {
+        var quiet = new ExportChapterRange("Silence", TimeSpan.FromSeconds(2000), TimeSpan.FromSeconds(3000));
+        using var vm = await Settled(Create(quiet));
+        Assert.True(vm.CopyCommand.CanExecute(null));
+        Assert.True(vm.SaveCommand.CanExecute(null));
+
+        vm.IsChapterRange = true;
+        await vm.PreviewTask;
+
+        Assert.False(vm.HasSpeech);
+        Assert.False(vm.CanCopy);
+        Assert.False(vm.CanSave);
+        Assert.False(vm.CopyCommand.CanExecute(null));
+        Assert.False(vm.SaveCommand.CanExecute(null));
+        vm.Format = ExportFormat.Srt;
+        Assert.False(vm.SaveCommand.CanExecute(null));
+        Assert.Empty(_saver.Texts);
+
+        vm.IsWholeRange = true;
+        Assert.True(vm.HasSpeech);
+        Assert.True(vm.CopyCommand.CanExecute(null));
+        Assert.True(vm.SaveCommand.CanExecute(null));
+    }
+
     private sealed class RecordingFileSaver : IFileSaver
     {
         public List<(string SuggestedName, string Extension, string Content)> Texts { get; } = [];

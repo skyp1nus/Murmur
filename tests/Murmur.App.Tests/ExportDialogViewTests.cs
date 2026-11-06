@@ -181,6 +181,22 @@ public sealed class ExportDialogViewTests : IDisposable
     }
 
     [Fact]
+    public async Task TheWholeRecording_AndTheLastChapter_EndAtTheLengthThePlayerReports()
+    {
+        // The player reports 70 minutes while the stored record says 60: both ranges of the dialog follow the player (the title bar).
+        var vm = Create(Services());
+        _fixture.Player.Duration = TimeSpan.FromMinutes(70);
+        await vm.LoadAsync();
+        vm.UpdateCurrentChapter(S(1500));
+
+        using var dialog = vm.CreateExportDialog();
+
+        Assert.NotNull(dialog);
+        Assert.Equal("0:00:00 – 1:10:00", dialog.WholeSpan);
+        Assert.Equal("0:24:30 – 1:10:00", dialog.ChapterSpan);
+    }
+
+    [Fact]
     public async Task TheSpeakerNames_AreInTheExport_UntilTheBoxIsUnchecked()
     {
         _names.Put(_fixture.Record.Id, new SpeakerNames("Олена", "Anna K."));
