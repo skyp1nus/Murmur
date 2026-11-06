@@ -223,7 +223,8 @@ internal sealed class CompositionRoot : IDisposable
             Activity: activityFeed,
             Imports: imports,
             MediaProbe: mediaDecoder,
-            Downloads: _downloads ??= CreateDownloadsFolder());
+            Downloads: _downloads ??= CreateDownloadsFolder(),
+            BookmarkStore: storage);
     }
 
     public void Dispose()

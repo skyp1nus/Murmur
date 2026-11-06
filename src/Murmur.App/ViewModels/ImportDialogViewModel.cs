@@ -359,20 +359,22 @@ public sealed partial class ImportDialogViewModel : ObservableObject, IDisposabl
         }
     });
 
-    /// <summary>The file is in the list of step 3, or waits in the import queue (Queued or Decoding).</summary>
-    private bool IsAdded(string fullPath) => Find(fullPath) is not null || IsQueued(fullPath);
+    /// <summary>The file is in the list of step 3, or is in <paramref name="queued"/> (the files that wait in the import queue).</summary>
+    private bool IsAdded(string fullPath, HashSet<string> queued) => Find(fullPath) is not null || queued.Contains(fullPath);
 
-    private bool IsQueued(string fullPath)
+    /// <summary>One snapshot of the import queue: the full paths of the files that are Queued or Decoding.</summary>
+    private HashSet<string> QueuedPaths()
     {
+        var queued = new HashSet<string>(_paths);
         foreach (var item in _imports.Items)
         {
-            if (item.State is (ImportState.Queued or ImportState.Decoding) && FullPath(item.Path) is { } queued && _paths.Equals(queued, fullPath))
+            if (item.State is (ImportState.Queued or ImportState.Decoding) && FullPath(item.Path) is { } path)
             {
-                return true;
+                queued.Add(path);
             }
         }
 
-        return false;
+        return queued;
     }
 
     private ImportFileViewModel? Find(string fullPath)
@@ -401,9 +403,15 @@ public sealed partial class ImportDialogViewModel : ObservableObject, IDisposabl
         }
 
         ValidCount = valid;
+        if (Recent.Count == 0)
+        {
+            return;
+        }
+
+        var queued = QueuedPaths();
         foreach (var recent in Recent)
         {
-            recent.IsAdded = IsAdded(recent.Path);
+            recent.IsAdded = IsAdded(recent.Path, queued);
         }
     }
 
@@ -520,11 +528,12 @@ public sealed partial class ImportDialogViewModel : ObservableObject, IDisposabl
                 return;
             }
 
+            var queued = QueuedPaths();
             foreach (var file in found)
             {
                 var extension = CompositeMediaDecoder.ExtensionOf(file.Path);
                 var detail = UiText.Format(Strings.Import_RecentDetail, Size(file.SizeBytes), Age(file.LastWriteTime, _time));
-                Recent.Add(new RecentFileViewModel(file.Path, detail, VideoExtensions.Contains(extension), AddRecent) { IsAdded = IsAdded(file.Path) });
+                Recent.Add(new RecentFileViewModel(file.Path, detail, VideoExtensions.Contains(extension), AddRecent) { IsAdded = IsAdded(file.Path, queued) });
             }
         });
     }

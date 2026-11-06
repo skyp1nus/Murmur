@@ -551,6 +551,24 @@ public sealed class ImportDialogTests : IDisposable
     }
 
     [Fact]
+    public async Task EachRefresh_TakesOneSnapshotOfTheQueue_WhateverTheNumberOfDownloadRows()
+    {
+        foreach (var name in new[] { "a.mp3", "b.mp3", "c.mp3", "d.mp3", "e.mp3" })
+        {
+            Download(name, TimeSpan.FromDays(1));
+        }
+
+        using var vm = Create(new FakeDownloadsFolder(P("Downloads")));
+        await vm.RecentTask;
+        Assert.Equal(5, vm.Recent.Count);
+
+        var before = _queue.ItemsReads;
+        await _queue.RaiseChanged();
+
+        Assert.Equal(before + 1, _queue.ItemsReads);
+    }
+
+    [Fact]
     public async Task AnError_Clears_AfterASuccessfulPick_OrAdd()
     {
         var podcast = Download("podcast-ep42.mp3", TimeSpan.FromDays(8));

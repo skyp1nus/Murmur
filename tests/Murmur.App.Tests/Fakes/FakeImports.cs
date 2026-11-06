@@ -21,7 +21,19 @@ internal sealed class FakeImportQueue : IImportQueue
     /// <summary>What <see cref="Items"/> answers (items of earlier imports); <see cref="RaiseChanged"/> tells the dialog.</summary>
     public List<ImportItem> Earlier { get; } = [];
 
-    public IReadOnlyList<ImportItem> Items => [.. Earlier];
+    public IReadOnlyList<ImportItem> Items
+    {
+        get
+        {
+            Interlocked.Increment(ref _itemsReads);
+            return [.. Earlier];
+        }
+    }
+
+    private int _itemsReads;
+
+    /// <summary>How often <see cref="Items"/> was read (each read is a snapshot of the queue).</summary>
+    public int ItemsReads => Volatile.Read(ref _itemsReads);
 
     /// <summary>The subscribers of <see cref="Changed"/> (the dialog unsubscribes when disposed).</summary>
     public int Subscribers => Changed?.GetInvocationList().Length ?? 0;
