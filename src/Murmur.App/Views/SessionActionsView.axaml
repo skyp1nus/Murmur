@@ -6,36 +6,14 @@
              x:Class="Murmur.App.Views.SessionActionsView"
              x:DataType="vm:SessionActionsViewModel">
 
-  <!-- The right side of the top bar of a recording (Session.dc.html): "Export" and "..." -->
+  <!-- The right side of the top bar of a recording (Session.dc.html): "Export" (opens the export dialog) and "..." -->
   <StackPanel Orientation="Horizontal"
               Spacing="{StaticResource Space.6}">
 
     <Button x:Name="ExportButton"
             Classes="sessionGhost"
-            IsEnabled="{Binding Session.CanExport}">
-      <Button.Flyout>
-        <Flyout Placement="BottomEdgeAlignedRight"
-                FlyoutPresenterClasses="sessionMenu">
-          <StackPanel>
-            <Button Classes="sessionMenuItem"
-                    Content="{x:Static res:Strings.Session_ExportMarkdown}"
-                    Command="{Binding Session.ExportMarkdownCommand}"
-                    Click="OnMenuItemClick" />
-            <Button Classes="sessionMenuItem"
-                    Content="{x:Static res:Strings.Session_ExportText}"
-                    Command="{Binding Session.ExportTextCommand}"
-                    Click="OnMenuItemClick" />
-            <Button Classes="sessionMenuItem"
-                    Content="{x:Static res:Strings.Session_ExportSrt}"
-                    Command="{Binding Session.ExportSrtCommand}"
-                    Click="OnMenuItemClick" />
-            <Button Classes="sessionMenuItem"
-                    Content="{x:Static res:Strings.Session_ExportWebVtt}"
-                    Command="{Binding Session.ExportWebVttCommand}"
-                    Click="OnMenuItemClick" />
-          </StackPanel>
-        </Flyout>
-      </Button.Flyout>
+            IsEnabled="{Binding Session.CanExport}"
+            Command="{Binding Session.OpenExportCommand}">
       <StackPanel Orientation="Horizontal"
                   Spacing="{StaticResource Space.6}">
         <controls:IconControl Width="{StaticResource Size.SearchIcon}"

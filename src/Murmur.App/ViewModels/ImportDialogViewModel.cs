@@ -19,7 +19,9 @@ namespace Murmur.App.ViewModels;
 /// unsupported or damaged file stays in the list with its reason until it is removed.</para>
 /// <para>A file is in the list once (the same full path; case-insensitive on Windows). Import hands every counted file with the chosen
 /// options to <see cref="IImportQueue.EnqueueAsync"/> and closes the dialog; when that throws, the dialog stays open with the error.
-/// Closing (Esc, the cross, Cancel) changes nothing.</para>
+/// Closing (Esc, the cross, Cancel) changes nothing, and cannot happen while Import is handing the files over.</para>
+/// <para>A Downloads row says Added when its file is in the list or already waits in the import queue (Queued or Decoding, from an earlier
+/// dialog); the rows follow <see cref="IImportQueue.Changed"/>.</para>
 /// </remarks>
 public sealed partial class ImportDialogViewModel : ObservableObject, IDisposable
 {
@@ -45,6 +47,7 @@ public sealed partial class ImportDialogViewModel : ObservableObject, IDisposabl
     private readonly CancellationTokenSource _cts = new();
     private readonly SemaphoreSlim _probeGate = new(1, 1);
     private readonly List<Task> _probes = [];
+    private readonly TaskCompletionSource _released = new(TaskCreationOptions.RunContinuationsAsynchronously);
     private bool _closed;
     private bool _disposed;
 
@@ -83,6 +86,7 @@ public sealed partial class ImportDialogViewModel : ObservableObject, IDisposabl
         SelectedLanguage = languages[0];
         Files.CollectionChanged += (_, _) => OnPropertyChanged(nameof(HasFiles));
         Recent.CollectionChanged += (_, _) => OnPropertyChanged(nameof(HasRecent));
+        _imports.Changed += OnQueueChanged;
         RecentTask = LoadRecentAsync(_cts.Token);
     }
 
@@ -158,8 +162,8 @@ public sealed partial class ImportDialogViewModel : ObservableObject, IDisposabl
 
     /// <summary>The files are being handed to the import (the buttons wait).</summary>
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(CanImport))]
-    [NotifyCanExecuteChangedFor(nameof(ImportCommand))]
+    [NotifyPropertyChangedFor(nameof(CanImport), nameof(CanClose))]
+    [NotifyCanExecuteChangedFor(nameof(ImportCommand), nameof(CloseCommand))]
     public partial bool IsImporting { get; private set; }
 
     /// <summary>Why the import or the file dialog failed, shown in the footer in place of "Transcribed on this PC"; <c>null</c> = none.</summary>
@@ -171,6 +175,9 @@ public sealed partial class ImportDialogViewModel : ObservableObject, IDisposabl
 
     /// <summary>"Import N files" can run: at least one counted file and no import running.</summary>
     public bool CanImport => ValidCount > 0 && !IsImporting;
+
+    /// <summary>Esc, the cross and Cancel close the dialog: not while Import is handing the files over.</summary>
+    public bool CanClose => !IsImporting;
 
     /// <summary>"browse this PC" opens a file dialog.</summary>
     public bool CanBrowse => _picker is not null;
@@ -184,6 +191,9 @@ public sealed partial class ImportDialogViewModel : ObservableObject, IDisposabl
     /// <summary>Completes when every probe started so far has finished (for tests).</summary>
     internal Task WhenProbed() => Task.WhenAll([.. _probes]);
 
+    /// <summary>Completes when <see cref="Dispose"/> has released the token source and the probe gate (for tests).</summary>
+    internal Task WhenReleased => _released.Task;
+
     /// <summary>
     /// Adds files to the list (browse, Add, and the files dropped on the window, #69): each full path once, then probes the new ones off
     /// the UI thread. Call on the UI thread.
@@ -196,6 +206,7 @@ public sealed partial class ImportDialogViewModel : ObservableObject, IDisposabl
             return;
         }
 
+        var added = false;
         foreach (var path in paths)
         {
             if (FullPath(path) is not { } full || Find(full) is not null)
@@ -206,6 +217,13 @@ public sealed partial class ImportDialogViewModel : ObservableObject, IDisposabl
             var row = new ImportFileViewModel(full, Remove);
             Files.Add(row);
             Start(row);
+            added = true;
+        }
+
+        if (added)
+        {
+            // An earlier failure (the file dialog, the import) is out of date once the list changed.
+            Error = null;
         }
 
         Refresh();
@@ -219,7 +237,27 @@ public sealed partial class ImportDialogViewModel : ObservableObject, IDisposabl
         }
 
         _disposed = true;
+        _imports.Changed -= OnQueueChanged;
         _cts.Cancel();
+
+        // The probes and the search still running hold the token and the gate: release both once they have seen the cancellation.
+        var pending = Task.WhenAll([.. _probes, RecentTask]);
+        if (pending.IsCompleted)
+        {
+            ReleaseResources(pending);
+        }
+        else
+        {
+            _ = pending.ContinueWith(ReleaseResources, CancellationToken.None, TaskContinuationOptions.ExecuteSynchronously, TaskScheduler.Default);
+        }
+    }
+
+    private void ReleaseResources(Task finished)
+    {
+        _ = finished.Exception; // observed: a probe or search error was already turned into a row state (or no section)
+        _cts.Dispose();
+        _probeGate.Dispose();
+        _released.TrySetResult();
     }
 
     /// <summary>"Import N files": one request per counted file with the chosen language and original-file mode, then the dialog closes.</summary>
@@ -279,14 +317,20 @@ public sealed partial class ImportDialogViewModel : ObservableObject, IDisposabl
             return;
         }
 
+        if (picked.Count > 0)
+        {
+            Error = null;
+        }
+
         AddFiles(picked);
     }
 
     /// <summary>Esc, the cross and Cancel: the dialog goes, nothing is imported.</summary>
-    [RelayCommand]
+    [RelayCommand(CanExecute = nameof(CanClose))]
     private void Close()
     {
-        if (_closed)
+        // Esc and the scrim execute the command without asking CanExecute: the import being handed over keeps the dialog open as well.
+        if (_closed || IsImporting)
         {
             return;
         }
@@ -305,6 +349,31 @@ public sealed partial class ImportDialogViewModel : ObservableObject, IDisposabl
     }
 
     private void AddRecent(RecentFileViewModel recent) => AddFiles([recent.Path]);
+
+    /// <summary>The queue changed (off the UI thread): the Added state of the Downloads rows follows it.</summary>
+    private void OnQueueChanged() => _post(() =>
+    {
+        if (!_disposed)
+        {
+            Refresh();
+        }
+    });
+
+    /// <summary>The file is in the list of step 3, or waits in the import queue (Queued or Decoding).</summary>
+    private bool IsAdded(string fullPath) => Find(fullPath) is not null || IsQueued(fullPath);
+
+    private bool IsQueued(string fullPath)
+    {
+        foreach (var item in _imports.Items)
+        {
+            if (item.State is (ImportState.Queued or ImportState.Decoding) && FullPath(item.Path) is { } queued && _paths.Equals(queued, fullPath))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
 
     private ImportFileViewModel? Find(string fullPath)
     {
@@ -334,7 +403,7 @@ public sealed partial class ImportDialogViewModel : ObservableObject, IDisposabl
         ValidCount = valid;
         foreach (var recent in Recent)
         {
-            recent.IsAdded = Find(recent.Path) is not null;
+            recent.IsAdded = IsAdded(recent.Path);
         }
     }
 
@@ -455,7 +524,7 @@ public sealed partial class ImportDialogViewModel : ObservableObject, IDisposabl
             {
                 var extension = CompositeMediaDecoder.ExtensionOf(file.Path);
                 var detail = UiText.Format(Strings.Import_RecentDetail, Size(file.SizeBytes), Age(file.LastWriteTime, _time));
-                Recent.Add(new RecentFileViewModel(file.Path, detail, VideoExtensions.Contains(extension), AddRecent) { IsAdded = Find(file.Path) is not null });
+                Recent.Add(new RecentFileViewModel(file.Path, detail, VideoExtensions.Contains(extension), AddRecent) { IsAdded = IsAdded(file.Path) });
             }
         });
     }
@@ -663,7 +732,10 @@ public sealed partial class ImportFileViewModel : ObservableObject
     }
 }
 
-/// <summary>A row of "Recent in Downloads": the kind icon, the name, "58 MB · Last week" and Add (Added once the file is in the list).</summary>
+/// <summary>
+/// A row of "Recent in Downloads": the kind icon, the name, "58 MB · Last week" and Add (Added once the file is in the list or in the import
+/// queue).
+/// </summary>
 public sealed partial class RecentFileViewModel : ObservableObject
 {
     private readonly Action<RecentFileViewModel> _add;
@@ -691,7 +763,7 @@ public sealed partial class RecentFileViewModel : ObservableObject
     /// <summary>The accessible name of the pill: "Add podcast-ep42.mp3".</summary>
     public string AddAccessibleName { get; }
 
-    /// <summary>The file is in the list of step 3: the pill says Added and is disabled.</summary>
+    /// <summary>The file is in the list of step 3 or waits in the import queue: the pill says Added and is disabled.</summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(AddLabel))]
     [NotifyCanExecuteChangedFor(nameof(AddCommand))]

@@ -18,7 +18,16 @@ internal sealed class FakeImportQueue : IImportQueue
 
     public IReadOnlySet<string> SupportedExtensions { get; }
 
-    public IReadOnlyList<ImportItem> Items => [];
+    /// <summary>What <see cref="Items"/> answers (items of earlier imports); <see cref="RaiseChanged"/> tells the dialog.</summary>
+    public List<ImportItem> Earlier { get; } = [];
+
+    public IReadOnlyList<ImportItem> Items => [.. Earlier];
+
+    /// <summary>The subscribers of <see cref="Changed"/> (the dialog unsubscribes when disposed).</summary>
+    public int Subscribers => Changed?.GetInvocationList().Length ?? 0;
+
+    /// <summary>Raises <see cref="Changed"/> on a pool thread, as the real queue does, and waits for the handlers.</summary>
+    public Task RaiseChanged() => Task.Run(() => Changed?.Invoke());
 
     /// <summary>When set, <see cref="EnqueueAsync"/> throws it.</summary>
     public Exception? Fail { get; set; }
@@ -40,9 +49,17 @@ internal sealed class FakeImportQueue : IImportQueue
 
     public event Action? Changed;
 
-    public ValueTask<IReadOnlyList<ImportItem>> EnqueueAsync(IReadOnlyList<ImportRequest> requests, CancellationToken cancellationToken)
+    /// <summary>When set, <see cref="EnqueueAsync"/> waits for it before it takes the requests (the dialog is mid-import).</summary>
+    public TaskCompletionSource? Gate { get; set; }
+
+    public async ValueTask<IReadOnlyList<ImportItem>> EnqueueAsync(IReadOnlyList<ImportRequest> requests, CancellationToken cancellationToken)
     {
         Calls++;
+        if (Gate is { } gate)
+        {
+            await gate.Task.ConfigureAwait(false);
+        }
+
         if (Fail is { } error)
         {
             throw error;
@@ -59,7 +76,7 @@ internal sealed class FakeImportQueue : IImportQueue
         }
 
         Changed?.Invoke();
-        return ValueTask.FromResult<IReadOnlyList<ImportItem>>(items);
+        return items;
     }
 
     public ValueTask CancelAsync(long id, CancellationToken cancellationToken) => ValueTask.CompletedTask;
@@ -72,7 +89,7 @@ internal sealed class FakeImportQueue : IImportQueue
 internal sealed class FakeMediaDecoder : IMediaDecoder
 {
     private readonly Lock _lock = new();
-    private readonly List<int> _threads = [];
+    private readonly List<(int Id, bool IsPool)> _threads = [];
     private readonly List<string> _probed = [];
     private TaskCompletionSource? _hold;
 
@@ -86,8 +103,8 @@ internal sealed class FakeMediaDecoder : IMediaDecoder
     /// <summary>What the probe of a file name gives: a <see cref="MediaProbe"/> (its path is replaced) or an <see cref="Exception"/> to throw.</summary>
     public Dictionary<string, object> Results { get; } = new(StringComparer.Ordinal);
 
-    /// <summary>The managed thread ids the probes ran on.</summary>
-    public IReadOnlyList<int> Threads
+    /// <summary>The threads the probes ran on: the managed thread id and whether it is a thread-pool thread.</summary>
+    public IReadOnlyList<(int Id, bool IsPool)> Threads
     {
         get
         {
@@ -123,7 +140,7 @@ internal sealed class FakeMediaDecoder : IMediaDecoder
     {
         lock (_lock)
         {
-            _threads.Add(Environment.CurrentManagedThreadId);
+            _threads.Add((Environment.CurrentManagedThreadId, Thread.CurrentThread.IsThreadPoolThread));
             _probed.Add(path);
         }
 

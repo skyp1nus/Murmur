@@ -15,25 +15,6 @@
         <ResourceInclude Source="/Styles/Tokens.axaml" />
       </ResourceDictionary.MergedDictionaries>
 
-      <!--
-        The scrim and the shadow of the card. The mockup has a scrim of rgba(20,19,18,.36) and the shadow 0 20 56 rgba(0,0,0,.3); dev has no
-        token for either yet (the export dialog, #60, brings Brush.Scrim and Shadow.Modal). Until then the scrim is a fill of existing
-        tokens faded by an opacity (Ink in the light theme, the dark Canvas in the dark one) and the card has the popover shadow; once those
-        tokens are in dev these four entries point at them.
-      -->
-      <ResourceDictionary.ThemeDictionaries>
-        <ResourceDictionary x:Key="Light">
-          <StaticResource x:Key="Import.ScrimFill" ResourceKey="Brush.Ink" />
-          <x:Double x:Key="Import.ScrimOpacity">0.36</x:Double>
-          <StaticResource x:Key="Import.SheetShadow" ResourceKey="Shadow.Popover" />
-        </ResourceDictionary>
-        <ResourceDictionary x:Key="Dark">
-          <StaticResource x:Key="Import.ScrimFill" ResourceKey="Brush.Canvas" />
-          <x:Double x:Key="Import.ScrimOpacity">0.5</x:Double>
-          <StaticResource x:Key="Import.SheetShadow" ResourceKey="Shadow.PopoverDark" />
-        </ResourceDictionary>
-      </ResourceDictionary.ThemeDictionaries>
-
       <x:Double x:Key="Size.ImportSheetWidth">520</x:Double>
       <x:Double x:Key="Size.ImportHeader">48</x:Double>
       <x:Double x:Key="Size.ImportFooter">52</x:Double>
@@ -202,8 +183,7 @@
 
   <!-- ==== The card ======================================================================================================== -->
   <Style Selector="Border.importScrim">
-    <Setter Property="Background" Value="{DynamicResource Import.ScrimFill}" />
-    <Setter Property="Opacity" Value="{DynamicResource Import.ScrimOpacity}" />
+    <Setter Property="Background" Value="{DynamicResource Brush.Scrim}" />
   </Style>
   <Style Selector="Border.importSheet">
     <Setter Property="Width" Value="{StaticResource Size.ImportSheetWidth}" />
@@ -214,8 +194,8 @@
     <Setter Property="BorderBrush" Value="{DynamicResource Brush.Hairline}" />
     <Setter Property="BorderThickness" Value="{StaticResource Hairline.Thickness}" />
     <Setter Property="CornerRadius" Value="{StaticResource Radius.CardLarge}" />
-    <Setter Property="BoxShadow" Value="{DynamicResource Import.SheetShadow}" />
-    <Setter Property="ClipToBounds" Value="True" />
+    <!-- No ClipToBounds: Avalonia would clip the card's own shadow; only the body scrolls, and its ScrollViewer clips itself. -->
+    <Setter Property="BoxShadow" Value="{StaticResource Shadow.Modal}" />
   </Style>
   <Style Selector="Border.importHeader">
     <Setter Property="Height" Value="{StaticResource Size.ImportHeader}" />
