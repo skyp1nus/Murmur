@@ -227,4 +227,133 @@ public sealed class CompositorMotionTests
         Assert.True(moved, "a running loop turns the orb on the compositor");
         Assert.True(restAgain, "a stopped orb is back at angle 0");
     }
+
+    // ---- the glass orb on the compositor ------------------------------------------------------------------------------
+
+    private sealed class FixedLevel(float value) : ILevelSource
+    {
+        public float Level { get; set; } = value;
+    }
+
+    private static GlassOrbControl NewGlassOrb(bool active, ILevelSource? source = null) =>
+        new() { Width = 160, Height = 160, HaloBlur = 18, BodyFraction = 0.77, IsActive = active, LevelSource = source };
+
+    [Fact]
+    public void GlassOrb_BreathingCurve_IsTheCanvasEaseInOutOver36Seconds()
+    {
+        Assert.Equal(0, GlassOrbControl.BreathAt(0), 6);
+        Assert.Equal(0.5, GlassOrbControl.BreathAt(0.9), 3);
+        Assert.Equal(1, GlassOrbControl.BreathAt(1.8), 6);
+        Assert.Equal(0.5, GlassOrbControl.BreathAt(2.7), 3);
+        Assert.Equal(0, GlassOrbControl.BreathAt(3.6), 6);
+        Assert.Equal(CompositionLoop.Ease(LoopEasing.EaseInOut, 0.25), GlassOrbControl.BreathAt(0.45), 6);
+    }
+
+    [Fact]
+    public async Task GlassOrb_Breathes_OnTheCompositor_AndFollowsTheVoice_ThroughGlides()
+    {
+        var (breathing, voice, back, inactive) = await Session.Dispatch(
+            () =>
+            {
+                var orb = NewGlassOrb(active: true);
+                var window = Host(orb);
+                var a = (orb.IsLooping, orb.IsSampling, orb.IsGliding);
+
+                orb.LevelSource = new FixedLevel(0.5f);
+                var b = (orb.IsLooping, orb.IsSampling, orb.IsGliding);
+
+                orb.LevelSource = null;
+                var c = (orb.IsLooping, orb.IsSampling, orb.IsGliding);
+
+                orb.IsActive = false;
+                var d = (orb.IsLooping, orb.IsSampling, orb.IsGliding, orb.Gate.IsWatching, orb.BodyScale);
+                window.Close();
+                return (a, b, c, d);
+            },
+            Ct);
+
+        Assert.Equal((true, false, false), breathing);
+        Assert.Equal((false, true, true), voice);
+        Assert.Equal((true, false, false), back);
+        Assert.Equal((false, false, false, false, 1.0), inactive);
+    }
+
+    [Fact]
+    public async Task GlassOrb_WithATestClock_RunsNothingOnTheCompositor()
+    {
+        var state = await Session.Dispatch(
+            () =>
+            {
+                var breathing = NewGlassOrb(active: true);
+                var voice = NewGlassOrb(active: true, new FixedLevel(0.5f));
+                var window = Host(new StackPanel { Children = { breathing, voice } });
+                breathing.Clock = new TestTime(UiHarness.Now);
+                voice.Clock = new TestTime(UiHarness.Now);
+                var r = (breathing.IsLooping, voice.IsSampling, voice.IsGliding, breathing.IsFrameLoopRunning);
+                window.Close();
+                return r;
+            },
+            Ct);
+
+        Assert.Equal((false, false, false, true), state);
+    }
+
+    [Fact]
+    public async Task GlassOrb_TheCompositorBreathes_WithoutAnyUiWork()
+    {
+        var moved = await Session.Dispatch(
+            () =>
+            {
+                var orb = NewGlassOrb(active: false);
+                var window = Host(orb);
+                var rest = UiHarness.Pixels(window);
+                orb.IsActive = true;
+                UiHarness.Pump(2);
+                Thread.Sleep(700);
+                UiHarness.Pump(2);
+                var breathed = UiHarness.Pixels(window);
+                window.Close();
+                return !breathed.AsSpan().SequenceEqual(rest);
+            },
+            Ct);
+
+        Assert.True(moved, "the breathing loops move the orb on the compositor");
+    }
+
+    [Fact]
+    public async Task GlassOrb_AVoiceSample_HandsTheCompositorASmallGlide_AndSilenceHandsItNothing()
+    {
+        var (perSample, silent) = await Session.Dispatch(
+            () =>
+            {
+                var level = new FixedLevel(0.1f);
+                var orb = NewGlassOrb(active: true, level);
+                var window = Host(orb);
+                var step = 0;
+                long Measure(bool loud)
+                {
+                    var before = GC.GetAllocatedBytesForCurrentThread();
+                    for (var i = 0; i < 100; i++)
+                    {
+                        step++;
+                        level.Level = loud ? ((step & 1) == 0 ? 0.05f : 0.9f) : 0f;
+                        orb.Update(TimeSpan.FromMilliseconds(1000 + (100 * step)));
+                    }
+
+                    return GC.GetAllocatedBytesForCurrentThread() - before;
+                }
+
+                Measure(loud: true);
+                var loudBytes = Measure(loud: true);
+                Measure(loud: false);
+                var quietBytes = Measure(loud: false);
+                window.Close();
+                return (loudBytes / 100, quietBytes);
+            },
+            Ct);
+
+        TestContext.Current.TestOutputHelper?.WriteLine($"bytes per loud voice sample (three glides): {perSample}; 100 silent samples: {silent}");
+        Assert.InRange(perSample, 1, 2048);
+        Assert.Equal(0, silent);
+    }
 }

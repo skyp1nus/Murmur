@@ -25,11 +25,20 @@ namespace Murmur.App.Controls;
 /// change. Animation only sets <c>Scale</c> and <c>Opacity</c> of the layers' composition visuals (no redraw, no allocation).
 /// </para>
 /// <para>
-/// <b>Animation.</b> Not <see cref="IsActive"/>: one static frame, no timer. Active without a <see cref="LevelSource"/>: the
-/// canvas "breathe" (3.6 s, the sphere grows 5 %, the halo 16 % and fades). Active with a source: the sphere and halo follow
-/// the voice level. A 15 Hz timer drives it, never the 60 Hz animation-frame loop. While <see cref="Motion.ReduceMotionProperty"/>
-/// is on, the breathing and the voice pulse are decoration the user asked to do without: the orb holds its rest frame and the
-/// timer is stopped.
+/// <b>Animation, on the compositor.</b> Not <see cref="IsActive"/>: one static frame, nothing runs. Active without a
+/// <see cref="LevelSource"/>: the canvas <c>breathe</c> (3.6 s, CSS <c>ease-in-out</c>, the sphere grows 5 %, the halo 16 % and
+/// fades), as forever key frame animations of the layers' composition visuals (<see cref="CompositionLoop"/>): started once, run by
+/// the render thread at the display rate, no UI work per frame. Active with a source: a 30 Hz timer samples the voice level and
+/// smooths it (fast attack, slow release); each new target is handed to the compositor through implicit animations as long as one
+/// sample interval, so the render thread glides from sample to sample every frame. Inaudible changes push nothing, so silence costs
+/// nothing. Everything stops while the orb is inactive, detached, hidden or minimized (<see cref="MotionGate"/>), and while
+/// <see cref="Motion.ReduceMotionProperty"/> is on: the breathing and the voice pulse are decoration the user asked to do without,
+/// so the orb holds its rest frame.
+/// </para>
+/// <para>
+/// <b>Test clock.</b> Replacing <see cref="Clock"/> with anything but the system clock stops the compositor animations: the frames
+/// are then the ones <see cref="Tick"/> and <see cref="Update"/> compute for that clock (the same curves), so a board or a test
+/// draws the same frame on every run.
 /// </para>
 /// </remarks>
 public sealed class GlassOrbControl : Panel
@@ -61,6 +70,9 @@ public sealed class GlassOrbControl : Panel
         AvaloniaProperty.Register<GlassOrbControl, double>(nameof(InnerGlowOpacity), 0.35);
 
     private const double BreathPeriodSeconds = 3.6;
+
+    /// <summary>The breathing curve, 0 at rest and 1 at the peak (the canvas key frames 0 %, 50 %, 100 % with <c>ease-in-out</c>).</summary>
+    private static readonly LoopKey[] BreathCurve = [new(0, 0), new(0.5f, 1, LoopEasing.EaseInOut), new(1, 0, LoopEasing.EaseInOut)];
     private const double BreathBodyGrowth = 0.05;
     private const double BreathHaloGrowth = 0.16;
     private const double BreathHaloFade = 0.6;
@@ -71,6 +83,12 @@ public sealed class GlassOrbControl : Panel
     private const double MaxStepSeconds = 0.1;
     private const double MinUpdateSeconds = 0.066;
 
+    /// <summary>The voice is sampled at 30 Hz; the compositor interpolates between samples.</summary>
+    private const double VoiceSampleSeconds = 1.0 / 30;
+
+    /// <summary>Each voice target is reached over a little more than one sample interval, so a late sample never leaves a pause.</summary>
+    private static readonly TimeSpan VoiceGlide = TimeSpan.FromMilliseconds(40);
+
     // A timer tick is never exactly one interval after the last: ticks a little early still count, or every other tick would be dropped.
     private const double UpdateSlack = 0.8;
     private const double SkipThreshold = 0.003;
@@ -80,13 +98,12 @@ public sealed class GlassOrbControl : Panel
 
     private readonly Layer _halo;
     private readonly Layer _body;
-    private static readonly TimeSpan ActiveInterval = TimeSpan.FromSeconds(MinUpdateSeconds);
-
-    // While the orb is hidden or its window minimized nothing is drawn: the timer only wakes up twice a second to notice the change.
-    private static readonly TimeSpan HiddenInterval = TimeSpan.FromMilliseconds(500);
-
-    private readonly DispatcherTimer _timer;
+    private readonly DispatcherTimer _sampler;
+    private readonly MotionGate _gate;
     private TimeProvider _clock = TimeProvider.System;
+    private bool _manual;
+    private bool _looping;
+    private bool _gliding;
     private long _clockStart;
     private bool _primed;
     private TimeSpan _lastFrame;
@@ -117,8 +134,9 @@ public sealed class GlassOrbControl : Panel
         _halo = new Layer(this, isHalo: true) { IsHitTestVisible = false };
         _body = new Layer(this, isHalo: false) { IsHitTestVisible = false };
         _clockStart = _clock.GetTimestamp();
-        _timer = new DispatcherTimer(DispatcherPriority.Render) { Interval = ActiveInterval };
-        _timer.Tick += (_, _) => OnTimer();
+        _sampler = new DispatcherTimer(DispatcherPriority.Render) { Interval = TimeSpan.FromSeconds(VoiceSampleSeconds) };
+        _sampler.Tick += (_, _) => Tick();
+        _gate = new MotionGate(this, _ => OnGateChanged());
         IsHitTestVisible = false;
         Focusable = false;
         ClipToBounds = false;
@@ -180,8 +198,20 @@ public sealed class GlassOrbControl : Panel
     /// <summary>True while the system asks for less motion (inherited from the window): the orb holds its rest frame.</summary>
     private bool ReduceMotion => Motion.GetReduceMotion(this);
 
-    /// <summary>True while the control runs its update timer (for tests).</summary>
-    internal bool IsFrameLoopRunning => _timer.IsEnabled;
+    /// <summary>True while the orb moves: active, attached, seen and with motion allowed (for tests).</summary>
+    internal bool IsFrameLoopRunning => _gate.IsOpen;
+
+    /// <summary>The breathing runs as compositor loops (for tests).</summary>
+    internal bool IsLooping => _looping;
+
+    /// <summary>The 30 Hz voice sampling runs (for tests).</summary>
+    internal bool IsSampling => _sampler.IsEnabled;
+
+    /// <summary>Voice targets glide on the compositor (implicit animations are set; for tests).</summary>
+    internal bool IsGliding => _gliding;
+
+    /// <summary>The gate's slow visibility check (for tests).</summary>
+    internal MotionGate Gate => _gate;
 
     /// <summary>How many frames were pushed to the composition visuals (for tests).</summary>
     internal long AppliedFrames => _appliedFrames;
@@ -192,9 +222,13 @@ public sealed class GlassOrbControl : Panel
     /// <summary>Current composition scale of the halo (for tests); 0 when not attached.</summary>
     internal double HaloScale => ElementComposition.GetElementVisual(_halo)?.Scale.X ?? 0;
 
+    /// <summary>Current composition opacity of the halo layer (for tests); 0 when not attached.</summary>
+    internal double HaloLayerOpacity => ElementComposition.GetElementVisual(_halo)?.Opacity ?? 0;
+
     /// <summary>
-    /// The clock every update reads; the system clock by default. Replacing it restarts the animation (internal: tests set a
-    /// manual clock to render the same frame on every run).
+    /// The clock every update reads; the system clock by default. Replacing it restarts the animation, and any clock but the system
+    /// one stops the compositor animations (internal: tests and the design boards set a manual clock to render the same frame on
+    /// every run).
     /// </summary>
     internal TimeProvider Clock
     {
@@ -205,30 +239,15 @@ public sealed class GlassOrbControl : Panel
             _clock = value;
             _clockStart = value.GetTimestamp();
             _primed = false;
+            _manual = !ReferenceEquals(value, TimeProvider.System);
+            RefreshMotion();
         }
     }
 
-    /// <summary>One timer tick: a step when the orb can be seen, otherwise the timer slows down until it can.</summary>
-    internal void OnTimer()
-    {
-        var shown = IsEffectivelyVisible && (TopLevel.GetTopLevel(this) as Window)?.WindowState != WindowState.Minimized;
-        var wanted = shown ? ActiveInterval : HiddenInterval;
-        if (_timer.Interval != wanted)
-        {
-            _timer.Interval = wanted;
-            _primed = false;
-        }
+    /// <summary>The breathing at <paramref name="seconds"/> after its start: 0 at rest, 1 at the peak (the curve the compositor runs).</summary>
+    internal static double BreathAt(double seconds) => CompositionLoop.Sample(BreathCurve, seconds / BreathPeriodSeconds);
 
-        if (shown)
-        {
-            Tick();
-        }
-    }
-
-    /// <summary>The timer's current interval (for tests).</summary>
-    internal TimeSpan TimerInterval => _timer.Interval;
-
-    /// <summary>One animation step at the clock's current time: exactly what the timer does (internal for tests).</summary>
+    /// <summary>One animation step at the clock's current time: exactly what the voice sampler does (internal for tests).</summary>
     internal void Tick() => Update(_clock.GetElapsedTime(_clockStart));
 
     protected override Size MeasureOverride(Size availableSize)
@@ -253,6 +272,9 @@ public sealed class GlassOrbControl : Panel
         _body.Arrange(rect);
         _centreKnown = false;
         PushFrame();
+
+        // The layers' composition visuals exist only once they are attached (after this control): a loop waiting for them starts now.
+        RefreshMotion();
         return finalSize;
     }
 
@@ -262,14 +284,14 @@ public sealed class GlassOrbControl : Panel
         _centreKnown = false;
         ResolveColours();
         PushFrame();
-        UpdateLoop();
+        _gate.Update(IsActive);
     }
 
     protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
     {
         base.OnDetachedFromVisualTree(e);
         _primed = false;
-        _timer.Stop();
+        _gate.Detach();
 
         // A detached orb holds no bitmap; attaching it again draws (and builds) the halo anew.
         _halo.ReleaseHalo();
@@ -283,12 +305,11 @@ public sealed class GlassOrbControl : Panel
         {
             _easeInFromRest = false;
             _primed = false;
+            _gate.Update(IsActive);
             if (!IsActive)
             {
                 HoldRest();
             }
-
-            UpdateLoop();
         }
         else if (change.Property == Motion.ReduceMotionProperty)
         {
@@ -303,7 +324,16 @@ public sealed class GlassOrbControl : Panel
                 _easeInFromRest = IsActive;
             }
 
-            UpdateLoop();
+            _gate.Update(IsActive);
+        }
+        else if (change.Property == IsVisibleProperty)
+        {
+            _gate.Update(IsActive);
+        }
+        else if (change.Property == LevelSourceProperty)
+        {
+            _primed = false;
+            RefreshMotion();
         }
     }
 
@@ -311,7 +341,124 @@ public sealed class GlassOrbControl : Panel
     private void HoldRest()
     {
         _smoothed = 0;
+        StopLoops();
+        SetGlide(false);
         Apply(1, 1, 0);
+    }
+
+    private void OnGateChanged()
+    {
+        _primed = false;
+        if (!_gate.IsOpen)
+        {
+            HoldRest();
+        }
+
+        RefreshMotion();
+    }
+
+    /// <summary>
+    /// Puts the motion in the state the orb is in: the breathing loops (no source), the voice sampler with its glide (a source), or
+    /// nothing (the gate is closed, or a test clock drives the frames).
+    /// </summary>
+    private void RefreshMotion()
+    {
+        var open = _gate.IsOpen;
+        var breathe = open && !_manual && LevelSource is null;
+        var follow = open && !_manual && LevelSource is not null;
+
+        if (!breathe)
+        {
+            StopLoops();
+        }
+
+        if (!follow)
+        {
+            _sampler.Stop();
+            SetGlide(false);
+        }
+
+        if (breathe)
+        {
+            StartLoops();
+        }
+        else if (follow)
+        {
+            SetGlide(true);
+            if (!_sampler.IsEnabled)
+            {
+                _primed = false;
+                _sampler.Start();
+            }
+        }
+    }
+
+    /// <summary>The canvas breathing as three forever loops on the compositor, once the layers' visuals exist.</summary>
+    private void StartLoops()
+    {
+        if (_looping || ElementComposition.GetElementVisual(_body) is not { } body || ElementComposition.GetElementVisual(_halo) is not { } halo)
+        {
+            return;
+        }
+
+        // Start from the rest frame; the centres are where the layout put them.
+        Apply(1, 1, 0);
+        var period = TimeSpan.FromSeconds(BreathPeriodSeconds);
+        CompositionLoop.StartScale(body, period, [new(0, 1), new(0.5f, (float)(1 + BreathBodyGrowth), LoopEasing.EaseInOut), new(1, 1, LoopEasing.EaseInOut)]);
+        CompositionLoop.StartScale(halo, period, [new(0, 1), new(0.5f, (float)(1 + BreathHaloGrowth), LoopEasing.EaseInOut), new(1, 1, LoopEasing.EaseInOut)]);
+        CompositionLoop.StartOpacity(halo, period, [new(0, 1), new(0.5f, (float)(1 - BreathHaloFade), LoopEasing.EaseInOut), new(1, 1, LoopEasing.EaseInOut)]);
+        _looping = true;
+    }
+
+    /// <summary>Ends the breathing loops at the rest frame.</summary>
+    private void StopLoops()
+    {
+        if (!_looping)
+        {
+            return;
+        }
+
+        _looping = false;
+        _appliedBody = 1;
+        _appliedHalo = 1;
+        _appliedFade = 0;
+        if (ElementComposition.GetElementVisual(_body) is { } body)
+        {
+            CompositionLoop.HoldScale(body, 1);
+        }
+
+        if (ElementComposition.GetElementVisual(_halo) is { } halo)
+        {
+            CompositionLoop.HoldScale(halo, 1);
+            CompositionLoop.HoldOpacity(halo, 1);
+        }
+    }
+
+    /// <summary>Hands every new voice target to the compositor as a short glide (on), or shows it at once (off).</summary>
+    private void SetGlide(bool on)
+    {
+        if (on == _gliding)
+        {
+            return;
+        }
+
+        var body = ElementComposition.GetElementVisual(_body);
+        var halo = ElementComposition.GetElementVisual(_halo);
+        if (on && (body is null || halo is null))
+        {
+            return;
+        }
+
+        _gliding = on;
+        if (body is not null)
+        {
+            body.ImplicitAnimations = on ? CompositionGlide.Create(body.Compositor, VoiceGlide, CompositionLoop.Scale) : null;
+        }
+
+        if (halo is not null)
+        {
+            halo.ImplicitAnimations = on ? CompositionGlide.Create(halo.Compositor, VoiceGlide, CompositionLoop.Scale, CompositionLoop.Opacity) : null;
+        }
     }
 
     private void OnLookChanged(bool layout, bool halo, bool body)
@@ -334,31 +481,20 @@ public sealed class GlassOrbControl : Panel
         PushFrame();
     }
 
-    private void UpdateLoop()
-    {
-        var run = IsActive && !ReduceMotion && ((Visual)this).IsAttachedToVisualTree();
-        if (run && !_timer.IsEnabled)
-        {
-            _primed = false;
-            _timer.Interval = ActiveInterval;
-            _timer.Start();
-        }
-        else if (!run && _timer.IsEnabled)
-        {
-            _timer.Stop();
-        }
-    }
-
-    /// <summary>One animation step at <paramref name="timestamp"/> on the orb's clock; a step too soon after the last changes nothing.</summary>
+    /// <summary>
+    /// One animation step at <paramref name="timestamp"/> on the orb's clock; a step too soon after the last changes nothing. The
+    /// breathing is the compositor's while no test clock is set, so then a step without a <see cref="LevelSource"/> does nothing.
+    /// </summary>
     internal void Update(TimeSpan timestamp)
     {
-        if (ReduceMotion)
+        if (ReduceMotion || (LevelSource is null && (_looping || !_manual)))
         {
             return;
         }
 
         var elapsed = (timestamp - _lastFrame).TotalSeconds;
-        if (_primed && elapsed < MinUpdateSeconds * UpdateSlack)
+        var interval = LevelSource is null ? MinUpdateSeconds : VoiceSampleSeconds;
+        if (_primed && elapsed < interval * UpdateSlack)
         {
             return;
         }
@@ -377,7 +513,7 @@ public sealed class GlassOrbControl : Panel
             _primed = true;
             _lastFrame = timestamp;
             _phaseSeconds = starting ? 0 : _phaseSeconds + Math.Min(elapsed, MaxStepSeconds);
-            var breath = 0.5 - (0.5 * Math.Cos(_phaseSeconds * (2 * Math.PI / BreathPeriodSeconds)));
+            var breath = BreathAt(_phaseSeconds);
             if (starting || Math.Abs(breath - _smoothed) >= SkipThreshold)
             {
                 _smoothed = breath;
