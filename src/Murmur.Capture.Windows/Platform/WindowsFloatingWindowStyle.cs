@@ -18,6 +18,7 @@ namespace Murmur.Capture.Windows.Platform;
 /// <item><c>WM_MOUSEACTIVATE</c>: answers <c>MA_NOACTIVATE</c>, so a click never activates the window even if the style were lost;</item>
 /// <item><c>WM_NCDESTROY</c>: the previous procedure is put back and the window forgotten.</item>
 /// </list>
+/// <para><see cref="SetInputRegion"/> sets a window region: outside it, clicks go to the window below (see the method).</para>
 /// <para>All calls come from the UI thread that owns the window (a window can only be subclassed from its own process). Failures are
 /// reported on stderr and swallowed: the orb still works, it may just take focus on a click.</para>
 /// </remarks>
@@ -69,6 +70,71 @@ internal sealed unsafe class WindowsFloatingWindowStyle : IFloatingWindowStyle
         {
             Console.Error.WriteLine($"Making the floating window non-activating failed: {ex.Message}");
         }
+    }
+
+    public void SetInputRegion(nint nativeHandle, ReadOnlySpan<FloatingWindowRect> rectangles)
+    {
+        if (nativeHandle == 0)
+        {
+            return;
+        }
+
+        // A window region, not WM_NCHITTEST -> HTTRANSPARENT: HTTRANSPARENT only passes a click on to windows of the same thread, while
+        // the window manager routes a click outside the region to whatever window is below, in any process. The region also clips
+        // drawing, so the rectangles include the shadow margin; bRedraw is FALSE because nothing outside them is ever drawn.
+        try
+        {
+            var region = CreateRegion(rectangles);
+            if (rectangles.Length > 0 && region == 0)
+            {
+                Console.Error.WriteLine("Creating the floating window's input region failed.");
+                return;
+            }
+
+            if (FloatingWindowNativeMethods.SetWindowRgn(nativeHandle, region, redraw: false) == 0)
+            {
+                // The region is still ours only when the call failed.
+                Console.Error.WriteLine($"Setting the floating window's input region failed (Win32 error {Marshal.GetLastPInvokeError()}).");
+                if (region != 0)
+                {
+                    FloatingWindowNativeMethods.DeleteObject(region);
+                }
+            }
+        }
+        catch (Exception ex) when (ex is DllNotFoundException or EntryPointNotFoundException)
+        {
+            Console.Error.WriteLine($"Setting the floating window's input region failed: {ex.Message}");
+        }
+    }
+
+    /// <summary>The union of the rectangles as one GDI region (0 for none, or when GDI fails); empty rectangles are skipped.</summary>
+    private static nint CreateRegion(ReadOnlySpan<FloatingWindowRect> rectangles)
+    {
+        nint region = 0;
+        foreach (var rectangle in rectangles)
+        {
+            if (rectangle.Width <= 0 || rectangle.Height <= 0)
+            {
+                continue;
+            }
+
+            var part = FloatingWindowNativeMethods.CreateRectRgn(rectangle.X, rectangle.Y, rectangle.Right, rectangle.Bottom);
+            if (part == 0)
+            {
+                continue;
+            }
+
+            if (region == 0)
+            {
+                region = part;
+                continue;
+            }
+
+            FloatingWindowNativeMethods.CombineRgn(region, region, part, FloatingWindowNativeMethods.RgnOr);
+            FloatingWindowNativeMethods.DeleteObject(part);
+        }
+
+        return region;
     }
 
     /// <summary>Puts the window procedure that keeps the style and refuses mouse activation in front of the window's own, once.</summary>

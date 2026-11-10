@@ -13,4 +13,20 @@ public interface IFloatingWindowStyle
     /// </summary>
     /// <param name="nativeHandle">The native window handle (Windows: the HWND) of a window of this process.</param>
     void MakeNonActivating(nint nativeHandle);
+
+    /// <summary>
+    /// Limits where the window takes mouse input to <paramref name="rectangles"/>: a click anywhere else in the window goes to whatever
+    /// is under it, in any program. An empty list gives the whole window back its input.
+    /// </summary>
+    /// <param name="nativeHandle">The native window handle (Windows: the HWND) of a window of this process.</param>
+    /// <param name="rectangles">The areas that take input, in physical pixels from the window's top-left corner.</param>
+    void SetInputRegion(nint nativeHandle, ReadOnlySpan<FloatingWindowRect> rectangles);
+}
+
+/// <summary>A rectangle of a floating window, in physical pixels from the window's top-left corner.</summary>
+public readonly record struct FloatingWindowRect(int X, int Y, int Width, int Height)
+{
+    public int Right => X + Width;
+
+    public int Bottom => Y + Height;
 }

@@ -40,8 +40,8 @@
       <x:Double x:Key="FloatingOrb.OpenIcon">14</x:Double>
       <x:Double x:Key="FloatingOrb.ChipIcon">10</x:Double>
       <x:Double x:Key="FloatingOrb.PausedOrbOpacity">0.85</x:Double>
-      <!-- The window is transparent and exactly as big as its content plus this margin, which holds most of the soft shadow of Shadow.Subtle
-           (Space.4: the less margin, the less transparent area that swallows clicks over other programs). -->
+      <!-- Each shape takes clicks over this margin around it, which holds most of the soft shadow of Shadow.Subtle (Space.4: the less
+           margin, the less transparent area that swallows clicks over other programs); the rest of the window lets clicks through. -->
       <StaticResource x:Key="FloatingOrb.ShadowMargin" ResourceKey="Inset.4" />
       <!-- Pill and orb are 6 apart; the chip hangs 8 under the circle. -->
       <Thickness x:Key="FloatingOrb.PillMargin">0,0,6,0</Thickness>

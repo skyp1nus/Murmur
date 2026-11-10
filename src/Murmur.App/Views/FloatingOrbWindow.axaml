@@ -17,18 +17,21 @@
 
   <!--
     The floating recorder orb (#46), Idea1Autopilot.dc.html "Idea 1 / Floating recorder (interactive)": the 44 px circle with the
-    28 px orb at the right, the pill of buttons to its left (a click on the circle opens it) and the chip "Marked 12:41" under it.
-    The window is transparent and as big as what is on screen, so it grows to the left when the pill opens; the code behind keeps
-    the circle where it is. No elapsed-time readout on the orb; its motion is the 15 Hz FloatingOrbDisc.
+    28 px orb at the right, the pill of buttons to its left (a click on the circle opens it) and the chip "Marked 12:41" under it
+    (or above it at the bottom of the screen). The window keeps one size: the code behind reserves the pill's column and a chip row
+    above and below the circle, so opening the pill or the chip never resizes or moves the native window (no flicker). Clicks on the
+    transparent rest go through to the window below: the platform style limits input to the shapes that are shown. No elapsed-time
+    readout on the orb; its motion runs on the compositor (FloatingOrbDisc).
   -->
 
   <Grid x:Name="Root"
         Margin="{StaticResource FloatingOrb.ShadowMargin}"
-        RowDefinitions="Auto,Auto"
+        RowDefinitions="Auto,Auto,Auto"
         ColumnDefinitions="Auto,Auto">
 
     <Border x:Name="Pill"
             Classes="orbPill"
+            Grid.Row="1"
             Grid.Column="0"
             VerticalAlignment="Center"
             Margin="{StaticResource FloatingOrb.PillMargin}"
@@ -87,6 +90,7 @@
 
     <Border x:Name="Circle"
             Classes="orbCircle"
+            Grid.Row="1"
             Grid.Column="1"
             HorizontalAlignment="Right"
             VerticalAlignment="Center"
@@ -107,7 +111,7 @@
 
     <Border x:Name="Chip"
             Classes="orbChip"
-            Grid.Row="1"
+            Grid.Row="2"
             Grid.ColumnSpan="2"
             HorizontalAlignment="Right"
             Margin="{StaticResource FloatingOrb.ChipMargin}"

@@ -140,6 +140,7 @@ internal sealed class FloatingOrbController : IDisposable
         window.Closed += OnWindowClosed;
         window.Opened += OnWindowOpened;
         window.PropertyChanged += OnWindowPropertyChanged;
+        window.InputRegionChanged += OnInputRegionChanged;
 
         // As soon as the window exists: clicks on the orb must never take focus from the call, and it has no Alt+Tab entry. Avalonia
         // rewrites the extended style on Show and on later property changes; the platform side keeps the bits through those rewrites,
@@ -162,6 +163,27 @@ internal sealed class FloatingOrbController : IDisposable
         if (sender is FloatingOrbWindow window)
         {
             ApplyStyle(window);
+            ApplyInputRegion(window);
+        }
+    }
+
+    private void OnInputRegionChanged(object? sender, EventArgs e)
+    {
+        if (sender is FloatingOrbWindow window)
+        {
+            ApplyInputRegion(window);
+        }
+    }
+
+    /// <summary>
+    /// Only the shapes that are shown take clicks; the transparent rest of the fixed-size window lets them through to the window below.
+    /// Nothing before the first layout (no region yet: the whole window would take input, as without a platform style).
+    /// </summary>
+    private void ApplyInputRegion(FloatingOrbWindow window)
+    {
+        if (_style is not null && window.InputRegion.Length > 0 && _nativeHandle(window) is var handle && handle != 0)
+        {
+            _style.SetInputRegion(handle, window.InputRegion);
         }
     }
 
@@ -183,6 +205,7 @@ internal sealed class FloatingOrbController : IDisposable
         {
             closed.Opened -= OnWindowOpened;
             closed.PropertyChanged -= OnWindowPropertyChanged;
+            closed.InputRegionChanged -= OnInputRegionChanged;
             if (ReferenceEquals(closed, _window))
             {
                 _window = null;
@@ -210,6 +233,7 @@ internal sealed class FloatingOrbController : IDisposable
             window.Closed -= OnWindowClosed;
             window.Opened -= OnWindowOpened;
             window.PropertyChanged -= OnWindowPropertyChanged;
+            window.InputRegionChanged -= OnInputRegionChanged;
             window.Close();
         }
     }

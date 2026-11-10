@@ -4,6 +4,7 @@ using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Platform;
 using Murmur.App.ViewModels;
+using Murmur.Core.Platform;
 
 namespace Murmur.App.Views;
 
@@ -13,9 +14,14 @@ namespace Murmur.App.Views;
 /// does beyond them (a click that activates the window, a Z-order above full-screen apps) is verified on a PC, see the PR.
 /// </summary>
 /// <remarks>
-/// <para>The window is exactly as big as what is shown, so the transparent area never covers other programs: it grows to the left
-/// when the pill opens and downwards for the chip. The circle must not move when that happens, so the window remembers where the
-/// circle is on the screen (<see cref="OrbAnchor"/>, in pixels) and after every layout moves itself so that the circle is there.</para>
+/// <para>The window keeps one size while the pill and the chip come and go: <see cref="ReserveSlots"/> gives the pill's column and a
+/// chip row above and below the circle their full size even while nothing is shown in them. Opening the pill or the chip then only
+/// redraws the content of a window that does not move or resize, so there is nothing to flicker (resizing a transparent window to the
+/// left and moving it back in a second call showed a frame with the content in the wrong place, item 21 of the PR's check). The
+/// transparent rest of the window must not swallow clicks over other programs: <see cref="InputRegion"/> lists the shapes that are
+/// shown (with their shadow margin), and the platform style limits the window's input to them. Should the window still grow (a chip
+/// wider than the reserve), it remembers where the circle is on the screen (<see cref="OrbAnchor"/>, in pixels) and after the layout
+/// moves itself so that the circle is there.</para>
 /// <para>A press on the circle followed by a movement of more than <see cref="FloatingOrbViewModel.DragThreshold"/> DIPs drags the
 /// window; the position is saved when the button goes up. A press without that movement is a click, which opens or closes the pill.</para>
 /// </remarks>
@@ -30,6 +36,7 @@ public partial class FloatingOrbWindow : Window
     private bool _primaryKnown = true;
     private FloatingOrbViewModel? _watched;
     private Thickness _chipBelowMargin;
+    private FloatingWindowRect[] _inputRegion = [];
 
     public FloatingOrbWindow()
     {
@@ -41,8 +48,27 @@ public partial class FloatingOrbWindow : Window
         Circle.PointerMoved += OnCircleMoved;
         Circle.PointerReleased += OnCircleReleased;
         Circle.PointerCaptureLost += OnCircleCaptureLost;
-        LayoutUpdated += (_, _) => KeepCircleInPlace();
+        LayoutUpdated += (_, _) =>
+        {
+            KeepCircleInPlace();
+            UpdateInputRegion();
+        };
     }
+
+    /// <summary>The shapes that take clicks changed (<see cref="InputRegion"/>).</summary>
+    internal event EventHandler? InputRegionChanged;
+
+    /// <summary>
+    /// The parts of the window that take clicks, in pixels from its top-left: the circle, and the pill and the chip while they are shown,
+    /// each with the shadow margin around it. Everything else is transparent and lets clicks through to the window below.
+    /// </summary>
+    internal ReadOnlySpan<FloatingWindowRect> InputRegion => _inputRegion;
+
+    /// <summary>The width reserved for the pill (with its margin to the circle), in DIPs (for tests).</summary>
+    internal double PillSlot => Root.ColumnDefinitions[0].MinWidth;
+
+    /// <summary>The height reserved for the chip above and below the circle (with its gap), in DIPs (for tests).</summary>
+    internal double ChipSlot => Root.RowDefinitions[0].MinHeight;
 
     /// <summary>The screens' work areas; the screens of the platform by default (tests supply fake ones).</summary>
     internal Func<IReadOnlyList<WorkArea>> WorkAreaSource { get; set; } = static () => [];
@@ -53,6 +79,94 @@ public partial class FloatingOrbWindow : Window
     internal bool HasAnchor => _hasAnchor;
 
     private FloatingOrbViewModel? ViewModel => DataContext as FloatingOrbViewModel;
+
+    protected override Size MeasureOverride(Size availableSize)
+    {
+        ReserveSlots();
+        return base.MeasureOverride(availableSize);
+    }
+
+    /// <summary>
+    /// Reserves the full size of the pill and of the chip in the grid whether they are shown or not, so the window's size never depends
+    /// on them. Their content is measured even while hidden (a control measures itself unless it is hidden itself; only the pill's and
+    /// the chip's own borders are hidden).
+    /// </summary>
+    private void ReserveSlots()
+    {
+        var pill = OuterWidth(Pill);
+        var chip = OuterWidth(Chip);
+        var circle = double.IsNaN(Circle.Width) ? 0 : Circle.Width + Circle.Margin.Left + Circle.Margin.Right;
+
+        // The chip spans both columns: the pill's column also covers a chip wider than the circle.
+        var column = Math.Max(pill, chip - circle);
+        var chipHeight = double.IsNaN(Chip.Height) ? 0 : Chip.Height;
+        var row = chipHeight + _chipBelowMargin.Top + _chipBelowMargin.Bottom;
+
+        var columns = Root.ColumnDefinitions[0];
+        if (columns.MinWidth != column)
+        {
+            columns.MinWidth = column;
+        }
+
+        foreach (var index in (ReadOnlySpan<int>)[0, 2])
+        {
+            var definition = Root.RowDefinitions[index];
+            if (definition.MinHeight != row)
+            {
+                definition.MinHeight = row;
+            }
+        }
+    }
+
+    /// <summary>The width of a border with its content, padding, border and margin, measured even while the border is hidden.</summary>
+    private static double OuterWidth(Border border)
+    {
+        var content = 0.0;
+        if (border.Child is { } child)
+        {
+            child.Measure(Size.Infinity);
+            content = child.DesiredSize.Width;
+        }
+
+        var width = double.IsNaN(border.Width) ? content + border.Padding.Left + border.Padding.Right + border.BorderThickness.Left + border.BorderThickness.Right : border.Width;
+        return width + border.Margin.Left + border.Margin.Right;
+    }
+
+    /// <summary>Recomputes <see cref="InputRegion"/> from what is shown now; raises <see cref="InputRegionChanged"/> when it changed.</summary>
+    private void UpdateInputRegion()
+    {
+        if (Bounds.Width <= 0 || Bounds.Height <= 0)
+        {
+            return;
+        }
+
+        var scale = RenderScaling;
+        var margin = Root.Margin;
+        var window = new Rect(Bounds.Size);
+        Span<FloatingWindowRect> parts = stackalloc FloatingWindowRect[3];
+        var count = 0;
+        foreach (var shape in (ReadOnlySpan<Control>)[Circle, Pill, Chip])
+        {
+            // The shapes are children of Root, which is a child of the window: their bounds add up without any transform.
+            if (shape.IsVisible)
+            {
+                var bounds = new Rect(Root.Bounds.Position + shape.Bounds.Position, shape.Bounds.Size);
+                var part = FloatingOrbInputRegion.ToPixels(bounds, margin, window, scale);
+                if (part.Width > 0 && part.Height > 0)
+                {
+                    parts[count++] = part;
+                }
+            }
+        }
+
+        if (parts[..count].SequenceEqual(_inputRegion))
+        {
+            return;
+        }
+
+        _inputRegion = parts[..count].ToArray();
+        InputRegionChanged?.Invoke(this, EventArgs.Empty);
+    }
 
     /// <summary>
     /// Shows the window with the circle at its saved spot (the nearest visible one if that is off every screen, the corner of the
@@ -186,10 +300,9 @@ public partial class FloatingOrbWindow : Window
             return;
         }
 
+        // The circle and the pill stay in the middle row: the chip only changes rows, the window does not move.
         IsChipAbove = above;
-        Grid.SetRow(Pill, above ? 1 : 0);
-        Grid.SetRow(Circle, above ? 1 : 0);
-        Grid.SetRow(Chip, above ? 0 : 1);
+        Grid.SetRow(Chip, above ? 0 : 2);
         Chip.Margin = above ? new Thickness(0, 0, 0, _chipBelowMargin.Top) : _chipBelowMargin;
     }
 
@@ -202,9 +315,11 @@ public partial class FloatingOrbWindow : Window
             return ((int)Math.Round(point.X * scale), (int)Math.Round(point.Y * scale));
         }
 
-        // Before the first layout: the circle is at the corner of the shadow margin.
+        // Before the first layout: the circle is right of the pill's slot and under the upper chip slot (the middle row is as high as
+        // the circle, which is taller than the pill).
+        ReserveSlots();
         var margin = Root.Margin;
-        return ((int)Math.Round(margin.Left * scale), (int)Math.Round(margin.Top * scale));
+        return ((int)Math.Round((margin.Left + PillSlot) * scale), (int)Math.Round((margin.Top + ChipSlot) * scale));
     }
 
     /// <summary>The pill or the chip appeared or went away and the window changed size: move it so that the circle stays where it was.</summary>

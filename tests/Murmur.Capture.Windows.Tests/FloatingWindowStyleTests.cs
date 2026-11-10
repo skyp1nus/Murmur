@@ -179,6 +179,39 @@ public sealed partial class FloatingWindowStyleTests
         Assert.False(WindowsFloatingWindowStyle.IsSubclassed(handle));
     }
 
+    [Fact]
+    [Trait("Category", "Windows")]
+    public void TheInputRegion_IsTheUnionOfTheRectangles_AndClicksOutsideItGoToTheWindowBelow()
+    {
+        using var window = TestWindow.Create(x: 100, y: 100, width: 200, height: 124);
+        var style = new WindowsFloatingWindowStyle();
+        style.MakeNonActivating(window.Handle);
+        window.ShowNoActivate();
+        window.SetTopmost(true);
+
+        style.SetInputRegion(window.Handle, [new(148, 36, 52, 52), new(0, 38, 150, 48)]);
+
+        Assert.Equal((0, 36, 200, 88), window.RegionBox);
+        Assert.Equal(window.Handle, TestWindow.WindowAt(100 + 170, 100 + 60));
+        Assert.Equal(window.Handle, TestWindow.WindowAt(100 + 20, 100 + 60));
+        Assert.NotEqual(window.Handle, TestWindow.WindowAt(100 + 20, 100 + 10));
+        Assert.NotEqual(window.Handle, TestWindow.WindowAt(100 + 170, 100 + 110));
+    }
+
+    [Fact]
+    [Trait("Category", "Windows")]
+    public void AnEmptyInputRegion_GivesTheWholeWindowItsInputBack()
+    {
+        using var window = TestWindow.Create(x: 100, y: 100, width: 200, height: 124);
+        var style = new WindowsFloatingWindowStyle();
+        window.ShowNoActivate();
+        style.SetInputRegion(window.Handle, [new(148, 36, 52, 52)]);
+
+        style.SetInputRegion(window.Handle, []);
+
+        Assert.Null(window.RegionBox);
+    }
+
     private static void AssertNonActivating(nint style)
     {
         Assert.Equal(NoActivate, style & NoActivate);
@@ -186,7 +219,7 @@ public sealed partial class FloatingWindowStyleTests
         Assert.Equal((nint)0, style & AppWindow);
     }
 
-    /// <summary>A plain popup window of the system's STATIC class on the test thread, standing in for the orb's Avalonia window.</summary>
+    /// <summary>A plain popup window of the system's BUTTON class (it answers WM_NCHITTEST with HTCLIENT, unlike STATIC) on the test thread, standing in for the orb's Avalonia window.</summary>
     private sealed partial class TestWindow : IDisposable
     {
         private const uint WsPopup = 0x80000000;
@@ -200,9 +233,9 @@ public sealed partial class FloatingWindowStyleTests
 
         public nint Procedure => FloatingWindowNativeMethods.GetWindowLongPtrW(Handle, FloatingWindowNativeMethods.GwlpWndProc);
 
-        public static TestWindow Create()
+        public static TestWindow Create(int x = 0, int y = 0, int width = 52, int height = 52)
         {
-            var handle = CreateWindowExW(0, "STATIC", "Murmur orb test", WsPopup, 0, 0, 52, 52, 0, 0, 0, 0);
+            var handle = CreateWindowExW(0, "BUTTON", "Murmur orb test", WsPopup, x, y, width, height, 0, 0, 0, 0);
             Assert.NotEqual((nint)0, handle);
             return new TestWindow(handle);
         }
@@ -213,6 +246,19 @@ public sealed partial class FloatingWindowStyleTests
 
         public void SetTopmost(bool topmost) =>
             Assert.True(FloatingWindowNativeMethods.SetWindowPos(Handle, topmost ? -1 : -2, 0, 0, 0, 0, 0x0001 | 0x0002 | 0x0010));
+
+        /// <summary>The bounding box of the window's region as (left, top, right, bottom), or <c>null</c> without a region.</summary>
+        public (int Left, int Top, int Right, int Bottom)? RegionBox
+        {
+            get
+            {
+                // SIMPLEREGION = 2, COMPLEXREGION = 3; ERROR = 0 (no region).
+                var kind = GetWindowRgnBox(Handle, out var box);
+                return kind is 2 or 3 ? (box.Left, box.Top, box.Right, box.Bottom) : null;
+            }
+        }
+
+        public static nint WindowAt(int x, int y) => WindowFromPoint(new Point(x, y));
 
         public nint Send(uint message, nint wParam, nint lParam) => SendMessageW(Handle, message, wParam, lParam);
 
@@ -234,6 +280,24 @@ public sealed partial class FloatingWindowStyleTests
 
         [LibraryImport("user32.dll", EntryPoint = "SendMessageW")]
         private static partial nint SendMessageW(nint window, uint message, nint wParam, nint lParam);
+
+        [StructLayout(LayoutKind.Sequential)]
+        private struct Rect
+        {
+            public int Left;
+            public int Top;
+            public int Right;
+            public int Bottom;
+        }
+
+        [StructLayout(LayoutKind.Sequential)]
+        private readonly record struct Point(int X, int Y);
+
+        [LibraryImport("user32.dll", EntryPoint = "GetWindowRgnBox")]
+        private static partial int GetWindowRgnBox(nint window, out Rect box);
+
+        [LibraryImport("user32.dll", EntryPoint = "WindowFromPoint")]
+        private static partial nint WindowFromPoint(Point point);
 
         [LibraryImport("user32.dll", EntryPoint = "DestroyWindow")]
         [return: MarshalAs(UnmanagedType.Bool)]

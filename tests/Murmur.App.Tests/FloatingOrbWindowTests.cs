@@ -12,6 +12,7 @@ using Murmur.App.Services;
 using Murmur.App.Tests.Fakes;
 using Murmur.App.ViewModels;
 using Murmur.App.Views;
+using Murmur.Core.Platform;
 using Murmur.Core.Recording;
 using Murmur.Core.Settings;
 
@@ -368,7 +369,11 @@ public sealed class FloatingOrbWindowTests
 
         public string Step { get; set; } = "create";
 
+        public List<FloatingWindowRect[]> Regions { get; } = [];
+
         public void MakeNonActivating(nint nativeHandle) => Calls.Add((nativeHandle, IsShown?.Invoke() ?? false, Step));
+
+        public void SetInputRegion(nint nativeHandle, ReadOnlySpan<FloatingWindowRect> rectangles) => Regions.Add(rectangles.ToArray());
     }
 
     [Fact]
@@ -494,9 +499,9 @@ public sealed class FloatingOrbWindowTests
     }
 
     [Fact]
-    public async Task AClickOnTheCircle_OpensThePillToItsLeft_AndTheCircleStaysWhereItWas()
+    public async Task AClickOnTheCircle_OpensThePillToItsLeft_AndTheWindowNeitherMovesNorResizes()
     {
-        var (open, pillRight, circleLeft, anchorBefore, anchorAfter, circleScreen, windowWidthBefore, windowWidthAfter) = await Session.Dispatch(
+        var (open, pillRight, circleLeft, anchorBefore, anchorAfter, circleScreen, windowBefore, windowAfter) = await Session.Dispatch(
             async () =>
             {
                 using var rig = new Rig();
@@ -504,7 +509,7 @@ public sealed class FloatingOrbWindowTests
                 UiHarness.Pump(4);
                 var window = rig.Window;
                 var before = window.OrbAnchor;
-                var widthBefore = window.Bounds.Width;
+                var windowBefore = (window.Position, window.Bounds.Size);
                 var centre = CircleCentre(window);
 
                 window.MouseDown(centre, MouseButton.Left);
@@ -516,15 +521,105 @@ public sealed class FloatingOrbWindowTests
                 var circleTopLeft = circle.TranslatePoint(default, window)!.Value;
                 var pillRightEdge = pill.TranslatePoint(new Point(pill.Bounds.Width, 0), window)!.Value.X;
                 var screenPoint = window.PointToScreen(circleTopLeft);
-                return (rig.ViewModel.IsPillOpen, pillRightEdge, circleTopLeft.X, before, window.OrbAnchor, screenPoint, widthBefore, window.Bounds.Width);
+                return (rig.ViewModel.IsPillOpen, pillRightEdge, circleTopLeft.X, before, window.OrbAnchor, screenPoint, windowBefore, (window.Position, window.Bounds.Size));
             },
             Ct);
 
         Assert.True(open);
         Assert.Equal(anchorBefore, anchorAfter);
         Assert.Equal(anchorAfter, circleScreen);
-        Assert.True(windowWidthAfter > windowWidthBefore, "The window grows to hold the pill.");
+        Assert.Equal(windowBefore, windowAfter);
         Assert.Equal(circleLeft - 6, pillRight, 0.5);
+    }
+
+    [Fact]
+    public async Task TheWindow_KeepsOneSize_ThroughPillAndChip_AndOnlyTheShownShapesTakeClicks()
+    {
+        var (sizes, positions, closedRegion, pillRegion, chipRegion, styleRegions, slots) = await Session.Dispatch(
+            async () =>
+            {
+                using var rig = new Rig();
+                rig.Controller.Dispose();
+                var style = new RecordingStyle();
+                var viewModel = new FloatingOrbViewModel(rig.Harness.Recorder, new FloatingOrbActions(() => Task.CompletedTask, () => Task.CompletedTask, () => { }), rig.Marks, post: action => action());
+                using var controller = new FloatingOrbController(
+                    rig.Main,
+                    rig.Shell,
+                    viewModel,
+                    vm => new FloatingOrbWindow { DataContext = vm, WorkAreaSource = () => rig.Areas },
+                    style,
+                    _ => 4242);
+
+                await rig.StartRecordingAsync();
+                UiHarness.Pump(4);
+                var window = controller.Window!;
+                var sizes = new List<Size> { window.Bounds.Size };
+                var positions = new List<PixelPoint> { window.Position };
+                var closed = window.InputRegion.ToArray();
+
+                viewModel.IsPillOpen = true;
+                UiHarness.Pump(4);
+                sizes.Add(window.Bounds.Size);
+                positions.Add(window.Position);
+                var pill = window.InputRegion.ToArray();
+
+                viewModel.MarkCommand.Execute(null);
+                UiHarness.Pump(4);
+                sizes.Add(window.Bounds.Size);
+                positions.Add(window.Position);
+                var chip = window.InputRegion.ToArray();
+
+                viewModel.IsPillOpen = false;
+                UiHarness.Pump(4);
+                sizes.Add(window.Bounds.Size);
+                positions.Add(window.Position);
+                return (sizes, positions, closed, pill, chip, style.Regions.ToList(), (window.PillSlot, window.ChipSlot));
+            },
+            Ct);
+
+        Assert.Single(sizes.Distinct());
+        Assert.Single(positions.Distinct());
+
+        // 4 px shadow margin + 148 pill slot (142 pill + 6 gap) + 44 circle + 4; 4 + 36 chip slot + 44 + 36 + 4.
+        Assert.Equal(new Size(200, 124), sizes[0]);
+        Assert.Equal((148.0, 36.0), slots);
+
+        // Closed: the circle with its margin only, at the right of the middle row.
+        Assert.Equal([new FloatingWindowRect(148, 36, 52, 52)], closedRegion);
+
+        // Open: the pill (40 high, centred on the circle's row) with its margin as well.
+        Assert.Equal(2, pillRegion.Length);
+        Assert.Contains(new FloatingWindowRect(0, 38, 150, 48), pillRegion);
+
+        // With the chip: three parts, the chip's under the circle (the default spot is near the bottom, so it may flip above).
+        Assert.Equal(3, chipRegion.Length);
+        Assert.All(chipRegion, part => Assert.True(part.X >= 0 && part.Y >= 0 && part.Right <= 200 && part.Bottom <= 124));
+
+        // Every change reached the platform style (and the region is sent again when the window opens).
+        Assert.Contains(styleRegions, region => region.SequenceEqual(closedRegion));
+        Assert.Contains(styleRegions, region => region.SequenceEqual(pillRegion));
+        Assert.Contains(styleRegions, region => region.SequenceEqual(chipRegion));
+    }
+
+    [Theory]
+    [InlineData(1.0, 0, 0, 52, 52)]
+    [InlineData(1.5, 0, 0, 78, 78)]
+    [InlineData(1.25, 0, 0, 65, 65)]
+    public void TheInputRegion_GrowsEachShapeByTheShadowMargin_AndRoundsOutwards(double scale, int x, int y, int width, int height)
+    {
+        var part = FloatingOrbInputRegion.ToPixels(new Rect(4, 4, 44, 44), new Thickness(4), new Rect(0, 0, 200, 124), scale);
+
+        Assert.Equal(new FloatingWindowRect(x, y, width, height), part);
+    }
+
+    [Fact]
+    public void TheInputRegion_StaysInsideTheWindow_AndAShapeOutsideItIsEmpty()
+    {
+        var clipped = FloatingOrbInputRegion.ToPixels(new Rect(2, 100, 50, 30), new Thickness(4), new Rect(0, 0, 200, 124), 1);
+        var outside = FloatingOrbInputRegion.ToPixels(new Rect(300, 0, 10, 10), new Thickness(4), new Rect(0, 0, 200, 124), 1);
+
+        Assert.Equal(new FloatingWindowRect(0, 96, 56, 28), clipped);
+        Assert.Equal(default, outside);
     }
 
     [Fact]
