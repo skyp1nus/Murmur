@@ -47,6 +47,15 @@ internal static partial class FloatingWindowNativeMethods
     /// <summary><c>MA_NOACTIVATE</c>: the click goes to the window, which does not activate.</summary>
     public const nint MaNoActivate = 3;
 
+    /// <summary><c>WH_CBT</c>: the computer-based-training hook, asked before a window is activated or gets the focus.</summary>
+    public const int WhCbt = 5;
+
+    /// <summary><c>HCBT_ACTIVATE</c>: a window is about to be activated (<c>wParam</c> = the window); a non-zero answer prevents it.</summary>
+    public const int HcbtActivate = 5;
+
+    /// <summary><c>HCBT_SETFOCUS</c>: a window is about to get the keyboard focus (<c>wParam</c> = the window); a non-zero answer prevents it.</summary>
+    public const int HcbtSetFocus = 9;
+
     /// <summary><c>RGN_OR</c>: the union of two regions.</summary>
     public const int RgnOr = 2;
 
@@ -84,6 +93,23 @@ internal static partial class FloatingWindowNativeMethods
     [LibraryImport("user32.dll", EntryPoint = "IsWindow")]
     [return: MarshalAs(UnmanagedType.Bool)]
     public static partial bool IsWindow(nint window);
+
+    /// <summary><c>HHOOK SetWindowsHookExW(int idHook, HOOKPROC lpfn, HINSTANCE hmod, DWORD dwThreadId)</c>: 0 on failure.</summary>
+    [LibraryImport("user32.dll", EntryPoint = "SetWindowsHookExW", SetLastError = true)]
+    public static partial nint SetWindowsHookExW(int hook, nint procedure, nint module, uint threadId);
+
+    /// <summary><c>BOOL UnhookWindowsHookEx(HHOOK hhk)</c>.</summary>
+    [LibraryImport("user32.dll", EntryPoint = "UnhookWindowsHookEx")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static partial bool UnhookWindowsHookEx(nint hook);
+
+    /// <summary><c>LRESULT CallNextHookEx(HHOOK hhk, int nCode, WPARAM wParam, LPARAM lParam)</c>.</summary>
+    [LibraryImport("user32.dll", EntryPoint = "CallNextHookEx")]
+    public static partial nint CallNextHookEx(nint hook, int code, nint wParam, nint lParam);
+
+    /// <summary><c>DWORD GetCurrentThreadId()</c>.</summary>
+    [LibraryImport("kernel32.dll", EntryPoint = "GetCurrentThreadId")]
+    public static partial uint GetCurrentThreadId();
 
     /// <summary><c>BOOL IsWindowEnabled(HWND hWnd)</c>.</summary>
     [LibraryImport("user32.dll", EntryPoint = "IsWindowEnabled")]

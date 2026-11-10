@@ -18,6 +18,12 @@ namespace Murmur.Capture.Windows.Platform;
 /// <item><c>WM_MOUSEACTIVATE</c>: answers <c>MA_NOACTIVATE</c>, so a click never activates the window even if the style were lost;</item>
 /// <item><c>WM_NCDESTROY</c>: the previous procedure is put back and the window forgotten.</item>
 /// </list>
+/// <para><c>MA_NOACTIVATE</c> only stops the click itself from activating the window: Avalonia's <c>WindowImpl</c> then calls
+/// <c>SetFocus(hwnd)</c> on every <c>WM_*BUTTONDOWN</c> (<c>ShouldTakeFocusOnClick</c> is true for windows), and <c>SetFocus</c>
+/// activates the window it focuses. So while an orb window exists, a thread-local <c>WH_CBT</c> hook on the UI thread refuses
+/// <c>HCBT_ACTIVATE</c> and <c>HCBT_SETFOCUS</c> for the subclassed windows (and for no other window); <c>SetFocus</c> then fails
+/// and nothing is activated. The button-down message itself still reaches Avalonia, so clicks and drags work as before: swallowing it
+/// to skip the <c>SetFocus</c> would also take the press away from Avalonia's input. The hook is removed with the last orb window.</para>
 /// <para>Each call also makes sure the window can be seen and clicked (<see cref="MakeReachable"/>).</para>
 /// <para><see cref="SetInputRegion"/> sets a window region: outside it, clicks go to the window below (see the method).</para>
 /// <para>All calls come from the UI thread that owns the window (a window can only be subclassed from its own process). Failures are
@@ -28,6 +34,9 @@ internal sealed unsafe class WindowsFloatingWindowStyle : IFloatingWindowStyle
     /// <summary>The subclassed windows and the procedure each had before.</summary>
     private static readonly Dictionary<nint, nint> s_previous = [];
     private static readonly Lock s_lock = new();
+
+    /// <summary>The thread-local <c>WH_CBT</c> hook of the UI thread while at least one window is subclassed (0 otherwise).</summary>
+    private static nint s_hook;
 
     /// <summary>
     /// The extended style with the non-activating, tool-window bits set, and the app-window, transparent and layered bits cleared (the flag
@@ -48,6 +57,18 @@ internal sealed unsafe class WindowsFloatingWindowStyle : IFloatingWindowStyle
         | FloatingWindowNativeMethods.SwpNoZOrder
         | FloatingWindowNativeMethods.SwpNoActivate
         | FloatingWindowNativeMethods.SwpFrameChanged;
+
+    /// <summary>The activation hook is installed (for tests).</summary>
+    internal static bool IsHooked
+    {
+        get
+        {
+            lock (s_lock)
+            {
+                return s_hook != 0;
+            }
+        }
+    }
 
     /// <summary>The window is subclassed (for tests).</summary>
     internal static bool IsSubclassed(nint window)
@@ -165,7 +186,38 @@ internal sealed unsafe class WindowsFloatingWindowStyle : IFloatingWindowStyle
             }
 
             s_previous[window] = previous;
+            if (s_hook == 0)
+            {
+                delegate* unmanaged<int, nint, nint, nint> hook = &CbtProc;
+                s_hook = FloatingWindowNativeMethods.SetWindowsHookExW(
+                    FloatingWindowNativeMethods.WhCbt, (nint)hook, 0, FloatingWindowNativeMethods.GetCurrentThreadId());
+                if (s_hook == 0)
+                {
+                    Console.Error.WriteLine($"Hooking the floating window's activation failed (Win32 error {Marshal.GetLastPInvokeError()}).");
+                }
+            }
         }
+    }
+
+    /// <summary>
+    /// What the CBT hook decides (pure, for tests): refuse (<c>true</c>) the activation of, or the focus to, a subclassed orb window;
+    /// everything else goes on to the next hook.
+    /// </summary>
+    internal static bool Refuses(int code, bool isOrb) =>
+        isOrb && (code == FloatingWindowNativeMethods.HcbtActivate || code == FloatingWindowNativeMethods.HcbtSetFocus);
+
+    [UnmanagedCallersOnly]
+    private static nint CbtProc(int code, nint wParam, nint lParam)
+    {
+        nint hook;
+        bool isOrb;
+        lock (s_lock)
+        {
+            hook = s_hook;
+            isOrb = code >= 0 && s_previous.ContainsKey(wParam);
+        }
+
+        return Refuses(code, isOrb) ? 1 : FloatingWindowNativeMethods.CallNextHookEx(hook, code, wParam, lParam);
     }
 
     /// <summary>Sets the bits now (the window may already be shown) and has the frame re-read without moving, sizing, reordering or activating it.</summary>
@@ -256,6 +308,11 @@ internal sealed unsafe class WindowsFloatingWindowStyle : IFloatingWindowStyle
             {
                 s_previous.Remove(window);
                 FloatingWindowNativeMethods.SetWindowLongPtrW(window, FloatingWindowNativeMethods.GwlpWndProc, previous);
+                if (s_previous.Count == 0 && s_hook != 0)
+                {
+                    FloatingWindowNativeMethods.UnhookWindowsHookEx(s_hook);
+                    s_hook = 0;
+                }
             }
         }
 
@@ -264,7 +321,7 @@ internal sealed unsafe class WindowsFloatingWindowStyle : IFloatingWindowStyle
             return answer;
         }
 
-        if (message == FloatingWindowNativeMethods.WmStyleChanging && wParam == FloatingWindowNativeMethods.GwlExStyle && lParam != 0)
+        if (message == FloatingWindowNativeMethods.WmStyleChanging && (int)wParam == FloatingWindowNativeMethods.GwlExStyle && lParam != 0)
         {
             var change = (FloatingWindowNativeMethods.StyleStruct*)lParam;
             change->StyleNew = NonActivatingStyle(change->StyleNew);

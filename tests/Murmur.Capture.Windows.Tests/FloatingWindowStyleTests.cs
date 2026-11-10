@@ -11,6 +11,8 @@ public sealed partial class FloatingWindowStyleTests
     private const nint AppWindow = 0x00040000;
     private const nint TopMost = 0x00000008;
 
+    private const string WindowsOnly = "user32 runs only on Windows.";
+
     /// <summary>What Avalonia writes for the orb's window (<c>WS_EX_TOPMOST | WS_EX_NOREDIRECTIONBITMAP</c>, read on the owner's PC).</summary>
     private const nint AvaloniaStyle = 0x200008;
 
@@ -106,6 +108,7 @@ public sealed partial class FloatingWindowStyleTests
     [Trait("Category", "Windows")]
     public void AHandleThatIsNotAWindow_DoesNotThrow()
     {
+        Assert.SkipUnless(OperatingSystem.IsWindows(), WindowsOnly);
         new WindowsFloatingWindowStyle().MakeNonActivating(0x7FFFFFF);
 
         Assert.False(WindowsFloatingWindowStyle.IsSubclassed(0x7FFFFFF));
@@ -115,6 +118,7 @@ public sealed partial class FloatingWindowStyleTests
     [Trait("Category", "Windows")]
     public void AfterShow_TheWindowIsNonActivatingAndAToolWindow()
     {
+        Assert.SkipUnless(OperatingSystem.IsWindows(), WindowsOnly);
         using var window = TestWindow.Create();
         var style = new WindowsFloatingWindowStyle();
 
@@ -130,6 +134,7 @@ public sealed partial class FloatingWindowStyleTests
     [Trait("Category", "Windows")]
     public void AStyleRewrittenAfterTheShow_KeepsTheBits_LikeAvaloniaOnShowAndTopmost()
     {
+        Assert.SkipUnless(OperatingSystem.IsWindows(), WindowsOnly);
         using var window = TestWindow.Create();
         new WindowsFloatingWindowStyle().MakeNonActivating(window.Handle);
         window.ShowNoActivate();
@@ -151,6 +156,7 @@ public sealed partial class FloatingWindowStyleTests
     [Trait("Category", "Windows")]
     public void WithoutTheSubclass_ARewriteDropsTheBits_SoTheTestAboveMeansSomething()
     {
+        Assert.SkipUnless(OperatingSystem.IsWindows(), WindowsOnly);
         using var window = TestWindow.Create();
         window.SetExtendedStyle(NoActivate | ToolWindow);
         window.ShowNoActivate();
@@ -164,6 +170,7 @@ public sealed partial class FloatingWindowStyleTests
     [Trait("Category", "Windows")]
     public void WmMouseActivate_IsAnsweredWithMaNoActivate()
     {
+        Assert.SkipUnless(OperatingSystem.IsWindows(), WindowsOnly);
         using var window = TestWindow.Create();
         new WindowsFloatingWindowStyle().MakeNonActivating(window.Handle);
         window.ShowNoActivate();
@@ -178,6 +185,7 @@ public sealed partial class FloatingWindowStyleTests
     [Trait("Category", "Windows")]
     public void Subclassing_IsDoneOnce_AndUndoneWhenTheWindowIsDestroyed()
     {
+        Assert.SkipUnless(OperatingSystem.IsWindows(), WindowsOnly);
         nint handle;
         using (var window = TestWindow.Create())
         {
@@ -198,6 +206,7 @@ public sealed partial class FloatingWindowStyleTests
     [Trait("Category", "Windows")]
     public void TheInputRegion_IsTheUnionOfTheRectangles_AndClicksOutsideItGoToTheWindowBelow()
     {
+        Assert.SkipUnless(OperatingSystem.IsWindows(), WindowsOnly);
         using var window = TestWindow.Create(x: 100, y: 100, width: 200, height: 124);
         var style = new WindowsFloatingWindowStyle();
         style.MakeNonActivating(window.Handle);
@@ -217,6 +226,7 @@ public sealed partial class FloatingWindowStyleTests
     [Trait("Category", "Windows")]
     public void AnEmptyInputRegion_GivesTheWholeWindowItsInputBack()
     {
+        Assert.SkipUnless(OperatingSystem.IsWindows(), WindowsOnly);
         using var window = TestWindow.Create(x: 100, y: 100, width: 200, height: 124);
         var style = new WindowsFloatingWindowStyle();
         window.ShowNoActivate();
@@ -231,6 +241,7 @@ public sealed partial class FloatingWindowStyleTests
     [Trait("Category", "Windows")]
     public void ADisabledCloakedOrClickThroughWindow_IsMadeReachableAgain()
     {
+        Assert.SkipUnless(OperatingSystem.IsWindows(), WindowsOnly);
         using var window = TestWindow.Create();
         window.ShowNoActivate();
         window.SetExtendedStyle(0x20 | 0x80000);
@@ -242,6 +253,52 @@ public sealed partial class FloatingWindowStyleTests
         Assert.Equal((nint)0, window.ExtendedStyle & (0x20 | 0x80000));
         Assert.True(window.IsEnabled);
         Assert.Equal(0, window.Cloaked);
+    }
+
+    [Theory]
+    [InlineData(5, true, true)]
+    [InlineData(9, true, true)]
+    [InlineData(5, false, false)]
+    [InlineData(9, false, false)]
+    [InlineData(3, true, false)]
+    [InlineData(-1, true, false)]
+    public void TheCbtHook_RefusesOnlyActivationAndFocusOfAnOrbWindow(int code, bool isOrb, bool refused)
+    {
+        Assert.Equal(refused, WindowsFloatingWindowStyle.Refuses(code, isOrb));
+    }
+
+    [Fact]
+    [Trait("Category", "Windows")]
+    public void ASetFocusOnButtonDown_LikeAvalonias_NeitherActivatesNorFocusesTheOrb()
+    {
+        Assert.SkipUnless(OperatingSystem.IsWindows(), WindowsOnly);
+        using var window = TestWindow.CreateFocusingOnClick();
+        new WindowsFloatingWindowStyle().MakeNonActivating(window.Handle);
+        window.ShowNoActivate();
+        Assert.True(WindowsFloatingWindowStyle.IsHooked);
+        var calls = TestWindow.SetFocusCalls;
+
+        // MAKELPARAM(20, 20) inside the window; MK_LBUTTON.
+        window.Send(0x201, 1, (20 << 16) | 20);
+        window.Send(0x202, 0, (20 << 16) | 20);
+
+        Assert.Equal(calls + 1, TestWindow.SetFocusCalls);
+        Assert.NotEqual(window.Handle, TestWindow.ActiveWindow);
+        Assert.NotEqual(window.Handle, TestWindow.FocusWindow);
+    }
+
+    [Fact]
+    [Trait("Category", "Windows")]
+    public void TheHook_GoesWithTheLastOrbWindow()
+    {
+        Assert.SkipUnless(OperatingSystem.IsWindows(), WindowsOnly);
+        using (var window = TestWindow.Create())
+        {
+            new WindowsFloatingWindowStyle().MakeNonActivating(window.Handle);
+            Assert.True(WindowsFloatingWindowStyle.IsHooked);
+        }
+
+        Assert.False(WindowsFloatingWindowStyle.IsHooked);
     }
 
     private static void AssertNonActivating(nint style)
@@ -257,6 +314,11 @@ public sealed partial class FloatingWindowStyleTests
         private const uint WsPopup = 0x80000000;
         private const int SwShowNoActivate = 4;
 
+        private const string FocusingClass = "MurmurOrbFocusTest";
+        private static readonly Lock s_classLock = new();
+        private static bool s_classRegistered;
+        private static int s_setFocusCalls;
+
         private TestWindow(nint handle) => Handle = handle;
 
         public nint Handle { get; private set; }
@@ -270,6 +332,52 @@ public sealed partial class FloatingWindowStyleTests
             var handle = CreateWindowExW(0, "BUTTON", "Murmur orb test", WsPopup, x, y, width, height, 0, 0, 0, 0);
             Assert.NotEqual((nint)0, handle);
             return new TestWindow(handle);
+        }
+
+        /// <summary>How many times the focusing window's procedure called <c>SetFocus</c> (it does on every left button down, like Avalonia).</summary>
+        public static int SetFocusCalls => Volatile.Read(ref s_setFocusCalls);
+
+        public static nint ActiveWindow => GetActiveWindow();
+
+        public static nint FocusWindow => GetFocus();
+
+        /// <summary>A popup of a class of its own whose procedure calls <c>SetFocus(hwnd)</c> on <c>WM_LBUTTONDOWN</c>, as Avalonia's <c>WindowImpl</c> does.</summary>
+        public static unsafe TestWindow CreateFocusingOnClick()
+        {
+            lock (s_classLock)
+            {
+                if (!s_classRegistered)
+                {
+                    fixed (char* name = FocusingClass)
+                    {
+                        var windowClass = new WndClassW
+                        {
+                            WindowProc = (nint)(delegate* unmanaged<nint, uint, nint, nint, nint>)&FocusingProc,
+                            ClassName = (nint)name,
+                        };
+                        Assert.NotEqual(0, RegisterClassW(in windowClass));
+                    }
+
+                    s_classRegistered = true;
+                }
+            }
+
+            var handle = CreateWindowExW(0, FocusingClass, "Murmur orb focus test", WsPopup, 0, 0, 52, 52, 0, 0, 0, 0);
+            Assert.NotEqual((nint)0, handle);
+            return new TestWindow(handle);
+        }
+
+        [UnmanagedCallersOnly]
+        private static nint FocusingProc(nint window, uint message, nint wParam, nint lParam)
+        {
+            if (message == 0x201)
+            {
+                Interlocked.Increment(ref s_setFocusCalls);
+                SetFocus(window);
+                return 0;
+            }
+
+            return DefWindowProcW(window, message, wParam, lParam);
         }
 
         public void ShowNoActivate() => ShowWindow(Handle, SwShowNoActivate);
@@ -320,6 +428,37 @@ public sealed partial class FloatingWindowStyleTests
 
         [LibraryImport("user32.dll", EntryPoint = "SendMessageW")]
         private static partial nint SendMessageW(nint window, uint message, nint wParam, nint lParam);
+
+        /// <summary>winuser.h <c>WNDCLASSW</c>.</summary>
+        [StructLayout(LayoutKind.Sequential)]
+        private struct WndClassW
+        {
+            public uint Style;
+            public nint WindowProc;
+            public int ClassExtra;
+            public int WindowExtra;
+            public nint Instance;
+            public nint Icon;
+            public nint Cursor;
+            public nint Background;
+            public nint MenuName;
+            public nint ClassName;
+        }
+
+        [LibraryImport("user32.dll", EntryPoint = "RegisterClassW", SetLastError = true)]
+        private static partial ushort RegisterClassW(in WndClassW windowClass);
+
+        [LibraryImport("user32.dll", EntryPoint = "DefWindowProcW")]
+        private static partial nint DefWindowProcW(nint window, uint message, nint wParam, nint lParam);
+
+        [LibraryImport("user32.dll", EntryPoint = "SetFocus")]
+        private static partial nint SetFocus(nint window);
+
+        [LibraryImport("user32.dll", EntryPoint = "GetFocus")]
+        private static partial nint GetFocus();
+
+        [LibraryImport("user32.dll", EntryPoint = "GetActiveWindow")]
+        private static partial nint GetActiveWindow();
 
         [StructLayout(LayoutKind.Sequential)]
         private struct Rect
