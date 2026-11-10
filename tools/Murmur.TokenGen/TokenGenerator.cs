@@ -37,9 +37,10 @@ public static class TokenGenerator
             Orb.<Layer>         Color of a layer of the orb gradient (+ X, Y, Stop doubles); Orb.Base the lavender under them. Not themed.
             Glass.<Orb>.<Name>  x:Double of a canvas orb painted by GlassOrbControl (Recording, Welcome, Voice), from "glassOrbs":
                                 Size, Body, GlowBlur are theme-independent; HaloBlur, HaloOpacity and Glow are in the theme
-                                dictionaries (from <name> and <name>Dark), so look them up with DynamicResource.
+                                dictionaries (from <name> and <name>Dark), so look them up with DynamicResource. An orb that
+                                breathes may also give BreathHaloScale and BreathHaloFade (themed the same way).
 
-          Everything except Color.* / Brush.* / Glass.*.HaloBlur|HaloOpacity|Glow is theme-independent and sits outside the theme dictionaries.
+          Everything except Color.* / Brush.* / Glass.*.HaloBlur|HaloOpacity|Glow|BreathHalo* is theme-independent and sits outside the theme dictionaries.
           Accent colours are only for the recording orb and icons; files whose name contains "Orb", and Icons/, may reference them.
         -->
         """;
@@ -356,6 +357,9 @@ public static class TokenGenerator
 
     private static readonly string[] GlassThemed = ["haloBlur", "haloOpacity", "glow"];
 
+    /// <summary>Themed values an orb may give (with their Dark twin): the canvas breathing of the orbs that breathe.</summary>
+    private static readonly string[] GlassOptionalThemed = ["breathHaloScale", "breathHaloFade"];
+
     /// <summary>
     /// Reads "glassOrbs": every orb must give all of <c>size body glowBlur haloBlur haloOpacity glow</c> and a <c>Dark</c> twin of each themed
     /// value; a missing value, a missing dark twin or a key the generator does not know is an error (a typo would otherwise vanish silently).
@@ -371,7 +375,7 @@ public static class TokenGenerator
             }
 
             var known = new HashSet<string>(GlassFixed, StringComparer.Ordinal);
-            foreach (var themed in GlassThemed)
+            foreach (var themed in GlassThemed.Concat(GlassOptionalThemed))
             {
                 known.Add(themed);
                 known.Add(themed + "Dark");
@@ -395,6 +399,14 @@ public static class TokenGenerator
             foreach (var key in GlassThemed)
             {
                 themedValues.Add((Pascal(key), GlassValue(orb, key), GlassValue(orb, key + "Dark")));
+            }
+
+            foreach (var key in GlassOptionalThemed)
+            {
+                if (orb.Value.TryGetProperty(key, out _) || orb.Value.TryGetProperty(key + "Dark", out _))
+                {
+                    themedValues.Add((Pascal(key), GlassValue(orb, key), GlassValue(orb, key + "Dark")));
+                }
             }
 
             orbs.Add(new GlassOrb(Pascal(orb.Name), [.. fixedValues], [.. themedValues]));

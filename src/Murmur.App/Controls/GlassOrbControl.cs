@@ -26,8 +26,8 @@ namespace Murmur.App.Controls;
 /// </para>
 /// <para>
 /// <b>Animation, on the compositor.</b> Not <see cref="IsActive"/>: one static frame, nothing runs. Active without a
-/// <see cref="LevelSource"/>: the canvas <c>breathe</c> (3.6 s, CSS <c>ease-in-out</c>, the sphere grows 5 %, the halo 16 % and
-/// fades), as forever key frame animations of the layers' composition visuals (<see cref="CompositionLoop"/>): started once, run by
+/// <see cref="LevelSource"/>: the canvas <c>breathe</c> (3.6 s, CSS <c>ease-in-out</c>, the sphere grows 5 %, the halo grows to
+/// <see cref="BreathHaloScale"/> and fades by <see cref="BreathHaloFade"/>, both per theme), as forever key frame animations of the layers' composition visuals (<see cref="CompositionLoop"/>): started once, run by
 /// the render thread at the display rate, no UI work per frame. Active with a source: a 30 Hz timer samples the voice level and
 /// smooths it (fast attack, slow release); each new target is handed to the compositor through implicit animations as long as one
 /// sample interval, so the render thread glides from sample to sample every frame. Inaudible changes push nothing, so silence costs
@@ -69,13 +69,20 @@ public sealed class GlassOrbControl : Panel
     public static readonly StyledProperty<double> InnerGlowOpacityProperty =
         AvaloniaProperty.Register<GlassOrbControl, double>(nameof(InnerGlowOpacity), 0.35);
 
+    /// <summary>The halo's scale at the peak of the breath (the canvas <c>halo</c> key frame at 50 %; per theme, <c>Glass.Welcome.BreathHaloScale</c>).</summary>
+    public static readonly StyledProperty<double> BreathHaloScaleProperty =
+        AvaloniaProperty.Register<GlassOrbControl, double>(nameof(BreathHaloScale), 1.16);
+
+    /// <summary>The share of its rest opacity the halo loses at the peak of the breath (per theme, <c>Glass.Welcome.BreathHaloFade</c>).</summary>
+    public static readonly StyledProperty<double> BreathHaloFadeProperty =
+        AvaloniaProperty.Register<GlassOrbControl, double>(nameof(BreathHaloFade), 0.6);
+
     private const double BreathPeriodSeconds = 3.6;
 
     /// <summary>The breathing curve, 0 at rest and 1 at the peak (the canvas key frames 0 %, 50 %, 100 % with <c>ease-in-out</c>).</summary>
     private static readonly LoopKey[] BreathCurve = [new(0, 0), new(0.5f, 1, LoopEasing.EaseInOut), new(1, 0, LoopEasing.EaseInOut)];
     private const double BreathBodyGrowth = 0.05;
-    private const double BreathHaloGrowth = 0.16;
-    private const double BreathHaloFade = 0.6;
+    private const double VoiceHaloFade = 0.6;
     private const double VoiceBodyGrowth = 0.09;
     private const double VoiceHaloGrowth = 0.2;
     private const double AttackPerSecond = 14.0;
@@ -181,6 +188,18 @@ public sealed class GlassOrbControl : Panel
     {
         get => GetValue(InnerGlowBlurProperty);
         set => SetValue(InnerGlowBlurProperty, value);
+    }
+
+    public double BreathHaloScale
+    {
+        get => GetValue(BreathHaloScaleProperty);
+        set => SetValue(BreathHaloScaleProperty, value);
+    }
+
+    public double BreathHaloFade
+    {
+        get => GetValue(BreathHaloFadeProperty);
+        set => SetValue(BreathHaloFadeProperty, value);
     }
 
     public double InnerGlowOpacity
@@ -330,6 +349,12 @@ public sealed class GlassOrbControl : Panel
         {
             _gate.Update(IsActive);
         }
+        else if ((change.Property == BreathHaloScaleProperty || change.Property == BreathHaloFadeProperty) && _looping)
+        {
+            // A theme change mid-breath: the loops start again with the theme's amplitudes.
+            StopLoops();
+            RefreshMotion();
+        }
         else if (change.Property == LevelSourceProperty)
         {
             _primed = false;
@@ -405,7 +430,7 @@ public sealed class GlassOrbControl : Panel
         Apply(1, 1, 0);
         var period = TimeSpan.FromSeconds(BreathPeriodSeconds);
         CompositionLoop.StartScale(body, period, [new(0, 1), new(0.5f, (float)(1 + BreathBodyGrowth), LoopEasing.EaseInOut), new(1, 1, LoopEasing.EaseInOut)]);
-        CompositionLoop.StartScale(halo, period, [new(0, 1), new(0.5f, (float)(1 + BreathHaloGrowth), LoopEasing.EaseInOut), new(1, 1, LoopEasing.EaseInOut)]);
+        CompositionLoop.StartScale(halo, period, [new(0, 1), new(0.5f, (float)BreathHaloScale, LoopEasing.EaseInOut), new(1, 1, LoopEasing.EaseInOut)]);
         CompositionLoop.StartOpacity(halo, period, [new(0, 1), new(0.5f, (float)(1 - BreathHaloFade), LoopEasing.EaseInOut), new(1, 1, LoopEasing.EaseInOut)]);
         _looping = true;
     }
@@ -517,7 +542,7 @@ public sealed class GlassOrbControl : Panel
             if (starting || Math.Abs(breath - _smoothed) >= SkipThreshold)
             {
                 _smoothed = breath;
-                Apply(1 + (BreathBodyGrowth * breath), 1 + (BreathHaloGrowth * breath), BreathHaloFade * breath);
+                Apply(1 + (BreathBodyGrowth * breath), 1 + ((BreathHaloScale - 1) * breath), BreathHaloFade * breath);
             }
 
             return;
@@ -538,9 +563,9 @@ public sealed class GlassOrbControl : Panel
         }
 
         _lastFrame = timestamp;
-        if (starting || Math.Abs(_smoothed - _appliedFade / BreathHaloFade) >= SkipThreshold * 4)
+        if (starting || Math.Abs(_smoothed - _appliedFade / VoiceHaloFade) >= SkipThreshold * 4)
         {
-            Apply(1 + (VoiceBodyGrowth * _smoothed), 1 + (VoiceHaloGrowth * _smoothed), BreathHaloFade * _smoothed);
+            Apply(1 + (VoiceBodyGrowth * _smoothed), 1 + (VoiceHaloGrowth * _smoothed), VoiceHaloFade * _smoothed);
         }
     }
 

@@ -40,12 +40,41 @@ public sealed class LevelBarsTests
         var motion = Filled(History);
         motion.Push(0.5f, now: 0.25, animate: true);
 
+        var slide = 0.25 * LevelBarsMotion.SlideSlack;
         Assert.Equal(0, motion.Position(0.25), 6);
-        Assert.Equal(0.5, motion.Position(0.375), 6);
-        Assert.Equal(1, motion.Position(0.5), 6);
+        Assert.Equal(0.5, motion.Position(0.25 + (slide / 2)), 6);
+        Assert.Equal(1, motion.Position(0.25 + slide), 6);
         Assert.Equal(1, motion.Position(9), 6);
         Assert.True(motion.IsMoving(0.4));
-        Assert.False(motion.IsMoving(0.5));
+        Assert.False(motion.IsMoving(0.25 + slide + 1e-9));
+    }
+
+    [Fact]
+    public void ASampleLateByTimerJitter_FindsTheStripStillMoving_AndASteadyStreamStaysAFixedBitBehind()
+    {
+        var motion = Filled(History);
+        var t = 0.25;
+        motion.Push(0.5f, t, animate: true);
+
+        // 10 ms late (4 %): the strip has not stopped before the sample arrives.
+        Assert.True(motion.IsMoving(t + 0.26));
+
+        // A long steady stream neither pauses nor drifts: right before each sample the strip is 5 % of a bar from rest.
+        var lowest = 1.0;
+        var highest = 0.0;
+        for (var i = 0; i < 200; i++)
+        {
+            var next = t + 0.25;
+            Assert.True(motion.IsMoving(next - 1e-6), $"paused before sample {i}");
+            lowest = Math.Min(lowest, motion.Position(next));
+            highest = Math.Max(highest, motion.Position(next));
+            motion.Push((i % 3) / 2f, next, animate: true);
+            t = next;
+        }
+
+        Assert.InRange(lowest, 0.9, 1);
+        Assert.InRange(highest, 0.9, 1);
+        Assert.Equal(1 - (LevelBarsMotion.SlideSlack - 1), motion.Position(t + 0.25), 3);
     }
 
     [Fact]
@@ -146,10 +175,11 @@ public sealed class LevelBarsTests
         var motion = Filled(History);
         motion.Push(0.5f, now: 0.25, animate: true);
 
-        // Half-way through the slide the next sample comes (a short interval, not a burst).
+        // Half-way through the slide the next sample comes (a short interval, not a burst): the strip stays where it was on screen.
+        var before = motion.Position(0.375);
         motion.Push(0.7f, now: 0.375, animate: true);
-        Assert.Equal(-0.5, motion.Position(0.375), 6);
-        Assert.True(motion.Position(0.5) > -0.5);
+        Assert.Equal(before - 1, motion.Position(0.375), 6);
+        Assert.True(motion.Position(0.5) > before - 1);
 
         // Never more than one bar behind.
         motion.Push(0.1f, now: 0.48, animate: true);
@@ -217,15 +247,20 @@ public sealed class LevelBarsTests
     // ---- the hot path -------------------------------------------------------------------------------------------------
 
     [Fact]
-    public void AFrame_AllocatesNothing()
+    public void AFrame_AndTheSamplesOnTheirWay_AllocateNothing()
     {
         var history = Filled(History);
         var meter = Filled(Meter);
         var bars = new LevelBar[Math.Max(History.MaxRects, Meter.MaxRects)];
+        var historyFeed = new LevelBarsFeed();
+        var meterFeed = new LevelBarsFeed();
+        long historyCursor = 0;
+        long meterCursor = 0;
         var t = 0.0;
         var step = 0;
 
-        // A second of samples at 4 Hz and 20 Hz, drawn at 144 frames per second: what the render thread does.
+        // A second of samples at 4 Hz and 20 Hz, drawn at 144 frames per second: the UI thread writes each sample to the feed, the
+        // render thread drains it (what LevelBarsHandler.OnMessage does), then lays out the frame.
         long Pass()
         {
             var sum = 0L;
@@ -235,12 +270,22 @@ public sealed class LevelBarsTests
                 step++;
                 if (step % 36 == 0)
                 {
-                    history.Push((step % 7) / 6f, t, animate: true);
+                    historyFeed.Write((step % 7) / 6f, animate: true);
                 }
 
                 if (step % 7 == 0)
                 {
-                    meter.Push((step % 5) / 4f, t, animate: true);
+                    meterFeed.Write((step % 5) / 4f, animate: true);
+                }
+
+                while (historyFeed.TryRead(ref historyCursor, out var value, out var animate))
+                {
+                    history.Push(value, t, animate);
+                }
+
+                while (meterFeed.TryRead(ref meterCursor, out var value, out var animate))
+                {
+                    meter.Push(value, t, animate);
                 }
 
                 sum += history.Layout(bars, 360, 36, history.Position(t), idle: false);

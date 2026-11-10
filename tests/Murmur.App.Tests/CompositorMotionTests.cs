@@ -353,7 +353,8 @@ public sealed class CompositorMotionTests
             Ct);
 
         TestContext.Current.TestOutputHelper?.WriteLine($"bytes per loud voice sample (three glides): {perSample}; 100 silent samples: {silent}");
-        Assert.InRange(perSample, 1, 2048);
+        // Avalonia's copy of three implicit animations: 400 B each with the one-animation groups. A ceiling, so a regression shows.
+        Assert.InRange(perSample, 1, 1536);
         Assert.Equal(0, silent);
     }
 
@@ -389,5 +390,49 @@ public sealed class CompositorMotionTests
         Assert.Equal((true, true), shown);
         Assert.Equal((true, false), manual);
         Assert.Equal((false, false, false), inactive);
+    }
+
+    [Fact]
+    public async Task GlassOrb_TheWelcomeBreath_TakesItsHaloAmplitudesFromTheTheme_AndRestsAsBefore()
+    {
+        var (light, dark) = await Session.Dispatch(
+            () =>
+            {
+                (double Scale, double Fade, double PeakScale, double PeakOpacity, double RestScale, double RestOpacity) Measure(Avalonia.Styling.ThemeVariant theme)
+                {
+                    var orb = new GlassOrbControl { IsActive = true };
+                    orb.Classes.Add("welcome");
+                    var window = Host(orb);
+                    window.RequestedThemeVariant = theme;
+                    UiHarness.Pump(3);
+                    var clock = new TestTime(UiHarness.Now);
+                    orb.Clock = clock;
+                    orb.Tick();
+                    var rest = (orb.HaloScale, orb.HaloLayerOpacity);
+                    for (var i = 1; i <= 18; i++)
+                    {
+                        orb.Update(TimeSpan.FromSeconds(0.1 * i));
+                    }
+
+                    var r = (orb.BreathHaloScale, orb.BreathHaloFade, orb.HaloScale, orb.HaloLayerOpacity, rest.HaloScale, rest.HaloLayerOpacity);
+                    window.Close();
+                    return r;
+                }
+
+                return (Measure(Avalonia.Styling.ThemeVariant.Light), Measure(Avalonia.Styling.ThemeVariant.Dark));
+            },
+            Ct);
+
+        // The canvas: light halo 1.16 and .32 -> .10, dark 1.18 and .5 -> .2 (the layer opacity is a share of the rest opacity).
+        Assert.Equal((1.16, 0.6875), (light.Scale, light.Fade));
+        Assert.Equal((1.18, 0.6), (dark.Scale, dark.Fade));
+        Assert.Equal(1.16, light.PeakScale, 3);
+        Assert.Equal(0.10, 0.32 * light.PeakOpacity, 3);
+        Assert.Equal(1.18, dark.PeakScale, 3);
+        Assert.Equal(0.20, 0.5 * dark.PeakOpacity, 3);
+
+        // The static frame does not depend on them.
+        Assert.Equal((1.0, 1.0), (light.RestScale, light.RestOpacity));
+        Assert.Equal((1.0, 1.0), (dark.RestScale, dark.RestOpacity));
     }
 }

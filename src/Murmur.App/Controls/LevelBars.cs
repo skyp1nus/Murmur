@@ -69,6 +69,12 @@ internal sealed class LevelBarsMotion
     // The interval the slide uses follows the samples (a quarter of each new one), within half and twice the usual one.
     private const double PeriodFollow = 0.25;
 
+    /// <summary>
+    /// The slide to the rest frame takes this much longer than a sample interval, so a sample that is a little late (timer jitter) still
+    /// finds the strip moving: it never pauses. The strip then runs a steady 5 % of a bar behind, at exactly one bar per interval.
+    /// </summary>
+    public const double SlideSlack = 1.05;
+
     private readonly float[] _values;
     private double _lastSample = double.NaN;
     private double _period;
@@ -131,8 +137,13 @@ internal sealed class LevelBarsMotion
         _positionAt = now;
     }
 
-    /// <summary>Where the strip is at <paramref name="now"/>: 1 at rest, 0 right after a sample, below 0 when samples came early.</summary>
-    public double Position(double now) => Math.Min(1, _position + (Math.Max(0, now - _positionAt) / _period));
+    /// <summary>
+    /// Where the strip is at <paramref name="now"/>: 1 at rest, 0 right after a sample, below 0 when samples came early. From wherever it
+    /// starts it reaches the rest frame in <see cref="SlideSlack"/> sample intervals, so a strip behind catches up instead of falling
+    /// further behind.
+    /// </summary>
+    public double Position(double now) =>
+        Math.Min(1, _position + ((1 - _position) * Math.Max(0, now - _positionAt) / (_period * SlideSlack)));
 
     /// <summary>The strip is still sliding at <paramref name="now"/>: the render thread wants another frame.</summary>
     public bool IsMoving(double now) => Position(now) < 1;
