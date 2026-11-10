@@ -15,7 +15,10 @@ public static class OpenSessionProbe
     /// <summary>The details opened, loaded and rendered.</summary>
     public const int Opened = 0;
 
-    /// <summary>Opening or loading the details failed (the message goes to stderr).</summary>
+    /// <summary>
+    /// The library could not be loaded, or the details page did not open or did not stay open (the message goes to stderr). A load
+    /// error that the details page itself shows (a missing audio file, say) does not fail the probe: the page opened and rendered.
+    /// </summary>
     public const int Failed = 1;
 
     /// <summary>The library has no session to open.</summary>
@@ -47,6 +50,13 @@ public static class OpenSessionProbe
         ArgumentNullException.ThrowIfNull(log);
 
         await shell.InitializeAsync().ConfigureAwait(true);
+        if (shell.Library.Error is { } error)
+        {
+            // A broken database must not pass as an empty library.
+            await log.WriteLineAsync($"{Flag}: the library did not load: {error}").ConfigureAwait(true);
+            return Failed;
+        }
+
         if (shell.Library.Sessions is not [var newest, ..])
         {
             await log.WriteLineAsync($"{Flag}: the library has no session to open.").ConfigureAwait(true);

@@ -847,7 +847,7 @@
                            Text="{Binding StatusText}" />
                 <ProgressBar Minimum="0"
                              Maximum="100"
-                             Value="{Binding ProgressValue}"
+                             Value="{Binding ProgressValue, Mode=OneWay}"
                              IsVisible="{Binding ShowProgress}" />
                 <TextBlock Classes="mono"
                            Foreground="{DynamicResource Brush.Smoke}"
@@ -904,7 +904,7 @@
                              Text="{x:Static res:Strings.Session_SummaryWorkingText}" />
                   <ProgressBar Minimum="0"
                                Maximum="100"
-                               Value="{Binding SummaryProgress}" />
+                               Value="{Binding SummaryProgress, Mode=OneWay}" />
                   <Grid ColumnDefinitions="*,Auto">
                     <TextBlock Grid.Column="0"
                                Classes="sessionMeta mono"

@@ -14,8 +14,14 @@ public sealed class RunBindingModeTests
 {
     private static readonly XNamespace Avalonia = "https://github.com/avaloniaui";
 
+    /// <summary>
+    /// Display-only properties that bind TwoWay by default: <c>Run.Text</c>, and <c>ProgressBar.Value</c> (a RangeBase, which also
+    /// writes its coerced value back). Bound to a view model's private setter they write into it in the AOT build.
+    /// </summary>
+    private static readonly (string Element, string Property)[] TwoWayByDefault = [("Run", "Text"), ("ProgressBar", "Value")];
+
     [Fact]
-    public void EveryRunBoundToTheViewModel_BindsOneWay()
+    public void EveryDisplayOnlyBindingThatIsTwoWayByDefault_BindsOneWay()
     {
         var offenders = new List<string>();
         foreach (var file in Directory.EnumerateFiles(RepoPaths.AppDirectory, "*.axaml", SearchOption.AllDirectories))
@@ -27,17 +33,20 @@ public sealed class RunBindingModeTests
             }
 
             var document = XDocument.Load(file, LoadOptions.SetLineInfo);
-            foreach (var run in document.Descendants(Avalonia + "Run"))
+            foreach (var (element, property) in TwoWayByDefault)
             {
-                if (run.Attribute("Text")?.Value is { } text && IsBinding(text) && !BindsOneWay(text))
+                foreach (var node in document.Descendants(Avalonia + element))
                 {
-                    var line = ((System.Xml.IXmlLineInfo)run).LineNumber;
-                    offenders.Add($"{Path.GetRelativePath(RepoPaths.Root, file)}:{line}: {text}");
+                    if (node.Attribute(property)?.Value is { } text && IsBinding(text) && !BindsOneWay(text))
+                    {
+                        var line = ((System.Xml.IXmlLineInfo)node).LineNumber;
+                        offenders.Add($"{Path.GetRelativePath(RepoPaths.Root, file)}:{line}: {element}.{property} {text}");
+                    }
                 }
             }
         }
 
-        Assert.True(offenders.Count == 0, "Run.Text is TwoWay by default; add Mode=OneWay:\n" + string.Join('\n', offenders));
+        Assert.True(offenders.Count == 0, "These properties bind TwoWay by default; add Mode=OneWay:\n" + string.Join('\n', offenders));
     }
 
     [Theory]

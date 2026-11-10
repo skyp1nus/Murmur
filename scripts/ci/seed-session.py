@@ -22,6 +22,9 @@ SAMPLE_RATE = 16000
 DURATION_MS = 60_000
 STATE_READY = 5
 
+# The schema this script writes into: PRAGMA user_version after the last migration in src/Murmur.Storage/SchemaMigrator.cs.
+SCHEMA_VERSION = 10
+
 
 def words_blob(words):
     """WordsCodec v2: marker -2, count, then per word start_ms, end_ms, utf8 length, utf8 bytes, confidence byte."""
@@ -52,6 +55,13 @@ def main():
     database = os.path.join(root, "murmur.db")
     if not os.path.exists(database):
         sys.exit(f"{database} does not exist: run Murmur --probe-open-latest against it first.")
+    db = sqlite3.connect(database)
+    version = db.execute("PRAGMA user_version").fetchone()[0]
+    db.close()
+    if version != SCHEMA_VERSION:
+        sys.exit(f"{database} has schema version {version}, this script writes version {SCHEMA_VERSION}: "
+                 "update scripts/ci/seed-session.py (SCHEMA_VERSION and the inserts) to the migrations in "
+                 "src/Murmur.Storage/SchemaMigrator.cs.")
 
     session_id = uuid.uuid4().hex
     started = int(time.time() * 1000)

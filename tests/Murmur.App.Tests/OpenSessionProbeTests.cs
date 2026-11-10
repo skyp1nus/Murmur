@@ -74,6 +74,22 @@ public sealed class OpenSessionProbeTests : IDisposable
     }
 
     [Fact]
+    public async Task RunAsync_WhenTheLibraryDoesNotLoad_ReturnsFailed_NotNoSession()
+    {
+        var harness = new UiHarness();
+        harness.Store.ListFailure = new InvalidOperationException("database disk image is malformed");
+        var shell = CreateShell(harness);
+        var log = new StringWriter();
+
+        var code = await Session.Dispatch(
+            () => OpenSessionProbe.RunAsync(shell, () => Task.CompletedTask, log),
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal(OpenSessionProbe.Failed, code);
+        Assert.Contains("malformed", log.ToString(), StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task RunAsync_WhenTheDetailsDoNotOpen_ReturnsFailed()
     {
         // Without a session factory the shell ignores the request to open the details.

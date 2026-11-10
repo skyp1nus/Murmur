@@ -80,7 +80,7 @@
                 </Panel>
                 <ProgressBar Classes="activityBar"
                              IsVisible="{Binding HasProgress}"
-                             Value="{Binding Percent}" />
+                             Value="{Binding Percent, Mode=OneWay}" />
               </StackPanel>
 
               <!-- The figure on the right: the percentage, "Queued", or the elapsed time of the recording. -->
