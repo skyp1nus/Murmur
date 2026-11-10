@@ -4,6 +4,7 @@ using Ellipse = Avalonia.Controls.Shapes.Ellipse;
 using Avalonia.Headless;
 using Avalonia.Input;
 using Avalonia.Media;
+using Avalonia.Rendering.Composition;
 using Avalonia.Styling;
 using Avalonia.VisualTree;
 using Murmur.App.Controls;
@@ -851,22 +852,124 @@ public sealed class FloatingOrbWindowTests
     private static FloatingOrbDisc DiscOf(FloatingOrbWindow window) => window.FindControl<FloatingOrbDisc>("Disc")!;
 
     [Fact]
-    public async Task WhileRecording_TheOrbMovesOnOneTimer_StartedOnce_AndNoOrbRunsItsOwn()
+    public async Task WhileRecording_TheOrbLoopsOnTheCompositor_StartedOnce_AndNoOrbRunsItsOwn()
     {
-        var (moving, starts, orbTimers) = await Session.Dispatch(
+        var (moving, looping, starts, orbTimers, angle) = await Session.Dispatch(
             async () =>
             {
                 using var rig = new Rig();
                 await rig.StartRecordingAsync();
                 UiHarness.Pump(30);
                 var disc = DiscOf(rig.Window);
-                return (disc.IsMoving, disc.Starts, rig.Window.GetVisualDescendants().OfType<GlassOrbControl>().Count(o => o.IsFrameLoopRunning));
+                return (disc.IsMoving, disc.IsLooping, disc.Starts, rig.Window.GetVisualDescendants().OfType<GlassOrbControl>().Count(o => o.IsFrameLoopRunning), disc.Angle);
             },
             Ct);
 
         Assert.True(moving);
+        Assert.True(looping);
         Assert.Equal(1, starts);
         Assert.Equal(0, orbTimers);
+
+        // The compositor turns it: the UI-side angle is never written per frame.
+        Assert.Equal(0f, angle);
+    }
+
+    [Fact]
+    public async Task ADiscThatStartsAtItsFirstArrange_TurnsAndScalesAboutItsCentre()
+    {
+        var centres = await Session.Dispatch(
+            () =>
+            {
+                // Active before it is shown: the loops start from the first arrange, when Bounds is still empty.
+                var disc = new FloatingOrbDisc { Width = 28, Height = 28, IsActive = true };
+                var window = new Window { Width = 100, Height = 100, Content = disc };
+                window.Show();
+                UiHarness.Pump(3);
+                var result = disc.GetVisualChildren().Select(child => ElementComposition.GetElementVisual(child)!.CenterPoint).ToArray();
+                var looping = disc.IsLooping;
+                window.Close();
+                return (result, looping);
+            },
+            Ct);
+
+        Assert.True(centres.looping);
+        Assert.All(centres.result, centre => Assert.Equal(new Vector3D(14, 14, 0), centre));
+    }
+
+    [Fact]
+    public async Task AHiddenOrMinimisedWindow_StopsTheLoops_AndShowingItAgainStartsThem()
+    {
+        var (hidden, shownAgain, angle, ring) = await Session.Dispatch(
+            () =>
+            {
+                var disc = new FloatingOrbDisc { Width = 28, Height = 28, IsActive = true };
+                var window = new Window { Width = 100, Height = 100, Content = disc };
+                window.Show();
+                UiHarness.Pump(3);
+
+                window.Hide();
+                disc.Gate.Check();
+                var hiddenLooping = disc.IsLooping;
+                var restAngle = disc.Angle;
+                var restRing = disc.RingOpacity;
+
+                window.Show();
+                UiHarness.Pump(3);
+                disc.Gate.Check();
+                UiHarness.Pump(2);
+                var again = disc.IsLooping;
+                window.Close();
+                return (hiddenLooping, again, restAngle, restRing);
+            },
+            Ct);
+
+        Assert.False(hidden);
+        Assert.True(shownAgain);
+        Assert.Equal(0f, angle);
+        Assert.Equal(0d, ring);
+    }
+
+    [Fact]
+    public async Task TheCompositor_MovesTheOrbAndTheRing_WithoutAnyUiWork()
+    {
+        var (moved, ringOut, ringAtRest, restAgain) = await Session.Dispatch(
+            () =>
+            {
+                var disc = new FloatingOrbDisc { Width = 120, Height = 120 };
+                var window = new Window { Width = 300, Height = 300, Content = disc, Background = Brushes.White };
+                window.Show();
+                UiHarness.Pump(3);
+                UiHarness.RedrawWhole(window);
+                var rest = UiHarness.Pixels(window);
+                disc.IsActive = true;
+                UiHarness.Pump(2);
+
+                // Real time passes on the render clock; the UI thread only lets the headless renderer draw. 0.6 s into the ping the
+                // ring is about 1.45 times the orb: a point 75 px from the centre (the orb's radius is 60) is tinted.
+                Thread.Sleep(600);
+                UiHarness.Pump(2);
+                var moving = UiHarness.Pixels(window);
+                disc.IsActive = false;
+                UiHarness.Pump(2);
+
+                // Drawn whole: the moving ring's dirty rectangles can leave anti-aliasing residue in the kept frame.
+                UiHarness.RedrawWhole(window);
+                var after = UiHarness.Pixels(window);
+                window.Close();
+                return (!moving.AsSpan().SequenceEqual(rest), !IsWhite(moving, 300, 150 + 75, 150), IsWhite(rest, 300, 150 + 75, 150), after.AsSpan().SequenceEqual(rest));
+            },
+            Ct);
+
+        Assert.True(moved, "the running loops turn the orb on the compositor");
+        Assert.True(ringAtRest, "the ring is not seen at rest");
+        Assert.True(ringOut, "the ring goes out around the orb");
+        Assert.True(restAgain, "a stopped orb is back at its rest frame");
+    }
+
+    private static bool IsWhite(byte[] pixels, int width, int x, int y)
+    {
+        var i = ((y * width) + x) * 4;
+        return pixels[i] == 255 && pixels[i + 1] == 255 && pixels[i + 2] == 255;
     }
 
     [Fact]
@@ -892,7 +995,7 @@ public sealed class FloatingOrbWindowTests
     }
 
     [Fact]
-    public async Task UnderReducedMotion_TheTimerNeverRuns_AndNothingIsGrey()
+    public async Task UnderReducedMotion_NothingLoops_AndNothingIsGrey()
     {
         var (moving, wash) = await Session.Dispatch(
             async () =>
@@ -901,7 +1004,7 @@ public sealed class FloatingOrbWindowTests
                 rig.ViewModel.ReduceMotion = true;
                 await rig.StartRecordingAsync();
                 UiHarness.Pump(6);
-                return (DiscOf(rig.Window).IsMoving, rig.Window.FindControl<Ellipse>("PausedWash")!.IsVisible);
+                return (DiscOf(rig.Window).IsMoving || DiscOf(rig.Window).IsLooping, rig.Window.FindControl<Ellipse>("PausedWash")!.IsVisible);
             },
             Ct);
 
@@ -948,7 +1051,7 @@ public sealed class FloatingOrbWindowTests
     }
 
     [Fact]
-    public async Task TheOrbTurnsOnceInNineSeconds_Linear_AndThePingRingGrowsAndFadesInTheFirstSixtyPercentOfThreeSeconds()
+    public async Task UnderATestClock_TheOrbTurnsOnceInNineSeconds_Linear_AndThePingRingGrowsAndFadesInTheFirstSixtyPercentOfThreeSeconds()
     {
         var samples = await Session.Dispatch(
             () =>
@@ -988,13 +1091,18 @@ public sealed class FloatingOrbWindowTests
         Assert.InRange(samples[1].Scale, 1.0, 1.9);
         Assert.InRange(samples[1].Opacity, 0.0, 0.55);
 
-        // 2.25 s is 75 % into a ping period of 3 s, in the resting 40 %: the ring is back at rest.
-        Assert.Equal(1.0, samples[2].Scale, 0.001);
+        // 1 s is 5/9 of the ring's 1.8 s: CSS ease-out of the key frames, the same curve the compositor runs.
+        var eased = CompositionLoop.Ease(LoopEasing.EaseOut, 1.0 / 1.8);
+        Assert.Equal(1 + (0.9 * eased), samples[1].Scale, 0.001);
+        Assert.Equal(0.55 * (1 - eased), samples[1].Opacity, 0.001);
+
+        // 2.25 s is 75 % into a ping period of 3 s, in the last 40 %: the ring holds its end frame (1.9, not seen), like the CSS.
+        Assert.Equal(1.9, samples[2].Scale, 0.001);
         Assert.Equal(0.0, samples[2].Opacity, 0.001);
     }
 
     [Fact]
-    public async Task ATick_AllocatesNothing_InTheRingsActivePartAndInItsRest()
+    public async Task ATestClockFrame_AllocatesNothing_InTheRingsActivePartAndInItsRest()
     {
         var (activeBytes, restBytes) = await Session.Dispatch(
             () =>
@@ -1040,12 +1148,17 @@ public sealed class FloatingOrbWindowTests
     }
 
     [Fact]
-    public void TheTurnTakesNineSeconds_AndThePingComesEveryThree()
+    public void TheTurnTakesNineSeconds_AndThePingIsTheMockupsKeyFramesEveryThree()
     {
         Assert.Equal(TimeSpan.FromSeconds(9), FloatingOrbDisc.SpinPeriod);
         Assert.Equal(TimeSpan.FromSeconds(3), FloatingOrbDisc.PingPeriod);
-        Assert.Equal(1.9, FloatingOrbDisc.PingScale);
-        Assert.Equal(0.6, FloatingOrbDisc.PingActiveShare);
+
+        // @keyframes ping{0%{transform:scale(1);opacity:.55}60%{transform:scale(1.9);opacity:0}100%{transform:scale(1.9);opacity:0}}, ease-out.
+        Assert.Equal([new LoopKey(0, 1), new LoopKey(0.6f, 1.9f, LoopEasing.EaseOut), new LoopKey(1, 1.9f, LoopEasing.EaseOut)], FloatingOrbDisc.PingScaleKeys);
+        Assert.Equal([new LoopKey(0, 0.55f), new LoopKey(0.6f, 0, LoopEasing.EaseOut), new LoopKey(1, 0, LoopEasing.EaseOut)], FloatingOrbDisc.PingOpacityKeys);
+        var (scale, opacity) = FloatingOrbDisc.PingAt(2.5);
+        Assert.Equal(1.9, scale, 0.0001);
+        Assert.Equal(0, opacity, 0.0001);
     }
 
     // ---- the pictures ------------------------------------------------------------------------------------------------------

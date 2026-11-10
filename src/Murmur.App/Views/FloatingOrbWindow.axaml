@@ -98,7 +98,7 @@
             AutomationProperties.Name="{Binding StateLabel}">
       <Panel Width="{StaticResource FloatingOrb.Orb}"
              Height="{StaticResource FloatingOrb.Orb}">
-        <!-- The orb turns once in 9 s and a ring goes out every 3 s while recording (one 15 Hz timer, only while it moves); still otherwise. -->
+        <!-- The orb turns once in 9 s and a ring goes out every 3 s while recording (compositor loops, only while it moves and is seen); still otherwise. -->
         <controls:FloatingOrbDisc x:Name="Disc"
                                   Width="{StaticResource FloatingOrb.Orb}"
                                   Height="{StaticResource FloatingOrb.Orb}"

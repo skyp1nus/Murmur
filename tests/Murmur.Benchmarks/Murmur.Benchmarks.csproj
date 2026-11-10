@@ -25,8 +25,6 @@
     <Compile Include="..\..\src\Murmur.Capture.Windows\Playback\WsolaStretcher.cs" Link="Linked\WsolaStretcher.cs" />
     <!-- The position-to-word lookup of the transcript's follow-along highlight (pure C#, run at the player's poll rate). -->
     <Compile Include="..\..\src\Murmur.App\ViewModels\TranscriptTimeline.cs" Link="Linked\TranscriptTimeline.cs" />
-    <!-- The motion maths of the floating recorder orb (pure C#; runs at 15 Hz while a recording is on screen). -->
-    <Compile Include="..\..\src\Murmur.App\Controls\FloatingOrbMotion.cs" Link="Linked\FloatingOrbMotion.cs" />
     <!-- The per-frame code of the level bars that scroll on the render thread (pure C#, no Avalonia types). -->
     <Compile Include="..\..\src\Murmur.App\Controls\LevelBars.cs" Link="Linked\LevelBars.cs" />
   </ItemGroup>

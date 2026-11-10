@@ -1,23 +1,24 @@
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Rendering.Composition;
-using Avalonia.Threading;
-using Avalonia.VisualTree;
 
 namespace Murmur.App.Controls;
 
 /// <summary>
 /// The moving orb of the floating recorder (#46): a <see cref="GlassOrbControl"/> that turns once in nine seconds, and behind it a ring
 /// (a copy of the orb as a plain <see cref="OrbDisc"/>, so no halo is clipped) that goes out every three seconds, grows to 1.9 times
-/// its size and fades. Both move only while <see cref="IsActive"/>, attached and with motion allowed
-/// (<see cref="Motion.ReduceMotionProperty"/>); otherwise the orb holds still at angle 0 and the ring is not seen.
+/// its size and fades: the mockup's <c>spin 9s linear infinite</c> and <c>ping 3s ease-out infinite</c>. Both move only while
+/// <see cref="IsActive"/>, attached, seen and with motion allowed (<see cref="MotionGate"/>); otherwise the orb holds still at angle 0
+/// and the ring is not seen.
 /// </summary>
 /// <remarks>
-/// <para>Like <see cref="SpinningOrb"/> and <see cref="OrbControl"/> it does not use compositor animations that run forever or the 60 Hz
-/// animation-frame loop (an orb that stays on screen for a whole call must cost almost nothing): one 15 Hz timer, which runs only while
-/// the orb moves, sets the <c>RotationAngle</c> of the orb's composition visual and the <c>Scale</c> and <c>Opacity</c> of the ring's. A
-/// tick does no layout, no drawing and no allocation. The ring is out for the first 60 % of its three seconds; for the rest nothing is
-/// written after the ring's rest frame, so the compositor has nothing to do for 1.2 s of every 3 s.</para>
+/// <para>The motion is three compositor animations that repeat forever (<see cref="CompositionLoop"/>): the <c>RotationAngle</c> of the
+/// orb's composition visual and the <c>Scale</c> and <c>Opacity</c> of the ring's. They are started once when the motion may run and
+/// run on the render thread at the display rate; the UI thread does nothing per frame (only the gate's check twice a second while the
+/// orb is wanted). When the motion stops, the rest values are written, which also ends the animations. The inner glass orb stays
+/// inactive (no breathing, no level source), so it costs nothing either.</para>
+/// <para>A test clock (<see cref="Clock"/>) replaces the animations with frames that <see cref="Tick"/> computes from the same key
+/// frames, so a board or a test always draws the same picture.</para>
 /// <para>The orb carries no timer or other readout: "no timer" in the issue means no elapsed-time text on it.</para>
 /// </remarks>
 public sealed class FloatingOrbDisc : Panel
@@ -26,28 +27,41 @@ public sealed class FloatingOrbDisc : Panel
         AvaloniaProperty.Register<FloatingOrbDisc, bool>(nameof(IsActive));
 
     /// <summary>A full turn takes nine seconds.</summary>
-    internal static readonly TimeSpan SpinPeriod = TimeSpan.FromSeconds(FloatingOrbMotion.SpinSeconds);
+    internal static readonly TimeSpan SpinPeriod = TimeSpan.FromSeconds(9);
 
     /// <summary>A ping goes out every three seconds.</summary>
-    internal static readonly TimeSpan PingPeriod = TimeSpan.FromSeconds(FloatingOrbMotion.PingSeconds);
+    internal static readonly TimeSpan PingPeriod = TimeSpan.FromSeconds(3);
 
     /// <summary>The ring ends at 1.9 times the orb.</summary>
-    internal const double PingScale = FloatingOrbMotion.PingScale;
+    internal const float PingScale = 1.9f;
 
     /// <summary>The ring's opacity when it starts.</summary>
-    internal const double PingOpacity = FloatingOrbMotion.PingOpacity;
+    internal const float PingOpacity = 0.55f;
 
     /// <summary>The ring is gone at 60 % of the period.</summary>
-    internal const double PingActiveShare = FloatingOrbMotion.PingActiveShare;
+    internal const float PingActiveShare = 0.6f;
 
-    private static readonly TimeSpan FrameInterval = TimeSpan.FromMilliseconds(1000.0 / 15);
+    /// <summary>The mockup's <c>@keyframes ping</c> scale: 1 at 0 %, 1.9 at 60 % and 100 %, CSS <c>ease-out</c>.</summary>
+    internal static readonly LoopKey[] PingScaleKeys =
+        [new(0, 1), new(PingActiveShare, PingScale, LoopEasing.EaseOut), new(1, PingScale, LoopEasing.EaseOut)];
 
-    private readonly OrbDisc _ping = new() { IsHitTestVisible = false };
+    /// <summary>The mockup's <c>@keyframes ping</c> opacity: .55 at 0 %, 0 at 60 % and 100 %, CSS <c>ease-out</c>.</summary>
+    internal static readonly LoopKey[] PingOpacityKeys =
+        [new(0, PingOpacity), new(PingActiveShare, 0, LoopEasing.EaseOut), new(1, 0, LoopEasing.EaseOut)];
+
+    // The ring rests unseen: its control's opacity is 0, so whenever the renderer copies the control's properties to the composition
+    // visual it writes the rest value (equal to the UI-side value, so a running loop is not disturbed). The loops and the test clock
+    // animate the visual's opacity only.
+    private readonly OrbDisc _ping = new() { IsHitTestVisible = false, Opacity = 0 };
     private readonly GlassOrbControl _orb = new() { IsHitTestVisible = false };
-    private readonly DispatcherTimer _timer;
+    private readonly MotionGate _gate;
     private TimeProvider _clock = TimeProvider.System;
+    private bool _manual;
+    private bool _looping;
     private long _start;
-    private bool _pingAtRest;
+
+    // The size of the last arrange: Bounds is only updated after ArrangeOverride returns, so a loop started from there must not read it.
+    private Size _arranged;
 
     public FloatingOrbDisc()
     {
@@ -55,9 +69,7 @@ public sealed class FloatingOrbDisc : Panel
         Focusable = false;
         Children.Add(_ping);
         Children.Add(_orb);
-        _timer = new DispatcherTimer(DispatcherPriority.Render) { Interval = FrameInterval };
-        _timer.Tick += (_, _) => Tick();
-        _pingAtRest = true;
+        _gate = new MotionGate(this, OnGateChanged);
     }
 
     /// <summary>The orb moves (bind it to the recording state); it holds still otherwise.</summary>
@@ -67,13 +79,19 @@ public sealed class FloatingOrbDisc : Panel
         set => SetValue(IsActiveProperty, value);
     }
 
-    /// <summary>The 15 Hz timer runs (for tests).</summary>
-    internal bool IsMoving => _timer.IsEnabled;
+    /// <summary>The orb moves: active, attached, seen and with motion allowed (for tests).</summary>
+    internal bool IsMoving => _gate.IsOpen;
 
-    /// <summary>How many times the timer was started (for tests).</summary>
+    /// <summary>The compositor animations run (for tests): the orb moves and no test clock drives it.</summary>
+    internal bool IsLooping => _looping;
+
+    /// <summary>How many times the motion started (for tests).</summary>
     internal int Starts { get; private set; }
 
-    /// <summary>The orb's angle in radians (for tests); <c>null</c> without a composition visual.</summary>
+    /// <summary>The gate's slow visibility check (for tests).</summary>
+    internal MotionGate Gate => _gate;
+
+    /// <summary>The orb's angle in radians (for tests); <c>null</c> without a composition visual. It stays 0 while the compositor turns it.</summary>
     internal float? Angle => ElementComposition.GetElementVisual(_orb)?.RotationAngle;
 
     /// <summary>The ring's scale (for tests); <c>null</c> without a composition visual.</summary>
@@ -82,40 +100,68 @@ public sealed class FloatingOrbDisc : Panel
     /// <summary>The ring's opacity (for tests); <c>null</c> without a composition visual.</summary>
     internal double? RingOpacity => ElementComposition.GetElementVisual(_ping)?.Opacity;
 
-    /// <summary>The clock of the motion; the system clock unless a test replaces it. A new clock restarts the motion.</summary>
+    /// <summary>
+    /// The clock of the motion; the system clock unless a test replaces it. A new clock restarts the motion, and any clock other than the
+    /// system one stops the compositor animations: the orb then shows the frames <see cref="Tick"/> computes for that clock.
+    /// </summary>
     internal TimeProvider Clock
     {
         get => _clock;
         set
         {
+            ArgumentNullException.ThrowIfNull(value);
             _clock = value;
             _start = value.GetTimestamp();
+            _manual = !ReferenceEquals(value, TimeProvider.System);
+            if (_manual)
+            {
+                StopLoop();
+            }
+            else if (_gate.IsOpen)
+            {
+                StartLoop();
+            }
         }
     }
 
-    /// <summary>One step at the clock's current time: the orb's angle and, while the ring is out, its scale and opacity. Allocates nothing.</summary>
+    /// <summary>The angle in radians at <paramref name="seconds"/> after the start: one linear turn per <see cref="SpinPeriod"/>, in [0, 2π).</summary>
+    internal static double AngleAt(double seconds)
+    {
+        var turns = seconds / SpinPeriod.TotalSeconds;
+        return (turns - Math.Floor(turns)) * (2 * Math.PI);
+    }
+
+    /// <summary>The ring's scale and opacity at <paramref name="seconds"/> after the start, from the same key frames as the compositor.</summary>
+    internal static (double Scale, double Opacity) PingAt(double seconds)
+    {
+        var cycle = seconds / PingPeriod.TotalSeconds;
+        var progress = cycle - Math.Floor(cycle);
+        return (CompositionLoop.Sample(PingScaleKeys, progress), CompositionLoop.Sample(PingOpacityKeys, progress));
+    }
+
+    /// <summary>
+    /// One frame of a test clock: the orb's angle and the ring's scale and opacity for the time since the start. Does nothing while the
+    /// compositor moves the orb. Allocates nothing.
+    /// </summary>
     internal void Tick()
     {
-        var seconds = _clock.GetElapsedTime(_start).TotalSeconds;
-        if (ElementComposition.GetElementVisual(_orb) is { } orb)
-        {
-            orb.RotationAngle = (float)FloatingOrbMotion.Angle(seconds);
-        }
-
-        if (ElementComposition.GetElementVisual(_ping) is not { } ring)
+        if (_looping)
         {
             return;
         }
 
-        if (FloatingOrbMotion.Ping(seconds, out var scale, out var opacity))
+        var seconds = _clock.GetElapsedTime(_start).TotalSeconds;
+        Centre(_arranged);
+        if (ElementComposition.GetElementVisual(_orb) is { } orb)
         {
+            orb.RotationAngle = (float)AngleAt(seconds);
+        }
+
+        if (ElementComposition.GetElementVisual(_ping) is { } ring)
+        {
+            var (scale, opacity) = PingAt(seconds);
             ring.Scale = new Vector3D(scale, scale, 1);
             ring.Opacity = (float)opacity;
-            _pingAtRest = false;
-        }
-        else if (!_pingAtRest)
-        {
-            RestPing(ring);
         }
     }
 
@@ -132,14 +178,43 @@ public sealed class FloatingOrbDisc : Panel
         var rect = new Rect(finalSize);
         _ping.Arrange(rect);
         _orb.Arrange(rect);
+        _arranged = finalSize;
         Centre(finalSize);
 
-        // The ring is hidden on its composition visual (the control's own opacity stays 1), as soon as the visual exists.
-        if (_pingAtRest && ElementComposition.GetElementVisual(_ping) is { } ring)
+        // The composition visuals do not exist yet when the control is attached: the loops start at the first arrange after that.
+        if (_gate.IsOpen && !_manual && !_looping)
         {
-            ring.Opacity = 0;
+            StartLoop();
         }
+
         return finalSize;
+    }
+
+    protected override void OnPropertyChanged(AvaloniaPropertyChangedEventArgs change)
+    {
+        base.OnPropertyChanged(change);
+        if (change.Property == WidthProperty || change.Property == HeightProperty)
+        {
+            _ping.Width = _orb.Width = Width;
+            _ping.Height = _orb.Height = Height;
+        }
+        else if (change.Property == IsActiveProperty || change.Property == Motion.ReduceMotionProperty || change.Property == IsVisibleProperty)
+        {
+            _gate.Update(IsActive);
+        }
+    }
+
+    protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
+    {
+        base.OnAttachedToVisualTree(e);
+        _gate.Update(IsActive);
+    }
+
+    protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
+    {
+        base.OnDetachedFromVisualTree(e);
+        _gate.Detach();
+        _looping = false;
     }
 
     private void Centre(Size size)
@@ -156,73 +231,65 @@ public sealed class FloatingOrbDisc : Panel
         }
     }
 
-    protected override void OnPropertyChanged(AvaloniaPropertyChangedEventArgs change)
+    private void OnGateChanged(bool open)
     {
-        base.OnPropertyChanged(change);
-        if (change.Property == WidthProperty || change.Property == HeightProperty)
+        if (open)
         {
-            _ping.Width = _orb.Width = Width;
-            _ping.Height = _orb.Height = Height;
+            Starts++;
+            _start = _clock.GetTimestamp();
+            if (!_manual)
+            {
+                StartLoop();
+            }
         }
-        else if (change.Property == IsActiveProperty || change.Property == Motion.ReduceMotionProperty)
+        else
         {
-            Update();
+            StopLoop();
+            Rest();
         }
     }
 
-    protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
+    /// <summary>Starts the three forever loops on the compositor, once both composition visuals exist (otherwise the next arrange does).</summary>
+    private void StartLoop()
     {
-        base.OnAttachedToVisualTree(e);
-        if (_pingAtRest && ElementComposition.GetElementVisual(_ping) is { } ring)
-        {
-            ring.Opacity = 0;
-        }
-
-        Update();
-    }
-
-    protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
-    {
-        base.OnDetachedFromVisualTree(e);
-        Update();
-    }
-
-    private void Update()
-    {
-        var run = IsActive && !Motion.GetReduceMotion(this) && ((Visual)this).IsAttachedToVisualTree();
-        if (run == _timer.IsEnabled)
+        if (_looping
+            || ElementComposition.GetElementVisual(_orb) is not { } orb
+            || ElementComposition.GetElementVisual(_ping) is not { } ring)
         {
             return;
         }
 
-        if (run)
-        {
-            _start = _clock.GetTimestamp();
-            Centre(Bounds.Size);
-            _timer.Start();
-            Starts++;
-            Tick();
-        }
-        else
-        {
-            _timer.Stop();
-            if (ElementComposition.GetElementVisual(_orb) is { } orb)
-            {
-                orb.RotationAngle = 0;
-            }
-
-            if (ElementComposition.GetElementVisual(_ping) is { } ring)
-            {
-                RestPing(ring);
-            }
-        }
+        Centre(_arranged);
+        CompositionLoop.StartSpin(orb, SpinPeriod);
+        CompositionLoop.StartScale(ring, PingPeriod, PingScaleKeys);
+        CompositionLoop.StartOpacity(ring, PingPeriod, PingOpacityKeys);
+        _looping = true;
     }
 
-    /// <summary>The ring's rest frame: full size, not seen.</summary>
-    private void RestPing(CompositionVisual ring)
+    /// <summary>Ends the compositor loops at the rest frame.</summary>
+    private void StopLoop()
     {
-        ring.Scale = new Vector3D(1, 1, 1);
-        ring.Opacity = 0;
-        _pingAtRest = true;
+        if (!_looping)
+        {
+            return;
+        }
+
+        _looping = false;
+        Rest();
+    }
+
+    /// <summary>The rest frame: the orb at angle 0, the ring full size and not seen (writing it also ends a running loop).</summary>
+    private void Rest()
+    {
+        if (ElementComposition.GetElementVisual(_orb) is { } orb)
+        {
+            CompositionLoop.HoldAngle(orb, 0);
+        }
+
+        if (ElementComposition.GetElementVisual(_ping) is { } ring)
+        {
+            CompositionLoop.HoldScale(ring, 1);
+            CompositionLoop.HoldOpacity(ring, 0);
+        }
     }
 }
