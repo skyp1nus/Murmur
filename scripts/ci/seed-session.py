@@ -3,8 +3,8 @@
 
 Usage: seed-session.py <data-dir> [--imported]
 
-The database must already exist with its schema (start the app once with `--startup-probe` against the same
-MURMUR_DATA_DIR). The session is the newest one: a minute of audio (mic.wav and system.wav, a quiet tone), a transcript of
+The database must already exist with its schema: run `Murmur --probe-open-latest` once against the same empty
+MURMUR_DATA_DIR (it creates the database, finds no session and exits 3). The session is the newest one: a minute of audio (mic.wav and system.wav, a quiet tone), a transcript of
 two speakers with an uncertain word, two bookmarks, two chapters and named speakers, so every part of the details page
 renders. With --imported it is an imported file (sessions.source = 1) instead of a recording.
 """
@@ -51,7 +51,7 @@ def main():
     imported = "--imported" in sys.argv[2:]
     database = os.path.join(root, "murmur.db")
     if not os.path.exists(database):
-        sys.exit(f"{database} does not exist: start the app once with --startup-probe first.")
+        sys.exit(f"{database} does not exist: run Murmur --probe-open-latest against it first.")
 
     session_id = uuid.uuid4().hex
     started = int(time.time() * 1000)
