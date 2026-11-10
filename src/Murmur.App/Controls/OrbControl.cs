@@ -20,10 +20,13 @@ namespace Murmur.App.Controls;
 /// two ellipses' composition visuals, so the UI thread records no drawing commands and allocates nothing per frame.
 /// </para>
 /// <para>
-/// <b>Animation.</b> While <see cref="IsActive"/> is false the orb shows one static frame and requests no animation
-/// frames, so an idle window costs no CPU. While active it runs a 15 Hz timer (not the 60 Hz animation-frame loop, whose ticks
-/// alone cost CPU), and reads <see cref="LevelSource"/> once per update. While <see cref="Motion.ReduceMotionProperty"/> is on
-/// the breathing is decoration the user asked to do without: the orb shows its static frame and the timer is stopped.
+/// <b>Animation.</b> While <see cref="IsActive"/> is false the orb shows one static frame and nothing runs, so an idle window
+/// costs no CPU. While active a 30 Hz timer reads <see cref="LevelSource"/> and computes the frame (level and breath); every new
+/// frame is handed to the compositor as a glide of one sample interval (<see cref="CompositionGlide"/>), so the render thread moves
+/// the orb smoothly at the display rate and the UI thread does nothing per display frame. Frames too small to see are not pushed.
+/// Nothing runs while the orb is detached, hidden or minimized (<see cref="MotionGate"/>), or while
+/// <see cref="Motion.ReduceMotionProperty"/> is on: the breathing is decoration the user asked to do without, so the orb shows its
+/// static frame.
 /// </para>
 /// <para>
 /// <b>Time.</b> Every update reads a single clock (<see cref="Clock"/>, the system clock unless a test replaces it). Each
@@ -49,7 +52,10 @@ public sealed class OrbControl : Panel
     private const double AttackPerSecond = 14.0;
     private const double ReleasePerSecond = 3.5;
     private const double MaxStepSeconds = 0.1;
-    private const double MinUpdateSeconds = 0.066;
+    private const double SampleSeconds = 1.0 / 30;
+
+    // A timer tick is never exactly one interval after the last: ticks a little early still count.
+    private const double MinUpdateSeconds = SampleSeconds * 0.8;
     private const double LevelSkipThreshold = 0.02;
     private const double BreathSkipThreshold = 0.003;
     private const double QuietLevel = 0.1;
@@ -58,8 +64,13 @@ public sealed class OrbControl : Panel
 
     private readonly Ellipse _glow = new() { IsHitTestVisible = false };
     private readonly Ellipse _body = new() { IsHitTestVisible = false };
+    private static readonly TimeSpan Glide = TimeSpan.FromMilliseconds(40);
+
     private readonly DispatcherTimer _timer;
+    private readonly MotionGate _gate;
     private TimeProvider _clock = TimeProvider.System;
+    private bool _manual;
+    private bool _gliding;
     private long _clockStart;
     private bool _primed;
     private bool _easeInFromRest;
@@ -77,8 +88,9 @@ public sealed class OrbControl : Panel
     public OrbControl()
     {
         _clockStart = _clock.GetTimestamp();
-        _timer = new DispatcherTimer(DispatcherPriority.Render) { Interval = TimeSpan.FromSeconds(MinUpdateSeconds) };
+        _timer = new DispatcherTimer(DispatcherPriority.Render) { Interval = TimeSpan.FromSeconds(SampleSeconds) };
         _timer.Tick += OnTick;
+        _gate = new MotionGate(this, _ => UpdateLoop());
         IsHitTestVisible = false;
         Focusable = false;
         Children.Add(_glow);
@@ -106,8 +118,14 @@ public sealed class OrbControl : Panel
     /// <summary>Smoothed level in [0, 1] of the last update (for tests).</summary>
     internal double SmoothedLevel => _smoothed;
 
-    /// <summary>True while the control is running its update timer (for tests).</summary>
+    /// <summary>True while the control is running its 30 Hz sampling timer (for tests).</summary>
     internal bool IsFrameLoopRunning => _timer.IsEnabled;
+
+    /// <summary>New frames glide on the compositor (implicit animations are set; for tests).</summary>
+    internal bool IsGliding => _gliding;
+
+    /// <summary>The gate's slow visibility check (for tests).</summary>
+    internal MotionGate Gate => _gate;
 
     /// <summary>How many frames were pushed to the composition visuals; unchanged frames are skipped (for tests).</summary>
     internal long AppliedFrames => _appliedFrames;
@@ -131,7 +149,9 @@ public sealed class OrbControl : Panel
             ArgumentNullException.ThrowIfNull(value);
             _clock = value;
             _clockStart = value.GetTimestamp();
+            _manual = !ReferenceEquals(value, TimeProvider.System);
             Restart();
+            UpdateLoop();
         }
     }
 
@@ -156,6 +176,9 @@ public sealed class OrbControl : Panel
         // The centre may have moved: re-centre the frame on screen without changing it, so a layout pass during a
         // recording never makes the orb jump.
         PushFrame();
+
+        // The layers' composition visuals exist only once they are attached (after this control).
+        SetGlide(_gate.IsOpen && !_manual);
         return finalSize;
     }
 
@@ -164,14 +187,14 @@ public sealed class OrbControl : Panel
         base.OnAttachedToVisualTree(e);
         BuildBrushes();
         PushFrame();
-        UpdateLoop();
+        _gate.Update(IsActive);
     }
 
     protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
     {
         base.OnDetachedFromVisualTree(e);
         Restart();
-        _timer.Stop();
+        _gate.Detach();
     }
 
     protected override void OnPropertyChanged(AvaloniaPropertyChangedEventArgs change)
@@ -186,7 +209,7 @@ public sealed class OrbControl : Panel
                 HoldRest();
             }
 
-            UpdateLoop();
+            _gate.Update(IsActive);
         }
         else if (change.Property == Motion.ReduceMotionProperty)
         {
@@ -201,7 +224,11 @@ public sealed class OrbControl : Panel
                 _easeInFromRest = IsActive;
             }
 
-            UpdateLoop();
+            _gate.Update(IsActive);
+        }
+        else if (change.Property == IsVisibleProperty)
+        {
+            _gate.Update(IsActive);
         }
     }
 
@@ -212,6 +239,7 @@ public sealed class OrbControl : Panel
     private void HoldRest()
     {
         _smoothed = 0;
+        SetGlide(false);
         ApplyFrame(0, breath: 0, active: false);
     }
 
@@ -220,14 +248,39 @@ public sealed class OrbControl : Panel
 
     private void UpdateLoop()
     {
-        var run = IsActive && !ReduceMotion && ((Visual)this).IsAttachedToVisualTree();
+        var run = _gate.IsOpen;
         if (run && !_timer.IsEnabled)
         {
+            Restart();
             _timer.Start();
         }
         else if (!run && _timer.IsEnabled)
         {
             _timer.Stop();
+        }
+
+        SetGlide(run && !_manual);
+    }
+
+    /// <summary>Hands every new frame to the compositor as a short glide (on), or shows it at once (off).</summary>
+    private void SetGlide(bool on)
+    {
+        var body = ElementComposition.GetElementVisual(_body);
+        var glow = ElementComposition.GetElementVisual(_glow);
+        if (on == _gliding || (on && (body is null || glow is null)))
+        {
+            return;
+        }
+
+        _gliding = on;
+        if (body is not null)
+        {
+            body.ImplicitAnimations = on ? CompositionGlide.Create(body.Compositor, Glide, CompositionLoop.Scale) : null;
+        }
+
+        if (glow is not null)
+        {
+            glow.ImplicitAnimations = on ? CompositionGlide.Create(glow.Compositor, Glide, CompositionLoop.Scale, CompositionLoop.Opacity) : null;
         }
     }
 

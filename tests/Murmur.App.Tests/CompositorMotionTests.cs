@@ -356,4 +356,38 @@ public sealed class CompositorMotionTests
         Assert.InRange(perSample, 1, 2048);
         Assert.Equal(0, silent);
     }
+
+    // ---- the recording orb --------------------------------------------------------------------------------------------
+
+    [Fact]
+    public async Task Orb_SamplesAt30Hz_AndGlidesOnTheCompositor_OnlyWhileItMoves()
+    {
+        var (active, hidden, shown, manual, inactive) = await Session.Dispatch(
+            () =>
+            {
+                var orb = new OrbControl { Width = 120, Height = 120, LevelSource = new FixedLevel(0.4f), IsActive = true };
+                var panel = new Border { Child = orb };
+                var window = Host(panel);
+                var a = (orb.IsFrameLoopRunning, orb.IsGliding);
+                panel.IsVisible = false;
+                orb.Gate.Check();
+                var b = (orb.IsFrameLoopRunning, orb.IsGliding);
+                panel.IsVisible = true;
+                orb.Gate.Check();
+                var c = (orb.IsFrameLoopRunning, orb.IsGliding);
+                orb.Clock = new TestTime(UiHarness.Now);
+                var d = (orb.IsFrameLoopRunning, orb.IsGliding);
+                orb.IsActive = false;
+                var e = (orb.IsFrameLoopRunning, orb.IsGliding, orb.Gate.IsWatching);
+                window.Close();
+                return (a, b, c, d, e);
+            },
+            Ct);
+
+        Assert.Equal((true, true), active);
+        Assert.Equal((false, false), hidden);
+        Assert.Equal((true, true), shown);
+        Assert.Equal((true, false), manual);
+        Assert.Equal((false, false, false), inactive);
+    }
 }
