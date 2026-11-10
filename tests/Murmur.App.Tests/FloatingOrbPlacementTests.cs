@@ -144,4 +144,40 @@ public sealed class FloatingOrbPlacementTests
 
         Assert.Equal(new OrbPlacement(0, 0, Corrected: true), placement);
     }
+
+    [Fact]
+    public void AMonitorThatIsUnpluggedAndPluggedBackIn_GetsTheOrbBack_BecauseTheWantedSpotIsNeverOverwritten()
+    {
+        var wanted = new FloatingOrbPosition(2500, 700);
+
+        var gone = FloatingOrbPlacement.Resolve(wanted, [Left]);
+        var back = FloatingOrbPlacement.Resolve(wanted, [Left, Right]);
+
+        Assert.Equal(new OrbPlacement(1920 - 44, 700, Corrected: true), gone);
+        Assert.Equal(new OrbPlacement(2500, 700, Corrected: false), back);
+    }
+
+    [Fact]
+    public void AWorkAreaThatShrank_TheTaskbarMovedOverTheOrb_PullsItInWhole()
+    {
+        // The orb sat in the bottom-right corner; the taskbar now takes 80 px at the bottom and 60 px at the right.
+        var shrunk = new WorkArea(0, 0, 1860, 1000, 1.0);
+
+        var placement = FloatingOrbPlacement.Resolve(new FloatingOrbPosition(1852, 972), [shrunk]);
+
+        Assert.Equal(new OrbPlacement(1860 - 44, 1000 - 44, Corrected: true), placement);
+    }
+
+    [Fact]
+    public void ThePrimaryChangingItsScaling_MovesTheOrbWithIt_AndKeepsItWholeInside()
+    {
+        // Saved 1852 DIPs in at 100 %; the primary now runs at 150 % (2880 px wide work area): 2778 px, and the 66 px orb still fits.
+        var scaled = new WorkArea(0, 0, 2880, 1560, 1.5);
+
+        var placement = FloatingOrbPlacement.Resolve(new FloatingOrbPosition(1852, 972), [scaled]);
+
+        Assert.Equal(new OrbPlacement(2778, 1458, Corrected: false), placement);
+        Assert.True(placement!.Value.X + (44 * 1.5) <= scaled.Right);
+        Assert.True(placement.Value.Y + (44 * 1.5) <= scaled.Bottom);
+    }
 }

@@ -490,6 +490,70 @@ public sealed class FloatingOrbWindowTests
         Assert.Equal(new PixelPoint(1920 - 44, 400), anchor);
     }
 
+    [Fact]
+    public async Task WhenTheScreensChange_TheOrbIsPulledIntoTheRemainingWorkArea_AndReturnsWhenTheMonitorIsBack_WithoutSaving()
+    {
+        var (gone, back, saved, windowGone) = await Session.Dispatch(
+            async () =>
+            {
+                using var rig = new Rig();
+                var second = new WorkArea(1920, 0, 1920, 1080, 1.0);
+                rig.Areas = [Screen, second];
+                rig.Settings.SetCurrentSilently(new AppSettings { FloatingOrbPosition = new FloatingOrbPosition(2500, 400) });
+                await rig.StartRecordingAsync();
+                UiHarness.Pump(4);
+                var window = rig.Window;
+
+                rig.Areas = [Screen];
+                window.Reposition();
+                UiHarness.Pump(2);
+                var gone = window.OrbAnchor;
+                var circle = window.FindControl<Border>("Circle")!;
+                var windowGone = window.PointToScreen(circle.TranslatePoint(default, window)!.Value);
+
+                rig.Areas = [Screen, second];
+                window.Reposition();
+                UiHarness.Pump(2);
+                return (gone, window.OrbAnchor, rig.Settings.Current.FloatingOrbPosition, windowGone);
+            },
+            Ct);
+
+        Assert.Equal(new PixelPoint(1920 - 44, 400), gone);
+        Assert.Equal(gone, windowGone);
+        Assert.Equal(new PixelPoint(2500, 400), back);
+        Assert.Equal(new FloatingOrbPosition(2500, 400), saved);
+    }
+
+    [Fact]
+    public async Task AfterADrag_AScreenChangeKeepsTheDraggedSpot_NotTheSavedOne()
+    {
+        var anchor = await Session.Dispatch(
+            async () =>
+            {
+                using var rig = new Rig();
+                await rig.StartRecordingAsync();
+                UiHarness.Pump(4);
+                var window = rig.Window;
+                var start = window.OrbAnchor;
+                var centre = CircleCentre(window);
+                window.MouseDown(centre, MouseButton.Left);
+                window.MouseMove(centre + new Vector(-40, -30), RawInputModifiers.LeftMouseButton);
+                window.MouseUp(centre + new Vector(-40, -30), MouseButton.Left);
+                UiHarness.Pump(2);
+                var dragged = window.OrbAnchor;
+
+                // The saved value is replaced behind the window's back (the save is still pending, say): the drag wins.
+                rig.Settings.SetCurrentSilently(new AppSettings());
+                window.Reposition();
+                UiHarness.Pump(2);
+                return (start, dragged, window.OrbAnchor);
+            },
+            Ct);
+
+        Assert.Equal(anchor.start + new PixelPoint(-40, -30), anchor.dragged);
+        Assert.Equal(anchor.dragged, anchor.Item3);
+    }
+
     // ---- click and drag ----------------------------------------------------------------------------------------------------
 
     private static Point CircleCentre(FloatingOrbWindow window)

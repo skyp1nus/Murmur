@@ -5,6 +5,7 @@ using Avalonia.Input;
 using Avalonia.Platform;
 using Murmur.App.ViewModels;
 using Murmur.Core.Platform;
+using Murmur.Core.Settings;
 
 namespace Murmur.App.Views;
 
@@ -37,13 +38,21 @@ public partial class FloatingOrbWindow : Window
     private FloatingOrbViewModel? _watched;
     private Thickness _chipBelowMargin;
     private FloatingWindowRect[] _inputRegion = [];
+    private FloatingOrbPosition? _wanted;
+    private Screens? _screens;
 
     public FloatingOrbWindow()
     {
         InitializeComponent();
         _chipBelowMargin = Chip.Margin;
         DataContextChanged += (_, _) => Watch(DataContext as FloatingOrbViewModel);
-        Closed += (_, _) => Watch(null);
+        Closed += (_, _) =>
+        {
+            Watch(null);
+            WatchScreens(null);
+        };
+        Opened += (_, _) => WatchScreens(Screens);
+        ScalingChanged += (_, _) => Reposition();
         Circle.PointerPressed += OnCirclePressed;
         Circle.PointerMoved += OnCircleMoved;
         Circle.PointerReleased += OnCircleReleased;
@@ -181,10 +190,9 @@ public partial class FloatingOrbWindow : Window
 
         var areas = ReadWorkAreas();
 
-        // Where the orb was last put in this run wins over the settings (a save may still be pending), and goes through the same
+        // Where the orb was last dragged to in this run wins over the settings (a save may still be pending), and goes through the same
         // check as a saved spot: the screens may have changed since.
-        var current = _hasAnchor ? FloatingOrbPlacement.ToSaved(_anchor.X, _anchor.Y, areas) : null;
-        if (ViewModel?.ResolvePlacement(areas, current, _primaryKnown) is { } placement)
+        if (ViewModel?.ResolvePlacement(areas, _wanted, _primaryKnown) is { } placement)
         {
             _anchor = new PixelPoint(placement.X, placement.Y);
             _hasAnchor = true;
@@ -194,6 +202,50 @@ public partial class FloatingOrbWindow : Window
 
         Show();
     }
+
+    /// <summary>
+    /// A monitor was added or removed, a work area changed (the taskbar moved) or this window's scaling changed: the circle goes back to
+    /// where the user put it (<see cref="_wanted"/>, else the saved spot, else the default corner), moved whole into the nearest work area
+    /// when that spot is not on a screen any more. Nothing is saved: the spot the user chose stays the wanted one, so the orb returns to
+    /// it when the monitor comes back. Not while the circle is being dragged (the drag places it).
+    /// </summary>
+    internal void Reposition()
+    {
+        if (!IsVisible || _pressing || !_hasAnchor)
+        {
+            return;
+        }
+
+        var areas = ReadWorkAreas();
+        if (ViewModel?.ResolvePlacement(areas, _wanted, _primaryKnown) is { } placement)
+        {
+            _anchor = new PixelPoint(placement.X, placement.Y);
+        }
+
+        // The scaling may have changed too: the circle's offset in the window, in pixels, is computed again.
+        KeepCircleInPlace();
+    }
+
+    private void WatchScreens(Screens? screens)
+    {
+        if (ReferenceEquals(_screens, screens))
+        {
+            return;
+        }
+
+        if (_screens is not null)
+        {
+            _screens.Changed -= OnScreensChanged;
+        }
+
+        _screens = screens;
+        if (screens is not null)
+        {
+            screens.Changed += OnScreensChanged;
+        }
+    }
+
+    private void OnScreensChanged(object? sender, EventArgs e) => Reposition();
 
     /// <summary>Hides the window (the orb is not needed now); it keeps its place for the next time.</summary>
     public void HideOrb()
@@ -400,6 +452,7 @@ public partial class FloatingOrbWindow : Window
             var areas = ReadWorkAreas();
             if (_primaryKnown)
             {
+                _wanted = FloatingOrbPlacement.ToSaved(_anchor.X, _anchor.Y, areas);
                 _ = viewModel.SavePositionAsync(_anchor.X, _anchor.Y, areas);
             }
         }
