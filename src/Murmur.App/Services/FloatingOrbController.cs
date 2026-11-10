@@ -138,21 +138,55 @@ internal sealed class FloatingOrbController : IDisposable
     {
         var window = _createWindow(ViewModel);
         window.Closed += OnWindowClosed;
+        window.Opened += OnWindowOpened;
+        window.PropertyChanged += OnWindowPropertyChanged;
 
-        // Before the first Show: clicks on the orb must never take focus from the call, and it has no Alt+Tab entry.
+        // As soon as the window exists: clicks on the orb must never take focus from the call, and it has no Alt+Tab entry. Avalonia
+        // rewrites the extended style on Show and on later property changes; the platform side keeps the bits through those rewrites,
+        // and it is applied again after the show and on every change that rewrites the style (below), in case one slipped past.
+        ApplyStyle(window);
+        return window;
+    }
+
+    /// <summary>Applies the non-activating style to the window's native handle (idempotent; nothing without a platform style or handle).</summary>
+    private void ApplyStyle(FloatingOrbWindow window)
+    {
         if (_style is not null && _nativeHandle(window) is var handle && handle != 0)
         {
             _style.MakeNonActivating(handle);
         }
+    }
 
-        return window;
+    private void OnWindowOpened(object? sender, EventArgs e)
+    {
+        if (sender is FloatingOrbWindow window)
+        {
+            ApplyStyle(window);
+        }
+    }
+
+    /// <summary>Avalonia rebuilds the window's style when it is shown again, when Topmost changes and when the window is resized.</summary>
+    private void OnWindowPropertyChanged(object? sender, AvaloniaPropertyChangedEventArgs e)
+    {
+        if (sender is FloatingOrbWindow window
+            && (e.Property == Avalonia.Controls.Window.TopmostProperty
+                || e.Property == TopLevel.ClientSizeProperty
+                || (e.Property == Visual.IsVisibleProperty && window.IsVisible)))
+        {
+            ApplyStyle(window);
+        }
     }
 
     private void OnWindowClosed(object? sender, EventArgs e)
     {
-        if (sender is FloatingOrbWindow closed && ReferenceEquals(closed, _window))
+        if (sender is FloatingOrbWindow closed)
         {
-            _window = null;
+            closed.Opened -= OnWindowOpened;
+            closed.PropertyChanged -= OnWindowPropertyChanged;
+            if (ReferenceEquals(closed, _window))
+            {
+                _window = null;
+            }
         }
     }
 
@@ -174,6 +208,8 @@ internal sealed class FloatingOrbController : IDisposable
         {
             _window = null;
             window.Closed -= OnWindowClosed;
+            window.Opened -= OnWindowOpened;
+            window.PropertyChanged -= OnWindowPropertyChanged;
             window.Close();
         }
     }

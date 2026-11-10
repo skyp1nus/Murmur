@@ -362,23 +362,19 @@ public sealed class FloatingOrbWindowTests
 
     private sealed class RecordingStyle : Murmur.Core.Platform.IFloatingWindowStyle
     {
-        public List<nint> Handles { get; } = [];
-
-        public bool WindowWasShown { get; set; }
+        public List<(nint Handle, bool Shown, string Step)> Calls { get; } = [];
 
         public Func<bool>? IsShown { get; set; }
 
-        public void MakeNonActivating(nint nativeHandle)
-        {
-            Handles.Add(nativeHandle);
-            WindowWasShown = IsShown?.Invoke() ?? false;
-        }
+        public string Step { get; set; } = "create";
+
+        public void MakeNonActivating(nint nativeHandle) => Calls.Add((nativeHandle, IsShown?.Invoke() ?? false, Step));
     }
 
     [Fact]
-    public async Task TheWindowStyle_IsAppliedOnceToTheNativeHandle_BeforeTheFirstShow()
+    public async Task TheWindowStyle_IsApplied_BeforeTheFirstShow_AfterEveryShow_AndWhenTopmostChanges()
     {
-        var (handles, shownBefore, shownAfter) = await Session.Dispatch(
+        var (calls, shownAfter) = await Session.Dispatch(
             async () =>
             {
                 using var rig = new Rig();
@@ -392,21 +388,29 @@ public sealed class FloatingOrbWindowTests
                     vm => new FloatingOrbWindow { DataContext = vm, WorkAreaSource = () => rig.Areas },
                     style,
                     _ => 4242);
-                var created = () => controller.Window is { IsVisible: true };
-                style.IsShown = created;
+                style.IsShown = () => controller.Window is { IsVisible: true };
 
                 await rig.StartRecordingAsync();
                 UiHarness.Pump(4);
+                style.Step = "topmost";
+                controller.Window!.Topmost = false;
+                controller.Window.Topmost = true;
+                style.Step = "hidden";
                 await rig.Harness.Recorder.StopAsync(Ct);
                 UiHarness.Pump(2);
+                style.Step = "shown again";
                 await rig.StartRecordingAsync();
                 UiHarness.Pump(4);
-                return (style.Handles.ToArray(), style.WindowWasShown, controller.Window is { IsVisible: true });
+                return (style.Calls.ToArray(), controller.Window is { IsVisible: true });
             },
             Ct);
 
-        Assert.Equal([(nint)4242], handles);
-        Assert.False(shownBefore, "The style must be applied before the window is first shown.");
+        Assert.All(calls, call => Assert.Equal((nint)4242, call.Handle));
+        Assert.Equal(("create", false), (calls[0].Step, calls[0].Shown));
+        Assert.Contains(calls, call => call.Step == "create" && call.Shown);
+        Assert.Equal(2, calls.Count(call => call.Step == "topmost"));
+        Assert.Contains(calls, call => call.Step == "shown again" && call.Shown);
+        Assert.DoesNotContain(calls, call => call.Step == "hidden");
         Assert.True(shownAfter);
     }
 

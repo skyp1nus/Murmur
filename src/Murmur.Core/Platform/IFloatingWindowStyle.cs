@@ -6,7 +6,11 @@ namespace Murmur.Core.Platform;
 /// </summary>
 public interface IFloatingWindowStyle
 {
-    /// <summary>Makes a top-level window non-activating (clicks never take focus) and keeps it out of Alt+Tab.</summary>
-    /// <param name="nativeHandle">The native window handle (Windows: the HWND) of a window that has been created, before it is first shown.</param>
+    /// <summary>
+    /// Makes a top-level window non-activating (clicks never take focus) and keeps it out of Alt+Tab, and keeps it so for the window's
+    /// lifetime, also when the UI framework rewrites the window's style later (on show, a topmost change, a resize). Idempotent: call it
+    /// once the window exists and again after it is shown.
+    /// </summary>
+    /// <param name="nativeHandle">The native window handle (Windows: the HWND) of a window of this process.</param>
     void MakeNonActivating(nint nativeHandle);
 }
