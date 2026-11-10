@@ -154,6 +154,7 @@ public sealed class ScreenshotTests
         }
 
         UiHarness.Pump(8);
+        UiHarness.RedrawWhole(window);
         var pixels = UiHarness.Pixels(window);
         window.Close();
         return pixels;

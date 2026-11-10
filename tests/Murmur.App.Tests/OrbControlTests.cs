@@ -177,7 +177,7 @@ public sealed class OrbControlTests
                 var frames = orb.AppliedFrames;
                 var scale = orb.BodyScale;
 
-                // What the 15 Hz timer does when the clock has not moved on by a whole update interval: nothing,
+                // What the 30 Hz timer does when the clock has not moved on by a whole update interval: nothing,
                 // even if the level has changed meanwhile.
                 source.Level = 1f;
                 for (var i = 0; i < 10; i++)
@@ -185,7 +185,7 @@ public sealed class OrbControlTests
                     orb.Tick();
                 }
 
-                clock.Advance(TimeSpan.FromMilliseconds(60));
+                clock.Advance(TimeSpan.FromMilliseconds(20));
                 orb.Tick();
                 var result = (frames, orb.AppliedFrames, scale, orb.BodyScale);
                 window.Close();

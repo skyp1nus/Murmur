@@ -427,6 +427,8 @@
     <Setter Property="HaloOpacity" Value="{DynamicResource Glass.Welcome.HaloOpacity}" />
     <Setter Property="InnerGlowBlur" Value="{StaticResource Glass.Welcome.GlowBlur}" />
     <Setter Property="InnerGlowOpacity" Value="{DynamicResource Glass.Welcome.Glow}" />
+    <Setter Property="BreathHaloScale" Value="{DynamicResource Glass.Welcome.BreathHaloScale}" />
+    <Setter Property="BreathHaloFade" Value="{DynamicResource Glass.Welcome.BreathHaloFade}" />
   </Style>
   <Style Selector="controls|GlassOrbControl.voice">
     <Setter Property="ZIndex" Value="1" />

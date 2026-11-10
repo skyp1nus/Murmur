@@ -372,7 +372,7 @@ public sealed partial class TokensTests
         Assert.All(colourKeys, key => Assert.Matches(@"^(Color|Brush)\.[A-Za-z]+$", key));
 
         // The only numbers in the theme dictionaries are the themed values of the glass orbs.
-        Assert.All(lightKeys.Except(colourKeys), key => Assert.Matches(@"^Glass\.[A-Za-z]+\.(HaloBlur|HaloOpacity|Glow)$", key));
+        Assert.All(lightKeys.Except(colourKeys), key => Assert.Matches(@"^Glass\.[A-Za-z]+\.(HaloBlur|HaloOpacity|Glow|BreathHaloScale|BreathHaloFade)$", key));
     }
 
     [Fact]
