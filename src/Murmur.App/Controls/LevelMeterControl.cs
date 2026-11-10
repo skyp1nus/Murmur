@@ -12,8 +12,10 @@ namespace Murmur.App.Controls;
 /// </summary>
 /// <remarks>
 /// The meter polls <see cref="LevelSource"/> from its own 20 Hz timer, only while it is <see cref="IsActive"/> and attached to
-/// a window; an idle meter (no source, or silence that has already been drawn) requests no repaint, so it costs nothing.
-/// The bars are drawn from two cached brushes and a preallocated level buffer: no allocation per update.
+/// a window; an idle meter (no source, or silence that has already been drawn) hands nothing on, so it costs nothing. The bars are
+/// drawn on the render thread by a composition visual (<see cref="LevelBarsHost"/>): each sample slides the strip one bar to the left
+/// over one poll interval at the display rate, the newest bar coming in from the right edge, from two cached brushes and preallocated
+/// buffers (no allocation per sample or per frame). Under reduced motion or while hidden every sample is shown at rest at once.
 /// </remarks>
 public sealed class LevelMeterControl : Control
 {
@@ -35,7 +37,20 @@ public sealed class LevelMeterControl : Control
     private const float Release = 0.7f;
     private const float Silence = 0.01f;
 
+    /// <summary>The meter's strip: 40 bars 2 px apart, idle 3 px, live at least 4 px, one bar per poll.</summary>
+    internal static readonly LevelBarsStyle Style = new(
+        LevelBarsShape.Meter,
+        BarCount,
+        FutureCount: 0,
+        BarGap,
+        MinHeight: MinLiveBarHeight,
+        MaxHeight: 0,
+        IdleHeight: IdleBarHeight,
+        SampleSeconds: UpdateSeconds);
+
     private readonly float[] _levels = new float[BarCount];
+    private readonly LevelBar[] _staticBars = new LevelBar[Style.MaxRects];
+    private readonly LevelBarsHost _bars;
     private readonly DispatcherTimer _timer;
     private IBrush? _live;
     private IBrush? _idle;
@@ -51,6 +66,7 @@ public sealed class LevelMeterControl : Control
     {
         _timer = new DispatcherTimer(DispatcherPriority.Render) { Interval = TimeSpan.FromSeconds(UpdateSeconds) };
         _timer.Tick += (_, _) => Tick();
+        _bars = new LevelBarsHost(this, Style);
         IsHitTestVisible = false;
         Focusable = false;
         ActualThemeVariantChanged += (_, _) => BuildBrushes();
@@ -76,6 +92,16 @@ public sealed class LevelMeterControl : Control
     /// <summary>The remembered levels, oldest first (for tests).</summary>
     internal ReadOnlySpan<float> Levels => _levels;
 
+    /// <summary>The bars' composition visual (for tests).</summary>
+    internal LevelBarsHost Bars => _bars;
+
+    protected override Size ArrangeOverride(Size finalSize)
+    {
+        var size = base.ArrangeOverride(finalSize);
+        _bars.Resize(size);
+        return size;
+    }
+
     protected override Size MeasureOverride(Size availableSize) =>
         new(double.IsInfinity(availableSize.Width) ? 0 : availableSize.Width, double.IsNaN(Height) ? 0 : Height);
 
@@ -83,6 +109,8 @@ public sealed class LevelMeterControl : Control
     {
         base.OnAttachedToVisualTree(e);
         BuildBrushes();
+        _bars.Reset(_levels);
+        _bars.Attach();
         UpdateTimer();
     }
 
@@ -90,6 +118,7 @@ public sealed class LevelMeterControl : Control
     {
         base.OnDetachedFromVisualTree(e);
         _timer.Stop();
+        _bars.Detach();
     }
 
     protected override void OnPropertyChanged(AvaloniaPropertyChangedEventArgs change)
@@ -102,6 +131,7 @@ public sealed class LevelMeterControl : Control
                 Array.Clear(_levels);
                 _hasLevels = false;
                 _dirty = true;
+                _bars.Reset(_levels);
                 InvalidateVisual();
             }
 
@@ -153,34 +183,39 @@ public sealed class LevelMeterControl : Control
         }
 
         _dirty = false;
-        InvalidateVisual();
+        _bars.Push(newest, animate: !Motion.GetReduceMotion(this) && MotionGate.IsShown(this));
+        if (!_bars.HasVisual)
+        {
+            InvalidateVisual();
+        }
     }
 
     public override void Render(DrawingContext context)
     {
         base.Render(context);
-        var bounds = Bounds;
-        if (_live is null || _idle is null || bounds.Width <= 0 || bounds.Height <= 0)
+
+        // The composition visual draws the bars; this is the static frame for a renderer without a compositor.
+        if (_bars.HasVisual || _live is null || _idle is null)
         {
             return;
         }
 
-        var barWidth = Math.Max(1, (bounds.Width - (BarGap * (BarCount - 1))) / BarCount);
-        for (var i = 0; i < BarCount; i++)
+        var count = _bars.Rest.Layout(_staticBars, Bounds.Width, Bounds.Height, position: 1, idle: false);
+        for (var i = 0; i < count; i++)
         {
-            var level = _levels[i];
-            var live = level > 0f;
-            var height = live ? Math.Max(MinLiveBarHeight, level * bounds.Height) : IdleBarHeight;
-            var rect = new Rect(i * (barWidth + BarGap), (bounds.Height - height) / 2, barWidth, height);
-            context.DrawRectangle(live ? _live : _idle, null, new RoundedRect(rect, Math.Min(barWidth / 2, height / 2)));
+            var bar = _staticBars[i];
+            context.DrawRectangle(bar.Second ? _idle : _live, null, new RoundedRect(new Rect(bar.X, bar.Y, bar.Width, bar.Height), bar.Radius));
         }
-
     }
 
     private void BuildBrushes()
     {
         _live = this.TryFindResource("Brush.Ink", ActualThemeVariant, out var ink) ? ink as IBrush : null;
         _idle = this.TryFindResource("Brush.Stone", ActualThemeVariant, out var stone) ? stone as IBrush : null;
+
+        // Like the static frame, the meter draws nothing without both brushes.
+        var complete = _live is not null && _idle is not null;
+        _bars.SetLook(complete ? _live : null, complete ? _idle : null, idle: false);
         InvalidateVisual();
     }
 }
