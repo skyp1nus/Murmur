@@ -30,6 +30,9 @@ public sealed class SpinningOrb : Decorator
     private bool _looping;
     private long _start;
 
+    // The size of the last arrange: Bounds is only updated after ArrangeOverride returns, so a loop started from there must not read it.
+    private Size _arranged;
+
     public SpinningOrb()
     {
         IsHitTestVisible = false;
@@ -103,6 +106,7 @@ public sealed class SpinningOrb : Decorator
     protected override Size ArrangeOverride(Size finalSize)
     {
         Child?.Arrange(new Rect(finalSize));
+        _arranged = finalSize;
         if (ElementComposition.GetElementVisual(this) is { } visual)
         {
             visual.CenterPoint = new Vector3D(finalSize.Width / 2, finalSize.Height / 2, 0);
@@ -172,7 +176,7 @@ public sealed class SpinningOrb : Decorator
             return;
         }
 
-        visual.CenterPoint = new Vector3D(Bounds.Width / 2, Bounds.Height / 2, 0);
+        visual.CenterPoint = new Vector3D(_arranged.Width / 2, _arranged.Height / 2, 0);
         CompositionLoop.StartSpin(visual, Period);
         _looping = true;
     }

@@ -1,6 +1,8 @@
+using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Headless;
 using Avalonia.Media;
+using Avalonia.Rendering.Composition;
 using Murmur.App.Controls;
 using Murmur.App.Tests.Fakes;
 
@@ -226,6 +228,25 @@ public sealed class CompositorMotionTests
 
         Assert.True(moved, "a running loop turns the orb on the compositor");
         Assert.True(restAgain, "a stopped orb is back at angle 0");
+    }
+
+    [Fact]
+    public async Task SpinningOrb_StartedAtItsFirstArrange_TurnsAboutItsCentre()
+    {
+        var (centre, looping) = await Session.Dispatch(
+            () =>
+            {
+                // Active before it is shown: the loop starts from the first arrange, when Bounds is still empty.
+                var orb = new SpinningOrb { Width = 40, Height = 40, IsActive = true };
+                var window = Host(orb);
+                var result = (ElementComposition.GetElementVisual(orb)!.CenterPoint, orb.IsLooping);
+                window.Close();
+                return result;
+            },
+            Ct);
+
+        Assert.True(looping);
+        Assert.Equal(new Vector3D(20, 20, 0), centre);
     }
 
     // ---- the glass orb on the compositor ------------------------------------------------------------------------------
