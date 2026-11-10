@@ -70,7 +70,7 @@
                              IsVisible="{Binding !IsQueued}"
                              TextTrimming="CharacterEllipsis"
                              TextWrapping="NoWrap">
-                    <Run Text="{Binding KindText}" FontWeight="{StaticResource FontWeight.BodyMedium}" /><Run Text="{Binding TitleSuffix}" />
+                    <Run Text="{Binding KindText, Mode=OneWay}" FontWeight="{StaticResource FontWeight.BodyMedium}" /><Run Text="{Binding TitleSuffix, Mode=OneWay}" />
                   </TextBlock>
                   <TextBlock Classes="t13 graphite"
                              IsVisible="{Binding IsQueued}"

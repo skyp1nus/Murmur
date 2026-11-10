@@ -606,7 +606,7 @@
                            Classes="sessionMeta mono"
                            VerticalAlignment="Center"
                            Foreground="{DynamicResource Brush.Ink}">
-                  <Run Text="{Binding PositionText, StringFormat='{}{0} '}" /><Run Text="{Binding DurationText, StringFormat='/ {0}'}" Foreground="{DynamicResource Brush.Smoke}" />
+                  <Run Text="{Binding PositionText, Mode=OneWay, StringFormat='{}{0} '}" /><Run Text="{Binding DurationText, Mode=OneWay, StringFormat='/ {0}'}" Foreground="{DynamicResource Brush.Smoke}" />
                 </TextBlock>
                 <!--
                   The canvas gap is 4 px. The pills are 43.78, 60.67 and 35.2 px wide in the canvas; layout rounding rounds each of them (and its text)
