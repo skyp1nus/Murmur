@@ -20,6 +20,21 @@ internal static partial class FloatingWindowNativeMethods
     /// <summary><c>WS_EX_APPWINDOW</c>: forces a taskbar button and an Alt+Tab entry; cleared so the tool-window style wins.</summary>
     public const nint WsExAppWindow = 0x00040000;
 
+    /// <summary><c>WS_EX_TRANSPARENT</c>: the window is skipped by hit testing, so clicks fall through it; never wanted on the orb.</summary>
+    public const nint WsExTransparent = 0x00000020;
+
+    /// <summary><c>WS_EX_LAYERED</c>: a layered window, which is not drawn and lets clicks through until it gets its layer content; never wanted on the orb.</summary>
+    public const nint WsExLayered = 0x00080000;
+
+    /// <summary><c>DWMWA_CLOAK</c>: the app cloaks (hides from the screen and from hit testing) or uncloaks its window.</summary>
+    public const int DwmwaCloak = 13;
+
+    /// <summary><c>DWMWA_CLOAKED</c>: why the window is cloaked (<c>DWM_CLOAKED_APP</c> 1, <c>_SHELL</c> 2, <c>_INHERITED</c> 4), 0 when it is not.</summary>
+    public const int DwmwaCloaked = 14;
+
+    /// <summary><c>DWM_CLOAKED_APP</c>: cloaked by its own app (the only reason the app can undo).</summary>
+    public const int DwmCloakedApp = 0x1;
+
     /// <summary><c>WM_STYLECHANGING</c>: the style is about to change; <c>lParam</c> points at a <see cref="StyleStruct"/> whose new value may be edited.</summary>
     public const uint WmStyleChanging = 0x007C;
 
@@ -69,6 +84,24 @@ internal static partial class FloatingWindowNativeMethods
     [LibraryImport("user32.dll", EntryPoint = "IsWindow")]
     [return: MarshalAs(UnmanagedType.Bool)]
     public static partial bool IsWindow(nint window);
+
+    /// <summary><c>BOOL IsWindowEnabled(HWND hWnd)</c>.</summary>
+    [LibraryImport("user32.dll", EntryPoint = "IsWindowEnabled")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static partial bool IsWindowEnabled(nint window);
+
+    /// <summary><c>BOOL EnableWindow(HWND hWnd, BOOL bEnable)</c>: returns whether the window was disabled before.</summary>
+    [LibraryImport("user32.dll", EntryPoint = "EnableWindow")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static partial bool EnableWindow(nint window, [MarshalAs(UnmanagedType.Bool)] bool enable);
+
+    /// <summary><c>HRESULT DwmGetWindowAttribute(HWND, DWORD, PVOID, DWORD)</c> for a 32-bit attribute.</summary>
+    [LibraryImport("dwmapi.dll", EntryPoint = "DwmGetWindowAttribute")]
+    public static partial int DwmGetWindowAttribute(nint window, int attribute, out int value, int size);
+
+    /// <summary><c>HRESULT DwmSetWindowAttribute(HWND, DWORD, LPCVOID, DWORD)</c> for a 32-bit attribute.</summary>
+    [LibraryImport("dwmapi.dll", EntryPoint = "DwmSetWindowAttribute")]
+    public static partial int DwmSetWindowAttribute(nint window, int attribute, in int value, int size);
 
     /// <summary><c>BOOL SetWindowPos(HWND hWnd, HWND hWndInsertAfter, int X, int Y, int cx, int cy, UINT uFlags)</c>.</summary>
     [LibraryImport("user32.dll", EntryPoint = "SetWindowPos", SetLastError = true)]

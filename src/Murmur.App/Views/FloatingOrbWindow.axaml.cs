@@ -51,7 +51,16 @@ public partial class FloatingOrbWindow : Window
             Watch(null);
             WatchScreens(null);
         };
-        Opened += (_, _) => WatchScreens(Screens);
+        // Seen once on the owner's PC: the window was "visible" to Win32 but neither drawn nor clickable. Avalonia lays the window out
+        // before the native show (Window.Show runs the initial layout pass first) and the position is set before Show (ShowOrb); after
+        // every show, and should the window ever be activated, the whole scene is drawn again and the controller re-applies the platform
+        // style, which also enables and uncloaks the window and clears the click-through bits (IFloatingWindowStyle.MakeNonActivating).
+        Opened += (_, _) =>
+        {
+            WatchScreens(Screens);
+            InvalidateVisual();
+        };
+        Activated += (_, _) => InvalidateVisual();
         ScalingChanged += (_, _) => Reposition();
         Circle.PointerPressed += OnCirclePressed;
         Circle.PointerMoved += OnCircleMoved;

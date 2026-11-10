@@ -18,6 +18,7 @@ namespace Murmur.Capture.Windows.Platform;
 /// <item><c>WM_MOUSEACTIVATE</c>: answers <c>MA_NOACTIVATE</c>, so a click never activates the window even if the style were lost;</item>
 /// <item><c>WM_NCDESTROY</c>: the previous procedure is put back and the window forgotten.</item>
 /// </list>
+/// <para>Each call also makes sure the window can be seen and clicked (<see cref="MakeReachable"/>).</para>
 /// <para><see cref="SetInputRegion"/> sets a window region: outside it, clicks go to the window below (see the method).</para>
 /// <para>All calls come from the UI thread that owns the window (a window can only be subclassed from its own process). Failures are
 /// reported on stderr and swallowed: the orb still works, it may just take focus on a click.</para>
@@ -28,9 +29,14 @@ internal sealed unsafe class WindowsFloatingWindowStyle : IFloatingWindowStyle
     private static readonly Dictionary<nint, nint> s_previous = [];
     private static readonly Lock s_lock = new();
 
-    /// <summary>The extended style with the non-activating, tool-window bits set and the app-window bit cleared (the flag maths, testable on any OS).</summary>
+    /// <summary>
+    /// The extended style with the non-activating, tool-window bits set, and the app-window, transparent and layered bits cleared (the flag
+    /// maths, testable on any OS). The last two would make the orb let clicks through, and a layered window is not drawn until it gets
+    /// layer content: the symptom seen once on the owner's PC (an orb that was "visible" to Win32 but neither drawn nor clickable).
+    /// </summary>
     internal static nint NonActivatingStyle(nint current) =>
-        (current | FloatingWindowNativeMethods.WsExNoActivate | FloatingWindowNativeMethods.WsExToolWindow) & ~FloatingWindowNativeMethods.WsExAppWindow;
+        (current | FloatingWindowNativeMethods.WsExNoActivate | FloatingWindowNativeMethods.WsExToolWindow)
+        & ~(FloatingWindowNativeMethods.WsExAppWindow | FloatingWindowNativeMethods.WsExTransparent | FloatingWindowNativeMethods.WsExLayered);
 
     /// <summary>The same maths on the 32-bit value of a <c>STYLESTRUCT</c>.</summary>
     internal static uint NonActivatingStyle(uint current) => (uint)NonActivatingStyle((nint)current);
@@ -65,6 +71,7 @@ internal sealed unsafe class WindowsFloatingWindowStyle : IFloatingWindowStyle
         {
             Subclass(nativeHandle);
             ApplyStyle(nativeHandle);
+            MakeReachable(nativeHandle);
         }
         catch (Exception ex) when (ex is DllNotFoundException or EntryPointNotFoundException)
         {
@@ -188,6 +195,43 @@ internal sealed unsafe class WindowsFloatingWindowStyle : IFloatingWindowStyle
         }
 
         FloatingWindowNativeMethods.SetWindowPos(window, 0, 0, 0, 0, 0, FrameChangeOnly);
+    }
+
+    /// <summary>
+    /// The window must be drawn and take clicks: it is enabled again if something disabled it (a disabled window is skipped by
+    /// <c>WindowFromPoint</c>), and uncloaked if this app cloaked it. A window cloaked by the shell (it is on another virtual desktop) is
+    /// only reported: that is the user's arrangement, not ours to undo.
+    /// </summary>
+    private static void MakeReachable(nint window)
+    {
+        if (!FloatingWindowNativeMethods.IsWindowEnabled(window))
+        {
+            FloatingWindowNativeMethods.EnableWindow(window, enable: true);
+            Console.Error.WriteLine("The floating window was disabled; it was enabled again.");
+        }
+
+        try
+        {
+            if (FloatingWindowNativeMethods.DwmGetWindowAttribute(window, FloatingWindowNativeMethods.DwmwaCloaked, out var cloaked, sizeof(int)) != 0
+                || cloaked == 0)
+            {
+                return;
+            }
+
+            if ((cloaked & FloatingWindowNativeMethods.DwmCloakedApp) != 0)
+            {
+                FloatingWindowNativeMethods.DwmSetWindowAttribute(window, FloatingWindowNativeMethods.DwmwaCloak, 0, sizeof(int));
+                Console.Error.WriteLine("The floating window was cloaked by the app; it was uncloaked.");
+            }
+            else
+            {
+                Console.Error.WriteLine($"The floating window is cloaked by the system (DWMWA_CLOAKED {cloaked}: another virtual desktop?).");
+            }
+        }
+        catch (DllNotFoundException)
+        {
+            // No DWM: nothing is ever cloaked.
+        }
     }
 
     /// <summary>

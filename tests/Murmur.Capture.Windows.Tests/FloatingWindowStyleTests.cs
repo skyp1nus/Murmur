@@ -28,6 +28,10 @@ public sealed partial class FloatingWindowStyleTests
         Assert.Equal(3, FloatingWindowNativeMethods.MaNoActivate);
         Assert.Equal(0x0037u, WindowsFloatingWindowStyle.FrameChangeOnly);
         Assert.Equal(8, Marshal.SizeOf<FloatingWindowNativeMethods.StyleStruct>());
+        Assert.Equal(0x20, FloatingWindowNativeMethods.WsExTransparent);
+        Assert.Equal(0x80000, FloatingWindowNativeMethods.WsExLayered);
+        Assert.Equal(13, FloatingWindowNativeMethods.DwmwaCloak);
+        Assert.Equal(14, FloatingWindowNativeMethods.DwmwaCloaked);
     }
 
     [Fact]
@@ -42,6 +46,17 @@ public sealed partial class FloatingWindowStyleTests
     public void OtherBits_Stay_AndTheAppWindowBitGoes()
     {
         var style = WindowsFloatingWindowStyle.NonActivatingStyle(TopMost | AppWindow);
+
+        Assert.Equal(TopMost | NoActivate | ToolWindow, style);
+    }
+
+    [Fact]
+    public void TheClickThroughBits_TransparentAndLayered_AreCleared()
+    {
+        const nint transparent = 0x20;
+        const nint layered = 0x80000;
+
+        var style = WindowsFloatingWindowStyle.NonActivatingStyle(TopMost | transparent | layered);
 
         Assert.Equal(TopMost | NoActivate | ToolWindow, style);
     }
@@ -212,6 +227,23 @@ public sealed partial class FloatingWindowStyleTests
         Assert.Null(window.RegionBox);
     }
 
+    [Fact]
+    [Trait("Category", "Windows")]
+    public void ADisabledCloakedOrClickThroughWindow_IsMadeReachableAgain()
+    {
+        using var window = TestWindow.Create();
+        window.ShowNoActivate();
+        window.SetExtendedStyle(0x20 | 0x80000);
+        window.Enable(false);
+        window.Cloak(true);
+
+        new WindowsFloatingWindowStyle().MakeNonActivating(window.Handle);
+
+        Assert.Equal((nint)0, window.ExtendedStyle & (0x20 | 0x80000));
+        Assert.True(window.IsEnabled);
+        Assert.Equal(0, window.Cloaked);
+    }
+
     private static void AssertNonActivating(nint style)
     {
         Assert.Equal(NoActivate, style & NoActivate);
@@ -257,6 +289,14 @@ public sealed partial class FloatingWindowStyleTests
                 return kind is 2 or 3 ? (box.Left, box.Top, box.Right, box.Bottom) : null;
             }
         }
+
+        public bool IsEnabled => FloatingWindowNativeMethods.IsWindowEnabled(Handle);
+
+        public int Cloaked => FloatingWindowNativeMethods.DwmGetWindowAttribute(Handle, FloatingWindowNativeMethods.DwmwaCloaked, out var value, sizeof(int)) == 0 ? value : -1;
+
+        public void Enable(bool enable) => FloatingWindowNativeMethods.EnableWindow(Handle, enable);
+
+        public void Cloak(bool cloak) => Assert.Equal(0, FloatingWindowNativeMethods.DwmSetWindowAttribute(Handle, FloatingWindowNativeMethods.DwmwaCloak, cloak ? 1 : 0, sizeof(int)));
 
         public static nint WindowAt(int x, int y) => WindowFromPoint(new Point(x, y));
 

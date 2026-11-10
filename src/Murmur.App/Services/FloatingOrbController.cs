@@ -139,6 +139,7 @@ internal sealed class FloatingOrbController : IDisposable
         var window = _createWindow(ViewModel);
         window.Closed += OnWindowClosed;
         window.Opened += OnWindowOpened;
+        window.Activated += OnWindowOpened;
         window.PropertyChanged += OnWindowPropertyChanged;
         window.InputRegionChanged += OnInputRegionChanged;
 
@@ -158,6 +159,7 @@ internal sealed class FloatingOrbController : IDisposable
         }
     }
 
+    /// <summary>After every show (and should the window ever be activated): the style, which also makes sure the window is drawn and clickable, and the input region.</summary>
     private void OnWindowOpened(object? sender, EventArgs e)
     {
         if (sender is FloatingOrbWindow window)
@@ -204,6 +206,7 @@ internal sealed class FloatingOrbController : IDisposable
         if (sender is FloatingOrbWindow closed)
         {
             closed.Opened -= OnWindowOpened;
+            closed.Activated -= OnWindowOpened;
             closed.PropertyChanged -= OnWindowPropertyChanged;
             closed.InputRegionChanged -= OnInputRegionChanged;
             if (ReferenceEquals(closed, _window))
@@ -232,6 +235,7 @@ internal sealed class FloatingOrbController : IDisposable
             _window = null;
             window.Closed -= OnWindowClosed;
             window.Opened -= OnWindowOpened;
+            window.Activated -= OnWindowOpened;
             window.PropertyChanged -= OnWindowPropertyChanged;
             window.InputRegionChanged -= OnInputRegionChanged;
             window.Close();
