@@ -180,4 +180,40 @@ public sealed class FloatingOrbPlacementTests
         Assert.True(placement!.Value.X + (44 * 1.5) <= scaled.Right);
         Assert.True(placement.Value.Y + (44 * 1.5) <= scaled.Bottom);
     }
+
+    // ---- the pill's side (mixed DPI, item 24 of the PR check) ------------------------------------------------------------
+
+    [Theory]
+    [InlineData(1000, false)] // the middle of the screen: the mockup, pill to the left
+    [InlineData(152, false)] // exactly the pill's side of the window (4 + 148) from the left edge
+    [InlineData(151, true)] // one pixel less: the pill would reach past the left edge
+    [InlineData(0, true)]
+    public void ThePillGoesRight_OnlyWhenTheCircleIsCloserToItsScreensLeftEdgeThanThePillsSide(int x, bool right)
+    {
+        Assert.Equal(right, FloatingOrbPlacement.PillOnRight(x, 500, [Left, Right], 152));
+    }
+
+    [Fact]
+    public void AtTheLeftEdgeOfTheRightMonitor_ThePillStaysOnThatMonitor_SoTheWindowKeepsItsScaling()
+    {
+        // The right monitor runs at 150 %: its pill side is 152 * 1.5 = 228 px.
+        var scaled = new WorkArea(1920, 0, 2880, 1560, 1.5);
+
+        Assert.True(FloatingOrbPlacement.PillOnRight(1920 + 100, 500, [Left, scaled], 152));
+        Assert.False(FloatingOrbPlacement.PillOnRight(1920 + 228, 500, [Left, scaled], 152));
+
+        // On the 100 % left monitor right next to it, the same distance from its own left edge keeps the pill on the left.
+        Assert.False(FloatingOrbPlacement.PillOnRight(1700, 500, [Left, scaled], 152));
+    }
+
+    [Fact]
+    public void ThePillSide_IsDecidedByTheScreenUnderTheCircle_NotByTheScaling()
+    {
+        // The same spot gives the same side whatever the window's own scaling is: nothing can flip it back and forth.
+        var first = FloatingOrbPlacement.PillOnRight(1930, 500, [Left, Right], 152);
+        var again = FloatingOrbPlacement.PillOnRight(1930, 500, [Left, Right], 152);
+
+        Assert.True(first);
+        Assert.Equal(first, again);
+    }
 }

@@ -2,7 +2,9 @@ using System.ComponentModel;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
+using Avalonia.Layout;
 using Avalonia.Platform;
+using Avalonia.Threading;
 using Murmur.App.ViewModels;
 using Murmur.Core.Platform;
 using Murmur.Core.Settings;
@@ -40,11 +42,20 @@ public partial class FloatingOrbWindow : Window
     private FloatingWindowRect[] _inputRegion = [];
     private FloatingOrbPosition? _wanted;
     private Screens? _screens;
+    private Thickness _pillLeftMargin;
+    private bool _pillOnRight;
+    private double _pillReserve;
+    private bool _repositionQueued;
+    private readonly MoveRateGuard _moves = new(MaxMovesPerSecond, TimeSpan.FromSeconds(1));
+
+    /// <summary>How often per second the window may move itself (not counting drags): a user's action causes one or two moves.</summary>
+    internal const int MaxMovesPerSecond = 4;
 
     public FloatingOrbWindow()
     {
         InitializeComponent();
         _chipBelowMargin = Chip.Margin;
+        _pillLeftMargin = Pill.Margin;
         DataContextChanged += (_, _) => Watch(DataContext as FloatingOrbViewModel);
         Closed += (_, _) =>
         {
@@ -61,7 +72,8 @@ public partial class FloatingOrbWindow : Window
             InvalidateVisual();
         };
         Activated += (_, _) => InvalidateVisual();
-        ScalingChanged += (_, _) => Reposition();
+        // Avalonia raises ScalingChanged before it applies the rect Windows suggests for the new DPI: the window is placed again after it.
+        ScalingChanged += (_, _) => QueueReposition();
         Circle.PointerPressed += OnCirclePressed;
         Circle.PointerMoved += OnCircleMoved;
         Circle.PointerReleased += OnCircleReleased;
@@ -83,7 +95,7 @@ public partial class FloatingOrbWindow : Window
     internal ReadOnlySpan<FloatingWindowRect> InputRegion => _inputRegion;
 
     /// <summary>The width reserved for the pill (with its margin to the circle), in DIPs (for tests).</summary>
-    internal double PillSlot => Root.ColumnDefinitions[0].MinWidth;
+    internal double PillSlot => _pillReserve;
 
     /// <summary>The height reserved for the chip above and below the circle (with its gap), in DIPs (for tests).</summary>
     internal double ChipSlot => Root.RowDefinitions[0].MinHeight;
@@ -120,11 +132,10 @@ public partial class FloatingOrbWindow : Window
         var chipHeight = double.IsNaN(Chip.Height) ? 0 : Chip.Height;
         var row = chipHeight + _chipBelowMargin.Top + _chipBelowMargin.Bottom;
 
-        var columns = Root.ColumnDefinitions[0];
-        if (columns.MinWidth != column)
-        {
-            columns.MinWidth = column;
-        }
+        // The pill's side of the circle gets the room, the other side none.
+        _pillReserve = column;
+        SetMinWidth(Root.ColumnDefinitions[0], _pillOnRight ? 0 : column);
+        SetMinWidth(Root.ColumnDefinitions[2], _pillOnRight ? column : 0);
 
         foreach (var index in (ReadOnlySpan<int>)[0, 2])
         {
@@ -134,6 +145,46 @@ public partial class FloatingOrbWindow : Window
                 definition.MinHeight = row;
             }
         }
+    }
+
+    private static void SetMinWidth(ColumnDefinition column, double width)
+    {
+        if (column.MinWidth != width)
+        {
+            column.MinWidth = width;
+        }
+    }
+
+    /// <summary>The pill opens to the right of the circle (near the left edge of its screen), not to its left (for tests).</summary>
+    internal bool IsPillOnRight => _pillOnRight;
+
+    /// <summary>
+    /// Puts the pill on the side of the circle that stays on the circle's screen (<see cref="FloatingOrbPlacement.PillOnRight"/>): the
+    /// window then never reaches into a neighbouring screen by the pill's width, so it keeps the scaling of the circle's screen. The
+    /// window does not resize; the circle keeps its place on the screen (the window moves once).
+    /// </summary>
+    private void UpdatePillSide(IReadOnlyList<WorkArea> areas)
+    {
+        if (!_hasAnchor || areas.Count == 0)
+        {
+            return;
+        }
+
+        ReserveSlots();
+        var right = FloatingOrbPlacement.PillOnRight(_anchor.X, _anchor.Y, areas, Root.Margin.Left + _pillReserve);
+        if (right == _pillOnRight)
+        {
+            return;
+        }
+
+        _pillOnRight = right;
+        Grid.SetColumn(Pill, right ? 2 : 0);
+        Pill.Margin = right
+            ? new Thickness(_pillLeftMargin.Right, _pillLeftMargin.Top, _pillLeftMargin.Left, _pillLeftMargin.Bottom)
+            : _pillLeftMargin;
+        Chip.HorizontalAlignment = right ? HorizontalAlignment.Left : HorizontalAlignment.Right;
+        ReserveSlots();
+        InvalidateMeasure();
     }
 
     /// <summary>The width of a border with its content, padding, border and margin, measured even while the border is hidden.</summary>
@@ -205,7 +256,10 @@ public partial class FloatingOrbWindow : Window
         {
             _anchor = new PixelPoint(placement.X, placement.Y);
             _hasAnchor = true;
-            var (offsetX, offsetY) = CircleOffset();
+            UpdatePillSide(areas);
+
+            // From the reserved slots, not from the last layout: the pill may have just changed sides.
+            var (offsetX, offsetY) = CircleOffset(fromLayout: false);
             Position = new PixelPoint(_anchor.X - offsetX, _anchor.Y - offsetY);
         }
 
@@ -231,8 +285,28 @@ public partial class FloatingOrbWindow : Window
             _anchor = new PixelPoint(placement.X, placement.Y);
         }
 
+        UpdatePillSide(areas);
+
         // The scaling may have changed too: the circle's offset in the window, in pixels, is computed again.
         KeepCircleInPlace();
+    }
+
+    /// <summary>Places the window again once the current message is done (one at a time).</summary>
+    private void QueueReposition()
+    {
+        if (_repositionQueued)
+        {
+            return;
+        }
+
+        _repositionQueued = true;
+        Dispatcher.UIThread.Post(
+            () =>
+            {
+                _repositionQueued = false;
+                Reposition();
+            },
+            DispatcherPriority.Background);
     }
 
     private void WatchScreens(Screens? screens)
@@ -254,7 +328,7 @@ public partial class FloatingOrbWindow : Window
         }
     }
 
-    private void OnScreensChanged(object? sender, EventArgs e) => Reposition();
+    private void OnScreensChanged(object? sender, EventArgs e) => QueueReposition();
 
     /// <summary>Hides the window (the orb is not needed now); it keeps its place for the next time.</summary>
     public void HideOrb()
@@ -368,19 +442,20 @@ public partial class FloatingOrbWindow : Window
     }
 
     /// <summary>The circle's top-left in the window, in pixels: where the window has to sit relative to the circle.</summary>
-    private (int X, int Y) CircleOffset()
+    private (int X, int Y) CircleOffset(bool fromLayout = true)
     {
         var scale = RenderScaling;
-        if (Circle.IsArrangeValid && Circle.TranslatePoint(default, this) is { } point)
+        if (fromLayout && Circle.IsArrangeValid && Circle.TranslatePoint(default, this) is { } point)
         {
             return ((int)Math.Round(point.X * scale), (int)Math.Round(point.Y * scale));
         }
 
-        // Before the first layout: the circle is right of the pill's slot and under the upper chip slot (the middle row is as high as
+        // Before the first layout (or a new one): the circle is right of the pill's slot (or at the left with the pill on the right) and under the upper chip slot (the middle row is as high as
         // the circle, which is taller than the pill).
         ReserveSlots();
         var margin = Root.Margin;
-        return ((int)Math.Round((margin.Left + PillSlot) * scale), (int)Math.Round((margin.Top + ChipSlot) * scale));
+        var left = _pillOnRight ? 0 : PillSlot;
+        return ((int)Math.Round((margin.Left + left) * scale), (int)Math.Round((margin.Top + ChipSlot) * scale));
     }
 
     /// <summary>The pill or the chip appeared or went away and the window changed size: move it so that the circle stays where it was.</summary>
@@ -395,6 +470,12 @@ public partial class FloatingOrbWindow : Window
         var wanted = new PixelPoint(_anchor.X - offsetX, _anchor.Y - offsetY);
         if (wanted != Position)
         {
+            // Not more than a few moves a second unless the user drags: a move that changes the scaling must not start a loop.
+            if (!_pressing && !_moves.TryEnter(Environment.TickCount64))
+            {
+                return;
+            }
+
             _placing = true;
             try
             {
@@ -464,6 +545,8 @@ public partial class FloatingOrbWindow : Window
                 _wanted = FloatingOrbPlacement.ToSaved(_anchor.X, _anchor.Y, areas);
                 _ = viewModel.SavePositionAsync(_anchor.X, _anchor.Y, areas);
             }
+
+            UpdatePillSide(areas);
         }
 
         e.Handled = true;

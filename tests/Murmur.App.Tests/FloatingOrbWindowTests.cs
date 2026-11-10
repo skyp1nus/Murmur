@@ -555,6 +555,83 @@ public sealed class FloatingOrbWindowTests
         Assert.Equal(anchor.dragged, anchor.Item3);
     }
 
+    [Fact]
+    public async Task NearTheLeftEdgeOfItsScreen_ThePillOpensToTheRight_AndTheWindowStaysOnThatScreen()
+    {
+        var (right, circleScreen, anchor, windowLeft, pillLeft, circleRight, chipLeft, circleLeft, size) = await Session.Dispatch(
+            async () =>
+            {
+                using var rig = new Rig();
+                var second = new WorkArea(1920, 0, 1920, 1080, 1.0);
+                rig.Areas = [Screen, second];
+
+                // 30 px into the right monitor: with the pill to the left the window would reach 122 px into the left one.
+                rig.Settings.SetCurrentSilently(new AppSettings { FloatingOrbPosition = new FloatingOrbPosition(1950, 400) });
+                await rig.StartRecordingAsync();
+                UiHarness.Pump(4);
+                var window = rig.Window;
+                rig.ViewModel.IsPillOpen = true;
+                rig.ViewModel.MarkCommand.Execute(null);
+                UiHarness.Pump(4);
+
+                var pill = window.FindControl<Border>("Pill")!;
+                var circle = window.FindControl<Border>("Circle")!;
+                var chip = window.FindControl<Border>("Chip")!;
+                var circleTopLeft = circle.TranslatePoint(default, window)!.Value;
+                return (
+                    window.IsPillOnRight,
+                    window.PointToScreen(circleTopLeft),
+                    window.OrbAnchor,
+                    window.Position.X,
+                    pill.TranslatePoint(default, window)!.Value.X,
+                    circleTopLeft.X + circle.Bounds.Width,
+                    chip.TranslatePoint(default, window)!.Value.X,
+                    circleTopLeft.X,
+                    window.Bounds.Size);
+            },
+            Ct);
+
+        Assert.True(right);
+        Assert.Equal(new PixelPoint(1950, 400), anchor);
+        Assert.Equal(anchor, circleScreen);
+        Assert.True(windowLeft >= 1920 - 4, "Only the shadow margin may reach into the left monitor.");
+        Assert.Equal(circleRight + 6, pillLeft, 0.5);
+        Assert.Equal(circleLeft, chipLeft, 0.5);
+        Assert.Equal(new Size(200, 124), size);
+    }
+
+    [Fact]
+    public async Task DraggingTheOrbToTheLeftEdgeAndBack_MovesThePillToTheRightAndBack()
+    {
+        var (atEdge, back) = await Session.Dispatch(
+            async () =>
+            {
+                using var rig = new Rig();
+                rig.Settings.SetCurrentSilently(new AppSettings { FloatingOrbPosition = new FloatingOrbPosition(400, 400) });
+                await rig.StartRecordingAsync();
+                UiHarness.Pump(4);
+                var window = rig.Window;
+
+                bool Drag(Vector by)
+                {
+                    var centre = CircleCentre(window);
+                    window.MouseDown(centre, MouseButton.Left);
+                    window.MouseMove(centre + by, RawInputModifiers.LeftMouseButton);
+                    window.MouseUp(centre + by, MouseButton.Left);
+                    UiHarness.Pump(4);
+                    return window.IsPillOnRight;
+                }
+
+                var edge = Drag(new Vector(-380, 0));
+                var middle = Drag(new Vector(400, 0));
+                return (edge, middle);
+            },
+            Ct);
+
+        Assert.True(atEdge);
+        Assert.False(back);
+    }
+
     // ---- click and drag ----------------------------------------------------------------------------------------------------
 
     private static Point CircleCentre(FloatingOrbWindow window)

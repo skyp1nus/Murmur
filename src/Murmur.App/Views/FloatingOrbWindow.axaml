@@ -27,7 +27,7 @@
   <Grid x:Name="Root"
         Margin="{StaticResource FloatingOrb.ShadowMargin}"
         RowDefinitions="Auto,Auto,Auto"
-        ColumnDefinitions="Auto,Auto">
+        ColumnDefinitions="Auto,Auto,Auto">
 
     <Border x:Name="Pill"
             Classes="orbPill"
@@ -112,7 +112,7 @@
     <Border x:Name="Chip"
             Classes="orbChip"
             Grid.Row="2"
-            Grid.ColumnSpan="2"
+            Grid.ColumnSpan="3"
             HorizontalAlignment="Right"
             Margin="{StaticResource FloatingOrb.ChipMargin}"
             IsVisible="{Binding IsChipShown}">

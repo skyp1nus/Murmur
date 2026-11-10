@@ -87,6 +87,44 @@ public static class FloatingOrbPlacement
         return new FloatingOrbPosition(x / scale, y / scale);
     }
 
+    /// <summary>
+    /// Whether the pill opens to the right of the circle instead of to its left (the mockup): when the circle at (<paramref name="x"/>,
+    /// <paramref name="y"/>) pixels is closer to the left edge of its work area than the pill's side of the window
+    /// (<paramref name="pillSideDips"/>, in DIPs of that screen). Then the window, which keeps the pill's room on that side, would reach
+    /// into the screen on the left: on mixed scaling Windows gives a window the scaling of the monitor that holds most of it, and the
+    /// orb would take the other monitor's scaling (and could flip between both); on a single screen the pill would open off it.
+    /// </summary>
+    public static bool PillOnRight(int x, int y, IReadOnlyList<WorkArea> areas, double pillSideDips)
+    {
+        ArgumentNullException.ThrowIfNull(areas);
+        if (areas.Count == 0)
+        {
+            return false;
+        }
+
+        var area = AreaOf(x, y, areas);
+        return x - area.X < pillSideDips * area.Scaling;
+    }
+
+    /// <summary>The work area the orb whose top-left is at (<paramref name="x"/>, <paramref name="y"/>) pixels is on: by its centre, else the nearest.</summary>
+    internal static WorkArea AreaOf(int x, int y, IReadOnlyList<WorkArea> areas)
+    {
+        var best = areas[0];
+        var bestDistance = double.MaxValue;
+        foreach (var area in areas)
+        {
+            var half = OrbSize * area.Scaling / 2;
+            var distance = DistanceTo(area, x + half, y + half);
+            if (distance < bestDistance)
+            {
+                bestDistance = distance;
+                best = area;
+            }
+        }
+
+        return best;
+    }
+
     private static OrbPlacement DefaultSpot(WorkArea area)
     {
         var size = OrbSize * area.Scaling;
