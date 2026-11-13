@@ -1,4 +1,5 @@
 using System.Runtime.InteropServices;
+using System.Runtime.InteropServices.Marshalling;
 using Murmur.Capture.Windows.Audio;
 using Murmur.Capture.Windows.Audio.Interop;
 using Murmur.Core.Calls;
@@ -343,8 +344,10 @@ public sealed class WasapiAudioSessionMonitorTests
 
     [Fact]
     [Trait("Category", "Windows")]
-    public void OnWindows_Stop_UnregistersTheCallback_BeforeTheApartmentIsLeft()
+    public void OnWindows_Stop_UnregistersTheCallback()
     {
+        // (That the unregister comes before CoUninitialize is guaranteed by the Run / RunCore structure; a test cannot tell, as the
+        // runtime already puts a new thread in the MTA and EnterMta only adds a reference.)
         Assert.SkipUnless(OperatingSystem.IsWindows(), "The audio sessions are read only on Windows.");
         var fake = new FakeEnumerator();
         using var monitor = new WasapiAudioSessionMonitor(Own, () => fake, TimeSpan.FromMilliseconds(30));
@@ -355,11 +358,32 @@ public sealed class WasapiAudioSessionMonitorTests
 
         Assert.True(SpinWait.SpinUntil(() => fake.Unregistered, TimeSpan.FromSeconds(5)), "The notification client was never unregistered.");
         Assert.True(fake.Registered);
-        Assert.False(fake.UnregisteredOutsideApartment, "The unregister ran after CoUninitialize.");
+    }
+
+    [Fact]
+    [Trait("Category", "Windows")]
+    public void OnWindows_WhenAnEndpointCannotBeOpenedYet_ItIsOpenedByTheRetryTimer_WithoutAnyDeviceEvent()
+    {
+        Assert.SkipUnless(OperatingSystem.IsWindows(), "The audio sessions are read only on Windows.");
+        var manager = new FakeSessionManager();
+        var fake = new FakeEnumerator { ActivateFailures = 3, Manager = manager };
+        using var monitor = new WasapiAudioSessionMonitor(Own, () => fake, TimeSpan.FromMilliseconds(30));
+
+        monitor.Start();
+
+        // Activate fails (the audio service is coming back); nothing announces its return, only the timer can retry.
+        Assert.True(SpinWait.SpinUntil(() => manager.Registrations >= 1, TimeSpan.FromSeconds(10)), $"Activate was tried {fake.Activations} times.");
+        Assert.Equal(4, fake.Activations);
+        Assert.True(monitor.IsRunning);
+
+        // Opened: the retries stop.
+        Thread.Sleep(300);
+        Assert.Equal(4, fake.Activations);
+        Assert.Equal(1, manager.Registrations);
     }
 
     /// <summary>An MMDevice enumerator with no devices (E_NOTFOUND) that fails with "audio service not running" for its first calls.</summary>
-    private sealed class FakeEnumerator : IMMDeviceEnumerator
+    private sealed unsafe class FakeEnumerator : IMMDeviceEnumerator
     {
         private int _lookups;
 
@@ -371,7 +395,14 @@ public sealed class WasapiAudioSessionMonitorTests
 
         public bool Unregistered { get; private set; }
 
-        public bool UnregisteredOutsideApartment { get; private set; }
+        /// <summary>When set, there is one render device whose session manager cannot be activated this many times.</summary>
+        public int? ActivateFailures { get; init; }
+
+        public FakeSessionManager? Manager { get; init; }
+
+        public int Activations => Volatile.Read(ref _activations);
+
+        private int _activations;
 
         public int EnumAudioEndpoints(int dataFlow, uint stateMask, out nint devices)
         {
@@ -382,14 +413,28 @@ public sealed class WasapiAudioSessionMonitorTests
         public int GetDefaultAudioEndpoint(int dataFlow, int role, out nint endpoint)
         {
             endpoint = 0;
-            return Interlocked.Increment(ref _lookups) <= FailUntilCall ? WasapiConstants.AudclntEServiceNotRunning : WasapiConstants.ENotFound;
+            if (Interlocked.Increment(ref _lookups) <= FailUntilCall)
+            {
+                return WasapiConstants.AudclntEServiceNotRunning;
+            }
+
+            if (ActivateFailures is null || dataFlow != WasapiConstants.ERender)
+            {
+                return WasapiConstants.ENotFound;
+            }
+
+            endpoint = NewDevice();
+            return 0;
         }
 
         public int GetDevice(string id, out nint device)
         {
-            device = 0;
-            return WasapiConstants.ENotFound;
+            device = ActivateFailures is null ? 0 : NewDevice();
+            return device == 0 ? WasapiConstants.ENotFound : 0;
         }
+
+        private nint NewDevice() =>
+            (nint)ComInterfaceMarshaller<IMMDevice>.ConvertToUnmanaged(new FakeSessionDevice(() => Interlocked.Increment(ref _activations) > ActivateFailures!.Value ? Manager : null));
 
         public int RegisterEndpointNotificationCallback(nint client)
         {
@@ -399,16 +444,98 @@ public sealed class WasapiAudioSessionMonitorTests
 
         public int UnregisterEndpointNotificationCallback(nint client)
         {
-            // CoInitializeEx answers S_FALSE while the thread is still in the apartment, S_OK once it has left it.
-            var hr = NativeMethods.CoInitializeEx(0, WasapiConstants.CoinitMultithreaded);
-            UnregisteredOutsideApartment = hr == 0;
-            if (hr >= 0)
-            {
-                NativeMethods.CoUninitialize();
-            }
-
             Unregistered = true;
             return 0;
         }
+    }
+}
+
+/// <summary>An endpoint device whose session manager activates only once <c>manager</c> answers (null = the audio service is down).</summary>
+[GeneratedComClass]
+internal sealed unsafe partial class FakeSessionDevice(Func<FakeSessionManager?> manager) : IMMDevice
+{
+    public int Activate(in Guid iid, uint clsCtx, nint activationParams, out nint ppInterface)
+    {
+        ppInterface = 0;
+        if (manager() is not { } m)
+        {
+            return WasapiConstants.AudclntEServiceNotRunning;
+        }
+
+        ppInterface = (nint)ComInterfaceMarshaller<IAudioSessionManager2>.ConvertToUnmanaged(m);
+        return 0;
+    }
+
+    public int OpenPropertyStore(uint stgmAccess, out nint properties)
+    {
+        properties = 0;
+        return FakeCom.ENotImpl;
+    }
+
+    public int GetId(out nint id)
+    {
+        id = Marshal.StringToCoTaskMemUni("{fake-render}");
+        return 0;
+    }
+
+    public int GetState(out uint state)
+    {
+        state = 1;
+        return 0;
+    }
+}
+
+/// <summary>A session manager with no sessions that counts the notification registrations it gets.</summary>
+[GeneratedComClass]
+internal sealed unsafe partial class FakeSessionManager : IAudioSessionManager2
+{
+    private int _registrations;
+
+    public int Registrations => Volatile.Read(ref _registrations);
+
+    public int GetAudioSessionControl(nint audioSessionGuid, uint streamFlags, out nint sessionControl)
+    {
+        sessionControl = 0;
+        return FakeCom.ENotImpl;
+    }
+
+    public int GetSimpleAudioVolume(nint audioSessionGuid, uint streamFlags, out nint audioVolume)
+    {
+        audioVolume = 0;
+        return FakeCom.ENotImpl;
+    }
+
+    public int GetSessionEnumerator(out nint sessionEnum)
+    {
+        sessionEnum = (nint)ComInterfaceMarshaller<IAudioSessionEnumerator>.ConvertToUnmanaged(new FakeNoSessions());
+        return 0;
+    }
+
+    public int RegisterSessionNotification(nint sessionNotification)
+    {
+        Interlocked.Increment(ref _registrations);
+        return 0;
+    }
+
+    public int UnregisterSessionNotification(nint sessionNotification) => 0;
+
+    public int RegisterDuckNotification(nint sessionId, nint duckNotification) => FakeCom.ENotImpl;
+
+    public int UnregisterDuckNotification(nint duckNotification) => FakeCom.ENotImpl;
+}
+
+[GeneratedComClass]
+internal sealed partial class FakeNoSessions : IAudioSessionEnumerator
+{
+    public int GetCount(out int sessionCount)
+    {
+        sessionCount = 0;
+        return 0;
+    }
+
+    public int GetSession(int index, out nint session)
+    {
+        session = 0;
+        return FakeCom.ENotImpl;
     }
 }

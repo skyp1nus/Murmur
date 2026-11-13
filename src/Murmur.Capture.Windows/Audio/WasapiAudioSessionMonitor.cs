@@ -324,6 +324,12 @@ public sealed unsafe class WasapiAudioSessionMonitor : IAudioSessionMonitor
                     {
                         _endpoints.Add(endpoint);
                     }
+                    else
+                    {
+                        // A default endpoint exists but cannot be opened (e.g. the audio service is restarting): the ones that opened
+                        // are still read, and the retry timer keeps trying, since no device event announces the service's return.
+                        _endpointsDirty = true;
+                    }
                 }
             }
         }
