@@ -33,7 +33,7 @@
     </DockPanel>
   </Border>
 
-  <!-- The previous run crashed (#100): the same quiet line, with "Open log" beside the text. Never on the parity boards (their log has no crash). -->
+  <!-- The previous run crashed (the diagnostic log): the same quiet line, with "Open log" beside the text. Never on the parity boards (their log has no crash). -->
   <Border x:Name="CrashNotice"
           Classes="libraryNotice"
           IsVisible="{Binding CrashNotice.IsVisible}">
