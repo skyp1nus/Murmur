@@ -39,6 +39,8 @@ public sealed class FileAppLog : IAppLog, IDisposable
     private const int MaxMessageChars = 500;
     private const int MaxFrameChars = 300;
     private const int MaxExceptionDepth = 5;
+    private const int MaxInnerPerLevel = 8;
+    private const string Truncated = "... (cut to the file size limit)\n";
 
     public static readonly TimeSpan BatchInterval = TimeSpan.FromSeconds(30);
     public static readonly TimeSpan MaxAge = TimeSpan.FromDays(14);
@@ -548,17 +550,58 @@ public sealed class FileAppLog : IAppLog, IDisposable
             out at);
     }
 
-    private string BuildCrashText(Exception exception, string area, DateTimeOffset now)
+    /// <summary>
+    /// The crash file: header, exception, ring. At most <see cref="MaxFileBytes"/> of UTF-8: the exception part gives way first (the ring
+    /// and the header are bounded), and the whole is cut as a last resort.
+    /// </summary>
+    internal string BuildCrashText(Exception exception, string area, DateTimeOffset now)
     {
-        var text = new StringBuilder(16 * 1024);
-        text.Append("Murmur crash ").Append(FormatTime(now.UtcTicks)).Append('\n');
-        text.Append("Area: ").Append(area).Append('\n');
-        AppendHeader(text);
-        text.Append('\n').Append("Exception:\n");
-        AppendException(text, exception, depth: 0);
-        text.Append('\n');
-        AppendRing(text);
-        return text.ToString();
+        var head = new StringBuilder(1024);
+        head.Append("Murmur crash ").Append(FormatTime(now.UtcTicks)).Append('\n');
+        head.Append("Area: ").Append(area).Append('\n');
+        AppendHeader(head);
+        head.Append('\n').Append("Exception:\n");
+
+        var error = new StringBuilder(16 * 1024);
+        AppendException(error, exception, depth: 0);
+
+        var ring = new StringBuilder(32 * 1024);
+        ring.Append('\n');
+        AppendRing(ring);
+
+        var headText = head.ToString();
+        var ringText = ring.ToString();
+        var budget = (int)MaxFileBytes - Encoding.UTF8.GetByteCount(headText) - Encoding.UTF8.GetByteCount(ringText) - Truncated.Length;
+        var errorText = error.ToString();
+        if (Encoding.UTF8.GetByteCount(errorText) > Math.Max(0, budget))
+        {
+            errorText = CutToBytes(errorText, Math.Max(0, budget)) + Truncated;
+        }
+
+        var text = headText + errorText + ringText;
+        return Encoding.UTF8.GetByteCount(text) <= MaxFileBytes ? text : CutToBytes(text, (int)MaxFileBytes - Truncated.Length) + Truncated;
+    }
+
+    /// <summary>The longest start of <paramref name="text"/> that takes at most <paramref name="maxBytes"/> of UTF-8 (no surrogate pair split).</summary>
+    private static string CutToBytes(string text, int maxBytes)
+    {
+        if (maxBytes <= 0)
+        {
+            return string.Empty;
+        }
+
+        var length = Math.Min(text.Length, maxBytes);
+        while (length > 0 && Encoding.UTF8.GetByteCount(text.AsSpan(0, length)) > maxBytes)
+        {
+            length = Math.Max(0, length - Math.Max(1, (Encoding.UTF8.GetByteCount(text.AsSpan(0, length)) - maxBytes) / 3));
+        }
+
+        if (length > 0 && char.IsHighSurrogate(text[length - 1]))
+        {
+            length--;
+        }
+
+        return text[..length];
     }
 
     private void AppendHeader(StringBuilder text)
@@ -605,8 +648,26 @@ public sealed class FileAppLog : IAppLog, IDisposable
 
     private static void AppendException(StringBuilder text, Exception exception, int depth)
     {
+        // Past the file limit nothing more can be kept: BuildCrashText cuts there anyway.
+        if (text.Length > MaxFileBytes)
+        {
+            return;
+        }
+
         var indent = new string(' ', depth * 2);
-        text.Append(indent).Append(LogText.Error(exception)).Append(": ").Append(LogText.Scrub(exception.Message, MaxMessageChars)).Append('\n');
+        // An AggregateException's message is every inner message joined (built anew, the whole tree, on each read): its inner exceptions
+        // are listed below instead.
+        text.Append(indent).Append(LogText.Error(exception)).Append(": ");
+        if (exception is AggregateException { InnerExceptions.Count: var count })
+        {
+            text.Append(count.ToString(CultureInfo.InvariantCulture)).Append(" inner exceptions");
+        }
+        else
+        {
+            text.Append(LogText.Scrub(exception.Message, MaxMessageChars));
+        }
+
+        text.Append('\n');
         if (exception.StackTrace is { Length: > 0 } stack)
         {
             foreach (var frame in stack.Split('\n'))
@@ -625,10 +686,16 @@ public sealed class FileAppLog : IAppLog, IDisposable
 
         if (exception is AggregateException aggregate)
         {
-            foreach (var inner in aggregate.InnerExceptions)
+            var shown = Math.Min(aggregate.InnerExceptions.Count, MaxInnerPerLevel);
+            for (var i = 0; i < shown; i++)
             {
                 text.Append(indent).Append("Inner:\n");
-                AppendException(text, inner, depth + 1);
+                AppendException(text, aggregate.InnerExceptions[i], depth + 1);
+            }
+
+            if (aggregate.InnerExceptions.Count > shown)
+            {
+                text.Append(indent).Append("... ").Append((aggregate.InnerExceptions.Count - shown).ToString(CultureInfo.InvariantCulture)).Append(" more inner exceptions\n");
             }
         }
         else if (exception.InnerException is { } inner)

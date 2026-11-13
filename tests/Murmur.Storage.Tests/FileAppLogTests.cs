@@ -498,6 +498,44 @@ public sealed class FileAppLogTests
     }
 
     [Fact]
+    public void ACrashFile_ListsAtMost8InnerExceptionsPerLevel_AndStaysUnderTheFileLimit()
+    {
+        // One subtree shared by every slot of the level above: 20 wide and 5 deep without millions of objects.
+        Exception tree = new InvalidOperationException("leaf " + new string('x', 400));
+        for (var depth = 0; depth < 5; depth++)
+        {
+            tree = new AggregateException(Enumerable.Repeat(tree, 20));
+        }
+        using var log = Create();
+        for (var i = 0; i < FileAppLog.RingCapacity; i++)
+        {
+            log.Write(LogLevel.Warning, new string('a', 64), new string('c', 64), new string('d', 300));
+        }
+
+        log.Crash(new AggregateException(Enumerable.Repeat(tree, 30)), "app");
+
+        var crash = _files.Names(Dir).Single(name => name.StartsWith("crash-", StringComparison.Ordinal));
+        var text = _files.Text(Dir, crash)!;
+        Assert.InRange(_files.Length(Dir, crash), 1, FileAppLog.MaxFileBytes);
+        Assert.Contains("... 12 more inner exceptions", text, StringComparison.Ordinal); // 8 of the 20 at a level, depth first
+        Assert.Contains("cut to the file size limit", text, StringComparison.Ordinal);
+        Assert.Contains("Recent events (oldest first):", text, StringComparison.Ordinal); // the ring survives the cut
+        Assert.Contains(" ERROR app crash AggregateException", text, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ASmallCrash_IsNotCut()
+    {
+        using var log = Create();
+
+        var text = log.BuildCrashText(new AggregateException(new InvalidOperationException("a"), new IOException("b")), "ui", _time.GetUtcNow());
+
+        Assert.DoesNotContain("cut to the file size limit", text, StringComparison.Ordinal);
+        Assert.DoesNotContain("more inner exceptions", text, StringComparison.Ordinal);
+        Assert.Contains("IOException", text, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void AWallClockSetBack_NeverHoldsTheBatchForLongerThanTheInterval()
     {
         var clock = new SettableClock(new DateTimeOffset(2026, 11, 13, 12, 0, 0, TimeSpan.Zero));
