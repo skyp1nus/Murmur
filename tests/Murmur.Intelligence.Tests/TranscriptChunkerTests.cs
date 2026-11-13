@@ -14,6 +14,16 @@ public sealed class TranscriptChunkerTests
     private static Transcript Make(params TranscriptSegment[] segments) => new(Session, segments, "test");
 
     [Fact]
+    public void Labels_AreTheUkrainianModelWords_NotLocalizedForTheUi()
+    {
+        // The text that is indexed and sent to the model; the search rows map these to the UI language at display time (#106).
+        Assert.Equal("Я", TranscriptChunker.MeLabel);
+        Assert.Equal("Інші", TranscriptChunker.OthersLabel);
+        Assert.Equal("Я", TranscriptChunker.Label(Speaker.Me));
+        Assert.Equal("Інші", TranscriptChunker.Label(Speaker.Others));
+    }
+
+    [Fact]
     public void Chunk_EvenSegments_FillsSixtySecondWindows()
     {
         var segments = Enumerable.Range(0, 30).Select(i => Seg(i * 10, (i * 10) + 10, $"s{i}")).ToArray();

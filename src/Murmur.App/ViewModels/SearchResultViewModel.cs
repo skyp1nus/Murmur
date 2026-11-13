@@ -24,7 +24,7 @@ public sealed partial class SearchResultViewModel
         Title = string.IsNullOrWhiteSpace(record.Title) ? Strings.Common_UntitledRecording : record.Title;
         DateText = UiFormat.Date(record.StartedAt, time);
         TimeText = at is { } moment ? UiFormat.Clock(moment) : string.Empty;
-        Snippet = at is null ? DateText : Shorten(snippet);
+        Snippet = at is null ? DateText : Shorten(SpeakerLabels.Localize(snippet));
     }
 
     public SessionRecord Record { get; }
