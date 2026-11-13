@@ -55,6 +55,13 @@ public class TranscriptExportBenchmarks
     public string Markdown() =>
         TranscriptExport.Format(ExportFormat.Markdown, _session, _transcript, _summary, null, ExportOptions.Default, null);
 
+    /// <summary>The escape of one transcript line with nothing to escape (the same instance back) and one with markup in it.</summary>
+    [Benchmark]
+    public string EscapePlainLine() => MarkdownText.Escape(_transcript.Segments[0].Text);
+
+    [Benchmark]
+    public string EscapeMarkupLine() => MarkdownText.Escape("# Q4 <roadmap> *draft* and `code`, [link] and snake_case\nsecond line");
+
     [Benchmark]
     public string PlainText() =>
         TranscriptExport.Format(ExportFormat.PlainText, _session, _transcript, _summary, null, ExportOptions.Default, null);

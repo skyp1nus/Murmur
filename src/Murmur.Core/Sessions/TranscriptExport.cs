@@ -91,7 +91,9 @@ public static class TranscriptExport
         labels ??= ExportLabels.English;
         return format switch
         {
-            ExportFormat.Markdown or ExportFormat.Docx => Markdown(session, transcript, summary, labels, options, range, cancellationToken),
+            ExportFormat.Markdown => Markdown(session, transcript, summary, labels, options, range, cancellationToken, escape: true),
+            // The preview of the .docx: the text as the file carries it, which is not Markdown, so nothing is escaped.
+            ExportFormat.Docx => Markdown(session, transcript, summary, labels, options, range, cancellationToken, escape: false),
             ExportFormat.PlainText => PlainText(session, transcript, summary, labels, options, range, cancellationToken),
             ExportFormat.Srt => Srt(transcript, labels, options, range, cancellationToken),
             ExportFormat.WebVtt => WebVtt(session, transcript, labels, options, range, cancellationToken),
@@ -190,7 +192,7 @@ public static class TranscriptExport
     {
         ArgumentNullException.ThrowIfNull(session);
         ArgumentNullException.ThrowIfNull(transcript);
-        return Markdown(session, transcript, summary, labels ?? ExportLabels.English, ExportOptions.Default, null, CancellationToken.None);
+        return Markdown(session, transcript, summary, labels ?? ExportLabels.English, ExportOptions.Default, null, CancellationToken.None, escape: true);
     }
 
     /// <summary>The title and the meta line, then one line per segment: <c>[12:21] You: text</c>.</summary>
@@ -217,10 +219,12 @@ public static class TranscriptExport
         return WebVtt(session, transcript, labels ?? ExportLabels.English, ExportOptions.Default, null, CancellationToken.None);
     }
 
-    private static string Markdown(SessionRecord session, Transcript transcript, SessionSummary? summary, ExportLabels labels, ExportOptions options, ExportRange? range, CancellationToken cancellationToken)
+    private static string Markdown(SessionRecord session, Transcript transcript, SessionSummary? summary, ExportLabels labels, ExportOptions options, ExportRange? range, CancellationToken cancellationToken, bool escape)
     {
+        // Only the user's and the transcript's text is escaped: the title, summary, chapter-like items, speakers and lines; never the
+        // headings, bullets, timestamps and meta line the exporter writes itself.
         var text = new StringBuilder();
-        text.Append("# ").Append(TitleOf(session, labels)).Append("\n\n");
+        text.Append("# ").Append(Text(TitleOf(session, labels), escape)).Append("\n\n");
         text.Append(MetaLine(session, transcript)).Append("\n\n");
 
         var summaryText = HasSummaryText(summary, options);
@@ -229,16 +233,16 @@ public static class TranscriptExport
             text.Append("## ").Append(labels.Summary).Append("\n\n");
             if (!string.IsNullOrWhiteSpace(summary!.Overview))
             {
-                text.Append("### ").Append(labels.Overview).Append("\n\n").Append(summary.Overview.Trim()).Append("\n\n");
+                text.Append("### ").Append(labels.Overview).Append("\n\n").Append(escape ? MarkdownText.EscapeBlock(summary.Overview) : summary.Overview.Trim()).Append("\n\n");
             }
 
-            AppendItems(text, "### ", labels.KeyPoints, summary.KeyPoints, "- ", options.Timestamps);
+            AppendItems(text, "### ", labels.KeyPoints, summary.KeyPoints, "- ", options.Timestamps, escape);
         }
 
         if (HasActionItems(summary, options))
         {
             // Under the Summary heading when there is one, else a section of its own (no level is skipped).
-            AppendItems(text, summaryText ? "### " : "## ", labels.ActionItems, summary!.ActionItems, "- [ ] ", options.Timestamps);
+            AppendItems(text, summaryText ? "### " : "## ", labels.ActionItems, summary!.ActionItems, "- [ ] ", options.Timestamps, escape);
         }
 
         text.Append("## ").Append(labels.Transcript).Append("\n\n");
@@ -247,7 +251,7 @@ public static class TranscriptExport
             cancellationToken.ThrowIfCancellationRequested();
             if (options.SpeakerNames)
             {
-                text.Append("**").Append(SpeakerOf(segment, labels)).Append("**");
+                text.Append("**").Append(Text(SpeakerOf(segment, labels), escape)).Append("**");
             }
 
             if (options.Timestamps)
@@ -260,7 +264,7 @@ public static class TranscriptExport
                 text.Append("  \n");
             }
 
-            text.Append(OneLine(segment.Text)).Append("\n\n");
+            text.Append(Text(segment.Text, escape)).Append("\n\n");
         }
 
         return text.ToString().TrimEnd('\n') + "\n";
@@ -398,7 +402,7 @@ public static class TranscriptExport
         text.Append('\n');
     }
 
-    private static void AppendItems(StringBuilder text, string headingMark, string heading, IReadOnlyList<SummaryItem> items, string bullet, bool timestamps)
+    private static void AppendItems(StringBuilder text, string headingMark, string heading, IReadOnlyList<SummaryItem> items, string bullet, bool timestamps, bool escape)
     {
         if (items.Count == 0)
         {
@@ -408,7 +412,7 @@ public static class TranscriptExport
         text.Append(headingMark).Append(heading).Append("\n\n");
         foreach (var item in items)
         {
-            text.Append(bullet).Append(OneLine(item.Text));
+            text.Append(bullet).Append(Text(item.Text, escape));
             if (timestamps && item.At is { } at)
             {
                 text.Append(" (`").Append(Clock(at)).Append("`)");
@@ -419,6 +423,9 @@ public static class TranscriptExport
 
         text.Append('\n');
     }
+
+    /// <summary>A user's or the transcript's text on one line, escaped for Markdown (<see cref="MarkdownText"/>) unless it is not going into Markdown.</summary>
+    private static string Text(string text, bool escape) => escape ? MarkdownText.Escape(text) : OneLine(text);
 
     private static string TitleOf(SessionRecord session, ExportLabels labels) =>
         string.IsNullOrWhiteSpace(session.Title) ? labels.Untitled : OneLine(session.Title);
