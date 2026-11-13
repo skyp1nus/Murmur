@@ -253,6 +253,11 @@ public sealed class ImportQueueTests : IAsyncDisposable
     [InlineData(OriginalFileMode.LeaveInPlace)]
     public async Task AnMp4_IsAlsoTheSessionsScreenSegmentZero(OriginalFileMode mode)
     {
+        if (mode == OriginalFileMode.LeaveInPlace)
+        {
+            SkipUnlessSymbolicLinksCanBeCreated(); // Left in place, the video is only ever a symbolic link.
+        }
+
         var decoder = new FakeMediaDecoder(".mp4", ".mov") { Kind = MediaKind.Video, Duration = TimeSpan.FromSeconds(3) };
         var imports = await StartAsync(decoder);
         var path = await NewFileAsync("demo.mp4", [9, 8, 7]);
@@ -662,8 +667,9 @@ public sealed class ImportQueueTests : IAsyncDisposable
     }
 
     [Fact]
-    public async Task CopyToLibrary_FallsBackFromAHardLink_ToASymbolicLink_ToACopy()
+    public async Task CopyToLibrary_FallsBackFromAHardLink_ToASymbolicLink()
     {
+        SkipUnlessSymbolicLinksCanBeCreated();
         var decoder = new FakeMediaDecoder(".mp4") { Kind = MediaKind.Video };
 
         // No hard links on this file system: a symbolic link to the copy.
@@ -672,10 +678,22 @@ public sealed class ImportQueueTests : IAsyncDisposable
         var linked = await ImportVideoAsync(imports, "a.mp4", Copy);
         var linkedSegment = _sessions.GetFiles(linked.Id).ScreenSegment(0);
         Assert.Equal(Path.Combine(_sessions.GetFiles(linked.Id).Directory, "original.mp4"), new FileInfo(linkedSegment).LinkTarget);
+    }
 
-        // Neither kind of link: a copy.
-        imports.CreateSymbolicLink = static (_, _) => throw new UnauthorizedAccessException("no symbolic links either");
+    [Theory]
+    [InlineData(false)] // Windows without Developer Mode or admin rights: "A required privilege is not held by the client".
+    [InlineData(true)]
+    public async Task CopyToLibrary_WithNeitherKindOfLink_FallsBackToACopy(bool unauthorized)
+    {
+        var decoder = new FakeMediaDecoder(".mp4") { Kind = MediaKind.Video };
+        var imports = await StartAsync(decoder);
+        imports.CreateHardLink = static (_, _) => throw new IOException("no hard links here");
+        imports.CreateSymbolicLink = unauthorized
+            ? static (_, _) => throw new UnauthorizedAccessException("no symbolic links either")
+            : static (_, _) => throw new IOException("A required privilege is not held by the client.");
+
         var copied = await ImportVideoAsync(imports, "b.mp4", Copy);
+
         var copiedSegment = _sessions.GetFiles(copied.Id).ScreenSegment(0);
         Assert.Null(new FileInfo(copiedSegment).LinkTarget);
         Assert.Equal([9, 8, 7], await File.ReadAllBytesAsync(copiedSegment, Ct));
@@ -683,19 +701,32 @@ public sealed class ImportQueueTests : IAsyncDisposable
     }
 
     [Fact]
-    public async Task LeaveInPlace_NeverHardLinksTheOriginal_ASymbolicLinkOrNoVideo()
+    public async Task LeaveInPlace_NeverHardLinksTheOriginal_ASymbolicLink()
     {
+        SkipUnlessSymbolicLinksCanBeCreated();
         var decoder = new FakeMediaDecoder(".mp4") { Kind = MediaKind.Video };
         var imports = await StartAsync(decoder);
         var hardLinks = 0;
         imports.CreateHardLink = (_, _) => Interlocked.Increment(ref hardLinks);
 
         var linked = await ImportVideoAsync(imports, "a.mp4", InPlace);
+
         Assert.Equal(_dir.File("a.mp4"), new FileInfo(_sessions.GetFiles(linked.Id).ScreenSegment(0)).LinkTarget);
         Assert.Single(linked.ScreenSegments);
+        Assert.Equal(0, hardLinks);
+    }
 
+    [Fact]
+    public async Task LeaveInPlace_NeverHardLinksTheOriginal_WithoutASymbolicLinkItIsAudioOnly()
+    {
+        var decoder = new FakeMediaDecoder(".mp4") { Kind = MediaKind.Video };
+        var imports = await StartAsync(decoder);
+        var hardLinks = 0;
+        imports.CreateHardLink = (_, _) => Interlocked.Increment(ref hardLinks);
         imports.CreateSymbolicLink = static (_, _) => throw new UnauthorizedAccessException("no symbolic links");
+
         var audioOnly = await ImportVideoAsync(imports, "b.mp4", InPlace);
+
         Assert.Empty(audioOnly.ScreenSegments);
         Assert.False(File.Exists(_sessions.GetFiles(audioOnly.Id).ScreenSegment(0)));
         Assert.Equal(0, hardLinks);
@@ -727,6 +758,24 @@ public sealed class ImportQueueTests : IAsyncDisposable
     }
 
     // ---- helpers ------------------------------------------------------------------------------------------------------
+
+    /// <summary>Windows grants symbolic links only with Developer Mode or admin rights; a test that needs a real one skips without them.</summary>
+    private void SkipUnlessSymbolicLinksCanBeCreated()
+    {
+        var link = _dir.File("probe.link");
+        try
+        {
+            File.CreateSymbolicLink(link, _dir.File("probe.target"));
+        }
+        catch (Exception ex) when (OperatingSystem.IsWindows() && ex is UnauthorizedAccessException or IOException)
+        {
+            Assert.Skip("This system does not let the tests create symbolic links: " + ex.Message);
+        }
+        finally
+        {
+            File.Delete(link);
+        }
+    }
 
     private async Task<SessionRecord> ImportVideoAsync(ImportQueue imports, string name, ImportOptions options)
     {
