@@ -2,6 +2,7 @@ using System.Runtime.InteropServices;
 using Murmur.Capture.Windows.Audio;
 using Murmur.Capture.Windows.Audio.Interop;
 using Murmur.Core.Calls;
+using Murmur.Core.Capture;
 
 namespace Murmur.Capture.Windows.Tests;
 
@@ -121,20 +122,22 @@ public sealed class WasapiAudioSessionMonitorTests
     [Fact]
     public void StopNeverWaits_AndAStartRightAfterGetsANewRunner()
     {
-        // Runs anywhere: off Windows the runner's thread fails to join COM and ends by itself; Stop and Start never wait for it.
-        using var monitor = new WasapiAudioSessionMonitor(Own);
+        // Runs anywhere: off Windows the runner's thread fails to join COM and ends by itself (and is then no longer running);
+        // Stop and Start never wait for it.
+        var windows = OperatingSystem.IsWindows();
+        using var monitor = new WasapiAudioSessionMonitor(Own, () => new FakeEnumerator(), TimeSpan.FromMilliseconds(30));
         var watch = System.Diagnostics.Stopwatch.StartNew();
         for (var i = 0; i < 50; i++)
         {
             monitor.Start();
-            Assert.True(monitor.IsRunning);
+            Assert.True(!windows || monitor.IsRunning);
             monitor.Stop();
             Assert.False(monitor.IsRunning);
         }
 
         monitor.Start();
         monitor.Start();
-        Assert.True(monitor.IsRunning);
+        Assert.True(!windows || monitor.IsRunning);
         monitor.Stop();
         monitor.Stop();
 
@@ -201,13 +204,211 @@ public sealed class WasapiAudioSessionMonitorTests
 
     [Fact]
     [Trait("Category", "Windows")]
-    public void OnWindows_ItsOwnPlayback_IsNeverReported()
+    public async Task OnWindows_ItsOwnPlayback_IsNeverReported()
     {
         Assert.SkipUnless(OperatingSystem.IsWindows(), "The audio sessions are read only on Windows.");
-        using var monitor = new WasapiAudioSessionMonitor();
-        monitor.Start();
-        Thread.Sleep(500);
+        Assert.SkipUnless(AudioEndpoints.HasActive(AudioDeviceKind.SystemOutput), "No active render endpoint on this machine.");
 
-        Assert.DoesNotContain(monitor.Snapshot().Rendering, r => r.ProcessId == Environment.ProcessId);
+        // A real render stream of this process that writes only zeros: an active session, but nothing audible.
+        using var dir = new TempDir();
+        var silence = dir.Write("silence.wav", TestWav.Pcm16(new short[16_000 * 4]));
+        using var player = new WindowsCapture().CreatePlayer();
+        await player.OpenAsync([silence], TestContext.Current.CancellationToken);
+
+        // A monitor that does not know this process is its own proves the session is really there ...
+        using var observer = new WasapiAudioSessionMonitor(ownProcessId: 1);
+        using var own = new WasapiAudioSessionMonitor();
+        observer.Start();
+        own.Start();
+        player.Play();
+        try
+        {
+            var seen = SpinWait.SpinUntil(() => observer.Snapshot().Rendering.Any(r => r.ProcessId == Environment.ProcessId), TimeSpan.FromSeconds(3));
+            Assert.True(seen, "The silent render stream of this process never showed up as a session.");
+            Thread.Sleep(300);
+
+            // ... and the monitor of this very process never reports it.
+            Assert.DoesNotContain(own.Snapshot().Rendering, r => r.ProcessId == Environment.ProcessId);
+        }
+        finally
+        {
+            player.Pause();
+        }
+    }
+
+    // ---- Process names ---------------------------------------------------------------------------------------------------
+
+    [Fact]
+    public void AProcessIdReusedByAnotherProcess_IsResolvedAgain()
+    {
+        var starts = new Dictionary<int, long> { [1234] = 100 };
+        var names = new Dictionary<int, string> { [1234] = "ms-teams" };
+        var lookups = 0;
+        var cache = new ProcessNameCache(pid => starts[pid], pid =>
+        {
+            lookups++;
+            return names[pid];
+        });
+
+        Assert.Equal("ms-teams", cache.NameOf(1234));
+        Assert.Equal("ms-teams", cache.NameOf(1234));
+        Assert.Equal(1, lookups);
+
+        // Teams exited; Chrome's audio process got the same id (a different start time) before any read dropped the entry.
+        starts[1234] = 200;
+        names[1234] = "chrome";
+
+        Assert.Equal("chrome", cache.NameOf(1234));
+        Assert.Equal(2, lookups);
+    }
+
+    [Fact]
+    public void AProcessWithoutAKnownStartTime_IsNeverServedFromTheCache()
+    {
+        var name = "a";
+        var cache = new ProcessNameCache(_ => 0, _ => name);
+
+        Assert.Equal("a", cache.NameOf(7));
+        name = "b";
+        Assert.Equal("b", cache.NameOf(7));
+        Assert.Equal(0, cache.Count);
+    }
+
+    [Fact]
+    public void Retain_DropsTheProcessesThatAreNotRenderingAnyMore()
+    {
+        var cache = new ProcessNameCache(_ => 5, pid => "p" + pid.ToString(System.Globalization.CultureInfo.InvariantCulture));
+        cache.NameOf(1);
+        cache.NameOf(2);
+        cache.NameOf(3);
+
+        cache.Retain([new RenderingProcess(2, "p2")]);
+
+        Assert.Equal(1, cache.Count);
+        cache.Retain([]);
+        Assert.Equal(0, cache.Count);
+    }
+
+    [Fact]
+    public void TheDefaultResolver_NamesThisProcess_AndAnUnknownIdGetsAPlaceholder()
+    {
+        var cache = new ProcessNameCache();
+
+        Assert.Equal(System.Diagnostics.Process.GetCurrentProcess().ProcessName, cache.NameOf(Environment.ProcessId));
+        Assert.Equal("process 2147483000", cache.NameOf(2_147_483_000));
+    }
+
+    // ---- Failures of the audio service -------------------------------------------------------------------------------------
+
+    [Fact]
+    [Trait("Category", "Windows")]
+    public void OnWindows_WhenTheEnumeratorCannotBeCreated_TheMonitorIsNotRunning_AndStartTriesAgain()
+    {
+        Assert.SkipUnless(OperatingSystem.IsWindows(), "The audio sessions are read only on Windows.");
+        var attempts = 0;
+        using var monitor = new WasapiAudioSessionMonitor(Own, () =>
+        {
+            Interlocked.Increment(ref attempts);
+            throw new COMException("no audio service", WasapiConstants.AudclntEServiceNotRunning);
+        }, TimeSpan.FromMilliseconds(20));
+
+        monitor.Start();
+        Assert.True(SpinWait.SpinUntil(() => !monitor.IsRunning, TimeSpan.FromSeconds(5)), "The failed runner stayed current.");
+
+        monitor.Start();
+        Assert.True(SpinWait.SpinUntil(() => Volatile.Read(ref attempts) == 2, TimeSpan.FromSeconds(5)), "Start did not try again.");
+    }
+
+    [Fact]
+    [Trait("Category", "Windows")]
+    public void OnWindows_WhenTheAudioServiceIsDown_TheEndpointsAreLookedUpAgain_UntilItIsBack()
+    {
+        Assert.SkipUnless(OperatingSystem.IsWindows(), "The audio sessions are read only on Windows.");
+        var fake = new FakeEnumerator { FailUntilCall = 3 };
+        using var monitor = new WasapiAudioSessionMonitor(Own, () => fake, TimeSpan.FromMilliseconds(30));
+
+        monitor.Start();
+
+        // No event ever arrives: only the retry timer can bring the later look-ups.
+        Assert.True(SpinWait.SpinUntil(() => fake.DefaultLookups >= 6, TimeSpan.FromSeconds(10)), $"Only {fake.DefaultLookups} look-ups.");
+        Assert.True(monitor.IsRunning);
+        Assert.False(monitor.Snapshot().MicrophoneInUse);
+        Assert.Empty(monitor.Snapshot().Rendering);
+
+        // Once the service answers (E_NOTFOUND: no device) the look-ups settle: no retry storm.
+        var settled = fake.DefaultLookups;
+        Thread.Sleep(400);
+        Assert.Equal(settled, fake.DefaultLookups);
+    }
+
+    [Fact]
+    [Trait("Category", "Windows")]
+    public void OnWindows_Stop_UnregistersTheCallback_BeforeTheApartmentIsLeft()
+    {
+        Assert.SkipUnless(OperatingSystem.IsWindows(), "The audio sessions are read only on Windows.");
+        var fake = new FakeEnumerator();
+        using var monitor = new WasapiAudioSessionMonitor(Own, () => fake, TimeSpan.FromMilliseconds(30));
+        monitor.Start();
+        Assert.True(SpinWait.SpinUntil(() => fake.DefaultLookups > 0, TimeSpan.FromSeconds(5)));
+
+        monitor.Stop();
+
+        Assert.True(SpinWait.SpinUntil(() => fake.Unregistered, TimeSpan.FromSeconds(5)), "The notification client was never unregistered.");
+        Assert.True(fake.Registered);
+        Assert.False(fake.UnregisteredOutsideApartment, "The unregister ran after CoUninitialize.");
+    }
+
+    /// <summary>An MMDevice enumerator with no devices (E_NOTFOUND) that fails with "audio service not running" for its first calls.</summary>
+    private sealed class FakeEnumerator : IMMDeviceEnumerator
+    {
+        private int _lookups;
+
+        public int FailUntilCall { get; init; }
+
+        public int DefaultLookups => Volatile.Read(ref _lookups);
+
+        public bool Registered { get; private set; }
+
+        public bool Unregistered { get; private set; }
+
+        public bool UnregisteredOutsideApartment { get; private set; }
+
+        public int EnumAudioEndpoints(int dataFlow, uint stateMask, out nint devices)
+        {
+            devices = 0;
+            return WasapiConstants.ENotFound;
+        }
+
+        public int GetDefaultAudioEndpoint(int dataFlow, int role, out nint endpoint)
+        {
+            endpoint = 0;
+            return Interlocked.Increment(ref _lookups) <= FailUntilCall ? WasapiConstants.AudclntEServiceNotRunning : WasapiConstants.ENotFound;
+        }
+
+        public int GetDevice(string id, out nint device)
+        {
+            device = 0;
+            return WasapiConstants.ENotFound;
+        }
+
+        public int RegisterEndpointNotificationCallback(nint client)
+        {
+            Registered = true;
+            return 0;
+        }
+
+        public int UnregisterEndpointNotificationCallback(nint client)
+        {
+            // CoInitializeEx answers S_FALSE while the thread is still in the apartment, S_OK once it has left it.
+            var hr = NativeMethods.CoInitializeEx(0, WasapiConstants.CoinitMultithreaded);
+            UnregisteredOutsideApartment = hr == 0;
+            if (hr >= 0)
+            {
+                NativeMethods.CoUninitialize();
+            }
+
+            Unregistered = true;
+            return 0;
+        }
     }
 }

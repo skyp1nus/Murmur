@@ -37,14 +37,30 @@ public sealed unsafe class WasapiAudioSessionMonitor : IAudioSessionMonitor
     private static readonly Guid IidIAudioSessionManager2 = new("77AA99A0-1BD6-484F-8BC7-2C654C9A9B6F");
     private static readonly AudioActivitySnapshot Idle = new(false, []);
 
+    /// <summary>How long the thread waits before it looks the endpoints up again after the audio service failed.</summary>
+    internal static readonly TimeSpan DefaultRetry = TimeSpan.FromSeconds(3);
+
     private readonly int _ownProcessId;
+    private readonly Func<IMMDeviceEnumerator> _createEnumerator;
+    private readonly TimeSpan _retry;
     private readonly Lock _gate = new();
     private AudioActivitySnapshot _snapshot = Idle;
     private Runner? _runner;
     private bool _disposed;
 
     /// <param name="ownProcessId">Murmur's own process; <see cref="Environment.ProcessId"/> by default.</param>
-    public WasapiAudioSessionMonitor(int? ownProcessId = null) => _ownProcessId = ownProcessId ?? Environment.ProcessId;
+    public WasapiAudioSessionMonitor(int? ownProcessId = null)
+        : this(ownProcessId ?? Environment.ProcessId, AudioEndpoints.CreateEnumerator, DefaultRetry)
+    {
+    }
+
+    /// <summary>For tests: the MMDevice enumerator and the retry interval are supplied.</summary>
+    internal WasapiAudioSessionMonitor(int ownProcessId, Func<IMMDeviceEnumerator> createEnumerator, TimeSpan retry)
+    {
+        _ownProcessId = ownProcessId;
+        _createEnumerator = createEnumerator;
+        _retry = retry;
+    }
 
     public bool IsSupported => true;
 
@@ -118,11 +134,27 @@ public sealed unsafe class WasapiAudioSessionMonitor : IAudioSessionMonitor
         Changed?.Invoke();
     }
 
+    /// <summary>
+    /// A runner's thread ended by itself (its setup failed): it is no longer current, so <see cref="IsRunning"/> is false and
+    /// <see cref="Start"/> can try again. A no-op when <see cref="Stop"/> already retired it.
+    /// </summary>
+    private void Retire(Runner runner)
+    {
+        lock (_gate)
+        {
+            if (ReferenceEquals(_runner, runner))
+            {
+                _runner = null;
+                Volatile.Write(ref _snapshot, Idle);
+            }
+        }
+    }
+
     /// <summary>One start of the monitor: its thread and everything that thread owns.</summary>
     private sealed class Runner(WasapiAudioSessionMonitor owner)
     {
         private readonly AutoResetEvent _wake = new(true);
-        private readonly Dictionary<int, string> _names = [];
+        private readonly ProcessNameCache _names = new();
         private readonly List<Endpoint> _endpoints = [];
         private readonly int _ownProcessId = owner._ownProcessId;
         private volatile bool _stopping;
@@ -166,12 +198,31 @@ public sealed unsafe class WasapiAudioSessionMonitor : IAudioSessionMonitor
 
         private void Run()
         {
+            try
+            {
+                // The apartment outlives everything RunCore releases: CoUninitialize comes last.
+                using var apartment = ComHelpers.EnterMta();
+                RunCore();
+            }
+            catch (Exception ex)
+            {
+                Trace.WriteLine("Audio session monitor stopped: " + ex.Message);
+            }
+            finally
+            {
+                // A thread that ended by itself leaves nothing published and is no longer "running", so a later Start retries.
+                owner.Publish(this, Idle);
+                owner.Retire(this);
+            }
+        }
+
+        private void RunCore()
+        {
             var wake = _wake;
             IMMDeviceEnumerator? enumerator = null;
             try
             {
-                using var apartment = ComHelpers.EnterMta();
-                enumerator = AudioEndpoints.CreateEnumerator();
+                enumerator = owner._createEnumerator();
                 _callbacks = new SessionCallbacks(Wake);
                 _notification = (nint)ComInterfaceMarshaller<IAudioSessionNotification>.ConvertToUnmanaged(_callbacks);
                 _events = (nint)ComInterfaceMarshaller<IAudioSessionEvents>.ConvertToUnmanaged(_callbacks);
@@ -180,14 +231,25 @@ public sealed unsafe class WasapiAudioSessionMonitor : IAudioSessionMonitor
 
                 while (true)
                 {
-                    wake.WaitOne();
+                    // While the endpoints could not be read (the audio service restarted) no event may ever come: look again by timer.
+                    if (_endpointsDirty)
+                    {
+                        wake.WaitOne(owner._retry);
+                    }
+                    else
+                    {
+                        wake.WaitOne();
+                    }
+
                     if (_stopping)
                     {
                         break;
                     }
 
-                    // A burst of callbacks (several sessions of one app) is read once.
-                    wake.WaitOne(Settle);
+                    // A burst of callbacks (several sessions of one app) is read once: sleep through it (a wait on the event would
+                    // end with the burst's second callback), then clear the wake-ups it left, the read covers them.
+                    Thread.Sleep(Settle);
+                    wake.Reset();
                     if (_stopping)
                     {
                         break;
@@ -205,8 +267,10 @@ public sealed unsafe class WasapiAudioSessionMonitor : IAudioSessionMonitor
                     }
                     catch (COMException ex)
                     {
-                        // The audio service restarted or a device went away: look the endpoints up again on the next event.
+                        // The audio service restarted or a device went away: what was published is stale, so report no activity
+                        // (a running call must end) and look the endpoints up again on the next event or retry.
                         _endpointsDirty = true;
+                        owner.Publish(this, Idle);
                         Trace.WriteLine("Audio session monitor: " + ex.Message);
                     }
                 }
@@ -266,9 +330,17 @@ public sealed unsafe class WasapiAudioSessionMonitor : IAudioSessionMonitor
 
         private static string? DefaultId(IMMDeviceEnumerator enumerator, int flow, int role)
         {
-            if (enumerator.GetDefaultAudioEndpoint(flow, role, out var pDevice) < 0 || pDevice == 0)
+            var hr = enumerator.GetDefaultAudioEndpoint(flow, role, out var pDevice);
+            if (hr == WasapiConstants.ENotFound)
             {
-                return null; // no endpoint of this kind (E_NOTFOUND)
+                return null; // no endpoint of this kind
+            }
+
+            // Any other failure (the audio service is down) is not "no device": it is retried.
+            ComHelpers.Check(hr, "IMMDeviceEnumerator.GetDefaultAudioEndpoint");
+            if (pDevice == 0)
+            {
+                return null;
             }
 
             var device = ComHelpers.Wrap<IMMDevice>(pDevice, "IMMDeviceEnumerator.GetDefaultAudioEndpoint");
@@ -304,7 +376,11 @@ public sealed unsafe class WasapiAudioSessionMonitor : IAudioSessionMonitor
             var device = ComHelpers.Wrap<IMMDevice>(pDevice, "IMMDeviceEnumerator.GetDevice");
             try
             {
-                ComHelpers.Check(device.Activate(in IidIAudioSessionManager2, WasapiConstants.ClsctxAll, 0, out var pManager), "IMMDevice.Activate(IAudioSessionManager2)");
+                if (device.Activate(in IidIAudioSessionManager2, WasapiConstants.ClsctxAll, 0, out var pManager) < 0 || pManager == 0)
+                {
+                    return null; // this endpoint cannot be watched (gone, disabled): the others still are
+                }
+
                 var manager = ComHelpers.Wrap<IAudioSessionManager2>(pManager, "IMMDevice.Activate(IAudioSessionManager2)");
                 var endpoint = new Endpoint(manager, capture);
 
@@ -414,8 +490,8 @@ public sealed unsafe class WasapiAudioSessionMonitor : IAudioSessionMonitor
                 }
             }
 
-            var snapshot = AudioSessionActivity.Build(readings, _ownProcessId, NameOf);
-            PruneNames(snapshot);
+            var snapshot = AudioSessionActivity.Build(readings, _ownProcessId, _names.NameOf);
+            _names.Retain(snapshot.Rendering);
             return snapshot;
         }
 
@@ -441,41 +517,6 @@ public sealed unsafe class WasapiAudioSessionMonitor : IAudioSessionMonitor
             var processId = hr == WasapiConstants.SOk ? (int)pid : 0; // AUDCLNT_S_NO_SINGLE_PROCESS: a cross-process session
             var system = control.IsSystemSoundsSession() == WasapiConstants.SOk;
             return (key, new AudioSessionReading(false, processId, state, system));
-        }
-
-        private string NameOf(int processId)
-        {
-            if (_names.TryGetValue(processId, out var name))
-            {
-                return name;
-            }
-
-            try
-            {
-                using var process = Process.GetProcessById(processId);
-                name = process.ProcessName;
-            }
-            catch (Exception ex) when (ex is ArgumentException or InvalidOperationException or System.ComponentModel.Win32Exception)
-            {
-                name = "process " + processId.ToString(System.Globalization.CultureInfo.InvariantCulture);
-            }
-
-            _names[processId] = name;
-            return name;
-        }
-
-        private void PruneNames(AudioActivitySnapshot snapshot)
-        {
-            if (_names.Count <= 64)
-            {
-                return;
-            }
-
-            var keep = snapshot.Rendering.Select(r => r.ProcessId).ToHashSet();
-            foreach (var pid in _names.Keys.Where(p => !keep.Contains(p)).ToArray())
-            {
-                _names.Remove(pid);
-            }
         }
 
         private sealed class Endpoint(IAudioSessionManager2 manager, bool isCapture)
