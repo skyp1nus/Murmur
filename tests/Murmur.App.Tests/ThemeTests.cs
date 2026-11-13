@@ -17,6 +17,7 @@ using Murmur.Core.Settings;
 namespace Murmur.App.Tests;
 
 /// <summary>Light and dark themes: resources per variant, runtime switching, the settings-driven <see cref="ThemeApplier"/>.</summary>
+[Trait("Category", "Slow")]
 public sealed class ThemeTests
 {
     private static HeadlessUnitTestSession Session => UiHarness.Session;

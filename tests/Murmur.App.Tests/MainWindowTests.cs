@@ -11,6 +11,7 @@ using Murmur.Core.Sessions;
 
 namespace Murmur.App.Tests;
 
+[Trait("Category", "Slow")]
 public sealed class MainWindowTests
 {
     private static HeadlessUnitTestSession Session => UiHarness.Session;

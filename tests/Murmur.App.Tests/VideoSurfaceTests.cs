@@ -9,6 +9,7 @@ using Murmur.Core.Capture;
 namespace Murmur.App.Tests;
 
 /// <summary>The control that pulls the pictures of the screen recording: bitmap size, polling, allocations, pixels.</summary>
+[Trait("Category", "Slow")]
 public sealed class VideoSurfaceTests
 {
     private static HeadlessUnitTestSession Session => UiHarness.Session;

@@ -6,6 +6,7 @@ using Murmur.App.ViewModels;
 namespace Murmur.App.Tests;
 
 /// <summary><c>--probe-open-latest</c> (#102): opens the newest session's details, renders, and reports with its exit code.</summary>
+[Trait("Category", "Slow")]
 public sealed class OpenSessionProbeTests : IDisposable
 {
     private readonly SessionFixture _fixture = new();

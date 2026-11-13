@@ -39,6 +39,7 @@ public sealed class TextGeometryTests
     }
 
     [Fact]
+    [Trait("Category", "Slow")]
     public async Task AppTexts_ReadsEveryLineOfATextBlock_WhereItIsDrawn()
     {
         var (items, ink) = await UiHarness.Session.Dispatch(
@@ -90,6 +91,7 @@ public sealed class TextGeometryTests
     }
 
     [Fact]
+    [Trait("Category", "Slow")]
     public async Task AppTexts_FindsTheTextOfAStretchedBlockAndAPlaceholderWhereTheyAreDrawn()
     {
         var (items, ink) = await UiHarness.Session.Dispatch(
@@ -116,6 +118,7 @@ public sealed class TextGeometryTests
     }
 
     [Fact]
+    [Trait("Category", "Slow")]
     public async Task HideText_MakesEveryGlyphInvisible_AndKeepsTheShapes()
     {
         var frames = await UiHarness.Session.Dispatch(
@@ -254,6 +257,7 @@ public sealed class TextGeometryTests
     [InlineData(36, 42.12)]
     [InlineData(15, 18.15)]
     [InlineData(15, 30)]
+    [Trait("Category", "Slow")]
     public async Task TheBaseline_OfALineHeightSmallerOrLargerThanTheFont_IsWhereTheGlyphsSit(double size, double lineHeight)
     {
         var (items, ink) = await UiHarness.Session.Dispatch(
@@ -280,6 +284,7 @@ public sealed class TextGeometryTests
     }
 
     [Fact]
+    [Trait("Category", "Slow")]
     public async Task AppTexts_ReadsInlinesAndSpans_AndResolvesAFragmentToItsRect()
     {
         var (items, ink) = await UiHarness.Session.Dispatch(
@@ -315,6 +320,7 @@ public sealed class TextGeometryTests
     }
 
     [Fact]
+    [Trait("Category", "Slow")]
     public async Task AppTexts_SkipsTextOutOfAScrollArea_TransparentTextAndMarksTrimmedOnes()
     {
         var items = await UiHarness.Session.Dispatch(
@@ -352,6 +358,7 @@ public sealed class TextGeometryTests
     }
 
     [Fact]
+    [Trait("Category", "Slow")]
     public async Task AppTexts_ReadsTheTextPresenterOfATextBoxWithTypedText_WhereItIsDrawn()
     {
         var (items, ink) = await UiHarness.Session.Dispatch(
@@ -378,6 +385,7 @@ public sealed class TextGeometryTests
     }
 
     [Fact]
+    [Trait("Category", "Slow")]
     public async Task AppTexts_ReadsTheTranscriptControl_WhereItIsDrawn()
     {
         var (items, ink) = await UiHarness.Session.Dispatch(
@@ -456,6 +464,7 @@ public sealed class TextGeometryTests
     }
 
     [Fact]
+    [Trait("Category", "Slow")]
     public async Task Fragments_AreFoundInTheWholeBlockOrInALongerText_AndSayHow()
     {
         var (app, whole) = await UiHarness.Session.Dispatch(
@@ -503,6 +512,7 @@ public sealed class TextGeometryTests
     }
 
     [Fact]
+    [Trait("Category", "Slow")]
     public async Task HideText_ReachesNestedSpans_AndLeavesAnIconAlone()
     {
         var (before, after) = await UiHarness.Session.Dispatch(
@@ -533,6 +543,7 @@ public sealed class TextGeometryTests
     }
 
     [Fact]
+    [Trait("Category", "Slow")]
     public async Task DisableTransitions_RemovesEveryTransitionOfTheTree()
     {
         var left = await UiHarness.Session.Dispatch(

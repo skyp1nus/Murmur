@@ -41,16 +41,23 @@ Workflow: `.github/workflows/ci.yml`. Тригери — див. таблицю 
 | | Швидкий (PR у `dev`) | Повний (release PR, ручний запуск) |
 |---|---|---|
 | Збірка | `dotnet build Murmur.sln -c Release`: попередження, зокрема trim/AOT-аналізатори, лишаються помилками | те саме |
-| Тести | `scripts/ci/test-fast.sh`: `dotnet test Murmur.sln --no-build` без важких класів (список і причини в шапці скрипта) | `dotnet test Murmur.sln --no-build`, усі тести |
+| Тести | `scripts/ci/test-fast.sh`: `dotnet test artifacts/ci/fast.slnf --no-build` без проєкту `Murmur.Scripts.Tests` і без тестів із трейтами `Category=Slow`/`DesignParity` (список і причини в шапці скрипта) | `dotnet test Murmur.sln --no-build`, усі тести |
 | Native AOT publish `Murmur.Desktop` і `Murmur.Transcription`, «Fail on publish warnings», AOT-смоук «Open recording details» (#102) | немає | є |
 | `apt-get` (clang, xvfb), NuGet-кеш `actions/cache` | немає | є |
 | Артефакт `design-parity` | немає | є |
 
-Що випало зі швидкого набору (вимірювання на ubuntu-latest: повний набір тестів 4 хв 30 с, збірка 1 хв 36 с, AOT publish 1 хв 15 с, кеш post-крок 26 с): `Murmur.Scripts.Tests` (pwsh-скрипти, 1 хв 45 с), `Murmur.App.Tests.Design` (design parity), класи `Murmur.App.Tests`, що відкривають headless-вікна Avalonia (`*ScreenshotTests`, `*ViewTests` та ще ≈25 класів; 1893 тести → 911, 4 хв 23 с → ≈8 с), `OneHourNoLossTests` у `Murmur.Core.Tests` (імітація години запису, ≈3 хв). Лишаються Core (рекордер, аудіо, черги), Storage, Intelligence, Models, Transcription, Desktop, AiEval, `Murmur.Capture.Windows.Tests` і view-model/логічні тести App. Новий тестовий клас потрапляє до швидкого набору за замовчуванням; якщо він відкриває вікно чи йде довше за кілька секунд, його додають до списку в `scripts/ci/test-fast.sh`.
+Що випало зі швидкого набору (вимірювання на ubuntu-latest: повний набір тестів 4 хв 30 с, збірка 1 хв 36 с, AOT publish 1 хв 15 с, кеш post-крок 26 с):
+
+- Проєкт `Murmur.Scripts.Tests` цілком (pwsh-скрипти дочірніми процесами, 1 хв 45 с). Його виключено на рівні проєкту: скрипт `scripts/ci/test-fast.sh` генерує solution-фільтр `artifacts/ci/fast.slnf` з усіх проєктів `Murmur.sln`, крім переліку `EXCLUDE_PROJECTS`. Новий проєкт потрапляє до швидкого набору сам.
+- Тести з трейтом `[Trait("Category", "Slow")]`: headless-вікно Avalonia (скріншоти, ввід, розкладка, анімація), design parity або довге реальне очікування. Трейт стоїть на методі, де клас змішує такі тести з чисто логічними (наприклад `ShellLibraryTests`: 6 з 45, `LibraryImportedTests`: 1 з 35, `AppPolishTests`: 2 з 36, `SessionShortcutsTests`: 21 з 28, `AutoRecordTests`: 14 з 27 через реальні секунди запису), і на класі, де всі тести такі (`*ViewTests`, `*ScreenshotTests`, `ThemeTests`, `WindowSizeFitTests` тощо). Логічні тести змішаних класів лишаються у швидкому наборі. Розмітку зроблено за вимірюванням (метод ≥ 0,3 с у headless-прогоні). `Murmur.App.Tests`: 1893 тести → 1269, 4 хв 23 с → ≈15 с локально.
+- Тести з трейтом `Category=DesignParity` (`DesignParityTests` та ін.).
+- `OneHourNoLossTests` у `Murmur.Core.Tests` (трейт `Slow`; імітація години запису, ≈3 хв).
+
+Лишаються Core (рекордер, аудіо, черги), Storage, Intelligence, Models, Transcription, Desktop, AiEval, `Murmur.Capture.Windows.Tests` і логічні, view-model та діалогові тести App. Новий тест або клас потрапляє до швидкого набору за замовчуванням; якщо він відкриває вікно чи йде довше за кілька секунд, його позначають `[Trait("Category", "Slow")]`. Збірка без жодного тесту в проєкті (код виходу 8) валить крок: проєкт не може випасти мовчки.
 
 NuGet-кеш у швидкому режимі вимкнено свідомо: PR-запуск бачить лише кеш власного `refs/pull/<n>/merge` і `dev`, а `ci` на `dev` не запускається, тож кеш свіжого PR ніколи не влучав, а його збереження (≈1 ГБ) коштувало 26 с. Звичайний restore ≈15 с.
 
-Gate перевіряє це: для бази `main` вихід джоба `linux` має бути `full=true` і `aot_ran=true` (останній крок повного режиму), інакше `ci` червоний. Тож зелений `ci` на release PR, як і раніше, доводить AOT publish і смоук.
+Gate перевіряє це: для бази `main` вихід джоба `linux` має бути `full=true` і `aot_ran=true` (останній крок повного режиму), інакше `ci` червоний. Тож зелений `ci` на release PR, як і раніше, доводить AOT publish і смоук. Обмеження: повний режим доводить AOT лише для PR, чия head-гілка `dev`. Поки `ci-retarget.yml` немає в `main` (`pull_request_target` бере файл із базової гілки, а в `main` його ще немає), перенацілення feature PR на `main` не перезапускає `ci`, і на head SHA лишається старий (можливо швидкий) зелений `ci`. Виправить наступний реліз, що принесе `ci-retarget.yml` у `main`.
 
 **Ручний запуск і release PR.** Ручний запуск на `dev`, поки відкритий PR `dev -> main`, бачить базу `main`: Windows-джоби й `bench` виконуються завжди (входи `windows`/`bench` ігноруються), gate вимагає `success` для кожного джоба, тож зелений `ci` на head release PR неможливий без Windows. Ручний запуск без відкритого PR працює як раніше: `windows`/`bench` керують відповідними джобами, а gate дозволяє пропуск.
 

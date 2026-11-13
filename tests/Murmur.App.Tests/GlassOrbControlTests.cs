@@ -8,6 +8,7 @@ using Murmur.App.Tests.Fakes;
 namespace Murmur.App.Tests;
 
 /// <summary>The orb of the onboarding canvas: its layout, the animation loop, frame skipping and the cached halo.</summary>
+[Trait("Category", "Slow")]
 public sealed class GlassOrbControlTests
 {
     private static HeadlessUnitTestSession Session => UiHarness.Session;

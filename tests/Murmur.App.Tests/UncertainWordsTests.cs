@@ -464,6 +464,7 @@ public sealed class UncertainWordsTests : IDisposable
     private static readonly bool[] Flags = [false, false, false, false, false, true, false, true, false];
 
     [Fact]
+    [Trait("Category", "Slow")]
     public async Task TheUnderline_IsDrawnUnderTheUncertainWordsOnly_WithoutItsPunctuation()
     {
         await Session.Dispatch(
@@ -494,6 +495,7 @@ public sealed class UncertainWordsTests : IDisposable
     }
 
     [Fact]
+    [Trait("Category", "Slow")]
     public async Task TheUnderline_AndTheColour_ChangeNoMetric()
     {
         await Session.Dispatch(
@@ -524,6 +526,7 @@ public sealed class UncertainWordsTests : IDisposable
     }
 
     [Fact]
+    [Trait("Category", "Slow")]
     public async Task TheDottedUnderline_IsOnScreen_UnderTheWord_AndNotUnderTheOthers()
     {
         await Session.Dispatch(
@@ -552,6 +555,7 @@ public sealed class UncertainWordsTests : IDisposable
     }
 
     [Fact]
+    [Trait("Category", "Slow")]
     public async Task TheFollowAlongChip_WinsOnTheActiveWord()
     {
         await Session.Dispatch(
@@ -579,6 +583,7 @@ public sealed class UncertainWordsTests : IDisposable
     }
 
     [Fact]
+    [Trait("Category", "Slow")]
     public async Task TheUnderlines_AreWorkedOutOncePerLayout_NotPerFrame()
     {
         await Session.Dispatch(
@@ -634,6 +639,7 @@ public sealed class UncertainWordsTests : IDisposable
     }
 
     [Fact]
+    [Trait("Category", "Slow")]
     public async Task AClickOnAnUncertainWord_OpensIt_AndAClickElsewhereSeeks()
     {
         await Session.Dispatch(
@@ -670,6 +676,7 @@ public sealed class UncertainWordsTests : IDisposable
     }
 
     [Fact]
+    [Trait("Category", "Slow")]
     public async Task TheLine_IsATabStop_OnlyWithUncertainWords_AndArrowsMoveBetweenThem()
     {
         await Session.Dispatch(
@@ -746,6 +753,7 @@ public sealed class UncertainWordsTests : IDisposable
     }
 
     [Fact]
+    [Trait("Category", "Slow")]
     public async Task SessionShortcuts_SpaceOnAFocusedLine_OpensThePopover_AndDoesNotTogglePlayback()
     {
         _suggester.Immediate = ["Paraquat"];
@@ -773,6 +781,7 @@ public sealed class UncertainWordsTests : IDisposable
     }
 
     [Fact]
+    [Trait("Category", "Slow")]
     public async Task SessionShortcuts_SpaceHeldOnAFocusedLine_RepeatsDoNotPressTheFirstChip()
     {
         _suggester.Immediate = ["Paraquat"];
@@ -811,6 +820,7 @@ public sealed class UncertainWordsTests : IDisposable
     }
 
     [Fact]
+    [Trait("Category", "Slow")]
     public async Task SessionShortcuts_SpaceHeld_IsForgottenWhenTheWindowIsDeactivated()
     {
         var shell = await OpenShellAsync();
@@ -839,6 +849,7 @@ public sealed class UncertainWordsTests : IDisposable
     }
 
     [Fact]
+    [Trait("Category", "Slow")]
     public async Task SessionShortcuts_EscWithTheDidYouMeanPopoverOpen_ClosesItFirst_ThenGoesBack()
     {
         _suggester.Immediate = ["Paraquat"];
@@ -875,6 +886,7 @@ public sealed class UncertainWordsTests : IDisposable
     }
 
     [Fact]
+    [Trait("Category", "Slow")]
     public async Task SessionShortcuts_UpAndDownInThePopover_MoveBetweenChips_AndDoNotSeek()
     {
         _suggester.Immediate = ["Paraquat"];
@@ -908,6 +920,7 @@ public sealed class UncertainWordsTests : IDisposable
     }
 
     [Fact]
+    [Trait("Category", "Slow")]
     public async Task SessionShortcuts_EscWithThePopoverOpen_ClosesItAndDoesNotGoBack()
     {
         _suggester.Immediate = ["Paraquat"];
@@ -938,6 +951,7 @@ public sealed class UncertainWordsTests : IDisposable
     }
 
     [Fact]
+    [Trait("Category", "Slow")]
     public async Task InTheApp_TheKeyboardAlone_OpensPicksAndCloses()
     {
         _suggester.Immediate = ["Paraquat"];
@@ -1002,6 +1016,7 @@ public sealed class UncertainWordsTests : IDisposable
     }
 
     [Fact]
+    [Trait("Category", "Slow")]
     public async Task InTheApp_ThePopover_SitsUnderTheWord()
     {
         var shell = await OpenShellAsync();
@@ -1062,6 +1077,7 @@ public sealed class UncertainWordsTests : IDisposable
     }
 
     [Fact]
+    [Trait("Category", "Slow")]
     public async Task InTheApp_ThePopover_StaysOpen_WhilePlaybackMovesToTheNextLine()
     {
         var shell = await OpenShellAsync();
@@ -1099,6 +1115,7 @@ public sealed class UncertainWordsTests : IDisposable
     }
 
     [Fact]
+    [Trait("Category", "Slow")]
     public async Task AClick_FocusesTheFirstChipWithoutARing_TheKeyboardWithOne()
     {
         var shell = await OpenShellAsync();
@@ -1136,6 +1153,7 @@ public sealed class UncertainWordsTests : IDisposable
     }
 
     [Fact]
+    [Trait("Category", "Slow")]
     public async Task NearTheRightEdge_TheCardKeepsSixteenPixelsFromTheWindow()
     {
         var shell = await OpenShellAsync();
@@ -1164,6 +1182,7 @@ public sealed class UncertainWordsTests : IDisposable
     }
 
     [Fact]
+    [Trait("Category", "Slow")]
     public async Task ASearchMarkInsideAnUncertainWord_DoesNotShortenItsUnderline()
     {
         await Session.Dispatch(
@@ -1190,6 +1209,7 @@ public sealed class UncertainWordsTests : IDisposable
     }
 
     [Fact]
+    [Trait("Category", "Slow")]
     public async Task TheFocusRing_IsWorkedOutOnce_NotPerFrame()
     {
         await Session.Dispatch(
@@ -1224,6 +1244,7 @@ public sealed class UncertainWordsTests : IDisposable
     [InlineData("1 2 3", "one,two,three", 1, "2")]
     [InlineData("Okay, a quick run.", "Okay,|a|quick|run.", 0, "Fine,")]
     [InlineData("Does it run on the parquet? model", "Does,it,run,on,the,parquet?,model", 5, "Parakeet?")]
+    [Trait("Category", "Slow")]
     public async Task TheLineAndTheStore_RebuildTheTextAlike(string text, string words, int index, string replacement)
     {
         var list = words.Split(words.Contains('|') ? '|' : ',').Select((w, i) => W(w, i)).ToArray();
@@ -1255,6 +1276,7 @@ public sealed class UncertainWordsTests : IDisposable
     // Review round 2 ---------------------------------------------------------------------------------------------------
 
     [Fact]
+    [Trait("Category", "Slow")]
     public async Task ALateAnswer_KeepsTheKeyboardOnItsChip_AndTheChipsInTheirPlaces()
     {
         // "parquets" is one edit away (shown at once); "Parakeet" only starts alike (waits for the model).
@@ -1307,6 +1329,7 @@ public sealed class UncertainWordsTests : IDisposable
     }
 
     [Fact]
+    [Trait("Category", "Slow")]
     public async Task ALateAnswer_LeavesTheChipUnderThePointerAsItWas()
     {
         var shell = await OpenShellAsync(new FakeVocabularyStore("parquets"));
@@ -1354,6 +1377,7 @@ public sealed class UncertainWordsTests : IDisposable
     }
 
     [Fact]
+    [Trait("Category", "Slow")]
     public async Task IfTheChipsChangeUnderTheFocus_TheFocusStaysInThePopover()
     {
         var shell = await OpenShellAsync(new FakeVocabularyStore("parquets"));

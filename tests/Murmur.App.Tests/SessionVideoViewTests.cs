@@ -14,6 +14,7 @@ using Murmur.Core.Sessions;
 namespace Murmur.App.Tests;
 
 /// <summary>The session view with the screen recording: panel, picture, placeholder and chip in both themes and languages.</summary>
+[Trait("Category", "Slow")]
 public sealed class SessionVideoViewTests
 {
     private static HeadlessUnitTestSession Session => UiHarness.Session;

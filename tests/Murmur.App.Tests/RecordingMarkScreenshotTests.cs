@@ -8,6 +8,7 @@ using Murmur.Core.Recording;
 namespace Murmur.App.Tests;
 
 /// <summary>Renders the Mark button, the feedback chip and the failed-save Library notice (#45) headlessly into the screenshots directory.</summary>
+[Trait("Category", "Slow")]
 public sealed class RecordingMarkScreenshotTests
 {
     private static CancellationToken Ct => TestContext.Current.CancellationToken;

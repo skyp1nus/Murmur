@@ -12,6 +12,7 @@ using Murmur.Core.Platform;
 namespace Murmur.App.Tests;
 
 /// <summary>Renders the call toast (offer and auto-record) and the Settings "Detect calls" row headlessly into the screenshots directory (#44).</summary>
+[Trait("Category", "Slow")]
 public sealed class CallToastScreenshotTests
 {
     private static CancellationToken Ct => TestContext.Current.CancellationToken;

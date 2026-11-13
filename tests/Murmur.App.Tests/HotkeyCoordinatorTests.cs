@@ -885,6 +885,7 @@ public sealed class HotkeyCoordinatorTests : IDisposable
     }
 
     [Fact]
+    [Trait("Category", "Slow")]
     public async Task MainWindow_BringToFront_ShowsAHiddenWindow_AndRestoresAMinimizedOne()
     {
         var harness = new UiHarness();

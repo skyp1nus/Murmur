@@ -7,6 +7,7 @@ using Murmur.Core.Platform;
 namespace Murmur.App.Tests;
 
 /// <summary>Decorative animation holds still under the system's reduce-motion setting; meters keep updating.</summary>
+[Trait("Category", "Slow")]
 public sealed class ReducedMotionTests
 {
     private static HeadlessUnitTestSession Session => UiHarness.Session;

@@ -37,6 +37,7 @@ public sealed class StartupProbeTests
     }
 
     [Fact]
+    [Trait("Category", "Slow")]
     public async Task Attach_WritesFileAfterFirstFrames_AndRequestsExitZero()
     {
         var path = Path.Combine(Path.GetTempPath(), "murmur-probe-" + Guid.NewGuid().ToString("N") + ".json");
@@ -55,6 +56,7 @@ public sealed class StartupProbeTests
     }
 
     [Fact]
+    [Trait("Category", "Slow")]
     public async Task Attach_WhenFileCannotBeWritten_RequestsExitOne()
     {
         var path = Path.Combine(Path.GetTempPath(), "murmur-missing-" + Guid.NewGuid().ToString("N"), "out.json");
