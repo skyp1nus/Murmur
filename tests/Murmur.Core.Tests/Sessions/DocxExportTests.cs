@@ -212,9 +212,25 @@ public sealed class DocxExportTests
     [Fact]
     public void TheEntries_CarryAFixedTime()
     {
-        using var zip = new ZipArchive(new MemoryStream(Build()), ZipArchiveMode.Read);
+        var bytes = Build();
 
-        Assert.All(zip.Entries, e => Assert.Equal(new DateTimeOffset(1980, 1, 1, 0, 0, 0, TimeSpan.Zero), e.LastWriteTime));
+        // Read the DOS time from the central directory itself: ZipArchiveEntry.LastWriteTime would show it in the local zone.
+        var headers = 0;
+        for (var i = 0; i + 46 <= bytes.Length; i++)
+        {
+            if (BitConverter.ToUInt32(bytes, i) != 0x02014B50)
+            {
+                continue;
+            }
+
+            headers++;
+            Assert.Equal(0, BitConverter.ToUInt16(bytes, i + 12)); // 00:00:00
+            Assert.Equal((1 << 5) | 1, BitConverter.ToUInt16(bytes, i + 14)); // 1980-01-01
+        }
+
+        using var zip = new ZipArchive(new MemoryStream(bytes), ZipArchiveMode.Read);
+        Assert.Equal(zip.Entries.Count, headers);
+        Assert.All(zip.Entries, e => Assert.Equal(new DateTime(1980, 1, 1, 0, 0, 0), e.LastWriteTime.DateTime));
     }
 
     [Fact]

@@ -709,12 +709,16 @@ public sealed class FollowAlongTests : IDisposable
         await Session.Dispatch(
             () =>
             {
-                var control = Chip(-1);
+                // A wide blank gap before the word: with a normal space, the glyphs of the word before it reach into the
+                // sampled pixels, and where exactly depends on the font the platform picks.
+                var text = "Done" + new string(' ', 14) + "word";
+                var control = Chip(-1, text);
+                control.WordStarts = [0, 18];
+                control.WordLengths = [4, 4];
                 var window = new Window { Width = 900, Height = 60, Background = Brushes.White, Content = control };
                 window.Show();
                 UiHarness.Pump();
-                var (starts, lengths) = Words(Line);
-                var word = control.CurrentLayout!.HitTestTextRange(starts[7], lengths[7]).First();
+                var word = control.CurrentLayout!.HitTestTextRange(18, 4).First();
                 var y = (int)(word.Y + (word.Height / 2));
                 var insidePadding = (int)(word.X - 1.5);
                 var beyondPadding = (int)(word.X - 6);
@@ -722,7 +726,7 @@ public sealed class FollowAlongTests : IDisposable
                 var plain = Pixel(window, insidePadding, y);
                 Assert.Equal(255, plain.R);
 
-                control.ActiveWord = 7;
+                control.ActiveWord = 1;
                 UiHarness.Pump();
 
                 var chip = Pixel(window, insidePadding, y);
