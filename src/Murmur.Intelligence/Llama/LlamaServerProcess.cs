@@ -124,6 +124,22 @@ public sealed class LlamaServerProcess : ILlamaServer
         }
     }
 
+    /// <summary>The exit code once the process has exited, else <c>null</c>.</summary>
+    public int? ExitCode
+    {
+        get
+        {
+            try
+            {
+                return _process.HasExited ? _process.ExitCode : null;
+            }
+            catch (InvalidOperationException)
+            {
+                return null;
+            }
+        }
+    }
+
     /// <summary>Last lines written to stderr (llama.cpp logs there).</summary>
     public string OutputTail
     {

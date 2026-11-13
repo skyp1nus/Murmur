@@ -1,3 +1,5 @@
+using Murmur.Core.Diagnostics;
+
 namespace Murmur.Core.Calls;
 
 /// <summary>
@@ -44,6 +46,7 @@ public sealed class CallDetector : ICallDetector
     private readonly IAudioSessionMonitor _monitor;
     private readonly TimeProvider _time;
     private readonly int _ownProcessId;
+    private readonly IAppLog _log;
     private readonly Lock _gate = new();
     private readonly Lock _lifecycle = new();
 
@@ -64,13 +67,15 @@ public sealed class CallDetector : ICallDetector
     /// <param name="monitor">Where the audio-session activity comes from; started and stopped with the detector, not disposed.</param>
     /// <param name="time">The clock of the 3 s and 30 s rules and of the re-evaluation timer.</param>
     /// <param name="ownProcessId">The process whose playback never counts; this process by default.</param>
-    public CallDetector(IAudioSessionMonitor monitor, TimeProvider time, int? ownProcessId = null)
+    /// <param name="log">Where a monitor or subscriber failure is recorded; <see cref="NullAppLog"/> by default.</param>
+    public CallDetector(IAudioSessionMonitor monitor, TimeProvider time, int? ownProcessId = null, IAppLog? log = null)
     {
         ArgumentNullException.ThrowIfNull(monitor);
         ArgumentNullException.ThrowIfNull(time);
         _monitor = monitor;
         _time = time;
         _ownProcessId = ownProcessId ?? Environment.ProcessId;
+        _log = log ?? NullAppLog.Instance;
     }
 
     public event Action<CallInfo>? CallStarted;
@@ -231,7 +236,7 @@ public sealed class CallDetector : ICallDetector
         {
             // A monitor that cannot read the sessions right now is asked again on its next change, and, while something
             // counts down, on the next tick: the one-shot timer is armed again, so a 3 s or 30 s countdown never stalls.
-            Console.Error.WriteLine("Murmur: call detection could not read the audio sessions: " + ex.Message);
+            _log.Write(LogLevel.Warning, "calls", "monitor.read-failed", LogText.Error(ex));
             lock (_gate)
             {
                 // Also before the first reading since Start succeeded: a call already in progress then has no Changed to come.
@@ -304,7 +309,7 @@ public sealed class CallDetector : ICallDetector
     private bool IsCountingDown => _call is not null ? _inactiveSince >= 0 : _candidates.Count > 0;
 
     /// <summary>Raises an event handler by handler: a throwing subscriber is logged and never reaches the monitor's or the pool's thread.</summary>
-    private static void Raise(Action<CallInfo>? handlers, CallInfo call, string name)
+    private void Raise(Action<CallInfo>? handlers, CallInfo call, string name)
     {
         if (handlers is null)
         {
@@ -319,7 +324,7 @@ public sealed class CallDetector : ICallDetector
             }
             catch (Exception ex)
             {
-                Console.Error.WriteLine("Murmur: a " + name + " handler of call detection failed: " + ex.Message);
+                _log.Write(LogLevel.Error, "calls", "handler.failed", name + " " + LogText.Error(ex));
             }
         }
     }

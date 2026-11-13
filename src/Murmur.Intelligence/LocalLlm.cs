@@ -1,5 +1,6 @@
 using System.Runtime.CompilerServices;
 using Microsoft.Extensions.AI;
+using Murmur.Core.Diagnostics;
 using Murmur.Core.Intelligence;
 using Murmur.Core.Settings;
 using Murmur.Intelligence.Llama;
@@ -43,6 +44,7 @@ public sealed class LocalLlm : ILlm, IAccelerationStatusSource
     private readonly Func<bool> _isRecordingActive;
     private readonly ServerStarter _starter;
     private readonly TimeProvider _time;
+    private readonly IAppLog _log;
     private readonly HttpClient _http;
     private readonly ITimer _idleTimer;
     private readonly Lock _lock = new();
@@ -77,17 +79,21 @@ public sealed class LocalLlm : ILlm, IAccelerationStatusSource
 
     /// <param name="optionsProvider">Resolves the current model and server paths; called at most every <see cref="OptionsRefreshInterval"/> for status queries and on every request.</param>
     /// <param name="isRecordingActive">Returns <c>true</c> while a recording is in progress.</param>
-    public LocalLlm(Func<LocalLlmOptions> optionsProvider, Func<bool> isRecordingActive)
-        : this(optionsProvider, isRecordingActive, StartProcessAsync, TimeProvider.System, httpClient: null)
+    /// <param name="log">
+    /// Where a llama-server that exits on its own or never becomes healthy is recorded (<c>worker.exit</c> with the exit code and the last
+    /// two lines of its output, <c>worker.hang</c>); <see cref="NullAppLog"/> by default.
+    /// </param>
+    public LocalLlm(Func<LocalLlmOptions> optionsProvider, Func<bool> isRecordingActive, IAppLog? log = null)
+        : this(optionsProvider, isRecordingActive, StartProcessAsync, TimeProvider.System, httpClient: null, log)
     {
     }
 
-    internal LocalLlm(LocalLlmOptions options, Func<bool> isRecordingActive, ServerStarter starter, TimeProvider time, HttpClient? httpClient)
-        : this(Fixed(options), isRecordingActive, starter, time, httpClient)
+    internal LocalLlm(LocalLlmOptions options, Func<bool> isRecordingActive, ServerStarter starter, TimeProvider time, HttpClient? httpClient, IAppLog? log = null)
+        : this(Fixed(options), isRecordingActive, starter, time, httpClient, log)
     {
     }
 
-    internal LocalLlm(Func<LocalLlmOptions> optionsProvider, Func<bool> isRecordingActive, ServerStarter starter, TimeProvider time, HttpClient? httpClient)
+    internal LocalLlm(Func<LocalLlmOptions> optionsProvider, Func<bool> isRecordingActive, ServerStarter starter, TimeProvider time, HttpClient? httpClient, IAppLog? log = null)
     {
         ArgumentNullException.ThrowIfNull(optionsProvider);
         ArgumentNullException.ThrowIfNull(isRecordingActive);
@@ -97,6 +103,7 @@ public sealed class LocalLlm : ILlm, IAccelerationStatusSource
         _isRecordingActive = isRecordingActive;
         _starter = starter;
         _time = time;
+        _log = log ?? NullAppLog.Instance;
         _http = httpClient ?? OpenAiHttp.CreateDefaultClient();
         _chat = new Slot(embedding: false);
         _embedding = new Slot(embedding: true);
@@ -493,6 +500,28 @@ public sealed class LocalLlm : ILlm, IAccelerationStatusSource
         return line.Length == 0 ? error.GetType().Name : line;
     }
 
+    /// <summary>
+    /// A server that did not start: <c>worker.exit</c> (exit code and the last two lines of its output) when it exited, <c>worker.hang</c> when it
+    /// never became healthy, <c>worker.start-failed</c> otherwise.
+    /// </summary>
+    private void LogStartFailure(Exception error, bool accelerated)
+    {
+        var build = accelerated ? "gpu" : "cpu";
+        switch (error)
+        {
+            case LlamaServerException { ExitCode: { } code } server:
+                var tail = LogText.Tail(server.OutputTail);
+                _log.Write(LogLevel.Error, "llm", "worker.exit", build + " code=" + code.ToString(System.Globalization.CultureInfo.InvariantCulture) + (tail.Length == 0 ? string.Empty : " | " + tail));
+                break;
+            case TimeoutException:
+                _log.Write(LogLevel.Error, "llm", "worker.hang", build + " start");
+                break;
+            default:
+                _log.Write(LogLevel.Error, "llm", "worker.start-failed", build + " " + LogText.Error(error));
+                break;
+        }
+    }
+
     private static readonly string[] ErrorMarkers = ["error", "failed", "out of memory", "ErrorOutOfDeviceMemory", "no usable GPU"];
 
     /// <summary>Scans the lines from the end without splitting the text.</summary>
@@ -692,6 +721,10 @@ public sealed class LocalLlm : ILlm, IAccelerationStatusSource
 
             if (dead is not null)
             {
+                // A server the app did not stop (a recording, an unload and a switch take it out of the slot first) ended on its own.
+                _log.Write(LogLevel.Error, "llm", "worker.exit", (dead as LlamaServerProcess)?.ExitCode is { } code
+                    ? "code=" + code.ToString(System.Globalization.CultureInfo.InvariantCulture) + " | " + LogText.Tail((dead as LlamaServerProcess)?.OutputTail)
+                    : "code=?");
                 await DisposeQuietlyAsync(dead).ConfigureAwait(false);
             }
 
@@ -715,8 +748,14 @@ public sealed class LocalLlm : ILlm, IAccelerationStatusSource
                 {
                     server = await _starter(serverOptions, linked.Token).ConfigureAwait(false);
                 }
+                catch (Exception ex) when (!accelerated && ex is not OperationCanceledException)
+                {
+                    LogStartFailure(ex, accelerated: false);
+                    throw;
+                }
                 catch (Exception ex) when (accelerated && ex is not OperationCanceledException)
                 {
+                    LogStartFailure(ex, accelerated: true);
                     // The GPU build could not start (driver missing, out of VRAM, ...): the CPU build serves instead. Not while a
                     // recording runs (no model may load then) and not when the load was cancelled.
                     var record = RecordAccelerationFailure(options, ModelPathOf(options, slot), ex);
@@ -729,6 +768,7 @@ public sealed class LocalLlm : ILlm, IAccelerationStatusSource
                     }
                     catch (Exception cpuError) when (cpuError is not OperationCanceledException)
                     {
+                        LogStartFailure(cpuError, accelerated: false);
                         // Not the GPU's fault after all: do not blame it for the rest of the session.
                         UndoAccelerationFailure(record);
                         throw;
