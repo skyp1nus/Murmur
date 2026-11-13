@@ -2,6 +2,7 @@ using Avalonia.Headless;
 using Murmur.App.Diagnostics;
 using Murmur.App.Tests.Fakes;
 using Murmur.App.ViewModels;
+using Murmur.Core.Settings;
 
 namespace Murmur.App.Tests;
 
@@ -54,9 +55,49 @@ public sealed class OpenSessionProbeTests : IDisposable
             TestContext.Current.CancellationToken);
 
         Assert.Equal(OpenSessionProbe.Opened, code);
-        Assert.Equal(2, frames);
+        Assert.Equal(4, frames); // the library, then the details (the harness shell has no Settings)
         Assert.Equal(_fixture.Record.Id, Assert.IsType<SessionViewModel>(page).Id);
         Assert.Contains(_fixture.Record.Id.ToString(), log.ToString(), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task RunAsync_RendersTheLibraryAndSettings_BeforeAskingForASession()
+    {
+        // #108: the empty library of the CI run still renders Settings (and the library) under the AOT binary before it exits NoSession.
+        var harness = new UiHarness();
+        var settings = new SettingsViewModel(new FakeSettingsStore(new AppSettings { OnboardingCompleted = true }), new FakeDisplayCapture(), post: action => action());
+        var shell = new ShellViewModel(
+            harness.CreateShell().Library,
+            new RecordingViewModel(harness.Recorder, harness.Capture, harness.Store, action => action()),
+            settings: settings);
+        var log = new StringWriter();
+
+        var (code, frames, seen, page) = await Session.Dispatch(
+            async () =>
+            {
+                var window = UiHarness.Show(shell);
+                var rendered = 0;
+                var pages = new List<Type>();
+                var result = await OpenSessionProbe.RunAsync(
+                    shell,
+                    () =>
+                    {
+                        UiHarness.Pump();
+                        rendered++;
+                        pages.Add(shell.CurrentPage.GetType());
+                        return Task.CompletedTask;
+                    },
+                    log);
+                var opened = shell.CurrentPage;
+                window.Close();
+                return (result, rendered, pages, opened);
+            },
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal(OpenSessionProbe.NoSession, code);
+        Assert.Equal(4, frames);
+        Assert.Equal([typeof(LibraryViewModel), typeof(LibraryViewModel), typeof(SettingsViewModel), typeof(SettingsViewModel)], seen);
+        Assert.Same(settings, page);
     }
 
     [Fact]

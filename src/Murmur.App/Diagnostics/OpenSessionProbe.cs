@@ -3,9 +3,11 @@ using Murmur.App.ViewModels;
 namespace Murmur.App.Diagnostics;
 
 /// <summary>
-/// Smoke test of the recording details used by CI (#102): with <c>--probe-open-latest</c> the app loads the library, opens the
-/// newest session's details, lets the page render two frames and exits with <see cref="Opened"/>. The Native AOT build once
-/// overflowed the stack on exactly this path while the JIT build did not, so CI runs it against the published binary.
+/// Smoke test of the main pages used by CI (#102, #108): with <c>--probe-open-latest</c> the app loads the library, lets it render,
+/// shows Settings (when the app has one) and lets it render, then opens the newest session's details, lets the page render two
+/// frames and exits with <see cref="Opened"/>. The Native AOT build once overflowed the stack on the details page while the JIT
+/// build did not (a TwoWay binding writing back into a private setter), so CI runs it against the published binary; Library and
+/// Settings carry most of the TwoWay bindings, so a write-back loop there fails the probe too, even on an empty library.
 /// Without the flag nothing changes.
 /// </summary>
 public static class OpenSessionProbe
@@ -40,8 +42,9 @@ public static class OpenSessionProbe
     }
 
     /// <summary>
-    /// Loads the library of <paramref name="shell"/>, opens its first (newest) row, waits for the session to load and for two
-    /// frames from <paramref name="nextFrame"/> (the page has been measured, arranged and rendered by the second one).
+    /// Loads the library of <paramref name="shell"/> and renders it, renders Settings, then opens the first (newest) library row,
+    /// waits for the session to load and for two frames from <paramref name="nextFrame"/> after each page (the page has been
+    /// measured, arranged and rendered by the second one).
     /// </summary>
     public static async Task<int> RunAsync(ShellViewModel shell, Func<Task> nextFrame, TextWriter log)
     {
@@ -55,6 +58,21 @@ public static class OpenSessionProbe
             // A broken database must not pass as an empty library.
             await log.WriteLineAsync($"{Flag}: the library did not load: {error}").ConfigureAwait(true);
             return Failed;
+        }
+
+        // The library and Settings render before the library is asked for a session, so an empty one still exercises both pages.
+        await nextFrame().ConfigureAwait(true);
+        await nextFrame().ConfigureAwait(true);
+        if (shell.Settings is { } settings)
+        {
+            shell.ShowSettings();
+            await nextFrame().ConfigureAwait(true);
+            await nextFrame().ConfigureAwait(true);
+            if (!ReferenceEquals(shell.CurrentPage, settings))
+            {
+                await log.WriteLineAsync($"{Flag}: Settings did not stay open.").ConfigureAwait(true);
+                return Failed;
+            }
         }
 
         if (shell.Library.Sessions is not [var newest, ..])

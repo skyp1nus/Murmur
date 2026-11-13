@@ -203,6 +203,8 @@ jobs:
 
       # #102: the published binary opens a recording's details, first a recorded then an imported session. The AOT build once
       # overflowed the stack there while the JIT build (and so every unit test) did not; the probe exits 0 once the page has rendered.
+      # #108: before it asks for a session the probe also renders the library and Settings (also on the empty data folder, which then
+      # exits 3), the pages with most of the TwoWay bindings.
       - name: Open recording details (Native AOT, linux-x64)
         if: ${{ steps.mode.outputs.full == 'true' }}
         run: |

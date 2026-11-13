@@ -245,7 +245,7 @@
                      AutomationProperties.Name="{x:Static res:Strings.Chat_QuestionLabel}"
                      PlaceholderText="{Binding PlaceholderText}"
                      IsEnabled="{Binding CanEditQuestion}"
-                     Text="{Binding Question}" />
+                     Text="{Binding Question, Mode=TwoWay}" />
             <Button Grid.Column="1"
                     Classes="start send chatSend"
                     VerticalAlignment="Bottom"
