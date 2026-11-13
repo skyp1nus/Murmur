@@ -312,7 +312,16 @@ public sealed partial class FloatingWindowStyleTests
 
     private static void AssertWindowAt(TestWindow window, int x, int y, bool expectOrb)
     {
+        // The window manager may take a moment to settle the z-order of a window that was just shown (seen: the test failed now and then
+        // with a foreign window found and the orb without WS_EX_TOPMOST, then passed on the next run), so it is asked again for a while.
         var found = TestWindow.WindowAt(x, y);
+        for (var attempt = 0; attempt < 20 && (found == window.Handle) != expectOrb; attempt++)
+        {
+            Thread.Sleep(100);
+            window.SetTopmost(true);
+            found = TestWindow.WindowAt(x, y);
+        }
+
         Assert.True(
             (found == window.Handle) == expectOrb,
             $"At ({x}, {y}) the orb {(expectOrb ? "should be" : "should not be")} the window found; found {TestWindow.Describe(found)} (the orb is {window.Handle}, extended style {window.ExtendedStyle:X}).");
