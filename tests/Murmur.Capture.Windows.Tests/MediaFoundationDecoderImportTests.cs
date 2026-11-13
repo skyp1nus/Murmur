@@ -127,6 +127,18 @@ public sealed class MediaFoundationDecoderImportTests(ITestOutputHelper output) 
                     failures.Add(line + " (decoded length differs from the probe)");
                 }
 
+                if (Mp4EditList.AppliesTo(file) && format == (16_000, 1, 16))
+                {
+                    // An MP4 whose sound starts late (an empty edit): the track must start with that much silence.
+                    var edit = Mp4EditList.ReadAudioStart(file, out var problem);
+                    var silence = LeadingSilence(reader, edit.Delay + TimeSpan.FromSeconds(2));
+                    line += $", audio edit delay {edit.Delay:g} trim {edit.Trim:g}{(problem is null ? string.Empty : $" ({problem})")}, leading silence {silence:g}";
+                    if (edit.Delay > TimeSpan.FromMilliseconds(500) && silence < edit.Delay - TimeSpan.FromMilliseconds(200))
+                    {
+                        failures.Add(line + " (the late audio is not padded with silence)");
+                    }
+                }
+
                 output.WriteLine(line);
             }
             catch (NotSupportedException ex) when (OptionalCodecs.Contains(Path.GetExtension(file).ToLowerInvariant()))
@@ -141,6 +153,35 @@ public sealed class MediaFoundationDecoderImportTests(ITestOutputHelper output) 
         }
 
         Assert.True(failures.Count == 0, string.Join(Environment.NewLine, failures));
+    }
+
+    /// <summary>How long the 16 kHz mono track stays quiet (peak under 0.02) from its start, looking at most <paramref name="limit"/> far.</summary>
+    private static TimeSpan LeadingSilence(WavReader reader, TimeSpan limit)
+    {
+        const int Rate = 16_000;
+        var buffer = new float[Rate / 10];
+        var frames = 0L;
+        var max = (long)(limit.TotalSeconds * Rate);
+        while (frames < max)
+        {
+            var read = reader.Read(buffer);
+            if (read == 0)
+            {
+                break;
+            }
+
+            for (var i = 0; i < read; i++)
+            {
+                if (MathF.Abs(buffer[i]) >= 0.02f)
+                {
+                    return TimeSpan.FromSeconds((double)(frames + i) / Rate);
+                }
+            }
+
+            frames += read;
+        }
+
+        return TimeSpan.FromSeconds((double)frames / Rate);
     }
 
     private ImportQueue Create(InMemorySessionStore sessions, FakeAsr asr)
