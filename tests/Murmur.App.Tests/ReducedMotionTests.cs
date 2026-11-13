@@ -76,34 +76,21 @@ public sealed class ReducedMotionTests
     [Fact]
     public async Task GlassOrb_TogglingAtRuntime_StopsAndRestartsTheAnimation()
     {
-        var (before, reduced, restScale, after, afterScale) = await Session.Dispatch(
+        var (before, reduced, restScale, after) = await Session.Dispatch(
             () =>
             {
                 var orb = new GlassOrbControl { Width = 300, Height = 300, HaloBlur = 30, IsActive = true };
                 var window = Host(orb, reduce: false);
-                var wasRunning = orb.IsFrameLoopRunning;
+                var wasRunning = orb.IsFrameLoopRunning && orb.IsLooping;
 
-                // Breathe to the peak, then the user turns animation effects off.
-                for (var i = 1; i <= 18; i++)
-                {
-                    orb.Update(TimeSpan.FromSeconds(0.1 * i));
-                }
-
-                var peak = orb.BodyScale;
+                // The compositor breathes; the user turns animation effects off.
                 Motion.SetReduceMotion(window, true);
-                var stopped = !orb.IsFrameLoopRunning;
+                var stopped = !orb.IsFrameLoopRunning && !orb.IsLooping && !orb.Gate.IsWatching;
                 var rest = orb.BodyScale;
 
-                // ... and on again: the timer runs and the orb breathes from rest.
+                // ... and on again: the breathing loops start again.
                 Motion.SetReduceMotion(window, false);
-                var restarted = orb.IsFrameLoopRunning;
-                orb.Update(TimeSpan.FromSeconds(100));
-                for (var i = 1; i <= 18; i++)
-                {
-                    orb.Update(TimeSpan.FromSeconds(100 + (0.1 * i)));
-                }
-
-                var result = (wasRunning && peak > 1.04, stopped, rest, restarted, orb.BodyScale);
+                var result = (wasRunning, stopped, rest, orb.IsFrameLoopRunning && orb.IsLooping);
                 window.Close();
                 return result;
             },
@@ -113,7 +100,6 @@ public sealed class ReducedMotionTests
         Assert.True(reduced);
         Assert.Equal(1.0, restScale, 6);
         Assert.True(after);
-        Assert.True(afterScale > 1.04, $"Body scale {afterScale} should breathe again.");
     }
 
     [Fact]

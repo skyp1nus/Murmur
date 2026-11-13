@@ -121,7 +121,7 @@ jobs:
           restore-keys: nuget-${{ runner.os }}-
 
       - name: Native AOT prerequisites
-        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends clang zlib1g-dev
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends clang zlib1g-dev xvfb xauth
 
       - name: Build
         run: dotnet build Murmur.sln -c Release
@@ -168,6 +168,23 @@ jobs:
             exit 1
           fi
           echo "No publish warnings."
+
+      # #102: the published binary opens a recording's details, first a recorded then an imported session. The AOT build once
+      # overflowed the stack there while the JIT build (and so every unit test) did not; the probe exits 0 once the page has rendered.
+      - name: Open recording details (Native AOT, linux-x64)
+        run: |
+          data="$RUNNER_TEMP/murmur-probe"
+          rm -rf "$data" && mkdir -p "$data"
+          export MURMUR_DATA_DIR="$data"
+          exe=artifacts/publish/linux-x64/desktop/Murmur
+          run() { timeout 120 xvfb-run -a -s "-screen 0 1280x800x24" "$exe" "$@"; }
+          # On the empty data folder the probe creates the database, finds no session and exits 3.
+          code=0; run --probe-open-latest || code=$?
+          test "$code" -eq 3
+          python3 -I scripts/ci/seed-session.py "$data"
+          run --probe-open-latest
+          python3 -I scripts/ci/seed-session.py "$data" --imported
+          run --probe-open-latest
 
   windows:
     name: build, test, AOT publish (win-x64)

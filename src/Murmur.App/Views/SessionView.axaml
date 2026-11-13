@@ -14,10 +14,6 @@
     starts with "session", so none of them collides with the shared styles).
   -->
 
-  <UserControl.KeyBindings>
-    <KeyBinding Gesture="Escape" Command="{Binding BackCommand}" />
-  </UserControl.KeyBindings>
-
   <UserControl.Resources>
     <ResourceDictionary>
       <!-- Layout of the canvas page: 960 wide at most, columns of 380 and 420 that wrap below 820. -->
@@ -26,6 +22,7 @@
       <x:Double x:Key="Session.RightBasis">420</x:Double>
       <x:Double x:Key="Session.MinRightHeight">520</x:Double>
       <Thickness x:Key="Session.PagePadding">24,16,24,32</Thickness>
+      <Thickness x:Key="Session.ShortcutsMargin">0,8,0,0</Thickness>
 
       <!-- Component sizes. -->
       <x:Double x:Key="Session.Avatar">24</x:Double>
@@ -489,7 +486,9 @@
     </Style>
   </UserControl.Styles>
 
+  <Grid RowDefinitions="*,Auto">
   <ScrollViewer x:Name="PageScroller"
+                Grid.Row="0"
                 HorizontalScrollBarVisibility="Disabled"
                 VerticalScrollBarVisibility="Auto">
     <Border MaxWidth="{StaticResource Session.PageMaxWidth}"
@@ -607,7 +606,7 @@
                            Classes="sessionMeta mono"
                            VerticalAlignment="Center"
                            Foreground="{DynamicResource Brush.Ink}">
-                  <Run Text="{Binding PositionText, StringFormat='{}{0} '}" /><Run Text="{Binding DurationText, StringFormat='/ {0}'}" Foreground="{DynamicResource Brush.Smoke}" />
+                  <Run Text="{Binding PositionText, Mode=OneWay, StringFormat='{}{0} '}" /><Run Text="{Binding DurationText, Mode=OneWay, StringFormat='/ {0}'}" Foreground="{DynamicResource Brush.Smoke}" />
                 </TextBlock>
                 <!--
                   The canvas gap is 4 px. The pills are 43.78, 60.67 and 35.2 px wide in the canvas; layout rounding rounds each of them (and its text)
@@ -848,7 +847,7 @@
                            Text="{Binding StatusText}" />
                 <ProgressBar Minimum="0"
                              Maximum="100"
-                             Value="{Binding ProgressValue}"
+                             Value="{Binding ProgressValue, Mode=OneWay}"
                              IsVisible="{Binding ShowProgress}" />
                 <TextBlock Classes="mono"
                            Foreground="{DynamicResource Brush.Smoke}"
@@ -905,7 +904,7 @@
                              Text="{x:Static res:Strings.Session_SummaryWorkingText}" />
                   <ProgressBar Minimum="0"
                                Maximum="100"
-                               Value="{Binding SummaryProgress}" />
+                               Value="{Binding SummaryProgress, Mode=OneWay}" />
                   <Grid ColumnDefinitions="*,Auto">
                     <TextBlock Grid.Column="0"
                                Classes="sessionMeta mono"
@@ -1042,4 +1041,10 @@
       </controls:SessionPagePanel>
     </Border>
   </ScrollViewer>
+
+  <!-- The keyboard shortcuts (#61), under the page like the mockup's footer; the design demo scene hides it (ShowShortcuts = false). -->
+  <views:ShortcutsBar Grid.Row="1"
+                      Margin="{StaticResource Session.ShortcutsMargin}"
+                      IsVisible="{Binding ShowShortcuts}" />
+  </Grid>
 </UserControl>
