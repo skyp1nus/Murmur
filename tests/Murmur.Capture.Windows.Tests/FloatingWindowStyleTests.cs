@@ -167,6 +167,7 @@ public sealed partial class FloatingWindowStyleTests
         using var window = TestWindow.Create(exStyle: (uint)NoRedirectionBitmap);
         window.SetExtendedStyle(NoActivate | ToolWindow | NoRedirectionBitmap);
         window.ShowNoActivate();
+        Assert.Equal(NoActivate, window.ExtendedStyle & NoActivate);
 
         window.SetExtendedStyle(AvaloniaStyle);
 
@@ -214,6 +215,9 @@ public sealed partial class FloatingWindowStyleTests
     public void TheInputRegion_IsTheUnionOfTheRectangles_AndClicksOutsideItGoToTheWindowBelow()
     {
         Assert.SkipUnless(OperatingSystem.IsWindows(), WindowsOnly);
+        // The window below the orb, of the same size: a click outside the orb's region must reach exactly this one.
+        using var below = TestWindow.Create(x: 100, y: 100, width: 200, height: 124);
+        below.ShowNoActivate();
         using var window = TestWindow.Create(x: 100, y: 100, width: 200, height: 124);
         var style = new WindowsFloatingWindowStyle();
         style.MakeNonActivating(window.Handle);
@@ -225,10 +229,10 @@ public sealed partial class FloatingWindowStyleTests
         // WindowFromPoint answers with whatever is topmost at the point, so a foreign topmost window over (100, 100) would fail the test:
         // the message names the window found instead of two bare handles.
         Assert.Equal((0, 36, 200, 88), window.RegionBox);
-        AssertWindowAt(window, 100 + 170, 100 + 60, expectOrb: true);
-        AssertWindowAt(window, 100 + 20, 100 + 60, expectOrb: true);
-        AssertWindowAt(window, 100 + 20, 100 + 10, expectOrb: false);
-        AssertWindowAt(window, 100 + 170, 100 + 110, expectOrb: false);
+        AssertWindowAt(window, 100 + 170, 100 + 60, window.Handle);
+        AssertWindowAt(window, 100 + 20, 100 + 60, window.Handle);
+        AssertWindowAt(window, 100 + 20, 100 + 10, below.Handle);
+        AssertWindowAt(window, 100 + 170, 100 + 110, below.Handle);
     }
 
     [Fact]
@@ -310,21 +314,26 @@ public sealed partial class FloatingWindowStyleTests
         Assert.False(WindowsFloatingWindowStyle.IsHooked);
     }
 
-    private static void AssertWindowAt(TestWindow window, int x, int y, bool expectOrb)
+    /// <summary>The window found at the screen point must be <paramref name="expected"/>: the orb inside its region, the window below it outside.</summary>
+    private static void AssertWindowAt(TestWindow orb, int x, int y, nint expected)
     {
         // The window manager may take a moment to settle the z-order of a window that was just shown (seen: the test failed now and then
         // with a foreign window found and the orb without WS_EX_TOPMOST, then passed on the next run), so it is asked again for a while.
+        // The test thread has no message loop: it drains its queue meanwhile, or Windows may call it hung and put a "Ghost" window over
+        // the test windows (the class in the failure message shows it).
+        TestWindow.PumpMessages();
         var found = TestWindow.WindowAt(x, y);
-        for (var attempt = 0; attempt < 20 && (found == window.Handle) != expectOrb; attempt++)
+        for (var attempt = 0; attempt < 20 && found != expected; attempt++)
         {
             Thread.Sleep(100);
-            window.SetTopmost(true);
+            TestWindow.PumpMessages();
+            orb.SetTopmost(true);
             found = TestWindow.WindowAt(x, y);
         }
 
         Assert.True(
-            (found == window.Handle) == expectOrb,
-            $"At ({x}, {y}) the orb {(expectOrb ? "should be" : "should not be")} the window found; found {TestWindow.Describe(found)} (the orb is {window.Handle}, extended style {window.ExtendedStyle:X}).");
+            found == expected,
+            $"At ({x}, {y}) the window should be {expected}; found {TestWindow.Describe(found)} (the orb is {orb.Handle}, extended style {orb.ExtendedStyle:X}).");
     }
 
     private static void AssertNonActivating(nint style)
@@ -432,6 +441,16 @@ public sealed partial class FloatingWindowStyleTests
 
         public void Cloak(bool cloak) => Assert.Equal(0, FloatingWindowNativeMethods.DwmSetWindowAttribute(Handle, FloatingWindowNativeMethods.DwmwaCloak, cloak ? 1 : 0, sizeof(int)));
 
+        /// <summary>Handles every message waiting for this thread's windows (<c>PeekMessage</c> with <c>PM_REMOVE</c>).</summary>
+        public static void PumpMessages()
+        {
+            while (PeekMessageW(out var message, 0, 0, 0, 1))
+            {
+                TranslateMessage(in message);
+                DispatchMessageW(in message);
+            }
+        }
+
         /// <summary>The window's handle, class and rectangle, for a failure message.</summary>
         public static string Describe(nint window)
         {
@@ -496,6 +515,31 @@ public sealed partial class FloatingWindowStyleTests
 
         [LibraryImport("user32.dll", EntryPoint = "GetActiveWindow")]
         private static partial nint GetActiveWindow();
+
+        /// <summary>winuser.h <c>MSG</c>.</summary>
+        [StructLayout(LayoutKind.Sequential)]
+        private struct Msg
+        {
+            public nint Window;
+            public uint Message;
+            public nint WParam;
+            public nint LParam;
+            public uint Time;
+            public int X;
+            public int Y;
+            public uint Private;
+        }
+
+        [LibraryImport("user32.dll", EntryPoint = "PeekMessageW")]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        private static partial bool PeekMessageW(out Msg message, nint window, uint filterMin, uint filterMax, uint remove);
+
+        [LibraryImport("user32.dll", EntryPoint = "TranslateMessage")]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        private static partial bool TranslateMessage(in Msg message);
+
+        [LibraryImport("user32.dll", EntryPoint = "DispatchMessageW")]
+        private static partial nint DispatchMessageW(in Msg message);
 
         [LibraryImport("user32.dll", EntryPoint = "GetClassNameW")]
         private static partial int GetClassNameW(nint window, ref ushort name, int capacity);
