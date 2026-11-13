@@ -12,5 +12,6 @@
     <StyleInclude Source="/Styles/Session.axaml" />
     <StyleInclude Source="/Styles/Import.axaml" />
     <StyleInclude Source="/Styles/Export.axaml" />
+    <StyleInclude Source="/Styles/FloatingOrb.axaml" />
   </Application.Styles>
 </Application>
