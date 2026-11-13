@@ -1,6 +1,7 @@
 using Murmur.App.Resources;
 using Murmur.App.ViewModels;
 using Murmur.Core.Calls;
+using Murmur.Core.Diagnostics;
 using Murmur.Core.Recording;
 using Murmur.Core.Settings;
 
@@ -58,6 +59,7 @@ internal sealed class CallCoordinator : IDisposable
     private readonly ICallToastHost _toasts;
     private readonly CallActions _actions;
     private readonly Action<Action> _post;
+    private readonly IAppLog _log;
     private CallToastViewModel? _toast;
     private bool _started;
     private bool _disposed;
@@ -68,13 +70,15 @@ internal sealed class CallCoordinator : IDisposable
     /// <param name="toasts">Shows the toast.</param>
     /// <param name="actions">Starts, stops and opens the recording.</param>
     /// <param name="post">Marshals to the UI thread; the UI dispatcher by default.</param>
+    /// <param name="log">Records an allowlist that could not be saved; <see cref="NullAppLog"/> by default.</param>
     public CallCoordinator(
         ICallDetector detector,
         ISettingsStore settings,
         IRecorder recorder,
         ICallToastHost toasts,
         CallActions actions,
-        Action<Action>? post = null)
+        Action<Action>? post = null,
+        IAppLog? log = null)
     {
         ArgumentNullException.ThrowIfNull(detector);
         ArgumentNullException.ThrowIfNull(settings);
@@ -88,6 +92,7 @@ internal sealed class CallCoordinator : IDisposable
         _toasts = toasts;
         _actions = actions;
         _post = post ?? (action => Avalonia.Threading.Dispatcher.UIThread.Post(action));
+        _log = log ?? NullAppLog.Instance;
     }
 
     /// <summary>The toast on screen, or <c>null</c>.</summary>
@@ -305,7 +310,7 @@ internal sealed class CallCoordinator : IDisposable
 
         if (save is not null && await save is { } error)
         {
-            Console.Error.WriteLine($"Adding {toast.Call.ProcessName} to the call allowlist failed: {error}");
+            _log.Write(LogLevel.Warning, "calls", "allowlist.save-failed", LogText.Scrub(error));
         }
     }
 

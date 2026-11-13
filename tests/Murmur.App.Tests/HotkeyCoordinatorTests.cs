@@ -31,11 +31,13 @@ public sealed class HotkeyCoordinatorTests : IDisposable
             _inner = new OnboardingRig(settings ?? Completed);
             Hotkeys = new FakeGlobalHotkeys();
             var post = inlineUi ? (Action<Action>)(a => a()) : a => { lock (_ui) { _ui.Enqueue(a); } };
-            Coordinator = new HotkeyCoordinator(Hotkeys, Store, Shell, () => ShowAppCalls++, post, a => Background.Add(a), () => Closing, _inner.Recorder);
+            Coordinator = new HotkeyCoordinator(Hotkeys, Store, Shell, () => ShowAppCalls++, post, a => Background.Add(a), () => Closing, _inner.Recorder, Log);
             RunBackground();
         }
 
         public FakeGlobalHotkeys Hotkeys { get; }
+
+        public Murmur.Core.Tests.Fakes.RecordingAppLog Log { get; } = new();
 
         public HotkeyCoordinator Coordinator { get; }
 
@@ -213,6 +215,7 @@ public sealed class HotkeyCoordinatorTests : IDisposable
         rig.Start();
 
         Assert.Equal(HotkeyRegistration.Unsupported, rig.Coordinator.RegistrationOf(HotkeyAction.ToggleRecording));
+        Assert.Contains(rig.Log.Events, e => e.Code == "register.failed" && e.Detail == "ToggleRecording ObjectDisposedException 0x80131622");
     }
 
     [Fact]

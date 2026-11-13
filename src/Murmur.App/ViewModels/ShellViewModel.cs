@@ -205,7 +205,7 @@ public sealed partial class ShellViewModel : ObservableObject
                 services.Time,
                 chat: CreateSavedChat(record.Id),
                 videoPlayback: services.VideoPlayback,
-                services: new SessionServices(ai?.Summarizer, services.Summaries, services.Sessions, SystemFolderLauncher.Instance, playback.CreatePlayer, ai?.ChapterGenerator, services.ChapterStore, services.SpeakerNames, store, services.BookmarkStore, services.Vocabulary, ai?.WordSuggester));
+                services: new SessionServices(ai?.Summarizer, services.Summaries, services.Sessions, SystemFolderLauncher.Instance, playback.CreatePlayer, ai?.ChapterGenerator, services.ChapterStore, services.SpeakerNames, store, services.BookmarkStore, services.Vocabulary, ai?.WordSuggester, services.AppLog));
         }
 
         var settings = new SettingsViewModel(
@@ -217,7 +217,8 @@ public sealed partial class ShellViewModel : ObservableObject
             accelerationProbe: ai?.AccelerationProbe,
             accelerationStatus: ai?.AccelerationSource,
             accelerationRuntimeIds: ai?.AccelerationRuntimeIds,
-            audioSessions: services.AudioSessions);
+            audioSessions: services.AudioSessions,
+            log: services.AppLog);
         OnboardingViewModel CreateOnboarding() => new(
             settings,
             store,
@@ -230,7 +231,7 @@ public sealed partial class ShellViewModel : ObservableObject
             services.Time);
 
         return new ShellViewModel(
-            new LibraryViewModel(services.Sessions, services.Time, processing, keywordSearch: services.Search, assistant: ai?.Assistant, recorder: services.Recorder, transcripts: services.Transcripts, settings: store, speakerNames: services.SpeakerNames, imports: services.Imports, mediaProbe: services.MediaProbe, downloads: services.Downloads),
+            new LibraryViewModel(services.Sessions, services.Time, processing, keywordSearch: services.Search, assistant: ai?.Assistant, recorder: services.Recorder, transcripts: services.Transcripts, settings: store, speakerNames: services.SpeakerNames, imports: services.Imports, mediaProbe: services.MediaProbe, downloads: services.Downloads, log: services.AppLog),
             new RecordingViewModel(services.Recorder, services.Capture, services.Sessions, settings: store, marks: services.Marks),
             services.Startup,
             sessionFactory,

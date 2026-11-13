@@ -1,6 +1,7 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Murmur.App.Resources;
+using Murmur.Core.Diagnostics;
 using Murmur.Core.Intelligence;
 using Murmur.Core.Sessions;
 
@@ -262,7 +263,7 @@ public sealed partial class SessionViewModel
                 catch (Exception ex) when (!run.Token.IsCancellationRequested)
                 {
                     // Any failure that is not "Stop" (a cancellation the model host raised itself included): the summary still counts, and the earlier chapters stay.
-                    Console.Error.WriteLine($"Chapters of session {Id} failed: {ex.Message}");
+                    _services.Log?.Write(LogLevel.Warning, "ai", "chapters.failed", LogText.Error(ex));
                 }
             }
 
@@ -311,8 +312,8 @@ public sealed partial class SessionViewModel
             }
 
             // The usual causes: a recording started (the models were stopped under the request) or the files vanished. The reason
-            // (English, from the model server) goes to the log; the user gets a sentence in the UI language.
-            Console.Error.WriteLine($"Summary of session {Id} failed: {ex.Message}");
+            // (its type, never the model server's text) goes to the log; the user gets a sentence in the UI language.
+            _services.Log?.Write(LogLevel.Warning, "ai", "summary.failed", LogText.Error(ex));
             Chat.RefreshAvailability();
             SummaryError = Chat.Availability switch
             {

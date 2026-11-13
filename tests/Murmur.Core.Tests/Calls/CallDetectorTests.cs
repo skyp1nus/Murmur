@@ -1,4 +1,5 @@
 using Murmur.Core.Calls;
+using Murmur.Core.Diagnostics;
 using Murmur.Core.Tests.Fakes;
 
 namespace Murmur.Core.Tests.Calls;
@@ -83,7 +84,7 @@ public sealed class CallDetectorTests
     {
         public Rig()
         {
-            Detector = new CallDetector(Monitor, Time, OwnPid);
+            Detector = new CallDetector(Monitor, Time, OwnPid, Log);
             Detector.CallStarted += Started.Add;
             Detector.CallEnded += Ended.Add;
         }
@@ -91,6 +92,8 @@ public sealed class CallDetectorTests
         public FakeMonitor Monitor { get; } = new();
 
         public ManualTimeProvider Time { get; } = new();
+
+        public RecordingAppLog Log { get; } = new();
 
         public CallDetector Detector { get; }
 
@@ -498,6 +501,25 @@ public sealed class CallDetectorTests
 
         Assert.Single(rig.Started);
         Assert.Single(late);
+        var line = Assert.Single(rig.Log.Events);
+        Assert.Equal((LogLevel.Error, "calls", "handler.failed"), (line.Level, line.Area, line.Code));
+        Assert.StartsWith("CallStarted InvalidOperationException 0x", line.Detail, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void AMonitorThatCannotBeRead_IsLoggedAsAWarning()
+    {
+        using var rig = new Rig();
+        rig.Detector.Start();
+        rig.Monitor.FailNext = 1;
+
+        rig.Monitor.Set(true, Teams);
+
+        // The first reading after Start may run on the pool and take the failure.
+        Assert.True(SpinWait.SpinUntil(() => rig.Log.Events.Count > 0, TimeSpan.FromSeconds(5)));
+        var line = Assert.Single(rig.Log.Events);
+        Assert.Equal((LogLevel.Warning, "calls", "monitor.read-failed"), (line.Level, line.Area, line.Code));
+        Assert.DoesNotContain("audio service", line.Detail, StringComparison.Ordinal);
     }
 
     [Fact]

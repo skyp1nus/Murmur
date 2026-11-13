@@ -23,6 +23,8 @@
     <Compile Include="..\Murmur.Core.Tests\Fakes\ImportFakes.cs" Link="Fakes\ImportFakes.cs" />
     <Compile Include="..\Murmur.Core.Tests\Fakes\InMemorySessionStore.cs" Link="Fakes\InMemorySessionStore.cs" />
     <Compile Include="..\Murmur.Core.Tests\Fakes\TestWav.cs" Link="Fakes\TestWav.cs" />
+    <!-- The clock of the diagnostic log's batching tests (#100). -->
+    <Compile Include="..\Murmur.Core.Tests\Fakes\ManualTimeProvider.cs" Link="Fakes\ManualTimeProvider.cs" />
   </ItemGroup>
 
   <ItemGroup>

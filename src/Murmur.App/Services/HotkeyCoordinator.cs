@@ -1,4 +1,5 @@
 using Murmur.App.ViewModels;
+using Murmur.Core.Diagnostics;
 using Murmur.Core.Input;
 using Murmur.Core.Recording;
 using Murmur.Core.Settings;
@@ -41,6 +42,7 @@ internal sealed class HotkeyCoordinator : IDisposable
     private readonly Action<Action> _post;
     private readonly Action<Action> _runBackground;
     private readonly IRecorder? _recorder;
+    private readonly IAppLog _log;
     private int _recording;
 
     // What the UI thread hands to the background pass (short lock, never held across a Register).
@@ -66,6 +68,7 @@ internal sealed class HotkeyCoordinator : IDisposable
     /// <param name="runBackground">Runs registrations off the UI thread; the thread pool by default (tests run them inline).</param>
     /// <param name="isClosing">The window has started closing: no action runs any more. <c>null</c> = never.</param>
     /// <param name="recorder">Tells when a recording runs, for the Mark hotkey; <c>null</c> = the Mark hotkey is registered like the others.</param>
+    /// <param name="log">Records a registration that threw; <see cref="NullAppLog"/> by default.</param>
     public HotkeyCoordinator(
         IGlobalHotkeys hotkeys,
         ISettingsStore settings,
@@ -74,7 +77,8 @@ internal sealed class HotkeyCoordinator : IDisposable
         Action<Action>? post = null,
         Action<Action>? runBackground = null,
         Func<bool>? isClosing = null,
-        IRecorder? recorder = null)
+        IRecorder? recorder = null,
+        IAppLog? log = null)
     {
         ArgumentNullException.ThrowIfNull(hotkeys);
         ArgumentNullException.ThrowIfNull(settings);
@@ -88,6 +92,7 @@ internal sealed class HotkeyCoordinator : IDisposable
         _post = post ?? (action => Avalonia.Threading.Dispatcher.UIThread.Post(action));
         _runBackground = runBackground ?? (action => Task.Run(action));
         _recorder = recorder;
+        _log = log ?? NullAppLog.Instance;
         Array.Fill(_registrations, HotkeyRegistration.Cleared);
     }
 
@@ -301,7 +306,7 @@ internal sealed class HotkeyCoordinator : IDisposable
         catch (Exception ex)
         {
             // Disposed while shutting down, or an unexpected native failure: the action simply has no hotkey.
-            Console.Error.WriteLine($"Registering the {action} hotkey failed: {ex.Message}");
+            _log.Write(LogLevel.Warning, "hotkeys", "register.failed", action.ToString() + " " + LogText.Error(ex));
             return HotkeyRegistration.Unsupported;
         }
     }

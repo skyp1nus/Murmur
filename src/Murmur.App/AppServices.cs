@@ -2,6 +2,7 @@ using Murmur.App.Services;
 using Murmur.Core.Activity;
 using Murmur.Core.Calls;
 using Murmur.Core.Capture;
+using Murmur.Core.Diagnostics;
 using Murmur.Core.Import;
 using Murmur.Core.Input;
 using Murmur.Core.Models;
@@ -82,6 +83,10 @@ namespace Murmur.App;
 /// Makes the floating recorder orb's window non-activating so a click on it never takes focus from the call (#46); <c>null</c> = the
 /// window is left as Avalonia makes it.
 /// </param>
+/// <param name="Log">
+/// The diagnostic log (#100): the app records its background failures there, the Library shows its unseen crash and Settings -> About opens
+/// and copies it. <c>null</c> = <see cref="NullAppLog"/> (designer, tests, the parity boards: no notice, no About rows).
+/// </param>
 public sealed record AppServices(
     IRecorder Recorder,
     ICapture Capture,
@@ -114,4 +119,9 @@ public sealed record AppServices(
     IDownloadsFolder? Downloads = null,
     IBookmarkStore? BookmarkStore = null,
     IVocabularyStore? Vocabulary = null,
-    IFloatingWindowStyle? FloatingWindowStyle = null);
+    IFloatingWindowStyle? FloatingWindowStyle = null,
+    IAppLog? Log = null)
+{
+    /// <summary><see cref="Log"/>, or the null log.</summary>
+    public IAppLog AppLog => Log ?? NullAppLog.Instance;
+}

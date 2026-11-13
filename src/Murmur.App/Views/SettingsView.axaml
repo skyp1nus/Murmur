@@ -878,6 +878,26 @@
           </Border>
           <TextBlock Classes="settingsMeta"
                      Text="{Binding About.OtherCredits}" />
+          <!-- The diagnostic log: only with a real log, so the board (whose rig has none) is unchanged. -->
+          <WrapPanel x:Name="AboutDiagnostics"
+                     IsVisible="{Binding About.HasDiagnostics}"
+                     ItemSpacing="{StaticResource Space.8}"
+                     LineSpacing="{StaticResource Space.8}">
+            <Button x:Name="OpenLogsButton"
+                    Classes="outline settingsButton"
+                    Command="{Binding About.OpenLogsFolderCommand}">
+              <TextBlock Text="{x:Static res:Strings.About_OpenLogs}" />
+            </Button>
+            <Button x:Name="CopyDiagnosticsButton"
+                    Classes="outline settingsButton"
+                    Command="{Binding About.CopyDiagnosticsCommand}">
+              <TextBlock Text="{x:Static res:Strings.About_CopyDiagnostics}" />
+            </Button>
+            <TextBlock Classes="settingsMeta graphite"
+                       VerticalAlignment="Center"
+                       IsVisible="{Binding About.HasDiagnosticsStatus}"
+                       Text="{Binding About.DiagnosticsStatus}" />
+          </WrapPanel>
           </StackPanel>
         </controls:ResponsivePairPanel>
 

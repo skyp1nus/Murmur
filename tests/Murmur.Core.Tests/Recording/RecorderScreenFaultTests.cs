@@ -2,6 +2,7 @@ using System.Collections.Concurrent;
 using System.Diagnostics;
 using Murmur.Core.Capture;
 using Murmur.Core.Capture.Synthetic;
+using Murmur.Core.Diagnostics;
 using Murmur.Core.Recording;
 using Murmur.Core.Sessions;
 using Murmur.Core.Tests.Fakes;
@@ -22,6 +23,7 @@ public sealed class RecorderScreenFaultTests : IDisposable
     private readonly TempDirectory _dir = new();
     private readonly InMemorySessionStore _store;
     private readonly ConcurrentQueue<RecorderWarning> _warnings = new();
+    private readonly RecordingAppLog _log = new();
 
     public RecorderScreenFaultTests() => _store = new InMemorySessionStore(_dir.Path);
 
@@ -56,6 +58,33 @@ public sealed class RecorderScreenFaultTests : IDisposable
         Assert.Equal(5, recorder.Stats.ScreenFaults);
         Assert.Equal($"{SessionNotes.ScreenFramesDropped}\n{SessionNotes.ScreenCpuFallback}\n{SessionNotes.ScreenOther}", finished.Error);
         Assert.Single(finished.ScreenSegments);
+
+        // Every fault is a warning line of the log (#100): its stable code, the source and the technical message.
+        var lines = _log.Events.Where(e => e.Code == "screen.fault").ToList();
+        Assert.Equal(5, lines.Count);
+        Assert.All(lines, e => Assert.Equal((LogLevel.Warning, "capture"), (e.Level, e.Area)));
+        Assert.Equal(SessionNotes.ScreenFramesDropped + " screen: " + LogText.Scrub(PoolMessage), lines[0].Detail);
+        Assert.StartsWith(SessionNotes.ScreenOther + " screen: Something odd happened", lines[^1].Detail, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData("Olena's AirPods: the device was removed (0x88890004)", "wasapi-microphone Other 0x88890004")]
+    [InlineData("Olena's AirPods: capture stopped", "wasapi-microphone Other")]
+    [InlineData("Olena's AirPods 0x1234 not an HRESULT", "wasapi-microphone Other")]
+    public void AudioFaultDetail_NeverHasTheMessage_OnlyTheSourceKindAndHResult(string message, string expected)
+    {
+        var detail = Recorder.AudioFaultDetail(new CaptureFault("wasapi-microphone", message, IsFatal: true));
+
+        Assert.Equal(expected, detail);
+        Assert.DoesNotContain("Olena", detail, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void FaultDetail_KeepsTheCodeAndTheSource_AndScrubsPaths()
+    {
+        var fault = new CaptureFault("screen", @"Could not write 'C:\Users\olena\Recordings\Budget review\screen-001.mp4'", IsFatal: true);
+
+        Assert.Equal("screen-stopped screen: Could not write 'screen-001.mp4'", Recorder.FaultDetail(fault, "screen-stopped"));
     }
 
     [Fact]
@@ -131,6 +160,9 @@ public sealed class RecorderScreenFaultTests : IDisposable
         var warning = Assert.Single(_warnings);
         Assert.True(warning.ScreenStopped);
         Assert.Equal(RecorderWarningCode.ScreenStopped, warning.Code);
+        var line = Assert.Single(_log.Events, e => e.Code == "screen.fault");
+        Assert.Equal(LogLevel.Error, line.Level);
+        Assert.StartsWith(SessionNotes.ScreenStopped + " screen: device lost", line.Detail, StringComparison.Ordinal);
         Assert.Single(finished.ScreenSegments);
         Assert.Equal(SessionState.Recorded, finished.State);
         Assert.True(finished.HasSystemAudio);
@@ -365,7 +397,7 @@ public sealed class RecorderScreenFaultTests : IDisposable
     {
         var screen = new FaultingScreenRecorder();
         var capture = new FaultingScreenCapture(new SyntheticCapture(new SyntheticCaptureOptions(SpeedFactor: 1, Screen: true)), screen);
-        var recorder = new Recorder(capture, _store, TimeProvider.System, RecorderSettings.Default);
+        var recorder = new Recorder(capture, _store, TimeProvider.System, RecorderSettings.Default, _log);
         recorder.Warning += _warnings.Enqueue;
         return (recorder, screen);
     }
@@ -505,3 +537,4 @@ public sealed class RecorderScreenFaultTests : IDisposable
         }
     }
 }
+

@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using Murmur.Core.Diagnostics;
 using Murmur.Core.Tests.Fakes;
 using Murmur.Core.Transcription;
 
@@ -13,6 +14,7 @@ public sealed class WorkerAsrClientTests : IDisposable
 
     private readonly TempDirectory _dir = new();
     private readonly ModelLocator _models;
+    private readonly RecordingAppLog _log = new();
 
     public WorkerAsrClientTests()
     {
@@ -44,6 +46,7 @@ public sealed class WorkerAsrClientTests : IDisposable
 
         Assert.True(busySeen);
         Assert.Equal(AsrStatus.Idle, client.Status);
+        Assert.Empty(_log.Events);
         Assert.Equal(3, segments.Count);
         Assert.All(segments, s => Assert.Equal(Speaker.Others, s.Speaker));
         Assert.Equal([TimeSpan.Zero, TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(2)], segments.Select(s => s.Start));
@@ -118,6 +121,12 @@ public sealed class WorkerAsrClientTests : IDisposable
         Assert.Contains("simulated crash in the decoder", ex.StderrTail, StringComparison.Ordinal);
         Assert.False(client.IsWorkerRunning);
 
+        // The log keeps the exit code and the last lines of stderr (#100).
+        var exit = Assert.Single(_log.Events);
+        Assert.Equal((LogLevel.Error, "asr", "worker.exit"), (exit.Level, exit.Area, exit.Code));
+        Assert.StartsWith("code=3 | ", exit.Detail, StringComparison.Ordinal);
+        Assert.Contains("simulated crash in the decoder", exit.Detail, StringComparison.Ordinal);
+
         Configure("mode=normal");
         Assert.Equal(3, await DrainAsync(client, wav));
         Assert.Equal(2, client.WorkerStarts);
@@ -134,6 +143,7 @@ public sealed class WorkerAsrClientTests : IDisposable
 
         Assert.Equal(4, ex.ExitCode);
         Assert.Contains("cannot load the model", ex.Message, StringComparison.Ordinal);
+        Assert.Contains(_log.Events, e => e.Code == "worker.exit" && e.Detail!.StartsWith("code=4", StringComparison.Ordinal));
         Assert.Equal(AsrStatus.Idle, client.Status);
     }
 
@@ -148,6 +158,7 @@ public sealed class WorkerAsrClientTests : IDisposable
 
         Assert.Contains("internal error: boom", ex.Message, StringComparison.Ordinal);
         Assert.False(client.IsWorkerRunning);
+        Assert.Contains(_log.Events, e => e is { Level: LogLevel.Error, Area: "asr", Code: "worker.exit" });
     }
 
     [Fact]
@@ -161,6 +172,7 @@ public sealed class WorkerAsrClientTests : IDisposable
 
         Assert.Contains("did not report ready", ex.Message, StringComparison.Ordinal);
         Assert.False(client.IsWorkerRunning);
+        Assert.Contains(_log.Events, e => e is { Area: "asr", Code: "worker.hang" } && e.Detail!.StartsWith("start", StringComparison.Ordinal));
     }
 
     [Fact]
@@ -188,6 +200,7 @@ public sealed class WorkerAsrClientTests : IDisposable
         Assert.True(sw.Elapsed < TimeSpan.FromSeconds(4), $"cancel took {sw.Elapsed}");
         Assert.Contains(Log(), l => l.Contains("\"kind\":\"cancel\"", StringComparison.Ordinal));
         Assert.True(client.IsWorkerRunning);
+        Assert.Empty(_log.Events); // a cancel the worker answers is no trouble
         Assert.Equal(AsrStatus.Idle, client.Status);
         Assert.Equal(1, client.WorkerStarts);
     }
@@ -212,6 +225,7 @@ public sealed class WorkerAsrClientTests : IDisposable
 
         Assert.InRange(sw.Elapsed, TimeSpan.FromMilliseconds(400), TimeSpan.FromSeconds(10));
         Assert.False(client.IsWorkerRunning);
+        Assert.Contains(_log.Events, e => e is { Level: LogLevel.Warning, Area: "asr", Code: "worker.hang" } && e.Detail!.StartsWith("cancel", StringComparison.Ordinal));
 
         Configure("mode=normal");
         Assert.Equal(3, await DrainAsync(client, wav));
@@ -372,7 +386,7 @@ public sealed class WorkerAsrClientTests : IDisposable
     private WorkerAsrClient CreateClient(int threads = 1, TimeSpan? cancelTimeout = null, TimeSpan? startTimeout = null, int idleExitSeconds = 120)
     {
         Assert.True(File.Exists(FakeWorkerDll), "fake worker not found: " + FakeWorkerDll);
-        return new WorkerAsrClient(_models, new WorkerAsrClientOptions(FakeWorkerDll, threads, idleExitSeconds, cancelTimeout, startTimeout ?? Timeout));
+        return new WorkerAsrClient(_models, new WorkerAsrClientOptions(FakeWorkerDll, threads, idleExitSeconds, cancelTimeout, startTimeout ?? Timeout), _log);
     }
 
     [Theory]

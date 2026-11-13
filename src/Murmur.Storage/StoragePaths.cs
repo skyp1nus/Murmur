@@ -12,6 +12,8 @@ public sealed class StoragePaths
 
     public const string SettingsFileName = "settings.json";
 
+    public const string LogsFolderName = "logs";
+
     public StoragePaths(string root)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(root);
@@ -27,6 +29,9 @@ public sealed class StoragePaths
 
     /// <summary>The user preferences file, see <see cref="JsonSettingsStore"/>.</summary>
     public string SettingsPath => Path.Combine(Root, SettingsFileName);
+
+    /// <summary>The diagnostic log (<see cref="FileAppLog"/>): created only when there is something to write.</summary>
+    public string LogsDirectory => Path.Combine(Root, LogsFolderName);
 
     /// <summary>
     /// Resolves the data root from <c>MURMUR_DATA_DIR</c>, falling back to

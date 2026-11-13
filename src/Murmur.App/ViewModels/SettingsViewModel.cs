@@ -4,6 +4,7 @@ using Murmur.App.Resources;
 using Murmur.App.Services;
 using Murmur.Core.Calls;
 using Murmur.Core.Capture;
+using Murmur.Core.Diagnostics;
 using Murmur.Core.Intelligence;
 using Murmur.Core.Models;
 using Murmur.Core.Settings;
@@ -67,6 +68,7 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable, I
     /// <param name="accelerationStatus">Which AI build runs and why a GPU build does not; <c>null</c> = nothing to report.</param>
     /// <param name="accelerationRuntimeIds">The model-manager item of each GPU build's runtime (<see cref="AiServices.AccelerationRuntimeIds"/>); <c>null</c> = nothing to download.</param>
     /// <param name="audioSessions">Watches the audio sessions for call detection; <c>null</c> or unsupported hides the "Detect calls" row.</param>
+    /// <param name="log">The diagnostic log of "Open logs folder" and "Copy diagnostics" under About; <c>null</c> hides the two buttons.</param>
     public SettingsViewModel(
         ISettingsStore settings,
         ICapture capture,
@@ -79,7 +81,8 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable, I
         IAccelerationProbe? accelerationProbe = null,
         IAccelerationStatusSource? accelerationStatus = null,
         IReadOnlyDictionary<AiAcceleration, string>? accelerationRuntimeIds = null,
-        IAudioSessionMonitor? audioSessions = null)
+        IAudioSessionMonitor? audioSessions = null,
+        IAppLog? log = null)
     {
         ArgumentNullException.ThrowIfNull(settings);
         ArgumentNullException.ThrowIfNull(capture);
@@ -94,7 +97,7 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable, I
         _accelerationProbe = accelerationProbe;
         _accelerationStatus = accelerationStatus;
         _accelerationRuntimeIds = accelerationRuntimeIds;
-        About = new AboutViewModel(version);
+        About = new AboutViewModel(version, log, _launcher, post: _post);
         _callDetectionSupported = audioSessions?.IsSupported == true;
 
         var sections = new List<SettingsSection>(6);

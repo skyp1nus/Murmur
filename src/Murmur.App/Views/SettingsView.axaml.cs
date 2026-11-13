@@ -1,6 +1,7 @@
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
+using Avalonia.Input.Platform;
 using Avalonia.Interactivity;
 using Murmur.App.Services;
 using Murmur.App.ViewModels;
@@ -37,6 +38,7 @@ public partial class SettingsView : UserControl
         if (_subscribed is not null)
         {
             _subscribed.SectionRequested -= OnSectionRequested;
+            _subscribed.About.ClipboardWriter = null;
         }
 
         _subscribed = DataContext as SettingsViewModel;
@@ -44,7 +46,20 @@ public partial class SettingsView : UserControl
         {
             _subscribed.SectionRequested += OnSectionRequested;
             _subscribed.Storage.FolderPicker = new TopLevelFolderPicker(() => TopLevel.GetTopLevel(this));
+            _subscribed.About.ClipboardWriter = WriteToClipboardAsync;
         }
+    }
+
+    /// <summary>"Copy diagnostics" (#100): the clipboard belongs to the window.</summary>
+    private async Task<bool> WriteToClipboardAsync(string text)
+    {
+        if (TopLevel.GetTopLevel(this)?.Clipboard is not { } clipboard)
+        {
+            return false;
+        }
+
+        await clipboard.SetTextAsync(text);
+        return true;
     }
 
     private void OnKeyDown(object? sender, KeyEventArgs e)

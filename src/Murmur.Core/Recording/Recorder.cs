@@ -4,6 +4,7 @@ using System.Runtime.CompilerServices;
 using System.Runtime.ExceptionServices;
 using Murmur.Core.Audio;
 using Murmur.Core.Capture;
+using Murmur.Core.Diagnostics;
 using Murmur.Core.Sessions;
 
 namespace Murmur.Core.Recording;
@@ -97,6 +98,7 @@ public sealed class Recorder : IRecorder
     private readonly ISessionStore _store;
     private readonly TimeProvider _time;
     private readonly RecorderSettings _settings;
+    private readonly IAppLog _log;
     private readonly SemaphoreSlim _gate = new(1, 1);
     private readonly float _levelDecay;
 
@@ -104,7 +106,8 @@ public sealed class Recorder : IRecorder
     private volatile RecorderState _state = RecorderState.Idle;
     private RecorderStats _lastStats;
 
-    public Recorder(ICapture capture, ISessionStore store, TimeProvider time, RecorderSettings settings)
+    /// <param name="log">Where capture faults and background failures are recorded; <see cref="NullAppLog"/> by default.</param>
+    public Recorder(ICapture capture, ISessionStore store, TimeProvider time, RecorderSettings settings, IAppLog? log = null)
     {
         ArgumentNullException.ThrowIfNull(capture);
         ArgumentNullException.ThrowIfNull(store);
@@ -124,6 +127,7 @@ public sealed class Recorder : IRecorder
         _store = store;
         _time = time;
         _settings = settings;
+        _log = log ?? NullAppLog.Instance;
         _levelDecay = (float)Math.Pow(0.5, settings.WriterPeriod.TotalSeconds / LevelHalfLifeSeconds);
     }
 
@@ -232,7 +236,7 @@ public sealed class Recorder : IRecorder
                     }
                     catch (Exception ex)
                     {
-                        LogError("finalizing the failed screen segment failed", ex);
+                        LogError("screen.finalize-failed", ex);
                     }
 
                     if (active.Open is not null)
@@ -301,7 +305,7 @@ public sealed class Recorder : IRecorder
                 // The audio is paused. A segment the screen recorder has not left is marked failed at the pause mark: it is no
                 // longer recorded (IsScreenRecording turns false), its end on the timeline is the pause, and the resume finishes it
                 // (or the final stop does) before it starts the next one.
-                LogError("finalizing the screen segment at the pause failed", ex);
+                LogError("screen.pause-finalize-failed", ex);
                 if (active.Open is { } open)
                 {
                     Interlocked.CompareExchange(ref open.FaultElapsedTicks, pauseMark.Ticks, -1);
@@ -340,7 +344,7 @@ public sealed class Recorder : IRecorder
                 }
                 catch (Exception ex)
                 {
-                    LogError("finalizing the failed screen segment at the resume failed", ex);
+                    LogError("screen.resume-finalize-failed", ex);
                 }
             }
 
@@ -353,7 +357,7 @@ public sealed class Recorder : IRecorder
                 }
                 catch (Exception ex)
                 {
-                    LogError("starting the screen segment at the resume failed", ex);
+                    LogError("screen.resume-start-failed", ex);
                     WarnScreenStopped(active);
                 }
             }
@@ -731,15 +735,10 @@ public sealed class Recorder : IRecorder
         }
 
         Interlocked.Increment(ref active.ScreenFaults);
-        try
-        {
-            // The technical detail is for the console; the user gets the App's text for the code.
-            Console.Error.WriteLine($"Murmur: {fault.Source} {(fault.IsFatal ? "fatal fault" : "warning")}: {fault.Message}");
-        }
-        catch (Exception)
-        {
-            // A broken console must not break the capture thread.
-        }
+        var code = ScreenWarningCode(fault);
+
+        // The technical detail is for the log (which never blocks and never throws); the user gets the App's text for the code.
+        _log.Write(fault.IsFatal ? LogLevel.Error : LogLevel.Warning, "capture", "screen.fault", FaultDetail(fault, SessionNotes.CodeOf(code)));
 
         if (fault.IsFatal)
         {
@@ -750,7 +749,6 @@ public sealed class Recorder : IRecorder
 
         // The session keeps each code once, and so does the UI: a fault whose code is already known adds nothing.
         // A fatal fault always reaches the UI (the pill must turn off).
-        var code = ScreenWarningCode(fault);
         var isNew = active.AddWarning(SessionNotes.Format(SessionNotes.CodeOf(code)));
         if (fault.IsFatal || isNew)
         {
@@ -798,7 +796,7 @@ public sealed class Recorder : IRecorder
                         {
                             // The segment stays open when the finalize failed before the recorder left it: the next "off"
                             // or the final stop retries; the fault itself was reported already.
-                            LogError("finalizing the failed screen segment failed", ex);
+                            LogError("screen.finalize-failed", ex);
                         }
                     }
 
@@ -808,7 +806,7 @@ public sealed class Recorder : IRecorder
             }
             catch (Exception ex)
             {
-                LogError("storing the screen warning failed", ex);
+                LogError("screen.warning-save-failed", ex);
             }
             finally
             {
@@ -817,16 +815,39 @@ public sealed class Recorder : IRecorder
         });
     }
 
-    private static void LogError(string what, Exception ex)
+    private void LogError(string code, Exception ex) => _log.Write(LogLevel.Error, "recording", code, LogText.Error(ex));
+
+    /// <summary>The detail of a capture fault's log line: its stable code, the source and the scrubbed technical message.</summary>
+    internal static string FaultDetail(CaptureFault fault, string code) => code + " " + fault.Source + ": " + LogText.Scrub(fault.Message);
+
+    /// <summary>
+    /// The detail of an audio fault's log line: the source, the kind and an HRESULT the message carries, never the message itself (it
+    /// names the device, e.g. "Olena's AirPods").
+    /// </summary>
+    internal static string AudioFaultDetail(CaptureFault fault)
     {
-        try
+        var detail = fault.Source + " " + fault.Kind.ToString();
+        return FindHResult(fault.Message) is { } code ? detail + " " + code : detail;
+    }
+
+    /// <summary>The first <c>0x</c> followed by eight hex digits in <paramref name="text"/>, or <c>null</c>.</summary>
+    internal static string? FindHResult(string? text)
+    {
+        if (string.IsNullOrEmpty(text))
         {
-            Console.Error.WriteLine($"Murmur: {what}: {ex.Message}");
+            return null;
         }
-        catch (Exception)
+
+        for (var i = text.IndexOf("0x", StringComparison.OrdinalIgnoreCase); i >= 0 && i + 10 <= text.Length; i = text.IndexOf("0x", i + 2, StringComparison.OrdinalIgnoreCase))
         {
-            // A broken console must not break the recorder.
+            var digits = text.AsSpan(i + 2, 8);
+            if (!digits.ContainsAnyExcept("0123456789abcdefABCDEF") && (i + 10 == text.Length || !char.IsAsciiHexDigit(text[i + 10])))
+            {
+                return "0x" + digits.ToString().ToUpperInvariant();
+            }
         }
+
+        return null;
     }
 
     private void OnSourceFaulted(ActiveRecording active, Track track, CaptureFault fault)
@@ -838,6 +859,7 @@ public sealed class Recorder : IRecorder
 
         track.FaultMessage ??= $"{fault.Source}: {fault.Message}";
         track.Capture.MarkFaulted();
+        _log.Write(LogLevel.Error, "capture", "audio.fault", AudioFaultDetail(fault));
 
         foreach (var t in active.Tracks)
         {

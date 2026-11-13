@@ -1,5 +1,6 @@
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
+using Murmur.Core.Diagnostics;
 using Murmur.Core.Transcription.Protocol;
 
 namespace Murmur.Core.Transcription;
@@ -46,6 +47,7 @@ public sealed class WorkerAsrClient : IAsr, IAsyncDisposable
     private readonly int _idleExitSeconds;
     private readonly TimeSpan _cancelTimeout;
     private readonly TimeSpan _startTimeout;
+    private readonly IAppLog _log;
     private readonly SemaphoreSlim _gate = new(1, 1);
     private readonly CancellationTokenSource _disposeCts = new();
 
@@ -54,7 +56,11 @@ public sealed class WorkerAsrClient : IAsr, IAsyncDisposable
     private int _disposed;
     private int _workerStarts;
 
-    public WorkerAsrClient(ModelLocator models, WorkerAsrClientOptions? options = null)
+    /// <param name="log">
+    /// Where a worker that exits with a non-zero code or stops answering is recorded (<c>worker.exit</c> with the exit code and the last two
+    /// lines of its stderr, <c>worker.hang</c>); <see cref="NullAppLog"/> by default.
+    /// </param>
+    public WorkerAsrClient(ModelLocator models, WorkerAsrClientOptions? options = null, IAppLog? log = null)
     {
         ArgumentNullException.ThrowIfNull(models);
         options ??= new WorkerAsrClientOptions();
@@ -67,6 +73,7 @@ public sealed class WorkerAsrClient : IAsr, IAsyncDisposable
         _idleExitSeconds = options.IdleExitSeconds;
         _cancelTimeout = options.CancelTimeout ?? DefaultCancelTimeout;
         _startTimeout = options.StartTimeout ?? DefaultStartTimeout;
+        _log = log ?? NullAppLog.Instance;
     }
 
     public AsrStatus Status => !_models.IsAsrInstalled ? AsrStatus.ModelMissing : Volatile.Read(ref _busy) != 0 ? AsrStatus.Busy : AsrStatus.Idle;
@@ -254,6 +261,22 @@ public sealed class WorkerAsrClient : IAsr, IAsyncDisposable
         return new TranscriptSegment(speaker, TimeSpan.FromSeconds(segment.Start), TimeSpan.FromSeconds(segment.End), segment.Text ?? string.Empty, words);
     }
 
+    /// <summary>
+    /// <c>worker.exit</c> for a worker that ended on its own: its exit code (<c>?</c> while unknown) and the last two lines of its stderr. A clean
+    /// exit (code 0) is not trouble unless <paramref name="evenIfClean"/> (it reported a failure first).
+    /// </summary>
+    private void LogExit(WorkerConnection worker, bool evenIfClean = false)
+    {
+        if (worker.ExitCode == 0 && !evenIfClean)
+        {
+            return;
+        }
+
+        var code = worker.ExitCode is { } c ? c.ToString(System.Globalization.CultureInfo.InvariantCulture) : "?";
+        var tail = LogText.Tail(worker.StderrTail);
+        _log.Write(LogLevel.Error, "asr", "worker.exit", tail.Length == 0 ? "code=" + code : "code=" + code + " | " + tail);
+    }
+
     private static string Describe(WorkerConnection worker)
     {
         var code = worker.ExitCode is { } c ? $" (exit code {c})" : string.Empty;
@@ -314,6 +337,7 @@ public sealed class WorkerAsrClient : IAsr, IAsyncDisposable
                 }
 
                 job.Finished = true;
+                LogExit(worker);
                 var exception = new AsrWorkerException("The ASR worker exited unexpectedly" + Describe(worker), worker.ExitCode, worker.StderrTail);
                 await DropWorkerAsync(worker).ConfigureAwait(false);
                 throw exception;
@@ -324,6 +348,7 @@ public sealed class WorkerAsrClient : IAsr, IAsyncDisposable
                 // A worker-level failure ("internal error"): the worker is going down.
                 job.Finished = true;
                 await worker.WaitForExitAsync(_cancelTimeout).ConfigureAwait(false);
+                LogExit(worker, evenIfClean: true);
                 var exception = new AsrWorkerException("The ASR worker failed: " + e.Error + Describe(worker), worker.ExitCode, worker.StderrTail);
                 await DropWorkerAsync(worker).ConfigureAwait(false);
                 throw exception;
@@ -383,9 +408,14 @@ public sealed class WorkerAsrClient : IAsr, IAsyncDisposable
                 }
             }
         }
-        catch (Exception ex) when (ex is OperationCanceledException or IOException)
+        catch (OperationCanceledException)
         {
-            // No answer in time or the worker is gone.
+            // No answer in time: the worker hangs and is killed.
+            _log.Write(LogLevel.Warning, "asr", "worker.hang", "cancel " + LogText.Tail(worker.StderrTail));
+        }
+        catch (IOException)
+        {
+            // The worker is gone.
         }
 
         await DropWorkerAsync(worker).ConfigureAwait(false);
@@ -424,12 +454,14 @@ public sealed class WorkerAsrClient : IAsr, IAsyncDisposable
             }
             catch (OperationCanceledException) when (!token.IsCancellationRequested)
             {
+                _log.Write(LogLevel.Error, "asr", "worker.hang", "start " + LogText.Tail(worker.StderrTail));
                 throw new AsrWorkerException($"The ASR worker did not report ready within {_startTimeout.TotalSeconds:0.#} s" + Describe(worker), worker.ExitCode, worker.StderrTail);
             }
 
             if (first is null)
             {
                 await worker.WaitForExitAsync(TimeSpan.FromSeconds(2)).ConfigureAwait(false);
+                LogExit(worker);
                 throw new AsrWorkerException("The ASR worker exited during start-up" + Describe(worker), worker.ExitCode, worker.StderrTail);
             }
 
