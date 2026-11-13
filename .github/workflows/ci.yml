@@ -2,6 +2,9 @@ name: ci
 
 # Repo standard v1.1: every PR gets the Linux job; the Windows jobs (build/test/AOT, startup, installer, capture e2e)
 # and the benchmarks run only on the release PR (dev -> main) or on a manual run with no open PR (inputs `windows`, `bench`).
+# The Linux job has two modes. A PR into dev (a feature PR) is built (warnings, trim and AOT analyzers are errors) and
+# runs only the fast tests (scripts/ci/test-fast.sh): no Native AOT publish, no AOT smoke, no NuGet cache, target about 3 minutes.
+# The release PR (dev -> main) and every manual run get the full Linux job: all tests, both AOT publishes, the AOT smoke.
 # The first job, `base`, resolves the real PR base once; every later decision (Windows jobs, gate) follows its output,
 # never the manual inputs, so a manual run cannot put a green `ci` without the Windows jobs on a release PR head.
 # Everyday Windows checks run on the owner's PC: scripts/verify-local.ps1. The last job, `ci`, is the only required check.
@@ -92,15 +95,31 @@ jobs:
           echo "base='$base' has_pr=$has_pr policy_ok=$policy_ok (head $HEAD_REPO:$HEAD, event $EVENT)"
 
   linux:
-    name: build, test, AOT publish (linux-x64)
+    name: build, test (linux-x64; AOT publish on release and manual runs)
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    # Not tied to `base`, so it starts at once. Fast mode: a pull_request whose base is not main. Everything else
+    # (release PR, manual run, including the run ci-retarget.yml dispatches) is full. The gate checks that a run
+    # for main was full and that the AOT steps really ran (outputs below).
+    outputs:
+      full: ${{ steps.mode.outputs.full }}
+      aot_ran: ${{ steps.aot_done.outputs.ran }}
     # Explicit shell: GitHub then runs steps as `bash --noprofile --norc -eo pipefail {0}`,
     # so a failing `dotnet publish | tee` fails the step (the default `bash -e {0}` has no pipefail).
     defaults:
       run:
         shell: bash
     steps:
+      - id: mode
+        env:
+          EVENT: ${{ github.event_name }}
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          full=true
+          if [ "$EVENT" = pull_request ] && [ "$BASE_REF" != main ]; then full=false; fi
+          echo "full=$full" >> "$GITHUB_OUTPUT"
+          echo "event=$EVENT base_ref='$BASE_REF' -> full=$full"
+
       - uses: actions/checkout@v5
 
       # global.json pins a prerelease SDK with rollForward=latestFeature, and setup-dotnet alone would
@@ -114,13 +133,17 @@ jobs:
       - name: Verify SDK matches global.json
         run: test "$(dotnet --version)" = "$(jq -r .sdk.version global.json)"
 
+      # Full mode only. On a feature PR the cache never hits (a PR run can read only its own merge ref and dev, and dev has
+      # no ci runs), so it would only add a ~1 GB save step (26 s); a plain restore takes about 15 s.
       - uses: actions/cache@v4
+        if: ${{ steps.mode.outputs.full == 'true' }}
         with:
           path: ${{ env.NUGET_PACKAGES }}
           key: nuget-${{ runner.os }}-${{ hashFiles('Directory.Packages.props', '**/*.csproj') }}
           restore-keys: nuget-${{ runner.os }}-
 
       - name: Native AOT prerequisites
+        if: ${{ steps.mode.outputs.full == 'true' }}
         run: sudo apt-get update && sudo apt-get install -y --no-install-recommends clang zlib1g-dev xvfb xauth
 
       - name: Build
@@ -129,7 +152,13 @@ jobs:
       # Tests run on Microsoft.Testing.Platform (global.json); xunit.v3 provides --report-xunit-trx
       # (the VSTest-style "--logger trx" is rejected with exit code 5 on this runner).
       - name: Test
+        if: ${{ steps.mode.outputs.full == 'true' }}
         run: dotnet test Murmur.sln -c Release --no-build --report-xunit-trx --results-directory artifacts/test-results
+
+      # Feature PR: the fast set only (what is left out, and why, is in the script header).
+      - name: Test (fast set)
+        if: ${{ steps.mode.outputs.full != 'true' }}
+        run: bash scripts/ci/test-fast.sh
 
       - name: Upload test results
         if: always()
@@ -142,7 +171,7 @@ jobs:
 
       # The design-parity tests (tests/Murmur.App.Tests/Design) run with the tests above and write their report and images here.
       - name: Upload design parity report
-        if: always()
+        if: ${{ always() && steps.mode.outputs.full == 'true' }}
         uses: actions/upload-artifact@v4
         with:
           name: design-parity
@@ -151,17 +180,20 @@ jobs:
           retention-days: 14
 
       - name: Publish Native AOT (Murmur.Desktop, linux-x64)
+        if: ${{ steps.mode.outputs.full == 'true' }}
         run: |
           mkdir -p artifacts/logs
           dotnet publish src/Murmur.Desktop -c Release -f net11.0 -r linux-x64 -o artifacts/publish/linux-x64/desktop 2>&1 | tee artifacts/logs/publish-desktop.log
 
       - name: Publish Native AOT (Murmur.Transcription, linux-x64)
+        if: ${{ steps.mode.outputs.full == 'true' }}
         run: |
           mkdir -p artifacts/logs
           dotnet publish src/Murmur.Transcription -c Release -r linux-x64 -o artifacts/publish/linux-x64/transcription 2>&1 | tee artifacts/logs/publish-transcription.log
 
       # Any compiler, trim (IL2xxx) or AOT (IL3xxx) warning in the publish logs is a red build.
       - name: Fail on publish warnings
+        if: ${{ steps.mode.outputs.full == 'true' }}
         run: |
           if grep -nE ': (warning|error) ' artifacts/logs/publish-*.log; then
             echo "::error::Native AOT publish produced warnings or errors (see above)"
@@ -172,6 +204,7 @@ jobs:
       # #102: the published binary opens a recording's details, first a recorded then an imported session. The AOT build once
       # overflowed the stack there while the JIT build (and so every unit test) did not; the probe exits 0 once the page has rendered.
       - name: Open recording details (Native AOT, linux-x64)
+        if: ${{ steps.mode.outputs.full == 'true' }}
         run: |
           data="$RUNNER_TEMP/murmur-probe"
           rm -rf "$data" && mkdir -p "$data"
@@ -185,6 +218,12 @@ jobs:
           run --probe-open-latest
           python3 -I scripts/ci/seed-session.py "$data" --imported
           run --probe-open-latest
+
+      # Reached only when every step above succeeded; the gate requires it for a run that must be full.
+      - name: Full mode done
+        id: aot_done
+        if: ${{ steps.mode.outputs.full == 'true' }}
+        run: echo "ran=true" >> "$GITHUB_OUTPUT"
 
   windows:
     name: build, test, AOT publish (win-x64)
@@ -657,12 +696,22 @@ jobs:
         env:
           NEEDS: ${{ toJSON(needs) }}
           BASE: ${{ needs.base.outputs.base }}
+          LINUX_FULL: ${{ needs.linux.outputs.full }}
+          LINUX_AOT_RAN: ${{ needs.linux.outputs.aot_ran }}
         run: |
           # On main every job must succeed. Otherwise (or if `base` itself failed) only the Windows jobs and `bench`
           # may be skipped by design.
           MAY_SKIP="windows startup installer capture-e2e bench"
           if [ "$BASE" = main ] || [ "$(jq -r '.base.result' <<<"$NEEDS")" != success ]; then MAY_SKIP=""; fi
           bad=0
+          # The linux job has a fast mode for feature PRs (no AOT publish). A run for main must have been full: the AOT
+          # steps cannot be skipped silently, so a green `ci` on a release PR still proves the AOT publish and smoke.
+          if [ "$BASE" = main ] && [ "$(jq -r '.linux.result' <<<"$NEEDS")" = success ]; then
+            if [ "$LINUX_FULL" != true ] || [ "$LINUX_AOT_RAN" != true ]; then
+              echo "::error::linux ran in fast mode (full='$LINUX_FULL', aot_ran='$LINUX_AOT_RAN') but the base is main: the full Linux job is required"
+              bad=1
+            fi
+          fi
           for job in $(jq -r 'keys[]' <<<"$NEEDS"); do
             result=$(jq -r --arg j "$job" '.[$j].result' <<<"$NEEDS")
             case "$result" in
