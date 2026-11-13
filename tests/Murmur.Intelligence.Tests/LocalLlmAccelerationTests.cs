@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using Microsoft.Extensions.AI;
+using Murmur.Core.Diagnostics;
 using Murmur.Core.Intelligence;
 using Murmur.Core.Settings;
 using Murmur.Intelligence.Llama;
@@ -13,6 +14,7 @@ public sealed class LocalLlmAccelerationTests : IAsyncLifetime
 {
     private readonly string _directory = Path.Combine(Path.GetTempPath(), "murmur-accel-" + Guid.NewGuid().ToString("N"));
     private readonly ManualTimeProvider _time = new();
+    private readonly Murmur.Core.Tests.Fakes.RecordingAppLog _log = new();
     private readonly ConcurrentQueue<LlamaServerOptions> _started = new();
     private readonly ConcurrentQueue<Handle> _handles = new();
     private FakeOpenAiServer _http = null!;
@@ -84,7 +86,7 @@ public sealed class LocalLlmAccelerationTests : IAsyncLifetime
         Threads = 3,
     };
 
-    private LocalLlm Create(Func<LocalLlmOptions> options) => new(options, () => _recording, StartAsync, _time, httpClient: null);
+    private LocalLlm Create(Func<LocalLlmOptions> options) => new(options, () => _recording, StartAsync, _time, httpClient: null, _log);
 
     private LocalLlm Create(LocalLlmOptions options) => Create(() => options);
 
@@ -220,6 +222,11 @@ public sealed class LocalLlmAccelerationTests : IAsyncLifetime
         Assert.Equal(expected, llm.Current);
         Assert.Equal([expected], raised);
         Assert.False(llm.Current.NeedsDownload);
+
+        // The log keeps the exit code and the last two lines of the server's output (#100).
+        var line = Assert.Single(_log.Events);
+        Assert.Equal((LogLevel.Error, "llm", "worker.exit"), (line.Level, line.Area, line.Code));
+        Assert.Equal("gpu code=3 | ggml_vulkan: No devices found. | llama_model_load: error loading model", line.Detail);
     }
 
     [Fact]
@@ -290,6 +297,7 @@ public sealed class LocalLlmAccelerationTests : IAsyncLifetime
 
         Assert.Equal(2, ex.ExitCode);
         Assert.Equal(AccelerationFallback.None, llm.Current.Fallback); // taken back
+        Assert.Equal(["gpu code=1 | ggml_vulkan: no device", "cpu code=2 | corrupt gguf"], _log.Events.Select(e => e.Detail));
         Assert.Equal(
             [AccelerationFallback.StartFailed, AccelerationFallback.None],
             raised.Select(r => r.Fallback));
@@ -316,6 +324,8 @@ public sealed class LocalLlmAccelerationTests : IAsyncLifetime
         Assert.Equal([CudaServer, CpuServer, CpuServer], _started.Select(s => s.ServerPath));
         Assert.Equal(AccelerationFallback.StartFailed, llm.Current.Fallback);
         Assert.Equal("llama-server did not become healthy in time.", llm.Current.Detail);
+        var hang = Assert.Single(_log.Events);
+        Assert.Equal(("worker.hang", "gpu start"), (hang.Code, hang.Detail));
     }
 
     [Fact]
