@@ -214,23 +214,32 @@ public sealed class DocxExportTests
     {
         var bytes = Build();
 
-        // Read the DOS time from the central directory itself: ZipArchiveEntry.LastWriteTime would show it in the local zone.
+        // Read the DOS time from the zip headers themselves: ZipArchiveEntry.LastWriteTime would show it in the local zone.
+        var eocd = bytes.AsSpan().LastIndexOf(new byte[] { 0x50, 0x4B, 0x05, 0x06 });
+        Assert.True(eocd >= 0);
+        var count = BitConverter.ToUInt16(bytes, eocd + 10);
+        var at = (int)BitConverter.ToUInt32(bytes, eocd + 16);
         var headers = 0;
-        for (var i = 0; i + 46 <= bytes.Length; i++)
+        for (var i = 0; i < count; i++)
         {
-            if (BitConverter.ToUInt32(bytes, i) != 0x02014B50)
-            {
-                continue;
-            }
-
+            Assert.Equal(0x02014B50u, BitConverter.ToUInt32(bytes, at));
+            AssertDosEpoch(bytes, at + 12);
+            var local = (int)BitConverter.ToUInt32(bytes, at + 42);
+            Assert.Equal(0x04034B50u, BitConverter.ToUInt32(bytes, local));
+            AssertDosEpoch(bytes, local + 10);
+            at += 46 + BitConverter.ToUInt16(bytes, at + 28) + BitConverter.ToUInt16(bytes, at + 30) + BitConverter.ToUInt16(bytes, at + 32);
             headers++;
-            Assert.Equal(0, BitConverter.ToUInt16(bytes, i + 12)); // 00:00:00
-            Assert.Equal((1 << 5) | 1, BitConverter.ToUInt16(bytes, i + 14)); // 1980-01-01
         }
 
         using var zip = new ZipArchive(new MemoryStream(bytes), ZipArchiveMode.Read);
         Assert.Equal(zip.Entries.Count, headers);
         Assert.All(zip.Entries, e => Assert.Equal(new DateTime(1980, 1, 1, 0, 0, 0), e.LastWriteTime.DateTime));
+    }
+
+    private static void AssertDosEpoch(byte[] bytes, int timeAt)
+    {
+        Assert.Equal(0, BitConverter.ToUInt16(bytes, timeAt)); // 00:00:00
+        Assert.Equal((1 << 5) | 1, BitConverter.ToUInt16(bytes, timeAt + 2)); // 1980-01-01
     }
 
     [Fact]

@@ -680,34 +680,23 @@ public sealed class ImportQueueTests : IAsyncDisposable
         Assert.Equal(Path.Combine(_sessions.GetFiles(linked.Id).Directory, "original.mp4"), new FileInfo(linkedSegment).LinkTarget);
     }
 
-    [Fact]
-    public async Task CopyToLibrary_WithNeitherKindOfLink_FallsBackToACopy()
+    [Theory]
+    [InlineData(false)] // Windows without Developer Mode or admin rights: "A required privilege is not held by the client".
+    [InlineData(true)]
+    public async Task CopyToLibrary_WithNeitherKindOfLink_FallsBackToACopy(bool unauthorized)
     {
         var decoder = new FakeMediaDecoder(".mp4") { Kind = MediaKind.Video };
         var imports = await StartAsync(decoder);
         imports.CreateHardLink = static (_, _) => throw new IOException("no hard links here");
-        imports.CreateSymbolicLink = static (_, _) => throw new UnauthorizedAccessException("no symbolic links either");
+        imports.CreateSymbolicLink = unauthorized
+            ? static (_, _) => throw new UnauthorizedAccessException("no symbolic links either")
+            : static (_, _) => throw new IOException("A required privilege is not held by the client.");
 
         var copied = await ImportVideoAsync(imports, "b.mp4", Copy);
 
         var copiedSegment = _sessions.GetFiles(copied.Id).ScreenSegment(0);
         Assert.Null(new FileInfo(copiedSegment).LinkTarget);
         Assert.Equal([9, 8, 7], await File.ReadAllBytesAsync(copiedSegment, Ct));
-        Assert.Single(copied.ScreenSegments);
-    }
-
-    [Fact]
-    public async Task CopyToLibrary_WhenWindowsRefusesTheLinks_StillCopiesTheVideo()
-    {
-        // What File.CreateSymbolicLink throws on Windows without Developer Mode or admin rights is an IOException.
-        var decoder = new FakeMediaDecoder(".mp4") { Kind = MediaKind.Video };
-        var imports = await StartAsync(decoder);
-        imports.CreateHardLink = static (_, _) => throw new IOException("A required privilege is not held by the client.");
-        imports.CreateSymbolicLink = static (_, _) => throw new IOException("A required privilege is not held by the client.");
-
-        var copied = await ImportVideoAsync(imports, "c.mp4", Copy);
-
-        Assert.Equal([9, 8, 7], await File.ReadAllBytesAsync(_sessions.GetFiles(copied.Id).ScreenSegment(0), Ct));
         Assert.Single(copied.ScreenSegments);
     }
 
@@ -778,7 +767,7 @@ public sealed class ImportQueueTests : IAsyncDisposable
         {
             File.CreateSymbolicLink(link, _dir.File("probe.target"));
         }
-        catch (Exception ex) when (ex is UnauthorizedAccessException or IOException or PlatformNotSupportedException)
+        catch (Exception ex) when (OperatingSystem.IsWindows() && ex is UnauthorizedAccessException or IOException)
         {
             Assert.Skip("This system does not let the tests create symbolic links: " + ex.Message);
         }
