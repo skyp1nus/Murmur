@@ -2,6 +2,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Murmur.App.Resources;
 using Murmur.App.Services;
+using Murmur.Core.Diagnostics;
 using Murmur.Core.Import;
 using Murmur.Core.Intelligence;
 using Murmur.Core.Processing;
@@ -83,6 +84,8 @@ public sealed partial class LibraryViewModel : ObservableObject, IDisposable, IF
     /// <param name="imports">The import of audio and video files: the "Import files" pill opens the import dialog over it; <c>null</c> = no pill.</param>
     /// <param name="mediaProbe">Reads the kind, size and duration of the files the import dialog lists.</param>
     /// <param name="downloads">The Downloads folder of the import dialog's "Recent in Downloads".</param>
+    /// <param name="log">The diagnostic log: its unseen crash shows <see cref="CrashNotice"/>; <c>null</c> = never.</param>
+    /// <param name="launcher">Opens the crash file of <see cref="CrashNotice"/>; the OS shell by default.</param>
     public LibraryViewModel(
         ISessionStore store,
         TimeProvider time,
@@ -96,7 +99,9 @@ public sealed partial class LibraryViewModel : ObservableObject, IDisposable, IF
         ISpeakerNameStore? speakerNames = null,
         IImportQueue? imports = null,
         IMediaDecoder? mediaProbe = null,
-        IDownloadsFolder? downloads = null)
+        IDownloadsFolder? downloads = null,
+        IAppLog? log = null,
+        IFolderLauncher? launcher = null)
     {
         ArgumentNullException.ThrowIfNull(store);
         ArgumentNullException.ThrowIfNull(time);
@@ -113,6 +118,7 @@ public sealed partial class LibraryViewModel : ObservableObject, IDisposable, IF
         _imports = imports;
         _mediaProbe = mediaProbe;
         _downloads = downloads;
+        CrashNotice = new CrashNoticeViewModel(log, launcher);
         _post = post ?? (action => Avalonia.Threading.Dispatcher.UIThread.Post(action));
         if (processing is not null)
         {
@@ -161,6 +167,9 @@ public sealed partial class LibraryViewModel : ObservableObject, IDisposable, IF
 
     [RelayCommand]
     private void DismissNotice() => Notice = null;
+
+    /// <summary>"Murmur closed unexpectedly last time." above the page while the previous run's crash is unseen (#100).</summary>
+    public CrashNoticeViewModel CrashNotice { get; }
 
     /// <summary>The row the user clicked. Setting it opens the session and clears the selection again, so a row can be clicked twice.</summary>
     [ObservableProperty]

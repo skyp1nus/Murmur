@@ -4,6 +4,7 @@ using Murmur.App.Localization;
 using Murmur.App.Resources;
 using Murmur.App.ViewModels;
 using Murmur.Core.Audio;
+using Murmur.Core.Diagnostics;
 using Murmur.Core.Recording;
 using Murmur.Core.Sessions;
 
@@ -29,14 +30,17 @@ public sealed class AutoRecordRunner
     private readonly IRecorder _recorder;
     private readonly ISessionStore _store;
     private readonly Func<Func<Task>, Task> _runOnUi;
+    private readonly IAppLog _log;
 
     /// <param name="runOnUi">Runs an async action on the UI thread and completes when it has finished.</param>
+    /// <param name="log">Also records a report that could not be written; <see cref="NullAppLog"/> by default.</param>
     public AutoRecordRunner(
         AutoRecordOptions options,
         RecordingViewModel recording,
         IRecorder recorder,
         ISessionStore store,
-        Func<Func<Task>, Task> runOnUi)
+        Func<Func<Task>, Task> runOnUi,
+        IAppLog? log = null)
     {
         ArgumentNullException.ThrowIfNull(options);
         ArgumentNullException.ThrowIfNull(recording);
@@ -48,6 +52,7 @@ public sealed class AutoRecordRunner
         _recorder = recorder;
         _store = store;
         _runOnUi = runOnUi;
+        _log = log ?? NullAppLog.Instance;
     }
 
     /// <returns>The process exit code: 0 on success, 1 on failure (the report then carries an <c>error</c>).</returns>
@@ -69,7 +74,9 @@ public sealed class AutoRecordRunner
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
+            // Scripts read stderr (an --autorecord run is a CLI run); the log gets the file name only.
             Console.Error.WriteLine($"Cannot write {_options.PerfOut}: {ex.Message}");
+            _log.Write(LogLevel.Error, "autorecord", "perf-out.failed", LogText.FileName(_options.PerfOut) + " " + LogText.Error(ex));
             return 1;
         }
 

@@ -4,6 +4,7 @@ using Murmur.Core.Activity;
 using Murmur.Core.Calls;
 using Murmur.Core.Capture;
 using Murmur.Core.Capture.Synthetic;
+using Murmur.Core.Diagnostics;
 using Murmur.Core.Import;
 using Murmur.Core.Input;
 using Murmur.Core.Intelligence;
@@ -53,13 +54,19 @@ internal sealed class CompositionRoot : IDisposable
     private IAudioSessionMonitor? _audioSessions;
     private CallDetector? _calls;
     private readonly SingleInstance? _instance;
+    private readonly IAppLog _log;
+    private readonly DiagnosticContext? _diagnostics;
 
     /// <param name="instance">The single-instance guard whose "a second start wants the window" signal goes to the app; <c>null</c> = none.</param>
-    public CompositionRoot(string[] args, SingleInstance? instance = null)
+    /// <param name="log">The diagnostic log (#100) every service reports its failures to; <see cref="NullAppLog"/> by default.</param>
+    /// <param name="diagnostics">Learns the settings, so a crash file can name the main flags; <c>null</c> = none.</param>
+    public CompositionRoot(string[] args, SingleInstance? instance = null, IAppLog? log = null, DiagnosticContext? diagnostics = null)
     {
         ArgumentNullException.ThrowIfNull(args);
         Args = args;
         _instance = instance;
+        _log = log ?? NullAppLog.Instance;
+        _diagnostics = diagnostics;
     }
 
     /// <summary>
@@ -87,21 +94,23 @@ internal sealed class CompositionRoot : IDisposable
         // start-up and follows the theme live. Storage asks it for the recordings folder at every new recording.
         var paths = StoragePaths.FromEnvironment();
         var settings = _settings ??= new JsonSettingsStore(paths);
+        _diagnostics?.Settings = settings;
+        var log = _log;
         if (_storage is null)
         {
             _storage = new SqliteStorage(paths, () => settings.Current.RecordingsDirectory);
-            _storage.RecordingsFolderFallback += static info => Console.Error.WriteLine(
-                $"Recordings folder '{info.RequestedFolder}' is unusable ({info.Reason}); session {info.Session} went to the default folder.");
+            _storage.RecordingsFolderFallback += info => log.Write(
+                LogLevel.Warning, "storage", "recordings.fallback", LogText.FileName(info.RequestedFolder) + ": " + LogText.Scrub(info.Reason));
         }
 
         var storage = _storage;
         var capture = CreateCapture();
-        var recorder = new Recorder(capture, storage, TimeProvider.System, RecorderSettings.Default);
+        var recorder = new Recorder(capture, storage, TimeProvider.System, RecorderSettings.Default, log);
 
         // The marks of the running recording (hotkey, Recording screen): kept in memory, saved with the session when it stops.
         _marks?.Dispose();
         var marks = _marks = new RecordingMarks(recorder, storage);
-        marks.SaveFailed += static (session, ex) => Console.Error.WriteLine($"The marks of session {session} were not saved: {ex.Message}");
+        marks.SaveFailed += (_, ex) => log.Write(LogLevel.Error, "marks", "save.failed", LogText.Error(ex));
 
         // While a recording runs the UI's short-lived garbage is collected every 30 s instead of piling up in the working
         // set until the (cache-sized, up to ~50 MB) gen0 budget runs out.
@@ -110,13 +119,13 @@ internal sealed class CompositionRoot : IDisposable
         // The processor follows the recorder: it pauses the queue (and stops the ASR worker, so no model sits in
         // memory) for as long as a recording runs, and queues every finished recording.
         var models = ModelLocator.FromEnvironment();
-        var asr = _asr ??= new WorkerAsrClient(models);
+        var asr = _asr ??= new WorkerAsrClient(models, log: log);
         var queue = _queue ??= new JobQueue();
 
         // Recording guard: the models are never loaded while recording. LocalLlm refuses new requests while the
         // recorder is busy, and the moment a recording starts its llama-server processes are killed.
         var activity = _activity ??= new RecordingActivity(recorder);
-        var llm = _llm ??= CreateLlm(models.ModelsDirectory, activity, settings);
+        var llm = _llm ??= CreateLlm(models.ModelsDirectory, activity, settings, log);
         var assistant = _assistant ??= new Assistant(llm, storage, displayLabel: static speaker => speaker == Speaker.Me ? Murmur.App.Resources.Strings.Segment_Me : Murmur.App.Resources.Strings.Segment_Others);
 
         // The model manager installs into the same folder the ASR and the AI read from. Its active-model lookup is handed
@@ -154,7 +163,7 @@ internal sealed class CompositionRoot : IDisposable
                     llm.Refresh();
                     return processor.ReindexAllAsync(cancellationToken: cancellationToken).AsTask();
                 },
-                static ex => Console.Error.WriteLine($"Reindex after the AI install failed: {ex.Message}"));
+                ex => log.Write(LogLevel.Warning, "ai", "reindex.failed", LogText.Error(ex)));
             activity.RecordingStopped += reindex.NotifyRecordingStopped;
             modelManager.StatusChanged += status =>
             {
@@ -220,14 +229,15 @@ internal sealed class CompositionRoot : IDisposable
             ChapterStore: storage,
             Marks: marks,
             AudioSessions: _audioSessions ??= CreateAudioSessionMonitor(),
-            Calls: _calls ??= new CallDetector(_audioSessions, TimeProvider.System),
+            Calls: _calls ??= new CallDetector(_audioSessions, TimeProvider.System, log: log),
             SpeakerNames: storage,
             Activity: activityFeed,
             Imports: imports,
             MediaProbe: mediaDecoder,
             Downloads: _downloads ??= CreateDownloadsFolder(),
             BookmarkStore: storage,
-            Vocabulary: storage);
+            Vocabulary: storage,
+            Log: log);
     }
 
     public void Dispose()
@@ -261,13 +271,14 @@ internal sealed class CompositionRoot : IDisposable
         _storage?.Dispose();
     }
 
-    private static LocalLlm CreateLlm(string modelsDirectory, RecordingActivity activity, ISettingsStore settings)
+    private static LocalLlm CreateLlm(string modelsDirectory, RecordingActivity activity, ISettingsStore settings, IAppLog log)
     {
         // Paths are resolved again on demand (environment, manifest, defaults, the chosen acceleration), so models
         // installed, switched or removed and an acceleration change in Settings are noticed without a restart.
         var llm = new LocalLlm(
             () => AiModelPaths.Resolve(modelsDirectory, Environment.GetEnvironmentVariable, settings.Current.Acceleration),
-            () => activity.IsRecording);
+            () => activity.IsRecording,
+            log);
         activity.RecordingStarted += llm.NotifyRecordingStarted;
 
         // A new acceleration applies to the next model load; idle servers of the old one stop now (frees the VRAM).

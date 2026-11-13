@@ -13,6 +13,7 @@
   -->
   <Grid RowDefinitions="Auto,*">
 
+  <StackPanel>
   <!-- A dismissible note about something that went wrong in the background (the marks of a recording were not saved): above the page, so it
        is never below the fold; it takes no room while there is none. -->
   <Border x:Name="LibraryNotice"
@@ -31,6 +32,35 @@
                  Text="{Binding Notice}" />
     </DockPanel>
   </Border>
+
+  <!-- The previous run crashed (#100): the same quiet line, with "Open log" beside the text. Never on the parity boards (their log has no crash). -->
+  <Border x:Name="CrashNotice"
+          Classes="libraryNotice"
+          IsVisible="{Binding CrashNotice.IsVisible}">
+    <DockPanel LastChildFill="True">
+      <Button x:Name="CrashNoticeDismiss"
+              DockPanel.Dock="Right"
+              Classes="outline compact"
+              VerticalAlignment="Center"
+              Margin="{StaticResource Margin.NoticeDismiss}"
+              Command="{Binding CrashNotice.DismissCommand}"
+              Content="{x:Static res:Strings.Library_DismissNotice}" />
+      <WrapPanel VerticalAlignment="Center"
+                 ItemSpacing="{StaticResource Space.8}">
+        <TextBlock Classes="t13 muted"
+                   VerticalAlignment="Center"
+                   Text="{x:Static res:Strings.Library_CrashNotice}" />
+        <Button x:Name="CrashNoticeOpenLog"
+                Classes="crumbLink"
+                VerticalAlignment="Center"
+                Command="{Binding CrashNotice.OpenLogCommand}">
+          <TextBlock Classes="t13"
+                     Text="{x:Static res:Strings.Library_OpenCrashLog}" />
+        </Button>
+      </WrapPanel>
+    </DockPanel>
+  </Border>
+  </StackPanel>
 
   <ItemsControl x:Name="Page"
                 Grid.Row="1"

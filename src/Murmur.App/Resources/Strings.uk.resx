@@ -1568,6 +1568,24 @@
   <data name="Library_DismissNotice" xml:space="preserve">
     <value>Закрити</value>
   </data>
+  <data name="Library_CrashNotice" xml:space="preserve">
+    <value>Минулого разу Murmur закрився неочікувано.</value>
+  </data>
+  <data name="Library_OpenCrashLog" xml:space="preserve">
+    <value>Відкрити журнал</value>
+  </data>
+  <data name="About_OpenLogs" xml:space="preserve">
+    <value>Відкрити теку журналів</value>
+  </data>
+  <data name="About_CopyDiagnostics" xml:space="preserve">
+    <value>Копіювати діагностику</value>
+  </data>
+  <data name="About_DiagnosticsCopied" xml:space="preserve">
+    <value>Скопійовано</value>
+  </data>
+  <data name="About_DiagnosticsFailed" xml:space="preserve">
+    <value>Не вдалося скопіювати діагностику: {0}</value>
+  </data>
   <data name="Session_Chapters" xml:space="preserve">
     <value>Розділи</value>
     <comment>Name of the strip of chapters above the player (screen readers)</comment>

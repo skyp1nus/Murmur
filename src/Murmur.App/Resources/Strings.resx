@@ -1577,6 +1577,24 @@
   <data name="Library_DismissNotice" xml:space="preserve">
     <value>Dismiss</value>
   </data>
+  <data name="Library_CrashNotice" xml:space="preserve">
+    <value>Murmur closed unexpectedly last time.</value>
+  </data>
+  <data name="Library_OpenCrashLog" xml:space="preserve">
+    <value>Open log</value>
+  </data>
+  <data name="About_OpenLogs" xml:space="preserve">
+    <value>Open logs folder</value>
+  </data>
+  <data name="About_CopyDiagnostics" xml:space="preserve">
+    <value>Copy diagnostics</value>
+  </data>
+  <data name="About_DiagnosticsCopied" xml:space="preserve">
+    <value>Copied</value>
+  </data>
+  <data name="About_DiagnosticsFailed" xml:space="preserve">
+    <value>Could not copy the diagnostics: {0}</value>
+  </data>
   <data name="Session_Chapters" xml:space="preserve">
     <value>Chapters</value>
     <comment>Name of the strip of chapters above the player (screen readers)</comment>

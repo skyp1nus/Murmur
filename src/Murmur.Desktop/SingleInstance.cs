@@ -1,5 +1,6 @@
 using Murmur.App.Diagnostics;
 using Murmur.App.Services;
+using Murmur.Core.Diagnostics;
 
 namespace Murmur.Desktop;
 
@@ -36,7 +37,7 @@ internal interface IInstanceChannel : IDisposable
 /// one Murmur per user session (a per-user install).
 /// </summary>
 /// <remarks>
-/// Diagnostic runs (<c>--startup-probe</c>, <c>--autorecord</c>) skip the check altogether: they neither exit silently because
+/// Diagnostic runs (<c>--startup-probe</c>, <c>--autorecord</c>, <c>--probe-open-latest</c>, <c>--probe-crash</c>) skip the check altogether: they neither exit silently because
 /// a leftover instance of an earlier step is still alive (CI start-up and capture checks, <c>scripts/verify-local.ps1</c>), nor
 /// wake the user's own running Murmur. A channel that cannot be opened (access denied, not Windows) also means "no check":
 /// the app starts rather than refuses.
@@ -48,12 +49,14 @@ internal sealed class SingleInstance : IActivationRequests, IDisposable
     public const string AckEventName = "MurmurShowAppAck";
 
     private readonly IInstanceChannel? _channel;
+    private readonly IAppLog _log;
     private readonly CancellationTokenSource _stop = new();
     private Thread? _listener;
 
-    private SingleInstance(IInstanceChannel? channel, bool isPrimary)
+    private SingleInstance(IInstanceChannel? channel, bool isPrimary, IAppLog log)
     {
         _channel = channel;
+        _log = log;
         IsPrimary = isPrimary;
     }
 
@@ -71,7 +74,8 @@ internal sealed class SingleInstance : IActivationRequests, IDisposable
         {
             if (string.Equals(arg, StartupProbe.Flag, StringComparison.Ordinal)
                 || string.Equals(arg, AutoRecordOptions.Flag, StringComparison.Ordinal)
-                || string.Equals(arg, OpenSessionProbe.Flag, StringComparison.Ordinal))
+                || string.Equals(arg, OpenSessionProbe.Flag, StringComparison.Ordinal)
+                || string.Equals(arg, CrashProbe.Flag, StringComparison.Ordinal))
             {
                 return true;
             }
@@ -89,14 +93,16 @@ internal sealed class SingleInstance : IActivationRequests, IDisposable
     /// second start blocks here until the first instance has answered, or until it could take over, or gave up
     /// (<see cref="IsPrimary"/> <see langword="false"/> either way when the first is still there).
     /// </summary>
-    public static SingleInstance Enter(IReadOnlyList<string> args, Func<IInstanceChannel?> open, SingleInstanceTiming? timing = null)
+    /// <param name="log">Records a channel that could not be opened or a first instance that could not be woken; <see cref="NullAppLog"/> by default.</param>
+    public static SingleInstance Enter(IReadOnlyList<string> args, Func<IInstanceChannel?> open, SingleInstanceTiming? timing = null, IAppLog? log = null)
     {
         ArgumentNullException.ThrowIfNull(args);
         ArgumentNullException.ThrowIfNull(open);
+        log ??= NullAppLog.Instance;
         var wait = timing ?? SingleInstanceTiming.Default;
         if (IsDiagnostic(args))
         {
-            return new SingleInstance(null, isPrimary: true);
+            return new SingleInstance(null, isPrimary: true, log);
         }
 
         var clock = System.Diagnostics.Stopwatch.StartNew();
@@ -104,15 +110,15 @@ internal sealed class SingleInstance : IActivationRequests, IDisposable
         var nextAsk = TimeSpan.Zero;
         while (true)
         {
-            var channel = TryOpen(open);
+            var channel = TryOpen(open, log);
             if (channel is null)
             {
-                return new SingleInstance(null, isPrimary: true);
+                return new SingleInstance(null, isPrimary: true, log);
             }
 
             if (channel.IsFirst)
             {
-                var instance = new SingleInstance(channel, isPrimary: true);
+                var instance = new SingleInstance(channel, isPrimary: true, log);
                 instance.StartListening();
                 return instance;
             }
@@ -134,7 +140,7 @@ internal sealed class SingleInstance : IActivationRequests, IDisposable
             }
             catch (Exception ex)
             {
-                Console.Error.WriteLine($"Could not wake the running Murmur: {ex.Message}");
+                log.Write(LogLevel.Warning, "instance", "wake.failed", LogText.Error(ex));
                 answered = true;
             }
             finally
@@ -144,14 +150,14 @@ internal sealed class SingleInstance : IActivationRequests, IDisposable
 
             if (answered || clock.Elapsed >= wait.RetryWindow)
             {
-                return new SingleInstance(null, isPrimary: false);
+                return new SingleInstance(null, isPrimary: false, log);
             }
 
             Thread.Sleep(wait.RetryInterval);
         }
     }
 
-    private static IInstanceChannel? TryOpen(Func<IInstanceChannel?> open)
+    private static IInstanceChannel? TryOpen(Func<IInstanceChannel?> open, IAppLog log)
     {
         try
         {
@@ -159,7 +165,7 @@ internal sealed class SingleInstance : IActivationRequests, IDisposable
         }
         catch (Exception ex)
         {
-            Console.Error.WriteLine($"Single-instance check unavailable: {ex.Message}");
+            log.Write(LogLevel.Warning, "instance", "channel.unavailable", LogText.Error(ex));
             return null;
         }
     }
@@ -221,7 +227,7 @@ internal sealed class SingleInstance : IActivationRequests, IDisposable
             }
             catch (Exception ex)
             {
-                Console.Error.WriteLine($"Showing the window for a second start failed: {ex.Message}");
+                _log.Write(LogLevel.Error, "instance", "activation.failed", LogText.Error(ex));
             }
         }
     }

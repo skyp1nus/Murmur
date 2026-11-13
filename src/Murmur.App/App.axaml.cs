@@ -9,6 +9,7 @@ using Murmur.App.Services;
 using Murmur.App.ViewModels;
 using Murmur.App.Views;
 using Murmur.Core.Calls;
+using Murmur.Core.Diagnostics;
 using Murmur.Core.Input;
 
 namespace Murmur.App;
@@ -72,6 +73,8 @@ public partial class App : Application
 
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop && Services is { } services)
         {
+            // Before anything can throw on the UI thread: an unhandled exception there becomes a crash file (#100).
+            UiCrashLog.Attach(Dispatcher.UIThread, services.AppLog);
             var shell = ShellViewModel.Create(services);
             var window = new MainWindow { DataContext = shell };
 
@@ -113,6 +116,13 @@ public partial class App : Application
 
             var openingProbe = !probing && OpenSessionProbe.IsRequested(Args);
             probing |= openingProbe;
+            if (CrashProbe.IsRequested(Args))
+            {
+                // A diagnostic run like the others: no hotkeys, no call detection; it ends in the crash it was asked for.
+                probing = true;
+                CrashProbe.Attach(window);
+            }
+
             var autoRecording = AutoRecordOptions.TryParse(Args, out var autoRecord, out _) && autoRecord is not null;
             if (services.Hotkeys is { } hotkeys && !probing && !autoRecording)
             {
@@ -132,7 +142,7 @@ public partial class App : Application
             }
             else if (openingProbe)
             {
-                window.Opened += (_, _) => _ = RunOpenSessionProbeAsync(desktop, shell, window);
+                window.Opened += (_, _) => _ = RunOpenSessionProbeAsync(desktop, shell, window, services.AppLog);
             }
             else
             {
@@ -156,7 +166,7 @@ public partial class App : Application
             return;
         }
 
-        var coordinator = new HotkeyCoordinator(hotkeys, settings, shell, window.BringToFront, isClosing: () => window.IsClosing, recorder: services.Recorder);
+        var coordinator = new HotkeyCoordinator(hotkeys, settings, shell, window.BringToFront, isClosing: () => window.IsClosing, recorder: services.Recorder, log: services.AppLog);
         window.Opened += (_, _) => window.RequestAnimationFrame(_ => coordinator.Start());
         window.Closed += (_, _) => coordinator.Dispose();
     }
@@ -184,7 +194,7 @@ public partial class App : Application
                 }
             },
             CanRecord: () => !shell.IsOnboarding && !window.IsClosing);
-        var coordinator = new CallCoordinator(calls, settings, services.Recorder, new CallToastWindowHost(services.Motion), actions);
+        var coordinator = new CallCoordinator(calls, settings, services.Recorder, new CallToastWindowHost(services.Motion), actions, log: services.AppLog);
         if (shell.Settings is { } settingsPage)
         {
             settingsPage.SampleCallToastRequested += coordinator.ShowSample;
@@ -195,7 +205,7 @@ public partial class App : Application
     }
 
     /// <summary><c>--probe-open-latest</c> (#102): opens the newest session's details, renders two frames and exits with the probe's code.</summary>
-    private static async Task RunOpenSessionProbeAsync(IClassicDesktopStyleApplicationLifetime desktop, ShellViewModel shell, MainWindow window)
+    private static async Task RunOpenSessionProbeAsync(IClassicDesktopStyleApplicationLifetime desktop, ShellViewModel shell, MainWindow window, IAppLog log)
     {
         var code = OpenSessionProbe.Failed;
         try
@@ -204,7 +214,9 @@ public partial class App : Application
         }
         catch (Exception ex)
         {
+            // The script that runs the probe reads stderr; the log keeps the type only.
             Console.Error.WriteLine($"{OpenSessionProbe.Flag} failed: {ex}");
+            log.Write(LogLevel.Error, "probe", "open-latest.failed", LogText.Error(ex));
         }
 
         Dispatcher.UIThread.Post(() => desktop.Shutdown(code));
@@ -233,12 +245,15 @@ public partial class App : Application
                 shell.Recording,
                 services.Recorder,
                 services.Sessions,
-                action => Dispatcher.UIThread.InvokeAsync(action));
+                action => Dispatcher.UIThread.InvokeAsync(action),
+                services.AppLog);
             code = await Task.Run(() => runner.RunAsync(CancellationToken.None));
         }
         catch (Exception ex)
         {
+            // The scripts that run --autorecord read stderr; the log keeps the type only.
             Console.Error.WriteLine($"--autorecord failed: {ex.Message}");
+            services.AppLog.Write(LogLevel.Error, "autorecord", "run.failed", LogText.Error(ex));
         }
 
         Dispatcher.UIThread.Post(() => desktop.Shutdown(code));
