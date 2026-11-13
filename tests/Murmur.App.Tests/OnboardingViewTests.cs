@@ -21,6 +21,7 @@ using Murmur.Core.Transcription;
 namespace Murmur.App.Tests;
 
 /// <summary>The onboarding on the headless platform: every step in both themes and languages, the footer, the meters and the key capture.</summary>
+[Trait("Category", "Slow")]
 public sealed class OnboardingViewTests
 {
     private static Avalonia.Headless.HeadlessUnitTestSession Session => UiHarness.Session;

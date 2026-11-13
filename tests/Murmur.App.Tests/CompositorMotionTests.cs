@@ -1,6 +1,8 @@
+using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Headless;
 using Avalonia.Media;
+using Avalonia.Rendering.Composition;
 using Murmur.App.Controls;
 using Murmur.App.Tests.Fakes;
 
@@ -71,6 +73,7 @@ public sealed class CompositorMotionTests
     // ---- the spinning orb on the compositor ---------------------------------------------------------------------------
 
     [Fact]
+    [Trait("Category", "Slow")]
     public async Task SpinningOrb_StartsItsLoopWhenActive_AndEndsItWhenInactive()
     {
         var (idle, active, stopped, angle) = await Session.Dispatch(
@@ -96,6 +99,7 @@ public sealed class CompositorMotionTests
     }
 
     [Fact]
+    [Trait("Category", "Slow")]
     public async Task SpinningOrb_DetachedOrReduced_RunsNoLoop_AndStartsAgainWhenBack()
     {
         var (detached, reattached, reduced, allowed) = await Session.Dispatch(
@@ -125,6 +129,7 @@ public sealed class CompositorMotionTests
     }
 
     [Fact]
+    [Trait("Category", "Slow")]
     public async Task SpinningOrb_HiddenByItsParentOrAMinimizedWindow_StopsAtTheNextCheck_AndTurnsAgainWhenSeen()
     {
         var (shown, hidden, again, minimized, restored) = await Session.Dispatch(
@@ -162,6 +167,7 @@ public sealed class CompositorMotionTests
     }
 
     [Fact]
+    [Trait("Category", "Slow")]
     public async Task SpinningOrb_Idle_WatchesNothing()
     {
         var watching = await Session.Dispatch(
@@ -179,6 +185,7 @@ public sealed class CompositorMotionTests
     }
 
     [Fact]
+    [Trait("Category", "Slow")]
     public async Task SpinningOrb_WithATestClock_RunsNoLoop_AndDrawsTheClocksAngle()
     {
         var (looping, angle) = await Session.Dispatch(
@@ -201,6 +208,7 @@ public sealed class CompositorMotionTests
     }
 
     [Fact]
+    [Trait("Category", "Slow")]
     public async Task SpinningOrb_TheCompositorTurnsThePicture_WithoutAnyUiWork()
     {
         var (moved, restAgain) = await Session.Dispatch(
@@ -228,6 +236,25 @@ public sealed class CompositorMotionTests
         Assert.True(restAgain, "a stopped orb is back at angle 0");
     }
 
+    [Fact]
+    public async Task SpinningOrb_StartedAtItsFirstArrange_TurnsAboutItsCentre()
+    {
+        var (centre, looping) = await Session.Dispatch(
+            () =>
+            {
+                // Active before it is shown: the loop starts from the first arrange, when Bounds is still empty.
+                var orb = new SpinningOrb { Width = 40, Height = 40, IsActive = true };
+                var window = Host(orb);
+                var result = (ElementComposition.GetElementVisual(orb)!.CenterPoint, orb.IsLooping);
+                window.Close();
+                return result;
+            },
+            Ct);
+
+        Assert.True(looping);
+        Assert.Equal(new Vector3D(20, 20, 0), centre);
+    }
+
     // ---- the glass orb on the compositor ------------------------------------------------------------------------------
 
     private sealed class FixedLevel(float value) : ILevelSource
@@ -250,6 +277,7 @@ public sealed class CompositorMotionTests
     }
 
     [Fact]
+    [Trait("Category", "Slow")]
     public async Task GlassOrb_Breathes_OnTheCompositor_AndFollowsTheVoice_ThroughGlides()
     {
         var (breathing, voice, back, inactive) = await Session.Dispatch(
@@ -279,6 +307,7 @@ public sealed class CompositorMotionTests
     }
 
     [Fact]
+    [Trait("Category", "Slow")]
     public async Task GlassOrb_WithATestClock_RunsNothingOnTheCompositor()
     {
         var state = await Session.Dispatch(
@@ -299,6 +328,7 @@ public sealed class CompositorMotionTests
     }
 
     [Fact]
+    [Trait("Category", "Slow")]
     public async Task GlassOrb_TheCompositorBreathes_WithoutAnyUiWork()
     {
         var moved = await Session.Dispatch(
@@ -321,6 +351,7 @@ public sealed class CompositorMotionTests
     }
 
     [Fact]
+    [Trait("Category", "Slow")]
     public async Task GlassOrb_AVoiceSample_HandsTheCompositorASmallGlide_AndSilenceHandsItNothing()
     {
         var (perSample, silent) = await Session.Dispatch(
@@ -361,6 +392,7 @@ public sealed class CompositorMotionTests
     // ---- the recording orb --------------------------------------------------------------------------------------------
 
     [Fact]
+    [Trait("Category", "Slow")]
     public async Task Orb_SamplesAt30Hz_AndGlidesOnTheCompositor_OnlyWhileItMoves()
     {
         var (active, hidden, shown, manual, inactive) = await Session.Dispatch(
@@ -393,6 +425,7 @@ public sealed class CompositorMotionTests
     }
 
     [Fact]
+    [Trait("Category", "Slow")]
     public async Task GlassOrb_TheWelcomeBreath_TakesItsHaloAmplitudesFromTheTheme_AndRestsAsBefore()
     {
         var (light, dark) = await Session.Dispatch(

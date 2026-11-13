@@ -79,6 +79,10 @@ namespace Murmur.App;
 /// </param>
 /// <param name="Downloads">The user's Downloads folder for the dialog's "Recent in Downloads" list; <c>null</c> = no such list.</param>
 /// <param name="Vocabulary">The user's own words for the fixes of uncertain words ("Did you mean"); <c>null</c> = the fixes are not remembered.</param>
+/// <param name="FloatingWindowStyle">
+/// Makes the floating recorder orb's window non-activating so a click on it never takes focus from the call (#46); <c>null</c> = the
+/// window is left as Avalonia makes it.
+/// </param>
 /// <param name="Log">
 /// The diagnostic log (#100): the app records its background failures there, the Library shows its unseen crash and Settings -> About opens
 /// and copies it. <c>null</c> = <see cref="NullAppLog"/> (designer, tests, the parity boards: no notice, no About rows).
@@ -115,6 +119,7 @@ public sealed record AppServices(
     IDownloadsFolder? Downloads = null,
     IBookmarkStore? BookmarkStore = null,
     IVocabularyStore? Vocabulary = null,
+    IFloatingWindowStyle? FloatingWindowStyle = null,
     IAppLog? Log = null)
 {
     /// <summary><see cref="Log"/>, or the null log.</summary>

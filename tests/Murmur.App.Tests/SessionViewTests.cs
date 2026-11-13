@@ -13,6 +13,7 @@ using Murmur.App.Views;
 namespace Murmur.App.Tests;
 
 /// <summary>The recording view on the headless platform: virtualisation, cached waveform, polling timer, clicks.</summary>
+[Trait("Category", "Slow")]
 public sealed class SessionViewTests : IDisposable
 {
     private readonly SessionFixture _fixture = new();

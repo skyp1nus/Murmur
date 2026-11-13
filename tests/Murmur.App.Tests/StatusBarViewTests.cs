@@ -16,6 +16,7 @@ using Murmur.Core.Activity;
 namespace Murmur.App.Tests;
 
 /// <summary>The status bar and the Activity popover on a real (headless) window.</summary>
+[Trait("Category", "Slow")]
 public sealed class StatusBarViewTests
 {
     private static HeadlessUnitTestSession Session => UiHarness.Session;

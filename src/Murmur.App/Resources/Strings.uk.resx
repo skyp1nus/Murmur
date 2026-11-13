@@ -1630,6 +1630,18 @@
     <value>Нотатка до закладки</value>
     <comment>Name of the box where a bookmark's note is edited (screen readers)</comment>
   </data>
+  <data name="FloatingOrb_Recording" xml:space="preserve">
+    <value>Триває запис — показати кнопки</value>
+    <comment>Name of the floating orb while a recording runs (screen readers, tooltip); a click opens the buttons</comment>
+  </data>
+  <data name="FloatingOrb_Paused" xml:space="preserve">
+    <value>Пауза — показати кнопки</value>
+    <comment>Name of the floating orb while the recording is paused (screen readers, tooltip)</comment>
+  </data>
+  <data name="FloatingOrb_Open" xml:space="preserve">
+    <value>Відкрити Murmur</value>
+    <comment>Button of the floating orb that brings the main window to the Recording screen</comment>
+  </data>
   <!-- Call detection (#44) -->
   <data name="Calls_DetectedTitle" xml:space="preserve">
     <value>Виявлено дзвінок</value>

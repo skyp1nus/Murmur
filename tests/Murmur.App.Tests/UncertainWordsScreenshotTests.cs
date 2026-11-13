@@ -19,6 +19,7 @@ namespace Murmur.App.Tests;
 /// Renders the uncertain words of #58 headlessly into the screenshots directory: the demo transcript with "semantic." and "reports."
 /// doubted, and "Did you mean" open on "reports." (the model's ideas and "Keep").
 /// </summary>
+[Trait("Category", "Slow")]
 public sealed class UncertainWordsScreenshotTests
 {
     private static CancellationToken Ct => TestContext.Current.CancellationToken;

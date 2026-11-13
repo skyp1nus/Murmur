@@ -230,6 +230,7 @@ public sealed class ExportDialogViewTests : IDisposable
     // The view --------------------------------------------------------------------------------------------------
 
     [Fact]
+    [Trait("Category", "Slow")]
     public async Task TheExportButton_OpensTheDialogOnTheOverlay_AndEscClosesIt()
     {
         var shell = await OpenShellAsync();
@@ -272,6 +273,7 @@ public sealed class ExportDialogViewTests : IDisposable
     }
 
     [Fact]
+    [Trait("Category", "Slow")]
     public async Task Esc_ClosesTheDialog_NotTheSession_TheFocusGoesBack_AndTheDialogOpensAgain()
     {
         var shell = await OpenShellAsync();
@@ -322,6 +324,7 @@ public sealed class ExportDialogViewTests : IDisposable
     [Theory]
     [InlineData("Light")]
     [InlineData("Dark")]
+    [Trait("Category", "Slow")]
     public async Task TheCopyLabel_IsDimmed_WhenCopyIsDisabled(string theme)
     {
         var shell = await OpenShellAsync();
@@ -358,6 +361,7 @@ public sealed class ExportDialogViewTests : IDisposable
     }
 
     [Fact]
+    [Trait("Category", "Slow")]
     public async Task TheCross_AndAClickOnTheScrim_CloseTheDialog_AClickOnTheSheetDoesNot()
     {
         var shell = await OpenShellAsync();
@@ -401,6 +405,7 @@ public sealed class ExportDialogViewTests : IDisposable
     }
 
     [Fact]
+    [Trait("Category", "Slow")]
     public async Task LeavingTheSession_TakesTheDialogWithIt()
     {
         var shell = await OpenShellAsync();
@@ -428,6 +433,7 @@ public sealed class ExportDialogViewTests : IDisposable
     }
 
     [Fact]
+    [Trait("Category", "Slow")]
     public async Task TheBoxes_FollowTheViewModel_AndSubtitlesLockThem()
     {
         var shell = await OpenShellAsync();
@@ -464,6 +470,7 @@ public sealed class ExportDialogViewTests : IDisposable
     }
 
     [Fact]
+    [Trait("Category", "Slow")]
     public async Task TheChapterRow_ShowsOnlyWithAChapter_AndTheCopyButtonFollowsTheFormat()
     {
         var shell = await OpenShellAsync();
@@ -507,6 +514,7 @@ public sealed class ExportDialogViewTests : IDisposable
     }
 
     [Fact]
+    [Trait("Category", "Slow")]
     public async Task TheDialog_IsInUkrainian_WhenTheUiIs()
     {
         var shell = await OpenShellAsync();
@@ -538,6 +546,7 @@ public sealed class ExportDialogViewTests : IDisposable
     }
 
     [Fact]
+    [Trait("Category", "Slow")]
     public async Task ThePreview_ShowsTheText_InTheFaceOfTheFormat()
     {
         var shell = await OpenShellAsync();
@@ -581,6 +590,7 @@ public sealed class ExportDialogViewTests : IDisposable
     [InlineData("Dark", 1100, 720)]
     [InlineData("Light", 900, 600)]
     [InlineData("Dark", 900, 600)]
+    [Trait("Category", "Slow")]
     public async Task TheDialog_Renders_InBothThemes_AtBothSizes(string theme, int width, int height)
     {
         var shell = await OpenShellAsync();
@@ -615,6 +625,7 @@ public sealed class ExportDialogViewTests : IDisposable
     [Theory]
     [InlineData("Light", ExportFormat.Srt)]
     [InlineData("Dark", ExportFormat.Docx)]
+    [Trait("Category", "Slow")]
     public async Task TheSubtitleAndWordStates_Render(string theme, ExportFormat format)
     {
         var shell = await OpenShellAsync();
@@ -652,6 +663,7 @@ public sealed class ExportDialogViewTests : IDisposable
     }
 
     [Fact]
+    [Trait("Category", "Slow")]
     public async Task TheLightAndTheDarkDialog_AreDifferentPictures_WithAScrimOverThePage()
     {
         var shell = await OpenShellAsync();

@@ -237,6 +237,7 @@ internal sealed class CompositionRoot : IDisposable
             Downloads: _downloads ??= CreateDownloadsFolder(),
             BookmarkStore: storage,
             Vocabulary: storage,
+            FloatingWindowStyle: CreateFloatingWindowStyle(),
             Log: log);
     }
 
@@ -338,10 +339,17 @@ internal sealed class CompositionRoot : IDisposable
     }
 
     /// <summary>
-    /// The decoders of the import, tried in order by extension: the managed WAV decoder works everywhere; on Windows the Media
-    /// Foundation decoder of Murmur.Capture.Windows goes before it (follow-up of #66).
+    /// The decoders of the import, tried in order by extension: on Windows the Media Foundation decoder of Murmur.Capture.Windows
+    /// (MP3, M4A, FLAC, MP4, MOV...) goes before the managed WAV decoder, which works everywhere.
     /// </summary>
-    private static IMediaDecoder CreateMediaDecoder() => new CompositeMediaDecoder(new WavMediaDecoder());
+    private static IMediaDecoder CreateMediaDecoder()
+    {
+#if WINDOWS
+        return new CompositeMediaDecoder(new Murmur.Capture.Windows.Import.MediaFoundationDecoder(), new WavMediaDecoder());
+#else
+        return new CompositeMediaDecoder(new WavMediaDecoder());
+#endif
+    }
 
     /// <summary>
     /// The Downloads folder of the import dialog's "Recent in Downloads": on Windows the known folder <c>FOLDERID_Downloads</c> of
@@ -386,6 +394,16 @@ internal sealed class CompositionRoot : IDisposable
 #endif
     }
 
+    /// <summary>Keeps the floating orb's window from taking focus: the Windows window style on Windows, nothing elsewhere.</summary>
+    internal static IFloatingWindowStyle? CreateFloatingWindowStyle()
+    {
+#if WINDOWS
+        return Murmur.Capture.Windows.WindowsCapture.CreateFloatingWindowStyle();
+#else
+        return null;
+#endif
+    }
+
     /// <summary>The system's reduce-motion preference: the Windows setting on Windows, never reduced elsewhere.</summary>
     internal static IMotionPreference CreateMotionPreference()
     {
@@ -397,10 +415,17 @@ internal sealed class CompositionRoot : IDisposable
     }
 
     /// <summary>
-    /// The audio sessions call detection watches (#44). Only the null monitor for now (not supported: the Detect calls setting is
-    /// hidden); the WASAPI monitor of Murmur.Capture.Windows replaces it on Windows.
+    /// The audio sessions call detection watches (#44): the WASAPI session monitor on Windows; elsewhere the null monitor (not
+    /// supported: the Detect calls setting is hidden).
     /// </summary>
-    internal static IAudioSessionMonitor CreateAudioSessionMonitor() => new NullAudioSessionMonitor();
+    internal static IAudioSessionMonitor CreateAudioSessionMonitor()
+    {
+#if WINDOWS
+        return new Murmur.Capture.Windows.Audio.WasapiAudioSessionMonitor();
+#else
+        return new NullAudioSessionMonitor();
+#endif
+    }
 
     private static IAudioPlayback CreatePlayback()
     {

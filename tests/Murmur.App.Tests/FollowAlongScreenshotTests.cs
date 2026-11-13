@@ -6,6 +6,7 @@ using Murmur.App.Views;
 namespace Murmur.App.Tests;
 
 /// <summary>Renders the transcript while it plays with "Follow along" on and off (#56) headlessly into the screenshots directory.</summary>
+[Trait("Category", "Slow")]
 public sealed class FollowAlongScreenshotTests
 {
     private static CancellationToken Ct => TestContext.Current.CancellationToken;

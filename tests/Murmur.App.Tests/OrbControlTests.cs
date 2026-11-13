@@ -7,6 +7,7 @@ using Murmur.App.Tests.Fakes;
 
 namespace Murmur.App.Tests;
 
+[Trait("Category", "Slow")]
 public sealed class OrbControlTests
 {
     private static HeadlessUnitTestSession Session => UiHarness.Session;

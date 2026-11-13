@@ -2,6 +2,7 @@ using Avalonia.Headless;
 
 namespace Murmur.App.Tests;
 
+[Trait("Category", "Slow")]
 public sealed class AppTests
 {
     private static HeadlessUnitTestSession Session =>

@@ -11,6 +11,7 @@ namespace Murmur.App.Tests.Design;
 /// stay inside the window, none overlaps another, nothing scrolls sideways, and what is taller than the window scrolls.
 /// PNGs go to <c>MURMUR_SIZEFIT_DIR</c> (default: the temp folder, murmur-sizefit-<process id>).
 /// </summary>
+[Trait("Category", "Slow")]
 public sealed class WindowSizeFitTests
 {
     private static readonly string[] Boards =

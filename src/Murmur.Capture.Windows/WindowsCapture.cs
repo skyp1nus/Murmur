@@ -78,6 +78,9 @@ public sealed class WindowsCapture : ICapture, IAudioPlayback, IVideoPlayback
     /// </summary>
     public static IMotionPreference CreateMotionPreference() => new Platform.WindowsMotionPreference();
 
+    /// <summary>Makes the floating recorder orb's window non-activating and keeps it out of Alt+Tab (<c>WS_EX_NOACTIVATE</c> / <c>WS_EX_TOOLWINDOW</c>).</summary>
+    public static IFloatingWindowStyle CreateFloatingWindowStyle() => new Platform.WindowsFloatingWindowStyle();
+
     /// <summary>
     /// The user's Downloads folder for the import dialog: the shell's known folder <c>FOLDERID_Downloads</c> (a moved folder is found),
     /// else <c>%USERPROFILE%\Downloads</c>.

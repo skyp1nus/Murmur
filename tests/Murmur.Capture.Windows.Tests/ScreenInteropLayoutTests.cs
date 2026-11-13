@@ -152,6 +152,29 @@ public sealed unsafe class ScreenInteropLayoutTests
     }
 
     [Fact]
+    public void ImportGuidsAndCodes_MatchHeaders()
+    {
+        // mfapi.h: MFMediaType_Audio = 'auds', MFAudioFormat_Float = WAVE_FORMAT_IEEE_FLOAT (3) on the FourCC base GUID.
+        Assert.Equal(new Guid("73647561-0000-0010-8000-00AA00389B71"), ScreenConstants.MfMediaTypeAudio);
+        Assert.Equal("auds", System.Text.Encoding.ASCII.GetString(ScreenConstants.MfMediaTypeAudio.ToByteArray(), 0, 4));
+        Assert.Equal(3, BitConverter.ToInt32(ScreenConstants.MfAudioFormatFloat.ToByteArray(), 0));
+        Assert.Equal(1, BitConverter.ToInt32(ScreenConstants.MfAudioFormatPcm.ToByteArray(), 0)); // WAVE_FORMAT_PCM
+        Assert.Equal(0x100u, ScreenConstants.MfSourceReaderFlagStreamTick);
+        Assert.Equal(new Guid("37E48BF5-645E-4C5B-89DE-ADA9E29B696A"), ScreenConstants.MfMtAudioNumChannels);
+        Assert.Equal(new Guid("5FAEEAE7-0290-4C31-9E8A-C534F68D9DBA"), ScreenConstants.MfMtAudioSamplesPerSecond);
+        Assert.Equal(new Guid("F2DEB57F-40FA-4764-AA33-ED4F2D1FF669"), ScreenConstants.MfMtAudioBitsPerSample);
+        Assert.Equal(new Guid("322DE230-9EEB-43BD-AB7A-FF412251541D"), ScreenConstants.MfMtAudioBlockAlignment);
+        Assert.Equal(new Guid("1AAB75C8-CFEF-451C-AB95-AC034B8E1731"), ScreenConstants.MfMtAudioAvgBytesPerSecond);
+
+        // mfreadwrite.h (MF_SOURCE_READER_* stream indices and flags) and mferror.h / winerror.h.
+        Assert.Equal((0xFFFF_FFFDu, 0xFFFF_FFFEu, 0x20u), (ScreenConstants.MfSourceReaderFirstAudioStream, ScreenConstants.MfSourceReaderAllStreams, ScreenConstants.MfSourceReaderFlagCurrentMediaTypeChanged));
+        Assert.Equal(unchecked((int)0xC00D36C4), ScreenConstants.MfEUnsupportedByteStreamType);
+        Assert.Equal(unchecked((int)0xC00D36B3), ScreenConstants.MfEInvalidStreamNumber);
+        Assert.Equal(unchecked((int)0xC00D5212), ScreenConstants.MfETopoCodecNotFound);
+        Assert.Equal((unchecked((int)0x80070002), unchecked((int)0x80070005)), (ScreenConstants.EFileNotFound, ScreenConstants.EAccessDenied));
+    }
+
+    [Fact]
     public void Guids_MatchHeaders()
     {
         Assert.Equal(new Guid("9BA876F1-419F-4B77-A1E0-35959D9D4004"), ScreenConstants.MfTranscodeContainerTypeFmpeg4);
@@ -186,6 +209,7 @@ public sealed unsafe class ScreenInteropLayoutTests
         { "IMFSample::GetSampleDuration", 37 },
         { "IMFSample::SetSampleDuration", 38 },
         { "IMFSample::GetBufferByIndex", 40 },
+        { "IMFSample::ConvertToContiguousBuffer", 41 },
         { "IMFSample::AddBuffer", 42 },
         { "IMFMediaBuffer::Lock", 3 },
         { "IMFMediaBuffer::Unlock", 4 },
@@ -212,7 +236,10 @@ public sealed unsafe class ScreenInteropLayoutTests
         { "IMFVideoSampleAllocatorEx::InitializeSampleAllocatorEx", 7 },
         { "IMFVideoSampleAllocatorCallback::GetFreeSampleCount", 4 },
         { "IMFTransform::GetAttributes", 8 },
+        { "IMFSourceReader::SetStreamSelection", 4 },
+        { "IMFSourceReader::GetNativeMediaType", 5 },
         { "IMFSourceReader::GetCurrentMediaType", 6 },
+        { "IMFSourceReader::SetCurrentMediaType", 7 },
         { "IMFSourceReader::ReadSample", 9 },
         { "IMFSourceReader::GetPresentationAttribute", 12 },
         { "ID3D11Device::CreateTexture2D", 5 },
@@ -302,6 +329,7 @@ public sealed unsafe class ScreenInteropLayoutTests
             case "IMFSample::GetSampleDuration": IMFSample.GetSampleDuration(s, &l); break;
             case "IMFSample::SetSampleDuration": IMFSample.SetSampleDuration(s, 0); break;
             case "IMFSample::GetBufferByIndex": IMFSample.GetBufferByIndex(s, 0, &p); break;
+            case "IMFSample::ConvertToContiguousBuffer": IMFSample.ConvertToContiguousBuffer(s, &p); break;
             case "IMFSample::AddBuffer": IMFSample.AddBuffer(s, 0); break;
             case "IMFMediaBuffer::Lock": IMFMediaBuffer.Lock(s, &b, &u, &u); break;
             case "IMFMediaBuffer::Unlock": IMFMediaBuffer.Unlock(s); break;
@@ -328,7 +356,10 @@ public sealed unsafe class ScreenInteropLayoutTests
             case "IMFVideoSampleAllocatorEx::InitializeSampleAllocatorEx": IMFVideoSampleAllocatorEx.InitializeSampleAllocatorEx(s, 0, 0, 0, 0); break;
             case "IMFVideoSampleAllocatorCallback::GetFreeSampleCount": IMFVideoSampleAllocatorCallback.GetFreeSampleCount(s, &i); break;
             case "IMFTransform::GetAttributes": IMFTransform.GetAttributes(s, &p); break;
+            case "IMFSourceReader::SetStreamSelection": IMFSourceReader.SetStreamSelection(s, 0, 1); break;
+            case "IMFSourceReader::GetNativeMediaType": IMFSourceReader.GetNativeMediaType(s, 0, 0, &p); break;
             case "IMFSourceReader::GetCurrentMediaType": IMFSourceReader.GetCurrentMediaType(s, 0, &p); break;
+            case "IMFSourceReader::SetCurrentMediaType": IMFSourceReader.SetCurrentMediaType(s, 0, null, 0); break;
             case "IMFSourceReader::ReadSample": IMFSourceReader.ReadSample(s, 0, 0, &u, &u, &l, &p); break;
             case "IMFSourceReader::GetPresentationAttribute": IMFSourceReader.GetPresentationAttribute(s, 0, &g, &l); break;
             case "ID3D11Device::CreateTexture2D": ID3D11Device.CreateTexture2D(s, &t, null, &p); break;

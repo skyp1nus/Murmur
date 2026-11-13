@@ -336,6 +336,7 @@ public sealed class SpeakerNamesTests : IDisposable
     }
 
     [Fact]
+    [Trait("Category", "Slow")]
     public async Task TheChips_AreDrawn_28PixelsHigh_AboveTheSearchBox()
     {
         var shell = await OpenShellAsync();
@@ -362,6 +363,7 @@ public sealed class SpeakerNamesTests : IDisposable
     }
 
     [Fact]
+    [Trait("Category", "Slow")]
     public async Task Keyboard_FocusTheChip_Enter_Type_Enter_RenamesTheSpeaker()
     {
         var shell = await OpenShellAsync();
@@ -401,6 +403,7 @@ public sealed class SpeakerNamesTests : IDisposable
     [InlineData("Light", 1100, 720)]
     [InlineData("Dark", 1100, 720)]
     [InlineData("Light", 900, 600)]
+    [Trait("Category", "Slow")]
     public async Task Session_WithTheSpeakerRowAndThePopover_WritesPng(string theme, int width, int height)
     {
         _names.Put(_fixture.Record.Id, new SpeakerNames(null, "Anna K."));
@@ -426,6 +429,7 @@ public sealed class SpeakerNamesTests : IDisposable
     }
 
     [Fact]
+    [Trait("Category", "Slow")]
     public async Task TheOpenChip_HasTheInkOutlineAndThePencil_TheClosedOneHasNeither()
     {
         var shell = await OpenShellAsync();
@@ -450,6 +454,7 @@ public sealed class SpeakerNamesTests : IDisposable
     }
 
     [Fact]
+    [Trait("Category", "Slow")]
     public async Task ThePopover_SitsTenPixelsUnderTheChip_LeftEdgesAligned_WithoutAnOutline()
     {
         var shell = await OpenShellAsync();
@@ -477,6 +482,7 @@ public sealed class SpeakerNamesTests : IDisposable
     }
 
     [Fact]
+    [Trait("Category", "Slow")]
     public async Task ALongName_MakesTheChipEllipsize_At200Pixels()
     {
         _names.Put(_fixture.Record.Id, new SpeakerNames(new string('W', 40), null));
@@ -497,6 +503,7 @@ public sealed class SpeakerNamesTests : IDisposable
     }
 
     [Fact]
+    [Trait("Category", "Slow")]
     public async Task Escape_ClosesThePopover_FromAnyElementInIt_AndTheFocusGoesBackToTheChip()
     {
         var shell = await OpenShellAsync();

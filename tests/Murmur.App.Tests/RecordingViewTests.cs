@@ -32,6 +32,7 @@ public sealed class RecordingViewTests
     // ---- the screen --------------------------------------------------------------------------------------------------------
 
     [Fact]
+    [Trait("Category", "Slow")]
     public async Task WhileRecording_TheScreenHasThePauseAndStopButtons_TheTracksCardAndTheMessageCard()
     {
         using var english = UiCulture.Override("en");
@@ -88,6 +89,7 @@ public sealed class RecordingViewTests
     }
 
     [Fact]
+    [Trait("Category", "Slow")]
     public async Task ThePauseButton_PausesAndResumesTheRecorder()
     {
         var harness = new UiHarness();
@@ -119,6 +121,7 @@ public sealed class RecordingViewTests
     }
 
     [Fact]
+    [Trait("Category", "Slow")]
     public async Task TheTitleField_Enter_SavesAndEsc_Cancels()
     {
         using var english = UiCulture.Override("en");
@@ -168,6 +171,7 @@ public sealed class RecordingViewTests
     }
 
     [Fact]
+    [Trait("Category", "Slow")]
     public async Task CopyMessage_ButtonWritesToTheWindowClipboard_AndSaysCopied()
     {
         using var english = UiCulture.Override("en");
@@ -196,6 +200,7 @@ public sealed class RecordingViewTests
     }
 
     [Fact]
+    [Trait("Category", "Slow")]
     public async Task TheSourceChips_ReflectTheState_AndOnlyTheScreenOneWorksWhileRecording()
     {
         using var english = UiCulture.Override("en");
@@ -229,6 +234,7 @@ public sealed class RecordingViewTests
     // ---- the controls ------------------------------------------------------------------------------------------------------
 
     [Fact]
+    [Trait("Category", "Slow")]
     public async Task AsidePairPanel_PutsTheSideAtTheRightWhenWide_AndBelowWhenNarrow()
     {
         var (wide, narrow) = await Session.Dispatch(
@@ -259,6 +265,7 @@ public sealed class RecordingViewTests
     }
 
     [Fact]
+    [Trait("Category", "Slow")]
     public async Task LevelHistoryControl_DrawsPastBarsInInkAndFutureOnesLight()
     {
         var pixels = await Session.Dispatch(

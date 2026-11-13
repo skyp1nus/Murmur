@@ -7,6 +7,7 @@ using Murmur.App.Views;
 namespace Murmur.App.Tests;
 
 /// <summary>Renders the recording with bookmarks (#59): the flags over the waveform, the Bookmarks card and the pills in the transcript, headlessly into the screenshots directory.</summary>
+[Trait("Category", "Slow")]
 public sealed class BookmarkScreenshotTests
 {
     private static CancellationToken Ct => TestContext.Current.CancellationToken;

@@ -391,6 +391,7 @@ public sealed class DropToImportTests : IDisposable
     private static Point InContent(Window window) => new(window.ClientSize.Width - 100, window.ClientSize.Height / 2);
 
     [Fact]
+    [Trait("Category", "Slow")]
     public async Task DraggingFilesOverTheWindow_ShowsTheOverlay_AndLeavingHidesIt()
     {
         var shell = await ShellAsync();
@@ -426,6 +427,7 @@ public sealed class DropToImportTests : IDisposable
     }
 
     [Fact]
+    [Trait("Category", "Slow")]
     public async Task MovingOverOtherElements_KeepsTheOverlay_AndParsesTheFilesOnce()
     {
         var shell = await ShellAsync();
@@ -481,6 +483,7 @@ public sealed class DropToImportTests : IDisposable
     }
 
     [Fact]
+    [Trait("Category", "Slow")]
     public async Task TheHiddenOverlay_LeavesTheTree_AfterTheFade_AndAtOnceUnderReducedMotion()
     {
         var shell = await ShellAsync();
@@ -509,6 +512,7 @@ public sealed class DropToImportTests : IDisposable
     }
 
     [Fact]
+    [Trait("Category", "Slow")]
     public async Task ADrop_OnTheWindow_OpensTheDialogOnTheOverlayLayer_WithTheFiles()
     {
         var shell = await ShellAsync();
@@ -550,6 +554,7 @@ public sealed class DropToImportTests : IDisposable
     }
 
     [Fact]
+    [Trait("Category", "Slow")]
     public async Task TextDragged_ShowsNothing_AndIsRefused()
     {
         var shell = await ShellAsync();
@@ -577,6 +582,7 @@ public sealed class DropToImportTests : IDisposable
 
     /// <summary>The sidebar is outside the content area (the test shell has none, so a point left of it stands for it).</summary>
     [Fact]
+    [Trait("Category", "Slow")]
     public async Task OutsideTheContentArea_TheSidebar_TakesNoDrops()
     {
         var shell = await ShellAsync();
@@ -606,6 +612,7 @@ public sealed class DropToImportTests : IDisposable
     }
 
     [Fact]
+    [Trait("Category", "Slow")]
     public async Task TheOverlay_IsInvisible_AndNeverInTheWay_WithoutADrag()
     {
         var shell = await ShellAsync();
@@ -627,6 +634,7 @@ public sealed class DropToImportTests : IDisposable
     }
 
     [Fact]
+    [Trait("Category", "Slow")]
     public async Task TheFade_Takes150ms_AndIsDroppedUnderReducedMotion()
     {
         var shell = await ShellAsync();
@@ -659,6 +667,7 @@ public sealed class DropToImportTests : IDisposable
     [InlineData("Light", "en", 900, 600)]
     [InlineData("Dark", "en", 900, 600)]
     [InlineData("Light", "uk", 900, 600)]
+    [Trait("Category", "Slow")]
     public async Task TheOverlay_WritesPng(string theme, string language, int width, int height)
     {
         using var culture = UiCulture.Override(language);
