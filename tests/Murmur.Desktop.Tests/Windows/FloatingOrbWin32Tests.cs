@@ -55,7 +55,7 @@ public sealed partial class FloatingOrbWin32Tests
 
     private static Result Run()
     {
-        AppBuilder.Configure<Murmur.App.App>().UseWin32().UseSkia().WithInterFont().SetupWithoutStarting();
+        AppBuilder.Configure<Murmur.App.App>().UsePlatformDetect().WithInterFont().SetupWithoutStarting();
         var window = new FloatingOrbWindow();
         var handle = window.TryGetPlatformHandle()!.Handle;
         var style = WindowsCapture.CreateFloatingWindowStyle();

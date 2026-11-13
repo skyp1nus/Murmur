@@ -11,6 +11,13 @@ public sealed partial class FloatingWindowStyleTests
     private const nint AppWindow = 0x00040000;
     private const nint TopMost = 0x00000008;
 
+    /// <summary>
+    /// <c>WS_EX_NOREDIRECTIONBITMAP</c>: Avalonia's window has it from its creation. Windows (seen on Windows 11 build 26300) ignores a whole
+    /// <c>SetWindowLong(GWL_EXSTYLE)</c> whose value adds this bit to a window created without it, so the test windows that stand in for
+    /// Avalonia's are created with it; otherwise the "rewrite" changes nothing and the tests around it prove nothing.
+    /// </summary>
+    private const nint NoRedirectionBitmap = 0x00200000;
+
     private const string WindowsOnly = "user32 runs only on Windows.";
 
     /// <summary>What Avalonia writes for the orb's window (<c>WS_EX_TOPMOST | WS_EX_NOREDIRECTIONBITMAP</c>, read on the owner's PC).</summary>
@@ -135,7 +142,7 @@ public sealed partial class FloatingWindowStyleTests
     public void AStyleRewrittenAfterTheShow_KeepsTheBits_LikeAvaloniaOnShowAndTopmost()
     {
         Assert.SkipUnless(OperatingSystem.IsWindows(), WindowsOnly);
-        using var window = TestWindow.Create();
+        using var window = TestWindow.Create(exStyle: (uint)NoRedirectionBitmap);
         new WindowsFloatingWindowStyle().MakeNonActivating(window.Handle);
         window.ShowNoActivate();
 
@@ -157,8 +164,8 @@ public sealed partial class FloatingWindowStyleTests
     public void WithoutTheSubclass_ARewriteDropsTheBits_SoTheTestAboveMeansSomething()
     {
         Assert.SkipUnless(OperatingSystem.IsWindows(), WindowsOnly);
-        using var window = TestWindow.Create();
-        window.SetExtendedStyle(NoActivate | ToolWindow);
+        using var window = TestWindow.Create(exStyle: (uint)NoRedirectionBitmap);
+        window.SetExtendedStyle(NoActivate | ToolWindow | NoRedirectionBitmap);
         window.ShowNoActivate();
 
         window.SetExtendedStyle(AvaloniaStyle);
@@ -215,11 +222,13 @@ public sealed partial class FloatingWindowStyleTests
 
         style.SetInputRegion(window.Handle, [new(148, 36, 52, 52), new(0, 38, 150, 48)]);
 
+        // WindowFromPoint answers with whatever is topmost at the point, so a foreign topmost window over (100, 100) would fail the test:
+        // the message names the window found instead of two bare handles.
         Assert.Equal((0, 36, 200, 88), window.RegionBox);
-        Assert.Equal(window.Handle, TestWindow.WindowAt(100 + 170, 100 + 60));
-        Assert.Equal(window.Handle, TestWindow.WindowAt(100 + 20, 100 + 60));
-        Assert.NotEqual(window.Handle, TestWindow.WindowAt(100 + 20, 100 + 10));
-        Assert.NotEqual(window.Handle, TestWindow.WindowAt(100 + 170, 100 + 110));
+        AssertWindowAt(window, 100 + 170, 100 + 60, expectOrb: true);
+        AssertWindowAt(window, 100 + 20, 100 + 60, expectOrb: true);
+        AssertWindowAt(window, 100 + 20, 100 + 10, expectOrb: false);
+        AssertWindowAt(window, 100 + 170, 100 + 110, expectOrb: false);
     }
 
     [Fact]
@@ -301,6 +310,14 @@ public sealed partial class FloatingWindowStyleTests
         Assert.False(WindowsFloatingWindowStyle.IsHooked);
     }
 
+    private static void AssertWindowAt(TestWindow window, int x, int y, bool expectOrb)
+    {
+        var found = TestWindow.WindowAt(x, y);
+        Assert.True(
+            (found == window.Handle) == expectOrb,
+            $"At ({x}, {y}) the orb {(expectOrb ? "should be" : "should not be")} the window found; found {TestWindow.Describe(found)} (the orb is {window.Handle}, extended style {window.ExtendedStyle:X}).");
+    }
+
     private static void AssertNonActivating(nint style)
     {
         Assert.Equal(NoActivate, style & NoActivate);
@@ -327,9 +344,9 @@ public sealed partial class FloatingWindowStyleTests
 
         public nint Procedure => FloatingWindowNativeMethods.GetWindowLongPtrW(Handle, FloatingWindowNativeMethods.GwlpWndProc);
 
-        public static TestWindow Create(int x = 0, int y = 0, int width = 52, int height = 52)
+        public static TestWindow Create(int x = 0, int y = 0, int width = 52, int height = 52, uint exStyle = 0)
         {
-            var handle = CreateWindowExW(0, "BUTTON", "Murmur orb test", WsPopup, x, y, width, height, 0, 0, 0, 0);
+            var handle = CreateWindowExW(exStyle, "BUTTON", "Murmur orb test", WsPopup, x, y, width, height, 0, 0, 0, 0);
             Assert.NotEqual((nint)0, handle);
             return new TestWindow(handle);
         }
@@ -406,6 +423,17 @@ public sealed partial class FloatingWindowStyleTests
 
         public void Cloak(bool cloak) => Assert.Equal(0, FloatingWindowNativeMethods.DwmSetWindowAttribute(Handle, FloatingWindowNativeMethods.DwmwaCloak, cloak ? 1 : 0, sizeof(int)));
 
+        /// <summary>The window's handle, class and rectangle, for a failure message.</summary>
+        public static string Describe(nint window)
+        {
+            Span<ushort> className = stackalloc ushort[128];
+            var length = GetClassNameW(window, ref className[0], className.Length);
+
+            return GetWindowRect(window, out var rect)
+                ? $"{window} ({MemoryMarshal.Cast<ushort, char>(className[..Math.Max(length, 0)])},{rect.Left},{rect.Top},{rect.Right},{rect.Bottom})"
+                : $"{window}";
+        }
+
         public static nint WindowAt(int x, int y) => WindowFromPoint(new Point(x, y));
 
         public nint Send(uint message, nint wParam, nint lParam) => SendMessageW(Handle, message, wParam, lParam);
@@ -459,6 +487,13 @@ public sealed partial class FloatingWindowStyleTests
 
         [LibraryImport("user32.dll", EntryPoint = "GetActiveWindow")]
         private static partial nint GetActiveWindow();
+
+        [LibraryImport("user32.dll", EntryPoint = "GetClassNameW")]
+        private static partial int GetClassNameW(nint window, ref ushort name, int capacity);
+
+        [LibraryImport("user32.dll", EntryPoint = "GetWindowRect")]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        private static partial bool GetWindowRect(nint window, out Rect rect);
 
         [StructLayout(LayoutKind.Sequential)]
         private struct Rect
