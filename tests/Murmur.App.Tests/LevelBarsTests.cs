@@ -352,6 +352,7 @@ public sealed class LevelBarsTests
     }
 
     [Fact]
+    [Trait("Category", "Slow")]
     public async Task TheHistory_SlidesANewSampleIn_AndThenTheRenderLoopRests()
     {
         var (atRest, sliding, moved, settled, sameAsStatic) = await Session.Dispatch(
@@ -393,6 +394,7 @@ public sealed class LevelBarsTests
     }
 
     [Fact]
+    [Trait("Category", "Slow")]
     public async Task UnderReducedMotion_OrHidden_ASampleShowsAtOnce_AndNoFrameIsAskedFor()
     {
         var (reduced, hidden, values) = await Session.Dispatch(
@@ -426,6 +428,7 @@ public sealed class LevelBarsTests
     }
 
     [Fact]
+    [Trait("Category", "Slow")]
     public async Task AClearedHistory_IsShownAtOnce_AndSilenceWakesNothing()
     {
         var (cleared, silent) = await Session.Dispatch(
@@ -451,6 +454,7 @@ public sealed class LevelBarsTests
     }
 
     [Fact]
+    [Trait("Category", "Slow")]
     public async Task TheMeter_HandsEverySampleToTheRenderThread_AndStaysQuietInSilence()
     {
         var (sent, quiet) = await Session.Dispatch(
@@ -477,6 +481,7 @@ public sealed class LevelBarsTests
     }
 
     [Fact]
+    [Trait("Category", "Slow")]
     public async Task Detached_TheBarsVisualIsGone_AndComesBackWithTheValues()
     {
         var (detached, reattached, newest) = await Session.Dispatch(

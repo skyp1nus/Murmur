@@ -15,6 +15,7 @@ namespace Murmur.App.Tests.Design;
 /// The result goes to <c>calibration.md</c> next to the parity report.
 /// </summary>
 [Trait("Category", "DesignParity")]
+[Trait("Category", "Slow")]
 public sealed class ParityCalibrationTests
 {
     /// <summary>A piece of the Main artboard: the crop of the reference, what the app draws for it and where the search starts.</summary>

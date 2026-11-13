@@ -422,6 +422,7 @@ public sealed class BookmarkTests : IDisposable
     }
 
     [Fact]
+    [Trait("Category", "Slow")]
     public async Task FlagPositions_FollowTheWidth_AndNothingIsRebuiltWhileDrawing()
     {
         var flags = new WaveformFlag[] { new(0.1, "01:00", "A"), new(0.5, "05:00", ""), new(1, "10:00", "C") };
@@ -457,6 +458,7 @@ public sealed class BookmarkTests : IDisposable
     }
 
     [Fact]
+    [Trait("Category", "Slow")]
     public async Task AClickOnAFlag_RaisesItsIndex_AClickElsewhereDoesNot()
     {
         var flags = new WaveformFlag[] { new(0.1, "01:00", "A"), new(0.5, "05:00", "") };
@@ -486,6 +488,7 @@ public sealed class BookmarkTests : IDisposable
     }
 
     [Fact]
+    [Trait("Category", "Slow")]
     public async Task TheFlagTooltip_HasTheTimeInGeistMono_AndTheNote()
     {
         var flags = new WaveformFlag[] { new(0.1, "12:41", "Pricing question"), new(0.5, "20:05", "") };
@@ -605,6 +608,7 @@ public sealed class BookmarkTests : IDisposable
     }
 
     [Fact]
+    [Trait("Category", "Slow")]
     public async Task TheWindow_ShowsTheCardTheFlagsAndThePills()
     {
         _store.Put(_fixture.Record.Id, (12, "Intro"), (761, "Pricing question"));
@@ -633,6 +637,7 @@ public sealed class BookmarkTests : IDisposable
     }
 
     [Fact]
+    [Trait("Category", "Slow")]
     public async Task TheWindow_ShowsTheEmptyState_AndNoFlags()
     {
         var (_, shell) = await OpenAsync();
@@ -658,6 +663,7 @@ public sealed class BookmarkTests : IDisposable
     }
 
     [Fact]
+    [Trait("Category", "Slow")]
     public async Task AClickOnAPill_SeeksThere()
     {
         _store.Put(_fixture.Record.Id, (761, "Pricing question"));
@@ -680,6 +686,7 @@ public sealed class BookmarkTests : IDisposable
     }
 
     [Fact]
+    [Trait("Category", "Slow")]
     public async Task AClickOnACardRow_SeeksThere()
     {
         _store.Put(_fixture.Record.Id, (761, "Pricing question"));
@@ -749,6 +756,7 @@ public sealed class BookmarkTests : IDisposable
     }
 
     [Fact]
+    [Trait("Category", "Slow")]
     public async Task TheRowActions_AreNotHitTestableUntilTheRowIsHovered()
     {
         _store.Put(_fixture.Record.Id, (761, "Pricing question"));
@@ -775,6 +783,7 @@ public sealed class BookmarkTests : IDisposable
     }
 
     [Fact]
+    [Trait("Category", "Slow")]
     public async Task TheMKey_AddsABookmarkAtThePlayhead()
     {
         var (_, shell) = await OpenAsync();
@@ -797,6 +806,7 @@ public sealed class BookmarkTests : IDisposable
     }
 
     [Fact]
+    [Trait("Category", "Slow")]
     public async Task TheMKey_IsIgnoredWhileATextBoxHasTheFocus()
     {
         var (_, shell) = await OpenAsync();
@@ -819,6 +829,7 @@ public sealed class BookmarkTests : IDisposable
     }
 
     [Fact]
+    [Trait("Category", "Slow")]
     public async Task TheMKey_WithAModifierIsNotABookmark()
     {
         var (_, shell) = await OpenAsync();
@@ -838,6 +849,7 @@ public sealed class BookmarkTests : IDisposable
     }
 
     [Fact]
+    [Trait("Category", "Slow")]
     public async Task TheNoteBox_TakesTheFocus_EnterSaves_AndEscapeDrops()
     {
         var ids = _store.Put(_fixture.Record.Id, (761, "Pricing"));

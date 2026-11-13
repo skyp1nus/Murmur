@@ -722,6 +722,7 @@ public sealed class AppPolishTests
     // 10. Window icon -------------------------------------------------------------------------------------------------
 
     [Fact]
+    [Trait("Category", "Slow")]
     public async Task MainWindow_HasTheAppIcon()
     {
         var hasIcon = await UiHarness.Session.Dispatch(
@@ -744,6 +745,7 @@ public sealed class AppPolishTests
     [InlineData("Dark", "uk")]
     [InlineData("Light", "en")]
     [InlineData("Dark", "en")]
+    [Trait("Category", "Slow")]
     public async Task Settings_ModelProgressBars_AreInkOnStone_InBothThemes(string theme, string language)
     {
         var (bars, ink, stone) = await UiHarness.Session.Dispatch(

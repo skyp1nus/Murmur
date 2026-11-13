@@ -103,6 +103,7 @@ public sealed class AutoRecordTests : IDisposable
     }
 
     [Fact]
+    [Trait("Category", "Slow")]
     public async Task Run_ReportsTheMemoryBreakdown()
     {
         var path = Path.Combine(_dir, "perf.json");
@@ -138,6 +139,7 @@ public sealed class AutoRecordTests : IDisposable
     [Theory]
     [InlineData(false, true)]
     [InlineData(true, false)]
+    [Trait("Category", "Slow")]
     public async Task Run_LeavesOutTheSourcesTheCommandLineExcludes(bool microphone, bool systemAudio)
     {
         var path = Path.Combine(_dir, "perf.json");
@@ -234,6 +236,7 @@ public sealed class AutoRecordTests : IDisposable
     }
 
     [Fact]
+    [Trait("Category", "Slow")]
     public async Task Run_RecordsSamplesAndWritesTheReport()
     {
         var path = Path.Combine(_dir, "nested", "perf.json");
@@ -264,6 +267,7 @@ public sealed class AutoRecordTests : IDisposable
     }
 
     [Fact]
+    [Trait("Category", "Slow")]
     public async Task Run_WithoutAMicrophone_RecordsSystemAudioOnly()
     {
         _capture.Microphones.Clear();
@@ -279,6 +283,7 @@ public sealed class AutoRecordTests : IDisposable
     }
 
     [Fact]
+    [Trait("Category", "Slow")]
     public async Task Run_WhenTheMicrophoneIsDenied_RecordsAndReportsTheWarning()
     {
         // The recorder stores codes; the report is always English, whatever the UI language is.
@@ -306,6 +311,7 @@ public sealed class AutoRecordTests : IDisposable
     }
 
     [Fact]
+    [Trait("Category", "Slow")]
     public async Task Run_WhenTheStopAddsAFailure_ReportsItAfterTheStartWarning()
     {
         _recorder.StartWarning = "Mic denied.";
@@ -321,6 +327,7 @@ public sealed class AutoRecordTests : IDisposable
     }
 
     [Fact]
+    [Trait("Category", "Slow")]
     public async Task Run_WithScreenProblems_ReportsTheFaultCountAndTheirTextsInOrder()
     {
         var slow = Strings.Get("Recording_ScreenFramesDropped", "en");
@@ -346,6 +353,7 @@ public sealed class AutoRecordTests : IDisposable
     }
 
     [Fact]
+    [Trait("Category", "Slow")]
     public async Task Run_WithoutScreenProblems_ReportsZeroFaultsAndNoWarnings()
     {
         var path = Path.Combine(_dir, "perf.json");
@@ -359,6 +367,7 @@ public sealed class AutoRecordTests : IDisposable
     }
 
     [Fact]
+    [Trait("Category", "Slow")]
     public async Task Run_WithScreenFlag_EnablesTheScreen()
     {
         var path = Path.Combine(_dir, "perf.json");
@@ -371,6 +380,7 @@ public sealed class AutoRecordTests : IDisposable
     }
 
     [Fact]
+    [Trait("Category", "Slow")]
     public async Task Run_DurationIsTheRecorderTimeline_NotTheSamplingWindow()
     {
         // The sampling window starts when StartAsync returns (one second here); the files are on the recorder's
@@ -386,6 +396,7 @@ public sealed class AutoRecordTests : IDisposable
     }
 
     [Fact]
+    [Trait("Category", "Slow")]
     public async Task Run_WhenTheRecorderReportsNoElapsedTime_FallsBackToTheSessionDuration()
     {
         // Elapsed is 0 once the recorder has ended the session by itself; the fake finishes with Duration = Elapsed,
@@ -402,6 +413,7 @@ public sealed class AutoRecordTests : IDisposable
     }
 
     [Fact]
+    [Trait("Category", "Slow")]
     public async Task Run_WithScreen_ReportsTheSegmentsAndHowLongTheScreenStartTook()
     {
         // The start call returned at session time 2.0 s; the recorder asked the screen to start at 0.45 s.
@@ -430,6 +442,7 @@ public sealed class AutoRecordTests : IDisposable
     }
 
     [Fact]
+    [Trait("Category", "Slow")]
     public async Task Run_WhenTheScreenProducedNoSegment_OmitsTheScreenStart()
     {
         var path = Path.Combine(_dir, "perf.json");
@@ -471,6 +484,7 @@ public sealed class AutoRecordTests : IDisposable
     }
 
     [Fact]
+    [Trait("Category", "Slow")]
     public async Task Run_WhenThePerfFileCannotBeWritten_ExitsNonZero()
     {
         var blocker = Path.Combine(_dir, "file");

@@ -7,6 +7,7 @@ using Murmur.App.Controls;
 namespace Murmur.App.Tests;
 
 /// <summary>The search mark of a transcript line: every hit is boxed, the box has room of 3 px on each side, the click still finds the word.</summary>
+[Trait("Category", "Slow")]
 public sealed class TranscriptMarkTests
 {
     private static HeadlessUnitTestSession Session => UiHarness.Session;

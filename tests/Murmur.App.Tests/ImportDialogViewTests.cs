@@ -18,6 +18,7 @@ namespace Murmur.App.Tests;
 /// The import dialog on the Library (#67): the "Import files" pill (only with an import queue), the dialog on the overlay layer and the ways
 /// it closes, how it fits a 900 x 600 window, and headless renders in both themes at 1100 x 720 and 900 x 600.
 /// </summary>
+[Trait("Category", "Slow")]
 public sealed class ImportDialogViewTests : IDisposable
 {
     private static readonly DateTimeOffset Now = UiHarness.Now;

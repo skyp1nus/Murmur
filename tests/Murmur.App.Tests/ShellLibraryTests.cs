@@ -402,6 +402,7 @@ public sealed class ShellLibraryTests
     }
 
     [Fact]
+    [Trait("Category", "Slow")]
     public async Task DateRangeCalendar_SendsTheFirstDayAtOnce_AndTheRangeWhenTheSecondIsChosen()
     {
         var result = await Session.Dispatch(
@@ -421,6 +422,7 @@ public sealed class ShellLibraryTests
     }
 
     [Fact]
+    [Trait("Category", "Slow")]
     public async Task PickDates_TwoTapsChooseARange_TheSameDayTwiceOneDay_AndClearEmptiesIt_EachClosingTheFlyout()
     {
         using var rig = await LoadedRigAsync();
@@ -809,6 +811,7 @@ public sealed class ShellLibraryTests
     }
 
     [Fact]
+    [Trait("Category", "Slow")]
     public async Task Library_TheSearchBoxKeepsItsFocusWhileTyping_AndTabReachesTheFiftiethRowOfThreeHundred()
     {
         using var rig = new DesignRig();
@@ -856,6 +859,7 @@ public sealed class ShellLibraryTests
     }
 
     [Fact]
+    [Trait("Category", "Slow")]
     public async Task Library_ShiftTabStepsBackThroughTheRows_AndFromTheFirstRowReachesTheLastFilter()
     {
         using var rig = await LoadedRigAsync();
@@ -929,6 +933,7 @@ public sealed class ShellLibraryTests
     // ---- the window --------------------------------------------------------------------------------------------------------------------
 
     [Fact]
+    [Trait("Category", "Slow")]
     public async Task LibraryPage_AtTheMinimumWindowSize_StacksTheCards_WithoutHorizontalScrolling()
     {
         using var rig = await LoadedRigAsync();
@@ -962,6 +967,7 @@ public sealed class ShellLibraryTests
     }
 
     [Fact]
+    [Trait("Category", "Slow")]
     public async Task LibraryPage_VirtualisesALongLibrary()
     {
         using var rig = new DesignRig();

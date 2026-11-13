@@ -29,6 +29,7 @@ namespace Murmur.Core.Tests.Recording;
 /// Everything else (writer period, flush interval, threads, resampler, WAV writer) uses the production settings.
 /// </remarks>
 [Collection(RealtimeCollection.Name)]
+[Trait("Category", "Slow")]
 public sealed class OneHourNoLossTests : IDisposable
 {
     private const double Speed = 80;

@@ -6,7 +6,7 @@
 
 | Що | Автоматично | Вручну |
 |---|---|---|
-| `ci.yml`, джоби `base`, `linux` і `ci` | кожен PR (будь-яка база) | Actions → ci → Run workflow |
+| `ci.yml`, джоби `base`, `linux` і `ci` | кожен PR (будь-яка база); `linux` на PR у `dev` — швидкий режим (збірка + швидкі тести, без AOT), на release PR і вручну — повний | Actions → ci → Run workflow (`linux` завжди повний) |
 | `ci-retarget.yml` | зміна бази PR (`pull_request_target: edited`, лише коли змінилась база) | ніколи |
 | `ci.yml`, джоби `windows`, `startup`, `installer`, `capture-e2e` | лише release PR (`dev -> main`) | Run workflow, `windows` = true (лише коли немає відкритого PR цієї гілки) |
 | `ci.yml`, джоб `bench` | лише release PR (`dev -> main`) | Run workflow, `bench` = true (лише коли немає відкритого PR цієї гілки) |
@@ -37,6 +37,29 @@ Workflow: `.github/workflows/ci.yml`. Тригери — див. таблицю 
 
 **Справжня база PR (джоб `base`).** Усі рішення про Windows-джоби й gate беруть базу з виходу першого джоба `base`, а не з ручних входів. Для `pull_request` це `github.base_ref`. Для ручного запуску `base` через REST (`GET repos/<repo>/pulls?head=<власник>:<гілка>&state=open`) шукає відкриті PR цієї гілки: якщо хоч один іде в `main`, база — `main`; інакше база першого PR; вхід `base` береться лише коли відкритого PR немає (при розбіжності перемагає PR; у логу `::notice::`). Тому вхід `base` у ручному запуску треба **залишати порожнім** (його виставляє лише `ci-retarget.yml`). Також `base` віддає `policy_ok` (`main` + head це `dev` цього репозиторію): Windows-джоби не запускаються для PR у `main` з інших гілок, gate і так його відхилить.
 
+**Два режими джоба `linux`.** Мета для PR у `dev`: `ci` за ≈3 хв (раніше ≈8), бо Windows-поведінку власник перевіряє локально (`pwsh scripts/verify-local.ps1`, звіт додається до PR), а CI — дешевий gate. Режим визначає перший крок `mode` самого джоба (без очікування `base`): `pull_request` із базою не `main` — швидкий; усе інше (release PR `dev -> main`, ручний запуск, зокрема dispatch від `ci-retarget.yml`) — повний, як було.
+
+| | Швидкий (PR у `dev`) | Повний (release PR, ручний запуск) |
+|---|---|---|
+| Збірка | `dotnet build Murmur.sln -c Release`: попередження, зокрема trim/AOT-аналізатори, лишаються помилками | те саме |
+| Тести | `scripts/ci/test-fast.sh`: `dotnet test artifacts/ci/fast.slnf --no-build` без проєкту `Murmur.Scripts.Tests` і без тестів із трейтами `Category=Slow`/`DesignParity` (список і причини в шапці скрипта) | `dotnet test Murmur.sln --no-build`, усі тести |
+| Native AOT publish `Murmur.Desktop` і `Murmur.Transcription`, «Fail on publish warnings», AOT-смоук «Open recording details» (#102) | немає | є |
+| `apt-get` (clang, xvfb), NuGet-кеш `actions/cache` | немає | є |
+| Артефакт `design-parity` | немає | є |
+
+Що випало зі швидкого набору (вимірювання на ubuntu-latest: повний набір тестів 4 хв 30 с, збірка 1 хв 36 с, AOT publish 1 хв 15 с, кеш post-крок 26 с):
+
+- Проєкт `Murmur.Scripts.Tests` цілком (pwsh-скрипти дочірніми процесами, 1 хв 45 с). Його виключено на рівні проєкту: скрипт `scripts/ci/test-fast.sh` генерує solution-фільтр `artifacts/ci/fast.slnf` з усіх проєктів `Murmur.sln`, крім переліку `EXCLUDE_PROJECTS`. Новий проєкт потрапляє до швидкого набору сам.
+- Тести з трейтом `[Trait("Category", "Slow")]`: headless-вікно Avalonia (скріншоти, ввід, розкладка, анімація), design parity або довге реальне очікування. Трейт стоїть на методі, де клас змішує такі тести з чисто логічними (наприклад `ShellLibraryTests`: 6 з 45, `LibraryImportedTests`: 1 з 35, `AppPolishTests`: 2 з 36, `SessionShortcutsTests`: 21 з 28, `AutoRecordTests`: 14 з 27 через реальні секунди запису), і на класі, де всі тести такі (`*ViewTests`, `*ScreenshotTests`, `ThemeTests`, `WindowSizeFitTests` тощо). Логічні тести змішаних класів лишаються у швидкому наборі. Розмітку зроблено за вимірюванням (метод ≥ 0,3 с у headless-прогоні). `Murmur.App.Tests`: 1893 тести → 1269, 4 хв 23 с → ≈15 с локально.
+- Тести з трейтом `Category=DesignParity` (`DesignParityTests` та ін.).
+- `OneHourNoLossTests` у `Murmur.Core.Tests` (трейт `Slow`; імітація години запису, ≈3 хв).
+
+Лишаються Core (рекордер, аудіо, черги), Storage, Intelligence, Models, Transcription, Desktop, AiEval, `Murmur.Capture.Windows.Tests` і логічні, view-model та діалогові тести App. Новий тест або клас потрапляє до швидкого набору за замовчуванням; якщо він відкриває вікно чи йде довше за кілька секунд, його позначають `[Trait("Category", "Slow")]`. Збірка без жодного тесту в проєкті (код виходу 8) валить крок: проєкт не може випасти мовчки.
+
+NuGet-кеш у швидкому режимі вимкнено свідомо: PR-запуск бачить лише кеш власного `refs/pull/<n>/merge` і `dev`, а `ci` на `dev` не запускається, тож кеш свіжого PR ніколи не влучав, а його збереження (≈1 ГБ) коштувало 26 с. Звичайний restore ≈15 с.
+
+Gate перевіряє це: для бази `main` вихід джоба `linux` має бути `full=true` і `aot_ran=true` (останній крок повного режиму), інакше `ci` червоний. Тож зелений `ci` на release PR, як і раніше, доводить AOT publish і смоук. Обмеження: повний режим доводить AOT лише для PR, чия head-гілка `dev`. Поки `ci-retarget.yml` немає в `main` (`pull_request_target` бере файл із базової гілки, а в `main` його ще немає), перенацілення feature PR на `main` не перезапускає `ci`, і на head SHA лишається старий (можливо швидкий) зелений `ci`. Виправить наступний реліз, що принесе `ci-retarget.yml` у `main`.
+
 **Ручний запуск і release PR.** Ручний запуск на `dev`, поки відкритий PR `dev -> main`, бачить базу `main`: Windows-джоби й `bench` виконуються завжди (входи `windows`/`bench` ігноруються), gate вимагає `success` для кожного джоба, тож зелений `ci` на head release PR неможливий без Windows. Ручний запуск без відкритого PR працює як раніше: `windows`/`bench` керують відповідними джобами, а gate дозволяє пропуск.
 
 SDK береться з `global.json` (prerelease `11.0.100-rc.3.26522.148`, `rollForward: latestFeature`). Одного `global-json-file` недостатньо: `setup-dotnet` обрізає версію до `major.minor` і ставить те, що зараз віддає канал `11.0`. Тому в усіх кроках `setup-dotnet` додатково вказано `dotnet-version: 11.0.100-rc.3.26522.148`, а наступний крок `Verify SDK matches global.json` валить джоб, якщо `dotnet --version` не дорівнює `sdk.version` з `global.json` (UNVERIFIED-ON-ACTIONS: поведінку `setup-dotnet` не перевірено запуском). При зміні SDK в `global.json` треба оновити `dotnet-version` у всіх workflows із `setup-dotnet` (ci, asr, ai-eval, models, perf-record). NuGet-кеш: `actions/cache@v4`, ключ від `Directory.Packages.props` і `**/*.csproj`.
@@ -46,13 +69,13 @@ SDK береться з `global.json` (prerelease `11.0.100-rc.3.26522.148`, `ro
 | Джоб | Раннер | Що робить |
 |---|---|---|
 | `base` | ubuntu-latest, 2 хв, перший | Визначає справжню базу PR (див. вище); виходи `base`, `has_pr`, `policy_ok`. |
-| `linux` | ubuntu-latest, 30 хв | `dotnet build`, `dotnet test`, Native AOT publish `Murmur.Desktop` (`net11.0`) і `Murmur.Transcription` для linux-x64. Джоб іде в `bash` з `pipefail` (`defaults.run.shell: bash`), тож невдалий publish за `| tee` валить крок. Якщо в логу publish є рядок `: warning ` або `: error ` (зокрема IL2xxx/IL3xxx; через `TreatWarningsAsErrors` попередження стають помилками) - крок червоний. |
+| `linux` | ubuntu-latest, 30 хв | Повний режим (release PR, ручний запуск): `dotnet build`, `dotnet test`, Native AOT publish `Murmur.Desktop` (`net11.0`) і `Murmur.Transcription` для linux-x64, AOT-смоук. Швидкий режим (PR у `dev`): лише `dotnet build` і швидкі тести (див. «Два режими»). Джоб іде в `bash` з `pipefail` (`defaults.run.shell: bash`), тож невдалий publish за `| tee` валить крок. Якщо в логу publish є рядок `: warning ` або `: error ` (зокрема IL2xxx/IL3xxx; через `TreatWarningsAsErrors` попередження стають помилками) - крок червоний. |
 | `windows` | windows-latest, 45 хв | `dotnet build`, `dotnet test`, Native AOT publish win-x64 (`Murmur.exe` і `Murmur.Transcription.exe` в одну теку), той самий gate на попередження й помилки, таблиця розмірів у Step Summary, артефакт `murmur-win-x64`. |
 | `startup` | windows-latest, після `windows` | Завантажує `murmur-win-x64`, запускає `scripts/measure-startup.ps1` (7 запусків, бюджет 400 мс за медіаною). Падає, якщо медіана більша за бюджет або хоч один запуск не вдався. |
 | `installer` | windows-latest, після `windows`, 20 хв | Завантажує `murmur-win-x64` (без другого publish), ставить Inno Setup (`choco install innosetup -y --no-progress`, якщо `ISCC.exe` немає), збирає інсталятор `scripts/build-installer.ps1 -SkipPublish`, потім `verify-local.ps1 -Installer -SetupExe ...`: тихе встановлення в temp-теку, перевірка файлів, старт встановленого `Murmur.exe` (бюджет 400 мс), тихе видалення, перевірка, що тека зникла, а дані користувача лишились. Артефакти `murmur-installer`, `installer-verify`. Деталі - у розділі «Інсталятор». |
 | `capture-e2e` | windows-latest, після `windows`, 30 хв | End-to-end запис на раннері без звукової карти: віртуальна карта VB-Audio Virtual Cable, зациклений тон 440 Гц, `Murmur.exe --autorecord 60 --screen`. Деталі - у розділі «Capture e2e» нижче. |
 | `bench` | windows-latest, 40 хв | BenchmarkDotNet (`--job short`), усі `*-report-github.md` додаються до Step Summary. |
-| `ci` | ubuntu-latest, 2 хв, `if: always()`, після всіх джобів (`needs` містить `base` і всі інші) | Єдиний required check. Береться база з джоба `base`; у `pull_request`-запуску ще перечитується поточна база PR через REST, і розбіжність валить gate (PR перенацілено під час запуску). Падає, якщо якийсь джоб не `success`; пропуск дозволено лише джобам із `MAY_SKIP` (Windows-джоби й `bench`), а коли база `main` (або сам `base` не успів), `MAY_SKIP` порожній і мають бути `success` усі джоби. Також падає, якщо база PR не `dev`/`main` або PR у `main` прийшов не з `dev` цього репозиторію. |
+| `ci` | ubuntu-latest, 2 хв, `if: always()`, після всіх джобів (`needs` містить `base` і всі інші) | Єдиний required check. Береться база з джоба `base`; у `pull_request`-запуску ще перечитується поточна база PR через REST, і розбіжність валить gate (PR перенацілено під час запуску). Падає, якщо якийсь джоб не `success`; пропуск дозволено лише джобам із `MAY_SKIP` (Windows-джоби й `bench`), а коли база `main` (або сам `base` не успів), `MAY_SKIP` порожній і мають бути `success` усі джоби. Також падає, якщо база PR не `dev`/`main` або PR у `main` прийшов не з `dev` цього репозиторію, або якщо для бази `main` джоб `linux` пройшов у швидкому режимі (без AOT publish). |
 
 Тести йдуть через Microsoft.Testing.Platform (`global.json`), тому TRX вмикається прапорцем `--report-xunit-trx` (VSTest-прапорець `--logger trx` у цій конфігурації дає exit code 5).
 

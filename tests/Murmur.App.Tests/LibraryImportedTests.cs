@@ -686,6 +686,7 @@ public sealed class LibraryImportedTests : IDisposable
     [InlineData("Dark", 1100, 720)]
     [InlineData("Light", 900, 600)]
     [InlineData("Dark", 900, 600)]
+    [Trait("Category", "Slow")]
     public async Task TheLibrary_WithImportedRows_WritesPng(string theme, int width, int height)
     {
         var shell = await MockupShellAsync();

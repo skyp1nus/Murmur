@@ -15,6 +15,7 @@ public sealed class DesignParityTests
 
     [Theory]
     [MemberData(nameof(BoardNames))]
+    [Trait("Category", "Slow")]
     public async Task Board_IsRenderedAndComparedWithTheReference(string name)
     {
         var board = DesignBoards.Get(name);

@@ -186,6 +186,7 @@ public sealed class RecordingMarkTests : IDisposable
     // ---- the view ----------------------------------------------------------------------------------------------------------
 
     [Fact]
+    [Trait("Category", "Slow")]
     public async Task TheScreen_HasTheMarkButtonNextToPause_AsHighAsPause_AndTheChipOnlyAfterAMark()
     {
         using var english = UiCulture.Override("en");
@@ -232,6 +233,7 @@ public sealed class RecordingMarkTests : IDisposable
     }
 
     [Fact]
+    [Trait("Category", "Slow")]
     public async Task InTheSmallestWindow_TheMarkAndStopButtonsAreInsideTheViewport_WithoutScrolling()
     {
         using var english = UiCulture.Override("en");
@@ -304,6 +306,7 @@ public sealed class RecordingMarkTests : IDisposable
     }
 
     [Fact]
+    [Trait("Category", "Slow")]
     public async Task TheLibraryNotice_IsAtTheTopOfThePage_InsideTheSmallestWindow_AndKeepsTheFullTextWidthWithoutADismissButtonToo()
     {
         using var english = UiCulture.Override("en");

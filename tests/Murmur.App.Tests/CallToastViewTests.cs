@@ -16,6 +16,7 @@ using Murmur.Core.Platform;
 namespace Murmur.App.Tests;
 
 /// <summary>The call toast window and the Detect calls row of the Settings on the headless platform.</summary>
+[Trait("Category", "Slow")]
 public sealed class CallToastViewTests
 {
     private static HeadlessUnitTestSession Session => UiHarness.Session;

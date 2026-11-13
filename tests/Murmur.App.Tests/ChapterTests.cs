@@ -504,6 +504,7 @@ public sealed class ChapterTests : IDisposable
     // The view --------------------------------------------------------------------------------------------------
 
     [Fact]
+    [Trait("Category", "Slow")]
     public async Task TheStrip_ShowsOneEqualSegmentPerChapter_EightPixelsApart_AndMarksTheCurrentOne()
     {
         _chapters.Put(_fixture.Record.Id, FakeChapterGenerator.Sample);
@@ -542,6 +543,7 @@ public sealed class ChapterTests : IDisposable
     }
 
     [Fact]
+    [Trait("Category", "Slow")]
     public async Task TheStrip_IsHidden_WhenTheRecordingHasNoChapters()
     {
         var harness = new UiHarness();
@@ -565,6 +567,7 @@ public sealed class ChapterTests : IDisposable
     }
 
     [Fact]
+    [Trait("Category", "Slow")]
     public async Task ClickingASegment_SeeksThePlayer()
     {
         _chapters.Put(_fixture.Record.Id, FakeChapterGenerator.Sample);
@@ -596,6 +599,7 @@ public sealed class ChapterTests : IDisposable
     [Theory]
     [InlineData("Light")]
     [InlineData("Dark")]
+    [Trait("Category", "Slow")]
     public async Task Session_WithChapters_WritesPng(string theme)
     {
         _chapters.Put(_fixture.Record.Id, [.. FakeChapterGenerator.Sample, new Chapter("A chapter with a title that is much too long to fit its segment", S(2400))]);
@@ -630,6 +634,7 @@ public sealed class ChapterTests : IDisposable
     [Theory]
     [InlineData(900, 600, false, false)]
     [InlineData(500, 600, true, true)]
+    [Trait("Category", "Slow")]
     public async Task TwelveChapters_InASmallWindow_NeverOverflowTheirSegments(int width, int height, bool strippedDown, bool timeHidden)
     {
         _chapters.Put(_fixture.Record.Id, Twelve());
@@ -723,6 +728,7 @@ public sealed class ChapterTests : IDisposable
     [Theory]
     [InlineData("Light", 900, 600)]
     [InlineData("Dark", 900, 600)]
+    [Trait("Category", "Slow")]
     public async Task Session_WithChapters_AtTheSmallestWindow_WritesPng(string theme, int width, int height)
     {
         _chapters.Put(_fixture.Record.Id, [.. FakeChapterGenerator.Sample, new Chapter("A chapter with a title that is much too long to fit its segment", S(2400))]);

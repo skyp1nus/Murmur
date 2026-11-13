@@ -10,6 +10,7 @@ using Murmur.App.Tests.Fakes;
 namespace Murmur.App.Tests;
 
 /// <summary>Renders the screens with Avalonia.Headless (Skia) into artifacts/screenshots, or into the tracked docs/screenshots when MURMUR_UPDATE_SCREENSHOTS=1 (see <see cref="RepoPaths.ScreenshotsDirectory"/>).</summary>
+[Trait("Category", "Slow")]
 public sealed class ScreenshotTests
 {
     private static HeadlessUnitTestSession Session => UiHarness.Session;

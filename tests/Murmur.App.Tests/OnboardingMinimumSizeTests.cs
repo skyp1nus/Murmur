@@ -9,6 +9,7 @@ using Murmur.App.Views;
 namespace Murmur.App.Tests;
 
 /// <summary>Every onboarding step in the smallest window (900 x 600): the compact layout, the footer, no overlap and no clipped halo.</summary>
+[Trait("Category", "Slow")]
 public sealed class OnboardingMinimumSizeTests
 {
     private const int MinWidth = 900;

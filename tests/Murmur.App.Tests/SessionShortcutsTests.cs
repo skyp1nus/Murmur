@@ -190,6 +190,7 @@ public sealed class SessionShortcutsTests : IDisposable
     // The keys ----------------------------------------------------------------------------------------------------
 
     [Fact]
+    [Trait("Category", "Slow")]
     public async Task Space_TogglesPlayback()
     {
         var shell = await OpenAsync();
@@ -208,6 +209,7 @@ public sealed class SessionShortcutsTests : IDisposable
     }
 
     [Fact]
+    [Trait("Category", "Slow")]
     public async Task Space_DoesNotClickAFocusedButton_AndDoesNotScrollTheList()
     {
         var shell = await OpenAsync();
@@ -230,6 +232,7 @@ public sealed class SessionShortcutsTests : IDisposable
     }
 
     [Fact]
+    [Trait("Category", "Slow")]
     public async Task JAndL_SeekFiveSeconds()
     {
         var shell = await OpenAsync();
@@ -247,6 +250,7 @@ public sealed class SessionShortcutsTests : IDisposable
     }
 
     [Fact]
+    [Trait("Category", "Slow")]
     public async Task JAtTheStart_ClampsToZero()
     {
         var shell = await OpenAsync();
@@ -263,6 +267,7 @@ public sealed class SessionShortcutsTests : IDisposable
     }
 
     [Fact]
+    [Trait("Category", "Slow")]
     public async Task TheArrows_MoveBetweenLines_AndScrollThemIntoView()
     {
         var shell = await OpenAsync();
@@ -288,6 +293,7 @@ public sealed class SessionShortcutsTests : IDisposable
     }
 
     [Fact]
+    [Trait("Category", "Slow")]
     public async Task MAndF_StillWorkAfterTheMove()
     {
         var shell = await OpenAsync();
@@ -307,6 +313,7 @@ public sealed class SessionShortcutsTests : IDisposable
     }
 
     [Fact]
+    [Trait("Category", "Slow")]
     public async Task Esc_ClosesAnOpenNoteBoxFirst_ThenGoesBack()
     {
         _store.Put(_fixture.Record.Id, (12, "Intro"));
@@ -330,6 +337,7 @@ public sealed class SessionShortcutsTests : IDisposable
     }
 
     [Fact]
+    [Trait("Category", "Slow")]
     public async Task Esc_InTheSearchBox_StillGoesBack()
     {
         var shell = await OpenAsync();
@@ -345,6 +353,7 @@ public sealed class SessionShortcutsTests : IDisposable
     }
 
     [Fact]
+    [Trait("Category", "Slow")]
     public async Task Esc_InAnOpenMenuFlyout_ClosesTheMenuOnly_AndDoesNotGoBack()
     {
         var shell = await OpenAsync();
@@ -366,6 +375,7 @@ public sealed class SessionShortcutsTests : IDisposable
     }
 
     [Fact]
+    [Trait("Category", "Slow")]
     public async Task Space_OnAButtonOutsideThePage_ClicksIt_AndDoesNotTogglePlayback()
     {
         var shell = await OpenAsync();
@@ -384,6 +394,7 @@ public sealed class SessionShortcutsTests : IDisposable
     }
 
     [Fact]
+    [Trait("Category", "Slow")]
     public async Task WhileTheRenameBoxHasTheFocus_TheLettersAreTyped_NotShortcuts()
     {
         var shell = await OpenAsync();
@@ -411,6 +422,7 @@ public sealed class SessionShortcutsTests : IDisposable
     }
 
     [Fact]
+    [Trait("Category", "Slow")]
     public async Task HoldingSpace_TogglesOnce()
     {
         var shell = await OpenAsync();
@@ -439,6 +451,7 @@ public sealed class SessionShortcutsTests : IDisposable
     [InlineData(PhysicalKey.F)]
     [InlineData(PhysicalKey.ArrowDown)]
     [InlineData(PhysicalKey.ArrowUp)]
+    [Trait("Category", "Slow")]
     public async Task WhileTheSearchBoxHasTheFocus_NoShortcutRuns(PhysicalKey key)
     {
         var shell = await OpenAsync();
@@ -461,6 +474,7 @@ public sealed class SessionShortcutsTests : IDisposable
     }
 
     [Fact]
+    [Trait("Category", "Slow")]
     public async Task WhileANoteBoxHasTheFocus_TheLettersAreTyped_NotShortcuts()
     {
         _store.Put(_fixture.Record.Id, (12, "Intro"));
@@ -491,6 +505,7 @@ public sealed class SessionShortcutsTests : IDisposable
     [InlineData(PhysicalKey.F, RawInputModifiers.Alt)]
     [InlineData(PhysicalKey.ArrowDown, RawInputModifiers.Control)]
     [InlineData(PhysicalKey.Escape, RawInputModifiers.Control)]
+    [Trait("Category", "Slow")]
     public async Task WithAModifierOtherThanShift_NoShortcutRuns(PhysicalKey key, RawInputModifiers modifiers)
     {
         var shell = await OpenAsync();
@@ -510,6 +525,7 @@ public sealed class SessionShortcutsTests : IDisposable
     }
 
     [Fact]
+    [Trait("Category", "Slow")]
     public async Task ShiftAlone_IsNotAModifierForTheShortcuts()
     {
         var shell = await OpenAsync();
@@ -525,6 +541,7 @@ public sealed class SessionShortcutsTests : IDisposable
     }
 
     [Fact]
+    [Trait("Category", "Slow")]
     public async Task InsideSomethingThatOwnsItsKeys_TheShortcutsStayOut()
     {
         var shell = await OpenAsync();
@@ -547,6 +564,7 @@ public sealed class SessionShortcutsTests : IDisposable
     }
 
     [Fact]
+    [Trait("Category", "Slow")]
     public async Task OnceThePageIsLeft_TheKeysAreNoLongerBound()
     {
         var shell = await OpenAsync();
@@ -567,6 +585,7 @@ public sealed class SessionShortcutsTests : IDisposable
     // The bar -----------------------------------------------------------------------------------------------------
 
     [Fact]
+    [Trait("Category", "Slow")]
     public async Task TheBar_IsOnByDefault_AndHiddenByTheSwitch()
     {
         var shell = await OpenAsync();
@@ -585,6 +604,7 @@ public sealed class SessionShortcutsTests : IDisposable
     }
 
     [Fact]
+    [Trait("Category", "Slow")]
     public async Task TheBar_ListsEveryShortcut_InEnglish()
     {
         var shell = await OpenAsync();
@@ -624,6 +644,7 @@ public sealed class SessionShortcutsTests : IDisposable
     [InlineData("Light", "uk", 900, 600)]
     [InlineData("Dark", "uk", 900, 600)]
     [InlineData("Light", "en", 900, 600)]
+    [Trait("Category", "Slow")]
     public async Task TheBar_WritesPng(string theme, string language, int width, int height)
     {
         using var culture = UiCulture.Override(language);

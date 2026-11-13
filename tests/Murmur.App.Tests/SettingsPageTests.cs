@@ -14,6 +14,7 @@ using Murmur.Core.Settings;
 
 namespace Murmur.App.Tests;
 
+[Trait("Category", "Slow")]
 public sealed partial class SettingsViewTests
 {
     private sealed class PageRig

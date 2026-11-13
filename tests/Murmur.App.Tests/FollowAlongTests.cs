@@ -359,6 +359,7 @@ public sealed class FollowAlongTests : IDisposable
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
+    [Trait("Category", "Slow")]
     public async Task TheListJumps_ToTheLine_AThirdFromTheTop_WithOrWithoutReducedMotion(bool reduceMotion)
     {
         _fixture.UseTranscript(TranscriptFactory.Make(_fixture.Record.Id, 10_000));
@@ -389,6 +390,7 @@ public sealed class FollowAlongTests : IDisposable
     }
 
     [Fact]
+    [Trait("Category", "Slow")]
     public async Task TheScrollKeys_PauseTheAutoScroll()
     {
         _fixture.UseTranscript(TranscriptFactory.Make(_fixture.Record.Id, 10_000));
@@ -412,6 +414,7 @@ public sealed class FollowAlongTests : IDisposable
     }
 
     [Fact]
+    [Trait("Category", "Slow")]
     public async Task ATouchDragGesture_PausesTheAutoScroll()
     {
         _fixture.UseTranscript(TranscriptFactory.Make(_fixture.Record.Id, 10_000));
@@ -453,6 +456,7 @@ public sealed class FollowAlongTests : IDisposable
     [Theory]
     [InlineData(1100, 720)]
     [InlineData(900, 600)]
+    [Trait("Category", "Slow")]
     public async Task TheHeader_KeepsLongSpeakerNamesAwayFromTheSwitch(int width, int height)
     {
         using var ukrainian = Murmur.App.Localization.UiCulture.Override("uk");
@@ -568,6 +572,7 @@ public sealed class FollowAlongTests : IDisposable
     }
 
     [Fact]
+    [Trait("Category", "Slow")]
     public async Task AWordChange_BuildsExactlyOneTextLayout_AndTheSameWordNone()
     {
         await Session.Dispatch(
@@ -644,6 +649,7 @@ public sealed class FollowAlongTests : IDisposable
     }
 
     [Fact]
+    [Trait("Category", "Slow")]
     public async Task TheChip_ChangesNoMetric_TheTextDoesNotReflow()
     {
         await Session.Dispatch(
@@ -682,6 +688,7 @@ public sealed class FollowAlongTests : IDisposable
     }
 
     [Fact]
+    [Trait("Category", "Slow")]
     public async Task MovingTheChip_ToAnotherWord_ChangesNoMetricEither()
     {
         await Session.Dispatch(
@@ -704,6 +711,7 @@ public sealed class FollowAlongTests : IDisposable
     }
 
     [Fact]
+    [Trait("Category", "Slow")]
     public async Task TheChip_IsDrawnBehindTheWord_ThreePixelsBeyondIt()
     {
         await Session.Dispatch(
@@ -749,6 +757,7 @@ public sealed class FollowAlongTests : IDisposable
     }
 
     [Fact]
+    [Trait("Category", "Slow")]
     public async Task ClickingAWord_StillFindsIt_WithTheChipOn()
     {
         await Session.Dispatch(
@@ -765,6 +774,7 @@ public sealed class FollowAlongTests : IDisposable
     }
 
     [Fact]
+    [Trait("Category", "Slow")]
     public async Task TheChip_AndASearchMark_CanBeOnTheSameLine()
     {
         await Session.Dispatch(

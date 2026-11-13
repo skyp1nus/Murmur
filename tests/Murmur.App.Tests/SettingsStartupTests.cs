@@ -20,6 +20,7 @@ namespace Murmur.App.Tests;
 /// The start-up path with a real <see cref="JsonSettingsStore"/> on a temporary folder: language and theme come from
 /// settings.json before the first window is shown, later saves re-theme an open window, a corrupt file falls back to defaults.
 /// </summary>
+[Trait("Category", "Slow")]
 public sealed partial class SettingsStartupTests : IDisposable
 {
     private readonly string _folder = Path.Combine(Path.GetTempPath(), "murmur-startup-" + Guid.NewGuid().ToString("N"));
