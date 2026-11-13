@@ -66,7 +66,7 @@ public sealed class FileAppLog : IAppLog, IDisposable
     private readonly Lock _io = new();
     private string? _marker;
     private string? _newestCrash;
-    private string? _unseenCrash;
+    private volatile string? _unseenCrash;
     private Exception? _lastCrash;
 
     /// <param name="paths">The data folder; the log lives in its <see cref="StoragePaths.LogsDirectory"/>.</param>
@@ -95,16 +95,8 @@ public sealed class FileAppLog : IAppLog, IDisposable
 
     public string Directory => _directory;
 
-    public string? UnseenCrash
-    {
-        get
-        {
-            lock (_io)
-            {
-                return _unseenCrash;
-            }
-        }
-    }
+    /// <remarks>Read without the I/O lock (the UI reads it while a batch may be on its way to the disk).</remarks>
+    public string? UnseenCrash => _unseenCrash;
 
     /// <summary>Appends written so far (for tests).</summary>
     internal int Appends { get; private set; }

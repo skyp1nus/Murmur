@@ -118,7 +118,8 @@ public sealed partial class AboutViewModel : ObservableObject
         string? failure = null;
         try
         {
-            copied = ClipboardWriter is { } write && await write(_log.Snapshot());
+            // The snapshot reads the last crash file: off the UI thread.
+            copied = ClipboardWriter is { } write && await write(await Task.Run(_log.Snapshot));
         }
         catch (Exception ex)
         {
