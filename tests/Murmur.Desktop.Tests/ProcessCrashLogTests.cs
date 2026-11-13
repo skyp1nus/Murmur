@@ -94,6 +94,19 @@ public sealed class ProcessCrashLogTests
         return paths;
     }
 
+    [Theory]
+    [InlineData(@"D:\Meetings of Olena", @"Access to the path 'D:\Meetings of Olena\2026-11-13 1200' is denied.")]
+    [InlineData(@"D:\Meetings of Olena", @"Access to D:\Meetings of Olena is denied.")]
+    [InlineData("Meetings of Olena", "The folder Meetings of Olena is not an absolute path.")]
+    public void TheRecordingsFallback_NeverNamesTheChosenFolder(string folder, string reason)
+    {
+        var detail = CompositionRoot.RecordingsFallbackDetail(new Murmur.Storage.RecordingsFolderFallbackInfo(Murmur.Core.Sessions.SessionId.New(), folder, reason));
+
+        Assert.DoesNotContain("Olena", detail, StringComparison.Ordinal);
+        Assert.DoesNotContain("Meetings", detail, StringComparison.Ordinal);
+        Assert.NotEmpty(detail);
+    }
+
     [Fact]
     public void TheDiagnosticContext_NamesTheVersionAndTheMainFlags_NeverTheFolder()
     {

@@ -820,6 +820,36 @@ public sealed class Recorder : IRecorder
     /// <summary>The detail of a capture fault's log line: its stable code, the source and the scrubbed technical message.</summary>
     internal static string FaultDetail(CaptureFault fault, string code) => code + " " + fault.Source + ": " + LogText.Scrub(fault.Message);
 
+    /// <summary>
+    /// The detail of an audio fault's log line: the source, the kind and an HRESULT the message carries, never the message itself (it
+    /// names the device, e.g. "Olena's AirPods").
+    /// </summary>
+    internal static string AudioFaultDetail(CaptureFault fault)
+    {
+        var detail = fault.Source + " " + fault.Kind.ToString();
+        return FindHResult(fault.Message) is { } code ? detail + " " + code : detail;
+    }
+
+    /// <summary>The first <c>0x</c> followed by eight hex digits in <paramref name="text"/>, or <c>null</c>.</summary>
+    internal static string? FindHResult(string? text)
+    {
+        if (string.IsNullOrEmpty(text))
+        {
+            return null;
+        }
+
+        for (var i = text.IndexOf("0x", StringComparison.OrdinalIgnoreCase); i >= 0 && i + 10 <= text.Length; i = text.IndexOf("0x", i + 2, StringComparison.OrdinalIgnoreCase))
+        {
+            var digits = text.AsSpan(i + 2, 8);
+            if (!digits.ContainsAnyExcept("0123456789abcdefABCDEF") && (i + 10 == text.Length || !char.IsAsciiHexDigit(text[i + 10])))
+            {
+                return "0x" + digits.ToString().ToUpperInvariant();
+            }
+        }
+
+        return null;
+    }
+
     private void OnSourceFaulted(ActiveRecording active, Track track, CaptureFault fault)
     {
         if (!fault.IsFatal)
@@ -829,7 +859,7 @@ public sealed class Recorder : IRecorder
 
         track.FaultMessage ??= $"{fault.Source}: {fault.Message}";
         track.Capture.MarkFaulted();
-        _log.Write(LogLevel.Error, "capture", "audio.fault", FaultDetail(fault, "fatal"));
+        _log.Write(LogLevel.Error, "capture", "audio.fault", AudioFaultDetail(fault));
 
         foreach (var t in active.Tracks)
         {

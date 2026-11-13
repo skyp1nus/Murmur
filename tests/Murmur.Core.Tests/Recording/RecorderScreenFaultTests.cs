@@ -67,6 +67,18 @@ public sealed class RecorderScreenFaultTests : IDisposable
         Assert.StartsWith(SessionNotes.ScreenOther + " screen: Something odd happened", lines[^1].Detail, StringComparison.Ordinal);
     }
 
+    [Theory]
+    [InlineData("Olena's AirPods: the device was removed (0x88890004)", "wasapi-microphone Other 0x88890004")]
+    [InlineData("Olena's AirPods: capture stopped", "wasapi-microphone Other")]
+    [InlineData("Olena's AirPods 0x1234 not an HRESULT", "wasapi-microphone Other")]
+    public void AudioFaultDetail_NeverHasTheMessage_OnlyTheSourceKindAndHResult(string message, string expected)
+    {
+        var detail = Recorder.AudioFaultDetail(new CaptureFault("wasapi-microphone", message, IsFatal: true));
+
+        Assert.Equal(expected, detail);
+        Assert.DoesNotContain("Olena", detail, StringComparison.Ordinal);
+    }
+
     [Fact]
     public void FaultDetail_KeepsTheCodeAndTheSource_AndScrubsPaths()
     {

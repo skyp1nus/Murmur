@@ -100,7 +100,7 @@ internal sealed class CompositionRoot : IDisposable
         {
             _storage = new SqliteStorage(paths, () => settings.Current.RecordingsDirectory);
             _storage.RecordingsFolderFallback += info => log.Write(
-                LogLevel.Warning, "storage", "recordings.fallback", LogText.FileName(info.RequestedFolder) + ": " + LogText.Scrub(info.Reason));
+                LogLevel.Warning, "storage", "recordings.fallback", RecordingsFallbackDetail(info));
         }
 
         var storage = _storage;
@@ -270,6 +270,25 @@ internal sealed class CompositionRoot : IDisposable
         // Marks of a recording that ended with the window are still being written.
         _marks?.PendingFlush.Wait(TimeSpan.FromSeconds(3));
         _storage?.Dispose();
+    }
+
+    /// <summary>
+    /// The detail of <c>recordings.fallback</c>: the scrubbed reason only, never the folder the user chose; a reason that names it anyway
+    /// (an exception message quoting the path) loses it.
+    /// </summary>
+    internal static string RecordingsFallbackDetail(RecordingsFolderFallbackInfo info)
+    {
+        var reason = info.Reason;
+        if (!string.IsNullOrWhiteSpace(info.RequestedFolder))
+        {
+            reason = reason.Replace(info.RequestedFolder.Trim(), "<folder>", StringComparison.OrdinalIgnoreCase);
+            if (LogText.FileName(info.RequestedFolder) is { Length: > 0 } name)
+            {
+                reason = reason.Replace(name, "<folder>", StringComparison.OrdinalIgnoreCase);
+            }
+        }
+
+        return LogText.Scrub(reason);
     }
 
     private static LocalLlm CreateLlm(string modelsDirectory, RecordingActivity activity, ISettingsStore settings, IAppLog log)
