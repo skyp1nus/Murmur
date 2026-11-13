@@ -497,6 +497,85 @@ public sealed class FileAppLogTests
         Assert.Contains("snap", snapshot, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void AWallClockSetBack_NeverHoldsTheBatchForLongerThanTheInterval()
+    {
+        var clock = new SettableClock(new DateTimeOffset(2026, 11, 13, 12, 0, 0, TimeSpan.Zero));
+        using var log = new FileAppLog(Dir, clock, _files);
+        log.Write(LogLevel.Warning, "a", "first");
+        Assert.Equal(TimeSpan.Zero, clock.Timer!.LastDue);
+        clock.Timer.Fire();
+        Assert.Equal(1, log.Appends);
+
+        clock.UtcNow = clock.UtcNow.AddHours(-3);
+        log.Write(LogLevel.Warning, "a", "after the jump");
+
+        Assert.InRange(clock.Timer.LastDue, TimeSpan.Zero, FileAppLog.BatchInterval);
+    }
+
+    [Fact]
+    public void ACrashAfterTheClockWasSetBack_IsStillUnseen()
+    {
+        var clock = new SettableClock(new DateTimeOffset(2026, 11, 13, 12, 0, 0, TimeSpan.Zero));
+        var files = new FakeLogFileSystem(clock);
+        using (var crashed = new FileAppLog(Dir, clock, files))
+        {
+            crashed.Crash(Thrown(() => throw new InvalidOperationException("first")), "app");
+        }
+
+        using (var seen = new FileAppLog(Dir, clock, files))
+        {
+            Assert.NotNull(seen.UnseenCrash);
+            seen.MarkCrashSeen();
+        }
+
+        clock.UtcNow = clock.UtcNow.AddDays(-1);
+        using (var again = new FileAppLog(Dir, clock, files))
+        {
+            Assert.Null(again.UnseenCrash);
+            again.Crash(Thrown(() => throw new InvalidOperationException("after the jump")), "app");
+            again.Crash(Thrown(() => throw new InvalidOperationException("same millisecond")), "app");
+        }
+
+        using var next = new FileAppLog(Dir, clock, files);
+        var unseen = next.UnseenCrash;
+        Assert.NotNull(unseen);
+        Assert.Contains("same millisecond", files.Text(Dir, Path.GetFileName(unseen))!, StringComparison.Ordinal);
+        Assert.Equal(3, files.Names(Dir).Count(name => name.StartsWith("crash-", StringComparison.Ordinal)));
+    }
+
+    /// <summary>A wall clock the test sets (also backwards); its one timer fires when the test says so.</summary>
+    private sealed class SettableClock(DateTimeOffset start) : TimeProvider
+    {
+        public DateTimeOffset UtcNow { get; set; } = start;
+
+        public ManualTimer? Timer { get; private set; }
+
+        public override DateTimeOffset GetUtcNow() => UtcNow;
+
+        public override ITimer CreateTimer(TimerCallback callback, object? state, TimeSpan dueTime, TimeSpan period) =>
+            Timer = new ManualTimer(callback, state);
+
+        public sealed class ManualTimer(TimerCallback callback, object? state) : ITimer
+        {
+            public TimeSpan LastDue { get; private set; } = Timeout.InfiniteTimeSpan;
+
+            public bool Change(TimeSpan dueTime, TimeSpan period)
+            {
+                LastDue = dueTime;
+                return true;
+            }
+
+            public void Fire() => callback(state);
+
+            public void Dispose()
+            {
+            }
+
+            public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+        }
+    }
+
     [MethodImpl(MethodImplOptions.NoInlining)]
     private static Exception Thrown(Action action)
     {

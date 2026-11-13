@@ -136,7 +136,8 @@ public sealed class FileAppLog : IAppLog, IDisposable
                     _scheduled = true;
                     var due = _lastAppendTicks == long.MinValue
                         ? TimeSpan.Zero
-                        : TimeSpan.FromTicks(Math.Max(0, _lastAppendTicks + BatchInterval.Ticks - entry.UtcTicks));
+                        // Clamped: a wall clock set back must not hold the batch for longer than one interval.
+                        : TimeSpan.FromTicks(Math.Clamp(_lastAppendTicks + BatchInterval.Ticks - entry.UtcTicks, 0, BatchInterval.Ticks));
                     _timer.Change(due, Timeout.InfiniteTimeSpan);
                 }
             }
@@ -512,24 +513,39 @@ public sealed class FileAppLog : IAppLog, IDisposable
         _marker = crashName;
     }
 
-    /// <summary>A name no other crash file of this folder has (the time to the millisecond, one more for each taken one).</summary>
+    /// <summary>
+    /// A name that sorts after every crash file of this folder and after the one marked seen: the time to the millisecond, or, when the
+    /// wall clock was set back (or two crashes share a millisecond), one millisecond after the newest known name, so a new crash is never
+    /// taken for one already seen.
+    /// </summary>
     private string CrashFileName(DateTimeOffset now)
     {
-        var at = now.UtcDateTime;
-        while (true)
+        var name = CrashName(now.UtcDateTime);
+        var floor = Newer(_newestCrash, _marker);
+        if (floor is null || IsNewer(name, floor))
         {
-            var name = CrashPrefix + at.ToString(CrashTimeFormat, CultureInfo.InvariantCulture) + CrashExtension;
-            if (_newestCrash is null || IsNewer(name, _newestCrash))
-            {
-                return name;
-            }
-
-            at = at.AddMilliseconds(1);
-            if (at > now.UtcDateTime.AddSeconds(1))
-            {
-                return name;
-            }
+            return name;
         }
+
+        return TryParseCrashTime(floor, out var at) ? CrashName(at.AddMilliseconds(1)) : name;
+    }
+
+    private static string CrashName(DateTime at) => CrashPrefix + at.ToString(CrashTimeFormat, CultureInfo.InvariantCulture) + CrashExtension;
+
+    private static bool TryParseCrashTime(string name, out DateTime at)
+    {
+        at = default;
+        if (!IsCrash(name) || name.Length != CrashPrefix.Length + CrashTimeFormat.Length + CrashExtension.Length)
+        {
+            return false;
+        }
+
+        return DateTime.TryParseExact(
+            name.AsSpan(CrashPrefix.Length, CrashTimeFormat.Length),
+            CrashTimeFormat,
+            CultureInfo.InvariantCulture,
+            DateTimeStyles.AdjustToUniversal | DateTimeStyles.AssumeUniversal,
+            out at);
     }
 
     private string BuildCrashText(Exception exception, string area, DateTimeOffset now)
