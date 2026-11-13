@@ -41,6 +41,33 @@ public sealed class MediaFoundationDecoderRulesTests
         Assert.IsType(expected, error);
         Assert.Contains("clip.ogg", error.Message, StringComparison.Ordinal);
     }
+
+    [Fact]
+    public void AnEmptyEditTheReaderIgnored_IsApplied_WithItsStartTrim()
+    {
+        // ffmpeg's late-audio.mp4: the reader's first audio timestamp is 0, the edit list says the sound starts at 0.976 s.
+        var edit = new Mp4AudioStart(TimeSpan.FromMilliseconds(976), TimeSpan.FromMilliseconds(23));
+
+        Assert.Equal(edit, MediaFoundationDecoder.EditToApply(edit, firstTimestamp: 0));
+        Assert.Equal(edit, MediaFoundationDecoder.EditToApply(edit, firstTimestamp: TimeSpan.FromMilliseconds(5).Ticks));
+    }
+
+    [Fact]
+    public void AnEmptyEditTheReaderHonoured_IsNotAppliedTwice()
+    {
+        var edit = new Mp4AudioStart(TimeSpan.FromSeconds(1), TimeSpan.Zero);
+
+        Assert.Null(MediaFoundationDecoder.EditToApply(edit, firstTimestamp: TimeSpan.FromSeconds(1).Ticks));
+        Assert.Null(MediaFoundationDecoder.EditToApply(edit, firstTimestamp: TimeSpan.FromMilliseconds(990).Ticks));
+    }
+
+    [Fact]
+    public void NoEmptyEdit_OrOneWithinCodecJitter_IsNotApplied()
+    {
+        Assert.Null(MediaFoundationDecoder.EditToApply(Mp4AudioStart.None, firstTimestamp: 0));
+        Assert.Null(MediaFoundationDecoder.EditToApply(new Mp4AudioStart(TimeSpan.Zero, TimeSpan.FromMilliseconds(23)), firstTimestamp: 0));
+        Assert.Null(MediaFoundationDecoder.EditToApply(new Mp4AudioStart(TimeSpan.FromMilliseconds(10), TimeSpan.Zero), firstTimestamp: 0));
+    }
 }
 
 /// <summary>The decoder against real files through Media Foundation. Windows only.</summary>
@@ -187,10 +214,22 @@ public sealed class MediaFoundationDecoderTests : IDisposable
         TestMedia.WriteRequired(path, TestMedia.Aac, video: true, TimeSpan.FromSeconds(3), audioStart: TimeSpan.FromSeconds(1));
         var destination = Path.Combine(_dir, "system.wav");
 
+        // The sink writer stamps the audio at 1 s but may store another offset (or rebase it): expect what the file says.
+        var stored = Mp4EditList.ReadAudioStart(path, out var problem);
+        Assert.Null(problem);
+        TestContext.Current.TestOutputHelper?.WriteLine($"late.mp4 audio edit: delay {stored.Delay}, trim {stored.Trim}");
+        var probe = await _decoder.ProbeAsync(path, Ct);
         await _decoder.DecodeAudioAsync(path, destination, null, Ct);
 
-        // If this fails with the tone at 0 s, the MP4 sink wrote no start offset (or the source reader dropped it).
-        AssertTone(destination, TimeSpan.FromSeconds(3), toneFrom: TimeSpan.FromSeconds(1));
+        // Silence for the stored delay, then the 2 s of tone that were written.
+        AssertTone(destination, stored.Delay + TimeSpan.FromSeconds(2), toneFrom: stored.Delay);
+        AssertNear(TimeSpan.FromSeconds(3), probe.Duration, "probe duration");
+        if (stored.Delay > TimeSpan.FromMilliseconds(500))
+        {
+            // The offset survived in the file, so the track is as long as the picture.
+            using var reader = WavReader.Open(destination);
+            AssertNear(probe.Duration, reader.Duration, "decoded duration against the probe");
+        }
     }
 
     [Fact]
