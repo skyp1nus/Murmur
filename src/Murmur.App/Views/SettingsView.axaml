@@ -381,7 +381,7 @@
                                          VerticalAlignment="Center"
                                          Minimum="0"
                                          Maximum="100"
-                                         Value="{Binding Percent}" />
+                                         Value="{Binding Percent, Mode=OneWay}" />
                             <TextBlock Classes="settingsMono"
                                        VerticalAlignment="Center"
                                        Foreground="{DynamicResource Brush.Graphite}"
@@ -542,7 +542,7 @@
                                  VerticalAlignment="Center"
                                  Minimum="0"
                                  Maximum="100"
-                                 Value="{Binding Percent}" />
+                                 Value="{Binding Percent, Mode=OneWay}" />
                     <TextBlock Classes="settingsMono"
                                VerticalAlignment="Center"
                                Foreground="{DynamicResource Brush.Graphite}"

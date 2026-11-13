@@ -227,7 +227,8 @@ internal sealed class CompositionRoot : IDisposable
             MediaProbe: mediaDecoder,
             Downloads: _downloads ??= CreateDownloadsFolder(),
             BookmarkStore: storage,
-            Vocabulary: storage);
+            Vocabulary: storage,
+            FloatingWindowStyle: CreateFloatingWindowStyle());
     }
 
     public void Dispose()
@@ -327,16 +328,31 @@ internal sealed class CompositionRoot : IDisposable
     }
 
     /// <summary>
-    /// The decoders of the import, tried in order by extension: the managed WAV decoder works everywhere; on Windows the Media
-    /// Foundation decoder of Murmur.Capture.Windows goes before it (follow-up of #66).
+    /// The decoders of the import, tried in order by extension: on Windows the Media Foundation decoder of Murmur.Capture.Windows
+    /// (MP3, M4A, FLAC, MP4, MOV...) goes before the managed WAV decoder, which works everywhere.
     /// </summary>
-    private static IMediaDecoder CreateMediaDecoder() => new CompositeMediaDecoder(new WavMediaDecoder());
+    private static IMediaDecoder CreateMediaDecoder()
+    {
+#if WINDOWS
+        return new CompositeMediaDecoder(new Murmur.Capture.Windows.Import.MediaFoundationDecoder(), new WavMediaDecoder());
+#else
+        return new CompositeMediaDecoder(new WavMediaDecoder());
+#endif
+    }
 
     /// <summary>
-    /// The Downloads folder of the import dialog's "Recent in Downloads": <c>%USERPROFILE%\Downloads</c> / <c>~/Downloads</c>. On Windows the
-    /// known folder of Murmur.Capture.Windows (a Downloads folder the user moved) replaces it (follow-up of #67).
+    /// The Downloads folder of the import dialog's "Recent in Downloads": on Windows the known folder <c>FOLDERID_Downloads</c> of
+    /// Murmur.Capture.Windows (a Downloads folder the user moved is found; <c>%USERPROFILE%\Downloads</c> as its fallback), elsewhere
+    /// <c>~/Downloads</c>.
     /// </summary>
-    internal static IDownloadsFolder CreateDownloadsFolder() => new HomeDownloadsFolder();
+    internal static IDownloadsFolder CreateDownloadsFolder()
+    {
+#if WINDOWS
+        return Murmur.Capture.Windows.WindowsCapture.CreateDownloadsFolder();
+#else
+        return new HomeDownloadsFolder();
+#endif
+    }
 
     private static IAccelerationProbe CreateAccelerationProbe()
     {
@@ -364,6 +380,16 @@ internal sealed class CompositionRoot : IDisposable
         return ((Murmur.Capture.Windows.WindowsCapture)capture).CreateGlobalHotkeys();
 #else
         return new UnsupportedGlobalHotkeys();
+#endif
+    }
+
+    /// <summary>Keeps the floating orb's window from taking focus: the Windows window style on Windows, nothing elsewhere.</summary>
+    internal static IFloatingWindowStyle? CreateFloatingWindowStyle()
+    {
+#if WINDOWS
+        return Murmur.Capture.Windows.WindowsCapture.CreateFloatingWindowStyle();
+#else
+        return null;
 #endif
     }
 

@@ -207,6 +207,7 @@ public sealed class SingleInstanceTests
     {
         Assert.True(SingleInstance.IsDiagnostic(["--startup-probe", "x.json"]));
         Assert.True(SingleInstance.IsDiagnostic(["--autorecord", "5", "--perf-out", "x"]));
+        Assert.True(SingleInstance.IsDiagnostic(["--probe-open-latest"]));
         Assert.False(SingleInstance.IsDiagnostic([]));
         Assert.False(SingleInstance.IsDiagnostic(["--screen", "x"]));
     }

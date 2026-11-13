@@ -473,7 +473,7 @@
                             Margin="{StaticResource Margin.RowBar}"
                             IsVisible="{Binding ShowProgress}">
                   <ProgressBar Classes="rowBar"
-                               Value="{Binding ProgressPercent}" />
+                               Value="{Binding ProgressPercent, Mode=OneWay}" />
                   <TextBlock Classes="t11 graphite"
                              VerticalAlignment="Center"
                              Text="{Binding ProgressText}" />

@@ -4,7 +4,7 @@ namespace Murmur.App.Controls;
 /// The recent peak levels of one track, for the bars of the Tracks card: a fixed number of past samples, the newest last.
 /// Values are normalised heights in [0, 1] on a −60 dB .. 0 dB scale, so quiet speech still draws a visible bar.
 /// </summary>
-/// <remarks>Single writer (the UI thread, <see cref="Push"/>); <see cref="Changed"/> tells the control to redraw.</remarks>
+/// <remarks>Single writer (the UI thread, <see cref="Push"/>); <see cref="Changed"/> tells the control to slide the new sample in (or to show a cleared strip).</remarks>
 public sealed class LevelHistory
 {
     /// <summary>Past samples, drawn in ink (the canvas: 26 of 36 bars).</summary>
@@ -24,11 +24,15 @@ public sealed class LevelHistory
     /// <summary>The past samples, oldest first, as heights in [0, 1].</summary>
     public ReadOnlySpan<float> Values => _values;
 
+    /// <summary>The last change was a <see cref="Push"/> (one new sample at the end), not a <see cref="Clear"/>.</summary>
+    public bool LastChangeWasPush { get; private set; }
+
     /// <summary>Appends the latest peak (linear, 0..1) and drops the oldest sample.</summary>
     public void Push(float peak)
     {
         _values.AsSpan(1).CopyTo(_values);
         _values[^1] = Normalize(peak);
+        LastChangeWasPush = true;
         Changed?.Invoke();
     }
 
@@ -36,6 +40,7 @@ public sealed class LevelHistory
     public void Clear()
     {
         Array.Clear(_values);
+        LastChangeWasPush = false;
         Changed?.Invoke();
     }
 

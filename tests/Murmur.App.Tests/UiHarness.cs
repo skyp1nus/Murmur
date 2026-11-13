@@ -63,6 +63,21 @@ internal sealed class UiHarness
         }
     }
 
+    /// <summary>
+    /// Draws the whole window afresh before a capture. The compositor redraws only the dirty rectangles of each frame into the frame it
+    /// keeps, so an anti-aliased edge that an earlier dirty rectangle cut through (an orb gliding on the compositor while the window
+    /// was shown) can keep a residue of a unit or two per channel that depends on which frames happened to run. One frame drawn whole
+    /// depends only on the scene.
+    /// </summary>
+    public static void RedrawWhole(Window window)
+    {
+        var width = window.Width;
+        window.Width = width + 1;
+        Pump(2);
+        window.Width = width;
+        Pump(2);
+    }
+
     public static void Save(Window window, string path)
     {
         Directory.CreateDirectory(Path.GetDirectoryName(path)!);

@@ -31,6 +31,10 @@
     <Compile Include="..\..\scripts\MurmurMp4Scan.cs" Link="MurmurMp4Scan.cs" />
     <!-- The in-memory session store of the Core tests: the recorder tests here need one. -->
     <Compile Include="..\Murmur.Core.Tests\Fakes\InMemorySessionStore.cs" Link="InMemorySessionStore.cs" />
+    <!-- The import fakes of the Core tests: the import pipeline runs here end to end with the real Media Foundation decoder. -->
+    <Compile Include="..\Murmur.Core.Tests\Fakes\ProcessingFakes.cs" Link="CoreFakes\ProcessingFakes.cs" />
+    <Compile Include="..\Murmur.Core.Tests\Fakes\ImportFakes.cs" Link="CoreFakes\ImportFakes.cs" />
+    <Compile Include="..\Murmur.Core.Tests\Fakes\TestWav.cs" Link="CoreFakes\TestWav.cs" />
   </ItemGroup>
 
   <ItemGroup>

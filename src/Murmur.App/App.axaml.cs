@@ -111,7 +111,15 @@ public partial class App : Application
                 StartupProbe.Attach(window, probePath, code => desktop.Shutdown(code));
             }
 
+            var openingProbe = !probing && OpenSessionProbe.IsRequested(Args);
+            probing |= openingProbe;
             var autoRecording = AutoRecordOptions.TryParse(Args, out var autoRecord, out _) && autoRecord is not null;
+            if (!probing && !autoRecording)
+            {
+                // The floating recorder orb (#46): its window is created only when a recording runs while this one is away.
+                FloatingOrbController.Attach(window, shell, services);
+            }
+
             if (services.Hotkeys is { } hotkeys && !probing && !autoRecording)
             {
                 // Diagnostic runs (start-up probe, --autorecord) never register hotkeys: nothing may start a recording behind them.
@@ -127,6 +135,10 @@ public partial class App : Application
             if (autoRecording && autoRecord is not null)
             {
                 window.Opened += (_, _) => _ = RunAutoRecordAsync(desktop, shell, services, autoRecord);
+            }
+            else if (openingProbe)
+            {
+                window.Opened += (_, _) => _ = RunOpenSessionProbeAsync(desktop, shell, window);
             }
             else
             {
@@ -186,6 +198,29 @@ public partial class App : Application
 
         window.Opened += (_, _) => window.RequestAnimationFrame(_ => coordinator.Start());
         window.Closed += (_, _) => coordinator.Dispose();
+    }
+
+    /// <summary><c>--probe-open-latest</c> (#102): opens the newest session's details, renders two frames and exits with the probe's code.</summary>
+    private static async Task RunOpenSessionProbeAsync(IClassicDesktopStyleApplicationLifetime desktop, ShellViewModel shell, MainWindow window)
+    {
+        var code = OpenSessionProbe.Failed;
+        try
+        {
+            code = await OpenSessionProbe.RunAsync(shell, () => NextFrame(window), Console.Error);
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine($"{OpenSessionProbe.Flag} failed: {ex}");
+        }
+
+        Dispatcher.UIThread.Post(() => desktop.Shutdown(code));
+    }
+
+    private static Task NextFrame(MainWindow window)
+    {
+        var frame = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        window.RequestAnimationFrame(_ => frame.TrySetResult());
+        return frame.Task;
     }
 
     private static async Task RunAutoRecordAsync(

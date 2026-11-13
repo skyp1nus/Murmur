@@ -124,38 +124,40 @@ public sealed class GlassOrbControlTests
     }
 
     [Fact]
-    public async Task WhileHiddenOrMinimized_TheTimerOnlyWakesUpToNoticeTheChange()
+    public async Task WhileHiddenOrMinimized_NothingRuns_ButTheSlowCheckNoticesTheChange()
     {
         var (shown, hidden, shownAgain, minimized) = await Session.Dispatch(
             () =>
             {
                 var orb = NewOrb(active: true);
-                var window = Host(orb);
-                orb.OnTimer();
-                var interval = orb.TimerInterval;
-                var framesBefore = orb.AppliedFrames;
+                var panel = new Border { Child = orb };
+                var window = Host(panel);
+                var first = (orb.IsLooping, orb.Gate.IsWatching);
 
-                orb.IsVisible = false;
-                orb.OnTimer();
-                var rest = (orb.TimerInterval, orb.AppliedFrames - framesBefore);
+                // The parent hides the orb: no event reaches it, the twice-a-second check stops the loops.
+                panel.IsVisible = false;
+                orb.Gate.Check();
+                var rest = (orb.IsLooping, orb.Gate.IsWatching, orb.BodyScale, orb.HaloScale);
 
-                orb.IsVisible = true;
-                orb.OnTimer();
-                var again = orb.TimerInterval;
+                panel.IsVisible = true;
+                orb.Gate.Check();
+                var again = orb.IsLooping;
 
                 window.WindowState = WindowState.Minimized;
-                orb.OnTimer();
-                var minimizedInterval = orb.TimerInterval;
+                orb.Gate.Check();
+                var minimizedLoops = orb.IsLooping;
                 window.Close();
-                return (interval, rest, again, minimizedInterval);
+                return (first, rest, again, minimizedLoops);
             },
             TestContext.Current.CancellationToken);
 
-        Assert.True(shown < TimeSpan.FromMilliseconds(100));
-        Assert.True(hidden.Item1 >= TimeSpan.FromMilliseconds(250), "a hidden orb must not tick at the animation rate");
-        Assert.Equal(0, hidden.Item2);
-        Assert.Equal(shown, shownAgain);
-        Assert.True(minimized >= TimeSpan.FromMilliseconds(250), "a minimized window must not animate");
+        Assert.Equal((true, true), shown);
+        Assert.False(hidden.Item1, "a hidden orb must not animate");
+        Assert.True(hidden.Item2, "the slow check keeps watching for the orb to come back");
+        Assert.Equal(1.0, hidden.Item3, 3);
+        Assert.Equal(1.0, hidden.Item4, 3);
+        Assert.True(shownAgain);
+        Assert.False(minimized, "a minimized window must not animate");
     }
 
     [Fact]
@@ -397,6 +399,10 @@ public sealed class GlassOrbControlTests
                 var window = new Window { Width = 700, Height = 400, Content = new StackPanel { Children = { breathing, voice } } };
                 window.Show();
                 UiHarness.Pump();
+
+                // The step maths, driven by a test clock (the compositor's glide is measured on its own).
+                breathing.Clock = new TestTime(UiHarness.Now);
+                voice.Clock = new TestTime(UiHarness.Now);
 
                 var step = 0;
                 void Pass()

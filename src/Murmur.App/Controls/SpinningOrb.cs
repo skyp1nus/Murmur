@@ -1,19 +1,20 @@
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Rendering.Composition;
-using Avalonia.Threading;
 using Avalonia.VisualTree;
 
 namespace Murmur.App.Controls;
 
 /// <summary>
-/// The small orb of the status bar and the Activity popover: an <see cref="OrbDisc"/> that turns once in nine seconds while a
-/// recording runs. It turns only while <see cref="IsActive"/>, attached and with motion allowed; otherwise it holds still at angle 0.
+/// The small orb of the status bar and the Activity popover: an <see cref="OrbDisc"/> that turns once in nine seconds (the canvas:
+/// <c>spin 9s linear infinite</c>) while a recording runs. It turns only while <see cref="IsActive"/>, attached, seen and with motion
+/// allowed (<see cref="MotionGate"/>); otherwise it holds still at angle 0.
 /// </summary>
 /// <remarks>
-/// Like <see cref="OrbControl"/> it does not use the 60 Hz animation-frame loop (the bar is on screen for a whole recording, and the
-/// frame loop alone costs CPU): a 15 Hz timer sets the <c>RotationAngle</c> of the composition visual, so there is no layout, no
-/// drawing command and no allocation per tick. The timer runs only while active, attached and with motion allowed.
+/// The turn is a compositor animation of the <c>RotationAngle</c> of the orb's composition visual that repeats forever
+/// (<see cref="CompositionLoop"/>): it is started once, runs on the render thread at the display rate, and the UI thread does nothing
+/// per frame. When the orb stops, the angle is written back to 0, which also ends the animation. A test clock (<see cref="Clock"/>)
+/// replaces the animation with frames that <see cref="Tick"/> computes, so a board or a test always draws the same angle.
 /// </remarks>
 public sealed class SpinningOrb : Decorator
 {
@@ -23,19 +24,21 @@ public sealed class SpinningOrb : Decorator
     /// <summary>A full turn takes nine seconds, like the mockup.</summary>
     internal static readonly TimeSpan Period = TimeSpan.FromSeconds(9);
 
-    private static readonly TimeSpan FrameInterval = TimeSpan.FromMilliseconds(1000.0 / 15);
-
-    private readonly DispatcherTimer _timer;
+    private readonly MotionGate _gate;
     private TimeProvider _clock = TimeProvider.System;
+    private bool _manual;
+    private bool _looping;
     private long _start;
+
+    // The size of the last arrange: Bounds is only updated after ArrangeOverride returns, so a loop started from there must not read it.
+    private Size _arranged;
 
     public SpinningOrb()
     {
         IsHitTestVisible = false;
         Focusable = false;
         Child = new OrbDisc();
-        _timer = new DispatcherTimer(DispatcherPriority.Render) { Interval = FrameInterval };
-        _timer.Tick += (_, _) => Tick();
+        _gate = new MotionGate(this, OnGateChanged);
     }
 
     /// <summary>The orb belongs to something that is running (a recording): it turns. Bind it to the state; it stays still otherwise.</summary>
@@ -45,30 +48,55 @@ public sealed class SpinningOrb : Decorator
         set => SetValue(IsActiveProperty, value);
     }
 
-    /// <summary>The 15 Hz timer runs (for tests).</summary>
-    internal bool IsSpinning => _timer.IsEnabled;
+    /// <summary>The orb turns: active, attached, seen and with motion allowed (for tests).</summary>
+    internal bool IsSpinning => _gate.IsOpen;
 
-    /// <summary>The angle of the composition visual in radians (for tests); <c>null</c> without one.</summary>
+    /// <summary>The compositor animation runs (for tests): the orb turns and no test clock drives it.</summary>
+    internal bool IsLooping => _looping;
+
+    /// <summary>The gate's slow visibility check (for tests).</summary>
+    internal MotionGate Gate => _gate;
+
+    /// <summary>The angle of the composition visual in radians (for tests); <c>null</c> without one. It stays 0 while the compositor turns it.</summary>
     internal float? Angle => ElementComposition.GetElementVisual(this)?.RotationAngle;
 
-    /// <summary>The clock of the turn; the system clock unless a test replaces it. A new clock restarts the turn.</summary>
+    /// <summary>
+    /// The clock of the turn; the system clock unless a test replaces it. A new clock restarts the turn, and any clock other than the
+    /// system one stops the compositor animation: the orb then shows the angle <see cref="Tick"/> computes for that clock.
+    /// </summary>
     internal TimeProvider Clock
     {
         get => _clock;
         set
         {
+            ArgumentNullException.ThrowIfNull(value);
             _clock = value;
             _start = value.GetTimestamp();
+            _manual = !ReferenceEquals(value, TimeProvider.System);
+            if (_manual)
+            {
+                StopLoop();
+            }
+            else if (_gate.IsOpen)
+            {
+                StartLoop();
+            }
         }
     }
 
-    /// <summary>One step: the angle for the time since the start (nine seconds per turn).</summary>
+    /// <summary>The angle in radians at <paramref name="seconds"/> after the start: one linear turn per <see cref="Period"/>, in [0, 2π).</summary>
+    internal static double AngleAt(double seconds)
+    {
+        var turns = seconds / Period.TotalSeconds;
+        return (turns - Math.Floor(turns)) * (2 * Math.PI);
+    }
+
+    /// <summary>One frame of a test clock: the angle for the time since the start. Does nothing while the compositor turns the orb.</summary>
     internal void Tick()
     {
-        if (ElementComposition.GetElementVisual(this) is { } visual)
+        if (!_looping && ElementComposition.GetElementVisual(this) is { } visual)
         {
-            var turns = _clock.GetElapsedTime(_start).TotalSeconds / Period.TotalSeconds;
-            visual.RotationAngle = (float)((turns - Math.Floor(turns)) * (2 * Math.PI));
+            visual.RotationAngle = (float)AngleAt(_clock.GetElapsedTime(_start).TotalSeconds);
         }
     }
 
@@ -78,9 +106,14 @@ public sealed class SpinningOrb : Decorator
     protected override Size ArrangeOverride(Size finalSize)
     {
         Child?.Arrange(new Rect(finalSize));
+        _arranged = finalSize;
         if (ElementComposition.GetElementVisual(this) is { } visual)
         {
             visual.CenterPoint = new Vector3D(finalSize.Width / 2, finalSize.Height / 2, 0);
+            if (_gate.IsOpen && !_manual && !_looping)
+            {
+                StartLoop();
+            }
         }
 
         return finalSize;
@@ -97,44 +130,69 @@ public sealed class SpinningOrb : Decorator
                 child.Height = Height;
             }
         }
-        else if (change.Property == IsActiveProperty || change.Property == Motion.ReduceMotionProperty)
+        else if (change.Property == IsActiveProperty || change.Property == Motion.ReduceMotionProperty || change.Property == IsVisibleProperty)
         {
-            Update();
+            _gate.Update(IsActive);
         }
     }
 
     protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
     {
         base.OnAttachedToVisualTree(e);
-        Update();
+        _gate.Update(IsActive);
     }
 
     protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
     {
         base.OnDetachedFromVisualTree(e);
-        Update();
+        _gate.Detach();
     }
 
-    private void Update()
+    private void OnGateChanged(bool open)
     {
-        var run = IsActive && !Motion.GetReduceMotion(this) && ((Visual)this).IsAttachedToVisualTree();
-        if (run == _timer.IsEnabled)
+        if (open)
+        {
+            _start = _clock.GetTimestamp();
+            if (!_manual)
+            {
+                StartLoop();
+            }
+        }
+        else
+        {
+            StopLoop();
+            if (ElementComposition.GetElementVisual(this) is { } visual)
+            {
+                CompositionLoop.HoldAngle(visual, 0);
+            }
+        }
+    }
+
+    /// <summary>Starts the forever turn on the compositor, once the composition visual exists (otherwise the next arrange does).</summary>
+    private void StartLoop()
+    {
+        if (_looping || ElementComposition.GetElementVisual(this) is not { } visual)
         {
             return;
         }
 
-        if (run)
+        visual.CenterPoint = new Vector3D(_arranged.Width / 2, _arranged.Height / 2, 0);
+        CompositionLoop.StartSpin(visual, Period);
+        _looping = true;
+    }
+
+    /// <summary>Ends the compositor turn at angle 0.</summary>
+    private void StopLoop()
+    {
+        if (!_looping)
         {
-            _start = _clock.GetTimestamp();
-            _timer.Start();
+            return;
         }
-        else
+
+        _looping = false;
+        if (ElementComposition.GetElementVisual(this) is { } visual)
         {
-            _timer.Stop();
-            if (ElementComposition.GetElementVisual(this) is { } visual)
-            {
-                visual.RotationAngle = 0;
-            }
+            CompositionLoop.HoldAngle(visual, 0);
         }
     }
 }

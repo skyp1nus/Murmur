@@ -1,6 +1,12 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
+    <!--
+      The portable build (no WINDOWS symbol) runs every test here. The Windows build only compiles Windows/**: the tests of the real
+      Win32 window of the floating orb, which need Murmur.Capture.Windows. On Linux they are skipped.
+    -->
+    <TargetFramework></TargetFramework>
+    <TargetFrameworks>$(MurmurTargetFramework);$(MurmurWindowsTargetFramework)</TargetFrameworks>
     <OutputType>Exe</OutputType>
     <IsPackable>false</IsPackable>
     <IsTestProject>true</IsTestProject>
@@ -15,6 +21,20 @@
 
   <ItemGroup>
     <Using Include="Xunit" />
+  </ItemGroup>
+
+  <PropertyGroup Condition="'$(TargetFramework)' == '$(MurmurWindowsTargetFramework)'">
+    <SupportedOSPlatformVersion>$(MurmurWindowsMinVersion)</SupportedOSPlatformVersion>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+  </PropertyGroup>
+
+  <ItemGroup Condition="'$(TargetFramework)' == '$(MurmurWindowsTargetFramework)'">
+    <Compile Remove="**/*.cs" />
+    <Compile Include="Windows/**/*.cs" Exclude="bin/**;obj/**" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(TargetFramework)' != '$(MurmurWindowsTargetFramework)'">
+    <Compile Remove="Windows/**/*.cs" />
   </ItemGroup>
 
   <ItemGroup>

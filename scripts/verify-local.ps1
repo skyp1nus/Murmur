@@ -19,6 +19,11 @@
                  installed Murmur.exe (every run must render a frame; the median is only reported, -Startup
                  enforces the budget), silent uninstall, folder gone, user data kept.
                  Needs Inno Setup 6 (winget install JRSoftware.InnoSetup); skipped when Murmur is installed on this PC
+      -Import    the file import through Media Foundation (#66): the MediaFoundationDecoder* tests of
+                 Murmur.Capture.Windows.Tests on generated AAC .m4a, H.264+AAC .mp4 (also with late audio), .mp3 and .flac
+                 (these two skip when this PC has no such encoder), plus the end-to-end import of an .mp4 and an .m4a into
+                 sessions; -ImportSamples <folder> also decodes every media file in that folder (MP3, M4A, FLAC, WMA, AAC,
+                 MP4, MOV, OGG, MKV, WEBM...; OGG/MKV/WEBM may be "unsupported"); results in import-results/*.trx
       -Capture   60 s recording with audio + screen (Murmur.exe --autorecord) + scripts/check-recording.ps1
       -Perf      long recordings with the PLAN.md budgets: -PerfMinutes audio only (CPU < 3 %, RAM < 150 MB, no growth),
                  then 10 min audio + screen (CPU < 8 %, working set must not grow)
@@ -43,6 +48,8 @@
     pwsh scripts/verify-local.ps1 -Publish -Capture -Tone
 .EXAMPLE
     pwsh scripts/verify-local.ps1 -All -PerfMinutes 20
+.EXAMPLE
+    pwsh scripts/verify-local.ps1 -Import -ImportSamples D:\media-samples
 #>
 [CmdletBinding()]
 param(
@@ -51,6 +58,8 @@ param(
     [switch] $Publish,
     [switch] $Startup,
     [switch] $Installer,
+    [switch] $Import,
+    [string] $ImportSamples = '',
     [switch] $Capture,
     [switch] $Perf,
     [switch] $Asr,
@@ -69,8 +78,9 @@ $ProgressPreference = 'SilentlyContinue'
 $repo = (Resolve-Path (Join-Path $PSScriptRoot '..')).ProviderPath
 Set-Location -LiteralPath $repo
 
-if ($All) { $Build = $Test = $Publish = $Startup = $Installer = $Capture = $Perf = $Asr = $AiEval = $true }
-if (-not ($Build -or $Test -or $Publish -or $Startup -or $Installer -or $Capture -or $Perf -or $Asr -or $AiEval)) {
+if ($All) { $Build = $Test = $Publish = $Startup = $Installer = $Import = $Capture = $Perf = $Asr = $AiEval = $true }
+if ($ImportSamples) { $Import = $true }
+if (-not ($Build -or $Test -or $Publish -or $Startup -or $Installer -or $Import -or $Capture -or $Perf -or $Asr -or $AiEval)) {
     $Build = $Test = $Publish = $Startup = $true
 }
 
@@ -168,6 +178,35 @@ if ($Test) {
     if ($code -eq 0) { Add-Result 'Test' 'PASS' $summary } else { Add-Result 'Test' 'FAIL' "$summary (exit $code, see test.log)" }
     $failedLines = @(Select-String -LiteralPath $log -Pattern '^\s*failed ' | Select-Object -First 30 | ForEach-Object { $_.Line.Trim() })
     if ($failedLines.Count -gt 0) { Add-Section 'Failed tests' ("````text`n" + ($failedLines -join "`n") + "`n````") }
+}
+
+# --- Import ----------------------------------------------------------------------------------------------------------
+if ($Import -and (Require-Windows 'Import')) {
+    $log = Join-Path $runDir 'import.log'
+    $trx = Join-Path $runDir 'import-results'
+    $samplesNote = 'no -ImportSamples'
+    if ($ImportSamples) {
+        $env:MURMUR_IMPORT_SAMPLES = (Resolve-Path -LiteralPath $ImportSamples).ProviderPath
+        $samplesNote = "samples from $($env:MURMUR_IMPORT_SAMPLES)"
+    }
+    $noBuild = @(if ($Build -and $buildOk) { '--no-build' })
+    try {
+        $code = Invoke-Logged $log {
+            dotnet test --project tests/Murmur.Capture.Windows.Tests -c Release @noBuild --filter-class '*MediaFoundationDecoder*' `
+                --report-xunit-trx --results-directory $trx
+        }
+    }
+    finally {
+        Remove-Item Env:MURMUR_IMPORT_SAMPLES -ErrorAction SilentlyContinue
+    }
+    $text = Read-Text $log
+    $m = [regex]::Match($text, 'total:\s*(\d+)\s+failed:\s*(\d+)\s+succeeded:\s*(\d+)\s+skipped:\s*(\d+)')
+    $summary = if ($m.Success) { "total $($m.Groups[1].Value), failed $($m.Groups[2].Value), passed $($m.Groups[3].Value), skipped $($m.Groups[4].Value); $samplesNote" } else { $samplesNote }
+    if ($code -eq 0) { Add-Result 'Import' 'PASS' $summary } else { Add-Result 'Import' 'FAIL' "$summary (exit $code, see import.log)" }
+    $skipped = @(Select-String -LiteralPath $log -Pattern '^\s*skipped ' | Select-Object -First 20 | ForEach-Object { $_.Line.Trim() })
+    if ($skipped.Count -gt 0) { Add-Section 'Import: skipped tests' ("````text`n" + ($skipped -join "`n") + "`n````") }
+    $failedLines = @(Select-String -LiteralPath $log -Pattern '^\s*failed ' | Select-Object -First 20 | ForEach-Object { $_.Line.Trim() })
+    if ($failedLines.Count -gt 0) { Add-Section 'Import: failed tests' ("````text`n" + ($failedLines -join "`n") + "`n````") }
 }
 
 # --- Publish ---------------------------------------------------------------------------------------------------------

@@ -1,0 +1,77 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:res="using:Murmur.App.Resources"
+             xmlns:views="using:Murmur.App.Views"
+             x:Class="Murmur.App.Views.ShortcutsBar"
+             AutomationProperties.Name="{x:Static res:Strings.Shortcuts_BarName}">
+
+  <!--
+    The keyboard shortcuts under the recording (Idea4Transcript.dc.html, "Idea 4 / Keyboard shortcuts bar", #61): a hairline on top, one row
+    at least 40 high, 24 either side, 16 between the items; each item is its key caps and a label 4 px apart. The row wraps when the window is
+    narrow. The caps are the shared "keyCap" (Geist Mono 11, Surface fill, 5 px radius). Key letters (and arrows) stay as they are, written as element text because they are not translated; the words (Space, Esc)
+    and the labels are strings. The keys themselves are bound by SessionShortcuts, not here.
+  -->
+
+  <UserControl.Resources>
+    <x:Double x:Key="ShortcutsBar.Height">40</x:Double>
+  </UserControl.Resources>
+
+  <UserControl.Styles>
+    <Style Selector="views|ShortcutsBar StackPanel.shortcut">
+      <Setter Property="Orientation" Value="Horizontal" />
+      <Setter Property="Spacing" Value="{StaticResource Space.4}" />
+      <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+    <!-- The mockup's .kbd is Ink on Surface; the shared keyCap (the hotkey hint) is Graphite, so only this bar overrides it. -->
+    <Style Selector="views|ShortcutsBar Border.keyCap > TextBlock">
+      <Setter Property="Foreground" Value="{DynamicResource Brush.Ink}" />
+    </Style>
+    <Style Selector="views|ShortcutsBar TextBlock.shortcutLabel">
+      <Setter Property="FontFamily" Value="{StaticResource Font.Body}" />
+      <Setter Property="FontWeight" Value="{StaticResource FontWeight.Body}" />
+      <Setter Property="FontSize" Value="{StaticResource FontSize.Small}" />
+      <Setter Property="LineHeight" Value="{StaticResource LineHeight.Small}" />
+      <Setter Property="LetterSpacing" Value="{StaticResource LetterSpacing.Small}" />
+      <Setter Property="Foreground" Value="{DynamicResource Brush.Graphite}" />
+      <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+  </UserControl.Styles>
+
+  <StackPanel>
+    <Border Height="{StaticResource Hairline.Width}"
+            Background="{DynamicResource Brush.Hairline}" />
+    <Border MinHeight="{StaticResource ShortcutsBar.Height}"
+            Padding="{StaticResource Inset.TopBar}">
+    <WrapPanel VerticalAlignment="Center"
+               ItemSpacing="{StaticResource Space.16}"
+               LineSpacing="{StaticResource Space.4}">
+      <StackPanel Classes="shortcut">
+        <Border Classes="keyCap"><TextBlock Text="{x:Static res:Strings.Shortcuts_Space}" /></Border>
+        <TextBlock Classes="shortcutLabel" Text="{x:Static res:Strings.Shortcuts_PlayPause}" />
+      </StackPanel>
+      <StackPanel Classes="shortcut">
+        <Border Classes="keyCap"><TextBlock>J</TextBlock></Border>
+        <Border Classes="keyCap"><TextBlock>L</TextBlock></Border>
+        <TextBlock Classes="shortcutLabel" Text="{x:Static res:Strings.Shortcuts_Seek}" />
+      </StackPanel>
+      <StackPanel Classes="shortcut">
+        <Border Classes="keyCap"><TextBlock Text="↑" /></Border>
+        <Border Classes="keyCap"><TextBlock Text="↓" /></Border>
+        <TextBlock Classes="shortcutLabel" Text="{x:Static res:Strings.Shortcuts_Lines}" />
+      </StackPanel>
+      <StackPanel Classes="shortcut">
+        <Border Classes="keyCap"><TextBlock>M</TextBlock></Border>
+        <TextBlock Classes="shortcutLabel" Text="{x:Static res:Strings.Shortcuts_Bookmark}" />
+      </StackPanel>
+      <StackPanel Classes="shortcut">
+        <Border Classes="keyCap"><TextBlock>F</TextBlock></Border>
+        <TextBlock Classes="shortcutLabel" Text="{x:Static res:Strings.Shortcuts_Follow}" />
+      </StackPanel>
+      <StackPanel Classes="shortcut">
+        <Border Classes="keyCap"><TextBlock Text="{x:Static res:Strings.Shortcuts_Esc}" /></Border>
+        <TextBlock Classes="shortcutLabel" Text="{x:Static res:Strings.Shortcuts_Close}" />
+      </StackPanel>
+    </WrapPanel>
+    </Border>
+  </StackPanel>
+</UserControl>

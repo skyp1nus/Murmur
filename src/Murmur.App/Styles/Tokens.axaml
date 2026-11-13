@@ -23,9 +23,10 @@
     Orb.<Layer>         Color of a layer of the orb gradient (+ X, Y, Stop doubles); Orb.Base the lavender under them. Not themed.
     Glass.<Orb>.<Name>  x:Double of a canvas orb painted by GlassOrbControl (Recording, Welcome, Voice), from "glassOrbs":
                         Size, Body, GlowBlur are theme-independent; HaloBlur, HaloOpacity and Glow are in the theme
-                        dictionaries (from <name> and <name>Dark), so look them up with DynamicResource.
+                        dictionaries (from <name> and <name>Dark), so look them up with DynamicResource. An orb that
+                        breathes may also give BreathHaloScale and BreathHaloFade (themed the same way).
 
-  Everything except Color.* / Brush.* / Glass.*.HaloBlur|HaloOpacity|Glow is theme-independent and sits outside the theme dictionaries.
+  Everything except Color.* / Brush.* / Glass.*.HaloBlur|HaloOpacity|Glow|BreathHalo* is theme-independent and sits outside the theme dictionaries.
   Accent colours are only for the recording orb and icons; files whose name contains "Orb", and Icons/, may reference them.
 -->
 <ResourceDictionary xmlns="https://github.com/avaloniaui"
@@ -67,6 +68,8 @@
       <x:Double x:Key="Glass.Welcome.HaloBlur">18</x:Double>
       <x:Double x:Key="Glass.Welcome.HaloOpacity">1</x:Double>
       <x:Double x:Key="Glass.Welcome.Glow">0.35</x:Double>
+      <x:Double x:Key="Glass.Welcome.BreathHaloScale">1.16</x:Double>
+      <x:Double x:Key="Glass.Welcome.BreathHaloFade">0.6875</x:Double>
       <x:Double x:Key="Glass.Voice.HaloBlur">16</x:Double>
       <x:Double x:Key="Glass.Voice.HaloOpacity">0.3</x:Double>
       <x:Double x:Key="Glass.Voice.Glow">0.35</x:Double>
@@ -105,6 +108,8 @@
       <x:Double x:Key="Glass.Welcome.HaloBlur">20</x:Double>
       <x:Double x:Key="Glass.Welcome.HaloOpacity">1</x:Double>
       <x:Double x:Key="Glass.Welcome.Glow">0.25</x:Double>
+      <x:Double x:Key="Glass.Welcome.BreathHaloScale">1.18</x:Double>
+      <x:Double x:Key="Glass.Welcome.BreathHaloFade">0.6</x:Double>
       <x:Double x:Key="Glass.Voice.HaloBlur">18</x:Double>
       <x:Double x:Key="Glass.Voice.HaloOpacity">0.45</x:Double>
       <x:Double x:Key="Glass.Voice.Glow">0.25</x:Double>

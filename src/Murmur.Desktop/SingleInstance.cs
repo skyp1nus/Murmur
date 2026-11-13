@@ -70,7 +70,8 @@ internal sealed class SingleInstance : IActivationRequests, IDisposable
         foreach (var arg in args)
         {
             if (string.Equals(arg, StartupProbe.Flag, StringComparison.Ordinal)
-                || string.Equals(arg, AutoRecordOptions.Flag, StringComparison.Ordinal))
+                || string.Equals(arg, AutoRecordOptions.Flag, StringComparison.Ordinal)
+                || string.Equals(arg, OpenSessionProbe.Flag, StringComparison.Ordinal))
             {
                 return true;
             }

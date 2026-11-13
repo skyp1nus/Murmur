@@ -74,6 +74,9 @@ public sealed record AppSettings
     /// <summary>Which <c>llama-server</c> build runs the chat model; the CPU build is the default and the fallback.</summary>
     public AiAcceleration Acceleration { get; init; } = AiAcceleration.Cpu;
 
+    /// <summary>Top-left of the floating orb in DIPs on the virtual desktop, or null = default (bottom-right of the primary work area, 24 px margin).</summary>
+    public FloatingOrbPosition? FloatingOrbPosition { get; init; }
+
     // ---- Call detection (#44) ----------------------------------------------------------------------------------------------
 
     /// <summary>Murmur watches the local audio sessions and offers to record when a call starts (Settings → Detect calls).</summary>
@@ -98,6 +101,9 @@ public sealed record AppSettings
     /// </summary>
     public bool FollowAlong { get; init; } = true;
 }
+
+/// <summary>Where the floating recorder orb was left (#46): the top-left of the orb, in DIPs.</summary>
+public sealed record FloatingOrbPosition(double X, double Y);
 
 /// <summary>Loads and saves <see cref="AppSettings"/>. Thread-safe; <see cref="Changed"/> may be raised off the UI thread.</summary>
 public interface ISettingsStore
