@@ -21,4 +21,9 @@
     <ProjectReference Include="..\..\src\Murmur.Desktop\Murmur.Desktop.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- The log fake of the Core tests (#100). -->
+    <Compile Include="..\Murmur.Core.Tests\Fakes\RecordingAppLog.cs" Link="Fakes\RecordingAppLog.cs" />
+  </ItemGroup>
+
 </Project>

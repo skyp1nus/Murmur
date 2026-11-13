@@ -208,6 +208,7 @@ public sealed class SingleInstanceTests
         Assert.True(SingleInstance.IsDiagnostic(["--startup-probe", "x.json"]));
         Assert.True(SingleInstance.IsDiagnostic(["--autorecord", "5", "--perf-out", "x"]));
         Assert.True(SingleInstance.IsDiagnostic(["--probe-open-latest"]));
+        Assert.True(SingleInstance.IsDiagnostic(["--probe-crash"]));
         Assert.False(SingleInstance.IsDiagnostic([]));
         Assert.False(SingleInstance.IsDiagnostic(["--screen", "x"]));
     }
@@ -215,11 +216,15 @@ public sealed class SingleInstanceTests
     [Fact]
     public void ANoChannel_OrAChannelThatCannotBeOpened_MeansNoCheck()
     {
-        using var none = SingleInstance.Enter([], () => null);
-        using var failing = SingleInstance.Enter([], () => throw new UnauthorizedAccessException("mutex owned by another user"));
+        var log = new Murmur.Core.Tests.Fakes.RecordingAppLog();
+        using var none = SingleInstance.Enter([], () => null, log: log);
+        Assert.Empty(log.Events);
+        using var failing = SingleInstance.Enter([], () => throw new UnauthorizedAccessException("mutex owned by another user"), log: log);
 
         Assert.True(none.IsPrimary);
         Assert.True(failing.IsPrimary);
+        var line = Assert.Single(log.Events);
+        Assert.Equal(("instance", "channel.unavailable", "UnauthorizedAccessException 0x80070005"), (line.Area, line.Code, line.Detail));
     }
 
     [Fact]
@@ -239,7 +244,8 @@ public sealed class SingleInstanceTests
     public void ARequestThatThrowsInAHandler_DoesNotStopTheListener()
     {
         var system = new FakeSystem();
-        using var first = SingleInstance.Enter([], system.Open);
+        var log = new Murmur.Core.Tests.Fakes.RecordingAppLog();
+        using var first = SingleInstance.Enter([], system.Open, log: log);
         using var answered = new ManualResetEventSlim();
         var calls = 0;
         first.Requested += () =>
@@ -259,6 +265,7 @@ public sealed class SingleInstanceTests
 
         SpinWait.SpinUntil(() => Volatile.Read(ref calls) >= 2, Patience);
         Assert.True(answered.Wait(Patience, TestContext.Current.CancellationToken));
+        Assert.Contains(log.Events, e => e is { Area: "instance", Code: "activation.failed" });
     }
 
     [Fact]
