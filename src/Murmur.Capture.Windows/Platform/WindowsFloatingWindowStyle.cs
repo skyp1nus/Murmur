@@ -1,4 +1,6 @@
+using System.Globalization;
 using System.Runtime.InteropServices;
+using Murmur.Core.Diagnostics;
 using Murmur.Core.Platform;
 
 namespace Murmur.Capture.Windows.Platform;
@@ -27,10 +29,13 @@ namespace Murmur.Capture.Windows.Platform;
 /// <para>Each call also makes sure the window can be seen and clicked (<see cref="MakeReachable"/>).</para>
 /// <para><see cref="SetInputRegion"/> sets a window region: outside it, clicks go to the window below (see the method).</para>
 /// <para>All calls come from the UI thread that owns the window (a window can only be subclassed from its own process). Failures are
-/// reported on stderr and swallowed: the orb still works, it may just take focus on a click.</para>
+/// written to the <see cref="IAppLog"/> (area <c>orb</c>, each code once per instance, so a failure that repeats on every call does not
+/// flood the log) and swallowed: the orb still works, it may just take focus on a click. The window procedure and the hook never log.</para>
 /// </remarks>
 internal sealed unsafe class WindowsFloatingWindowStyle : IFloatingWindowStyle
 {
+    private const string Area = "orb";
+
     /// <summary>The subclassed windows and the procedure each had before.</summary>
     private static readonly Dictionary<nint, nint> s_previous = [];
     private static readonly Lock s_lock = new();
@@ -79,6 +84,46 @@ internal sealed unsafe class WindowsFloatingWindowStyle : IFloatingWindowStyle
         }
     }
 
+    private readonly IAppLog _log;
+
+    /// <summary>The failures already written (a bit per <see cref="Failure"/>), so one that repeats is logged once.</summary>
+    private int _reported;
+
+    /// <param name="log">The diagnostic log (#100) the failures go to; <see cref="NullAppLog"/> by default.</param>
+    public WindowsFloatingWindowStyle(IAppLog? log = null) => _log = log ?? NullAppLog.Instance;
+
+    /// <summary>The failures the style reports; each is written at most once per instance.</summary>
+    private enum Failure
+    {
+        StyleUnsupported,
+        RegionCreate,
+        RegionSet,
+        RegionUnsupported,
+        SubclassFailed,
+        HookInstall,
+        StyleRead,
+        StyleWrite,
+        WindowDisabled,
+        WindowUncloaked,
+        CloakedBySystem,
+    }
+
+    /// <summary>The detail of a failed Win32 call: <c>Win32 error 1400</c> (the code only, never a message).</summary>
+    internal static string Win32Detail(int error) => string.Create(CultureInfo.InvariantCulture, $"Win32 error {error}");
+
+    /// <summary>The detail of a window cloaked by the system: <c>DWMWA_CLOAKED 0x00000004</c>.</summary>
+    internal static string CloakedDetail(int cloaked) => string.Create(CultureInfo.InvariantCulture, $"DWMWA_CLOAKED 0x{cloaked:X8}");
+
+    /// <summary>Writes the event unless this instance already wrote this failure. The detail is built only on the failure path.</summary>
+    private void Report(Failure failure, LogLevel level, string code, string? detail)
+    {
+        var bit = 1 << (int)failure;
+        if ((Interlocked.Or(ref _reported, bit) & bit) == 0)
+        {
+            _log.Write(level, Area, code, detail);
+        }
+    }
+
     public void MakeNonActivating(nint nativeHandle)
     {
         if (nativeHandle == 0)
@@ -96,7 +141,7 @@ internal sealed unsafe class WindowsFloatingWindowStyle : IFloatingWindowStyle
         }
         catch (Exception ex) when (ex is DllNotFoundException or EntryPointNotFoundException)
         {
-            Console.Error.WriteLine($"Making the floating window non-activating failed: {ex.Message}");
+            Report(Failure.StyleUnsupported, LogLevel.Error, "style.unsupported", LogText.Error(ex));
         }
     }
 
@@ -115,14 +160,14 @@ internal sealed unsafe class WindowsFloatingWindowStyle : IFloatingWindowStyle
             var region = CreateRegion(rectangles);
             if (rectangles.Length > 0 && region == 0)
             {
-                Console.Error.WriteLine("Creating the floating window's input region failed.");
+                Report(Failure.RegionCreate, LogLevel.Warning, "region.create-failed", null);
                 return;
             }
 
             if (FloatingWindowNativeMethods.SetWindowRgn(nativeHandle, region, redraw: false) == 0)
             {
                 // The region is still ours only when the call failed.
-                Console.Error.WriteLine($"Setting the floating window's input region failed (Win32 error {Marshal.GetLastPInvokeError()}).");
+                Report(Failure.RegionSet, LogLevel.Warning, "region.set-failed", Win32Detail(Marshal.GetLastPInvokeError()));
                 if (region != 0)
                 {
                     FloatingWindowNativeMethods.DeleteObject(region);
@@ -131,7 +176,7 @@ internal sealed unsafe class WindowsFloatingWindowStyle : IFloatingWindowStyle
         }
         catch (Exception ex) when (ex is DllNotFoundException or EntryPointNotFoundException)
         {
-            Console.Error.WriteLine($"Setting the floating window's input region failed: {ex.Message}");
+            Report(Failure.RegionUnsupported, LogLevel.Error, "region.unsupported", LogText.Error(ex));
         }
     }
 
@@ -166,7 +211,7 @@ internal sealed unsafe class WindowsFloatingWindowStyle : IFloatingWindowStyle
     }
 
     /// <summary>Puts the window procedure that keeps the style and refuses mouse activation in front of the window's own, once.</summary>
-    private static void Subclass(nint window)
+    private void Subclass(nint window)
     {
         lock (s_lock)
         {
@@ -181,7 +226,7 @@ internal sealed unsafe class WindowsFloatingWindowStyle : IFloatingWindowStyle
             if (previous == 0)
             {
                 // Not a window, or one of another process: nothing was replaced.
-                Console.Error.WriteLine($"Subclassing the floating window failed (Win32 error {Marshal.GetLastPInvokeError()}).");
+                Report(Failure.SubclassFailed, LogLevel.Error, "style.subclass-failed", Win32Detail(Marshal.GetLastPInvokeError()));
                 return;
             }
 
@@ -193,7 +238,7 @@ internal sealed unsafe class WindowsFloatingWindowStyle : IFloatingWindowStyle
                     FloatingWindowNativeMethods.WhCbt, (nint)hook, 0, FloatingWindowNativeMethods.GetCurrentThreadId());
                 if (s_hook == 0)
                 {
-                    Console.Error.WriteLine($"Hooking the floating window's activation failed (Win32 error {Marshal.GetLastPInvokeError()}).");
+                    Report(Failure.HookInstall, LogLevel.Warning, "hook.install-failed", Win32Detail(Marshal.GetLastPInvokeError()));
                 }
             }
         }
@@ -221,14 +266,14 @@ internal sealed unsafe class WindowsFloatingWindowStyle : IFloatingWindowStyle
     }
 
     /// <summary>Sets the bits now (the window may already be shown) and has the frame re-read without moving, sizing, reordering or activating it.</summary>
-    private static void ApplyStyle(nint window)
+    private void ApplyStyle(nint window)
     {
         Marshal.SetLastPInvokeError(0);
         var current = FloatingWindowNativeMethods.GetWindowLongPtrW(window, FloatingWindowNativeMethods.GwlExStyle);
         if (current == 0 && Marshal.GetLastPInvokeError() is var readError and not 0)
         {
             // A style that could not be read is not "no style": writing only the new bits would strip every other one.
-            Console.Error.WriteLine($"Reading the floating window's style failed (Win32 error {readError}).");
+            Report(Failure.StyleRead, LogLevel.Warning, "style.read-failed", Win32Detail(readError));
             return;
         }
 
@@ -242,7 +287,7 @@ internal sealed unsafe class WindowsFloatingWindowStyle : IFloatingWindowStyle
         var previous = FloatingWindowNativeMethods.SetWindowLongPtrW(window, FloatingWindowNativeMethods.GwlExStyle, wanted);
         if (previous == 0 && Marshal.GetLastPInvokeError() is var writeError and not 0)
         {
-            Console.Error.WriteLine($"Making the floating window non-activating failed (Win32 error {writeError}).");
+            Report(Failure.StyleWrite, LogLevel.Error, "style.write-failed", Win32Detail(writeError));
             return;
         }
 
@@ -254,12 +299,12 @@ internal sealed unsafe class WindowsFloatingWindowStyle : IFloatingWindowStyle
     /// <c>WindowFromPoint</c>), and uncloaked if this app cloaked it. A window cloaked by the shell (it is on another virtual desktop) is
     /// only reported: that is the user's arrangement, not ours to undo.
     /// </summary>
-    private static void MakeReachable(nint window)
+    private void MakeReachable(nint window)
     {
         if (!FloatingWindowNativeMethods.IsWindowEnabled(window))
         {
             FloatingWindowNativeMethods.EnableWindow(window, enable: true);
-            Console.Error.WriteLine("The floating window was disabled; it was enabled again.");
+            Report(Failure.WindowDisabled, LogLevel.Warning, "window.reenabled", null);
         }
 
         try
@@ -273,11 +318,11 @@ internal sealed unsafe class WindowsFloatingWindowStyle : IFloatingWindowStyle
             if ((cloaked & FloatingWindowNativeMethods.DwmCloakedApp) != 0)
             {
                 FloatingWindowNativeMethods.DwmSetWindowAttribute(window, FloatingWindowNativeMethods.DwmwaCloak, 0, sizeof(int));
-                Console.Error.WriteLine("The floating window was cloaked by the app; it was uncloaked.");
+                Report(Failure.WindowUncloaked, LogLevel.Warning, "window.uncloaked", null);
             }
             else
             {
-                Console.Error.WriteLine($"The floating window is cloaked by the system (DWMWA_CLOAKED {cloaked}: another virtual desktop?).");
+                Report(Failure.CloakedBySystem, LogLevel.Warning, "window.cloaked-by-system", CloakedDetail(cloaked));
             }
         }
         catch (DllNotFoundException)

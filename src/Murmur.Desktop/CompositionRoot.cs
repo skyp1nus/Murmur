@@ -147,7 +147,7 @@ internal sealed class CompositionRoot : IDisposable
 
         // Imported files become sessions on the same queue (so they wait while recording) and go through the same pipeline. The import
         // dialog probes the files it lists with the same decoder.
-        var mediaDecoder = _mediaDecoder ??= CreateMediaDecoder();
+        var mediaDecoder = _mediaDecoder ??= CreateMediaDecoder(log);
         var imports = _imports ??= new ImportQueue(storage, storage, mediaDecoder, queue, processor);
 
         // The status bar's feed: what runs or waits, from the recorder, the pipeline and the model downloads.
@@ -237,7 +237,7 @@ internal sealed class CompositionRoot : IDisposable
             Downloads: _downloads ??= CreateDownloadsFolder(),
             BookmarkStore: storage,
             Vocabulary: storage,
-            FloatingWindowStyle: CreateFloatingWindowStyle(),
+            FloatingWindowStyle: CreateFloatingWindowStyle(log),
             Log: log);
     }
 
@@ -361,10 +361,10 @@ internal sealed class CompositionRoot : IDisposable
     /// The decoders of the import, tried in order by extension: on Windows the Media Foundation decoder of Murmur.Capture.Windows
     /// (MP3, M4A, FLAC, MP4, MOV...) goes before the managed WAV decoder, which works everywhere.
     /// </summary>
-    private static IMediaDecoder CreateMediaDecoder()
+    private static IMediaDecoder CreateMediaDecoder(IAppLog log)
     {
 #if WINDOWS
-        return new CompositeMediaDecoder(new Murmur.Capture.Windows.Import.MediaFoundationDecoder(), new WavMediaDecoder());
+        return new CompositeMediaDecoder(new Murmur.Capture.Windows.Import.MediaFoundationDecoder(log), new WavMediaDecoder());
 #else
         return new CompositeMediaDecoder(new WavMediaDecoder());
 #endif
@@ -414,10 +414,10 @@ internal sealed class CompositionRoot : IDisposable
     }
 
     /// <summary>Keeps the floating orb's window from taking focus: the Windows window style on Windows, nothing elsewhere.</summary>
-    internal static IFloatingWindowStyle? CreateFloatingWindowStyle()
+    internal static IFloatingWindowStyle? CreateFloatingWindowStyle(IAppLog log)
     {
 #if WINDOWS
-        return Murmur.Capture.Windows.WindowsCapture.CreateFloatingWindowStyle();
+        return Murmur.Capture.Windows.WindowsCapture.CreateFloatingWindowStyle(log);
 #else
         return null;
 #endif

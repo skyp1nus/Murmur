@@ -4,6 +4,7 @@ using Murmur.Capture.Windows.Playback;
 using Murmur.Capture.Windows.Screen;
 using Murmur.Capture.Windows.Video;
 using Murmur.Core.Capture;
+using Murmur.Core.Diagnostics;
 using Murmur.Core.Import;
 using Murmur.Core.Input;
 using Murmur.Core.Platform;
@@ -79,7 +80,7 @@ public sealed class WindowsCapture : ICapture, IAudioPlayback, IVideoPlayback
     public static IMotionPreference CreateMotionPreference() => new Platform.WindowsMotionPreference();
 
     /// <summary>Makes the floating recorder orb's window non-activating and keeps it out of Alt+Tab (<c>WS_EX_NOACTIVATE</c> / <c>WS_EX_TOOLWINDOW</c>).</summary>
-    public static IFloatingWindowStyle CreateFloatingWindowStyle() => new Platform.WindowsFloatingWindowStyle();
+    public static IFloatingWindowStyle CreateFloatingWindowStyle(IAppLog? log = null) => new Platform.WindowsFloatingWindowStyle(log);
 
     /// <summary>
     /// The user's Downloads folder for the import dialog: the shell's known folder <c>FOLDERID_Downloads</c> (a moved folder is found),

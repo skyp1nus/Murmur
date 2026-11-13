@@ -5,6 +5,7 @@ using Murmur.Capture.Windows.Screen;
 using Murmur.Capture.Windows.Screen.Interop;
 using Murmur.Core.Audio;
 using Murmur.Core.Capture;
+using Murmur.Core.Diagnostics;
 using Murmur.Core.Import;
 
 namespace Murmur.Capture.Windows.Import;
@@ -35,6 +36,11 @@ namespace Murmur.Capture.Windows.Import;
 /// </remarks>
 public sealed class MediaFoundationDecoder : IMediaDecoder
 {
+    private readonly IAppLog _log;
+
+    /// <param name="log">The diagnostic log (#100) the decoder reports a file it could only partly read to; <see cref="NullAppLog"/> by default.</param>
+    public MediaFoundationDecoder(IAppLog? log = null) => _log = log ?? NullAppLog.Instance;
+
     private const int BlockFrames = 8192;
 
     /// <summary>Blocks of silence written between two cancellation checks (16 x 8192 frames: about 3 s at 44.1 kHz).</summary>
@@ -60,7 +66,7 @@ public sealed class MediaFoundationDecoder : IMediaDecoder
     {
         ArgumentNullException.ThrowIfNull(path);
         ArgumentNullException.ThrowIfNull(destinationWav);
-        return new ValueTask(Task.Run(() => Decode(path, destinationWav, progress, cancellationToken), cancellationToken));
+        return new ValueTask(Task.Run(() => Decode(path, destinationWav, progress, _log, cancellationToken), cancellationToken));
     }
 
     /// <summary>The exception for a failed open or read: format, damage, missing file or access.</summary>
@@ -98,7 +104,7 @@ public sealed class MediaFoundationDecoder : IMediaDecoder
         }
     }
 
-    private static unsafe void Decode(string path, string destinationWav, IProgress<double>? progress, CancellationToken cancellationToken)
+    private static unsafe void Decode(string path, string destinationWav, IProgress<double>? progress, IAppLog log, CancellationToken cancellationToken)
     {
         using var apartment = ComHelpers.EnterMta();
         var part = destinationWav + ".part";
@@ -109,7 +115,7 @@ public sealed class MediaFoundationDecoder : IMediaDecoder
             var duration = Math.Max(declared, 1);
             var reported = -1;
             using (var writer = CreateWriter(part))
-            using (var pipeline = new Pipeline(CurrentFormat(reader, path), writer, AudioStartOf(path)))
+            using (var pipeline = new Pipeline(CurrentFormat(reader, path), writer, AudioStartOf(path, log)))
             {
                 while (true)
                 {
@@ -199,8 +205,8 @@ public sealed class MediaFoundationDecoder : IMediaDecoder
         return firstTimestamp < (delay - edit.Trim.Ticks) / 2 ? edit : null;
     }
 
-    /// <summary>The audio track's edit list of an MP4/M4A/MOV (none for other files, or when it cannot be read).</summary>
-    private static Mp4AudioStart AudioStartOf(string path)
+    /// <summary>The audio track's edit list of an MP4/M4A/MOV (none for other files, or when it cannot be read: that is logged as a warning).</summary>
+    internal static Mp4AudioStart AudioStartOf(string path, IAppLog log)
     {
         if (!Mp4EditList.AppliesTo(path))
         {
@@ -210,23 +216,15 @@ public sealed class MediaFoundationDecoder : IMediaDecoder
         var start = Mp4EditList.ReadAudioStart(path, out var problem);
         if (problem is not null)
         {
-            LogWarning($"the edit list of '{Path.GetFileName(path)}' could not be read, the audio is decoded from its first sample: {problem}");
+            // The audio is still decoded, from its first sample: only the timeline may be off by the file's leading edit.
+            log.Write(LogLevel.Warning, "import", "editlist.unreadable", EditListDetail(path, problem));
         }
 
         return start;
     }
 
-    private static void LogWarning(string message)
-    {
-        try
-        {
-            Console.Error.WriteLine($"Murmur: import: {message}");
-        }
-        catch (Exception)
-        {
-            // A broken console must not break the import.
-        }
-    }
+    /// <summary>The file name and the scrubbed reason an edit list could not be read ("clip.mp4: the file has no '...' box").</summary>
+    internal static string EditListDetail(string path, string problem) => $"{LogText.FileName(path)}: {LogText.Scrub(problem)}";
 
     /// <summary>A 16 kHz mono PCM16 writer over a new <paramref name="path"/>; the stream is disposed when the writer cannot be made.</summary>
     private static WavPcm16Writer CreateWriter(string path)

@@ -1,5 +1,7 @@
 using System.Runtime.InteropServices;
 using Murmur.Capture.Windows.Platform;
+using Murmur.Core.Diagnostics;
+using Murmur.Core.Tests.Fakes;
 
 namespace Murmur.Capture.Windows.Tests;
 
@@ -109,6 +111,41 @@ public sealed partial class FloatingWindowStyleTests
     public void ANullHandle_IsIgnored()
     {
         new WindowsFloatingWindowStyle().MakeNonActivating(0);
+    }
+
+    [Fact]
+    public void ANullHandle_WritesNothingToTheLog()
+    {
+        var log = new RecordingAppLog();
+
+        new WindowsFloatingWindowStyle(log).MakeNonActivating(0);
+        new WindowsFloatingWindowStyle(log).SetInputRegion(0, []);
+
+        Assert.Empty(log.Events);
+    }
+
+    [Fact]
+    public void TheDetailOfAFailedCall_IsTheCodeOnly()
+    {
+        Assert.Equal("Win32 error 1400", WindowsFloatingWindowStyle.Win32Detail(1400));
+        Assert.Equal("DWMWA_CLOAKED 0x00000004", WindowsFloatingWindowStyle.CloakedDetail(4));
+    }
+
+    [Fact]
+    [Trait("Category", "Windows")]
+    public void AHandleThatIsNotAWindow_IsLoggedOnceAsASubclassFailure()
+    {
+        Assert.SkipUnless(OperatingSystem.IsWindows(), WindowsOnly);
+        var log = new RecordingAppLog();
+        var style = new WindowsFloatingWindowStyle(log);
+
+        style.MakeNonActivating(0x7FFFFFF);
+        style.MakeNonActivating(0x7FFFFFF);
+
+        var failure = Assert.Single(log.Events, e => e.Code == "style.subclass-failed");
+        Assert.Equal(LogLevel.Error, failure.Level);
+        Assert.Equal("orb", failure.Area);
+        Assert.StartsWith("Win32 error ", failure.Detail, StringComparison.Ordinal);
     }
 
     [Fact]
