@@ -37,6 +37,9 @@ public sealed class MediaFoundationDecoder : IMediaDecoder
 {
     private const int BlockFrames = 8192;
 
+    /// <summary>Blocks of silence written between two cancellation checks (16 x 8192 frames: about 3 s at 44.1 kHz).</summary>
+    private const int PadBlocksPerCancelCheck = 16;
+
     /// <summary>A timestamp this far ahead of the audio written so far is a gap to fill with silence (not codec jitter).</summary>
     private static readonly long GapTolerance = TimeSpan.FromMilliseconds(20).Ticks;
 
@@ -130,7 +133,7 @@ public sealed class MediaFoundationDecoder : IMediaDecoder
 
                         if (sample != 0 || (flags & ScreenConstants.MfSourceReaderFlagStreamTick) != 0)
                         {
-                            timestamp = pipeline.PadTo(timestamp, declared);
+                            timestamp = pipeline.PadTo(timestamp, sample != 0, declared, cancellationToken);
                         }
 
                         if (sample != 0)
@@ -179,14 +182,21 @@ public sealed class MediaFoundationDecoder : IMediaDecoder
     }
 
     /// <summary>
-    /// The edit list the source reader left for the decoder to apply, judged by the reader's first audio timestamp:
-    /// a leading empty edit (longer than codec jitter) the first timestamp falls well short of was ignored by the reader;
-    /// null when there is none or the reader honoured it.
+    /// The edit list the source reader left for the decoder to apply, judged by the timestamp of the reader's first audio
+    /// sample: a leading empty edit (longer than codec jitter) is taken as ignored when that timestamp is nearer 0 than
+    /// the point the edit puts the first sample at (<c>Delay - Trim</c>; a reader that honours the edit and delivers the
+    /// primed frames starts there). Null when there is none, the reader honoured it, or the delay runs more than a second
+    /// past the file's declared duration (<paramref name="declaredTicks"/>, when known; damage, not an offset).
     /// </summary>
-    internal static Mp4AudioStart? EditToApply(Mp4AudioStart edit, long firstTimestamp)
+    internal static Mp4AudioStart? EditToApply(Mp4AudioStart edit, long firstTimestamp, long declaredTicks)
     {
         var delay = edit.Delay.Ticks;
-        return delay > GapTolerance && firstTimestamp + GapTolerance < delay ? edit : null;
+        if (delay <= GapTolerance || (declaredTicks > 0 && delay > declaredTicks + TimeSpan.TicksPerSecond))
+        {
+            return null;
+        }
+
+        return firstTimestamp < (delay - edit.Trim.Ticks) / 2 ? edit : null;
     }
 
     /// <summary>The audio track's edit list of an MP4/M4A/MOV (none for other files, or when it cannot be read).</summary>
@@ -422,14 +432,14 @@ public sealed class MediaFoundationDecoder : IMediaDecoder
     }
 
     /// <param name="Pcm16">16-bit PCM samples; otherwise 32-bit float.</param>
-    private readonly record struct PcmFormat(AudioFormat Audio, bool Pcm16);
+    internal readonly record struct PcmFormat(AudioFormat Audio, bool Pcm16);
 
     /// <summary>
     /// The PCM -&gt; track conversion of one decode: the resampler of the current format, its pooled buffers, the
     /// position on the file's timeline up to which audio was written (to pad gaps with silence), and the edit list the
     /// source reader did not apply.
     /// </summary>
-    private sealed class Pipeline : IDisposable
+    internal sealed class Pipeline : IDisposable
     {
         private readonly WavPcm16Writer _writer;
         private PcmFormat _format;
@@ -473,21 +483,23 @@ public sealed class MediaFoundationDecoder : IMediaDecoder
         }
 
         /// <summary>
-        /// Fills a gap before <paramref name="timestamp"/> (the reader's) with silence (a timestamp far past the declared
-        /// end is ignored); returns it on the file's timeline. The first call decides whether the reader applied the
-        /// edit list: a first timestamp well before the leading empty edit ends means it did not, so the track starts with
-        /// the empty edit's silence, every timestamp moves by the edit and its start trim is dropped from the audio.
+        /// Fills a gap before <paramref name="timestamp"/> (the reader's, of a sample or of a stream tick) with silence (a
+        /// timestamp far past the declared end is ignored); returns it on the file's timeline. The first call with a real
+        /// <paramref name="sample"/> decides whether the reader applied the edit list (<see cref="EditToApply"/>): if not,
+        /// the track starts with the empty edit's silence, every timestamp moves by the edit and its start trim is
+        /// dropped from the audio. Stream ticks before it only fill gaps.
         /// </summary>
-        public long PadTo(long timestamp, long declaredTicks)
+        /// <exception cref="OperationCanceledException">Cancelled while writing silence.</exception>
+        public long PadTo(long timestamp, bool sample, long declaredTicks, CancellationToken cancellationToken)
         {
-            if (!_started)
+            if (!_started && sample)
             {
                 _started = true;
-                if (EditToApply(_edit, timestamp) is { } edit)
+                if (EditToApply(_edit, timestamp, declaredTicks) is { } edit)
                 {
                     _shiftTicks = edit.Delay.Ticks - edit.Trim.Ticks;
                     _skipFrames = edit.Trim.Ticks * _format.Audio.SampleRate / TimeSpan.TicksPerSecond;
-                    Pad(edit.Delay.Ticks - CoveredTicks);
+                    Pad(edit.Delay.Ticks - CoveredTicks, cancellationToken);
                 }
             }
 
@@ -495,7 +507,7 @@ public sealed class MediaFoundationDecoder : IMediaDecoder
             var gap = timestamp - CoveredTicks;
             if (gap > GapTolerance && (declaredTicks <= 0 || timestamp <= declaredTicks + TimeSpan.TicksPerSecond))
             {
-                Pad(gap);
+                Pad(gap, cancellationToken);
             }
 
             return timestamp;
@@ -544,13 +556,7 @@ public sealed class MediaFoundationDecoder : IMediaDecoder
                     else
                     {
                         var frames = (int)(length / sizeof(float) / (uint)channels);
-                        var samples = new ReadOnlySpan<float>(data, frames * channels);
-                        var skip = Skip(frames);
-                        for (var offset = skip; offset < frames; offset += BlockFrames)
-                        {
-                            var count = Math.Min(BlockFrames, frames - offset);
-                            Feed(samples.Slice(offset * channels, count * channels));
-                        }
+                        Write(new ReadOnlySpan<float>(data, frames * channels));
                     }
                 }
                 finally
@@ -561,6 +567,18 @@ public sealed class MediaFoundationDecoder : IMediaDecoder
             finally
             {
                 ComCall.Release(ref buffer);
+            }
+        }
+
+        /// <summary>Interleaved float audio of the current format (what is left of the start trim is dropped first).</summary>
+        public void Write(ReadOnlySpan<float> interleaved)
+        {
+            var channels = _format.Audio.Channels;
+            var frames = interleaved.Length / channels;
+            for (var offset = Skip(frames); offset < frames; offset += BlockFrames)
+            {
+                var count = Math.Min(BlockFrames, frames - offset);
+                Feed(interleaved.Slice(offset * channels, count * channels));
             }
         }
 
@@ -580,13 +598,18 @@ public sealed class MediaFoundationDecoder : IMediaDecoder
             return skip;
         }
 
-        /// <summary><paramref name="ticks"/> of silence (nothing when not positive).</summary>
-        private void Pad(long ticks)
+        /// <summary><paramref name="ticks"/> of silence (nothing when not positive); cancellable every few blocks.</summary>
+        private void Pad(long ticks, CancellationToken cancellationToken)
         {
             var frames = ticks * _format.Audio.SampleRate / TimeSpan.TicksPerSecond;
             var channels = _format.Audio.Channels;
-            while (frames > 0)
+            for (var block = 0; frames > 0; block++)
             {
+                if (block % PadBlocksPerCancelCheck == 0)
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+                }
+
                 var count = (int)Math.Min(frames, BlockFrames);
                 var silence = _scratch.AsSpan(0, count * channels);
                 silence.Clear();

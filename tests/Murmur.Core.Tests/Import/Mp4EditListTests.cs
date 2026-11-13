@@ -157,6 +157,62 @@ public sealed class Mp4EditListTests
     }
 
     [Fact]
+    public void ADamagedVideoTrack_DoesNotCostTheAudioItsOffset()
+    {
+        var video = Track("vide", 15_360, Elst(0, (3000, 1024)));
+        BinaryPrimitives.WriteUInt32BigEndian(video.AsSpan(8), 9999); // its tkhd now runs past the trak
+        var file = Mp4(Box("moov", Mvhd(1000), video, Track("soun", 44_100, Elst(0, (976, -1), (2024, 0)))));
+
+        var start = Read(file, out var problem);
+
+        Assert.Null(problem);
+        Assert.Equal(TimeSpan.FromMilliseconds(976), start.Delay);
+    }
+
+    [Fact]
+    public void ADamagedTrack_AndNoReadableAudio_IsAProblem()
+    {
+        var damaged = Track("soun", 44_100, Elst(0, (976, -1), (2024, 0)));
+        BinaryPrimitives.WriteUInt32BigEndian(damaged.AsSpan(8), 9999);
+        var file = Mp4(Box("moov", Mvhd(1000), Track("vide", 15_360, Elst(0, (3000, 1024))), damaged));
+
+        var start = Read(file, out var problem);
+
+        Assert.True(start.IsNone);
+        Assert.Contains("trak", problem, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData((byte)0)]
+    [InlineData((byte)1)]
+    public void AFirstEditThatDoesNotPlayAtNormalSpeed_IsNotATrim(byte version)
+    {
+        // A dwell (media_rate 0) on media time 1024 after the empty edit: the delay stands, nothing is trimmed.
+        var elst = Elst(version, (500, -1), (100, 1024), (2000, 1024));
+        var entrySize = version == 1 ? 20 : 12;
+        var rateAt = 8 + 8 + entrySize + (version == 1 ? 16 : 8); // box header, version/flags/count, the empty edit
+        BinaryPrimitives.WriteInt16BigEndian(elst.AsSpan(rateAt), 0);
+        var file = Mp4(Box("moov", Mvhd(1000), Track("soun", 44_100, elst)));
+
+        var start = Read(file, out var problem);
+
+        Assert.Null(problem);
+        Assert.Equal(new Mp4AudioStart(TimeSpan.FromMilliseconds(500), TimeSpan.Zero), start);
+    }
+
+    [Fact]
+    public void MoreBoxesInOneParentThanTheCap_IsAProblem()
+    {
+        var free = Enumerable.Repeat(Box("free"), Mp4EditList.MaxBoxesPerLevel + 1);
+        var file = Mp4([.. free, Box("moov", Mvhd(1000), Track("soun", 44_100, Elst(0, (1000, -1), (2000, 0))))]);
+
+        var start = Read(file, out var problem);
+
+        Assert.True(start.IsNone);
+        Assert.Contains(Mp4EditList.MaxBoxesPerLevel.ToString(System.Globalization.CultureInfo.InvariantCulture), problem, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void NoMoov_IsAProblem()
     {
         var file = Concat(Box("ftyp", Ascii("isom"), new byte[4]), Box("mdat", new byte[32]));

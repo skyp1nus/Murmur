@@ -1,5 +1,6 @@
 using Murmur.Capture.Windows.Import;
 using Murmur.Core.Audio;
+using Murmur.Core.Capture;
 using Murmur.Core.Import;
 
 namespace Murmur.Capture.Windows.Tests;
@@ -47,27 +48,138 @@ public sealed class MediaFoundationDecoderRulesTests
     {
         // ffmpeg's late-audio.mp4: the reader's first audio timestamp is 0, the edit list says the sound starts at 0.976 s.
         var edit = new Mp4AudioStart(TimeSpan.FromMilliseconds(976), TimeSpan.FromMilliseconds(23));
+        var declared = TimeSpan.FromSeconds(3).Ticks;
 
-        Assert.Equal(edit, MediaFoundationDecoder.EditToApply(edit, firstTimestamp: 0));
-        Assert.Equal(edit, MediaFoundationDecoder.EditToApply(edit, firstTimestamp: TimeSpan.FromMilliseconds(5).Ticks));
+        Assert.Equal(edit, MediaFoundationDecoder.EditToApply(edit, firstTimestamp: 0, declared));
+        Assert.Equal(edit, MediaFoundationDecoder.EditToApply(edit, firstTimestamp: TimeSpan.FromMilliseconds(5).Ticks, declared));
+        Assert.Equal(edit, MediaFoundationDecoder.EditToApply(edit, firstTimestamp: 0, declaredTicks: 0));
     }
 
     [Fact]
     public void AnEmptyEditTheReaderHonoured_IsNotAppliedTwice()
     {
         var edit = new Mp4AudioStart(TimeSpan.FromSeconds(1), TimeSpan.Zero);
+        var declared = TimeSpan.FromSeconds(3).Ticks;
 
-        Assert.Null(MediaFoundationDecoder.EditToApply(edit, firstTimestamp: TimeSpan.FromSeconds(1).Ticks));
-        Assert.Null(MediaFoundationDecoder.EditToApply(edit, firstTimestamp: TimeSpan.FromMilliseconds(990).Ticks));
+        Assert.Null(MediaFoundationDecoder.EditToApply(edit, firstTimestamp: TimeSpan.FromSeconds(1).Ticks, declared));
+        Assert.Null(MediaFoundationDecoder.EditToApply(edit, firstTimestamp: TimeSpan.FromMilliseconds(990).Ticks, declared));
+    }
+
+    [Fact]
+    public void AReaderThatHonoursTheEdit_AndDeliversThePrimedFrames_GetsNoSecondOffset()
+    {
+        // The edit puts the first (priming) sample at Delay - Trim; a reader that honours it starts exactly there.
+        var edit = new Mp4AudioStart(TimeSpan.FromMilliseconds(100), TimeSpan.FromMilliseconds(46));
+
+        Assert.Null(MediaFoundationDecoder.EditToApply(edit, firstTimestamp: (edit.Delay - edit.Trim).Ticks, TimeSpan.FromSeconds(3).Ticks));
+        Assert.Equal(edit, MediaFoundationDecoder.EditToApply(edit, firstTimestamp: 0, TimeSpan.FromSeconds(3).Ticks));
+    }
+
+    [Fact]
+    public void ADelayFarPastTheDeclaredDuration_IsDamage_NotSilenceToWrite()
+    {
+        var edit = new Mp4AudioStart(TimeSpan.FromHours(23), TimeSpan.Zero);
+
+        Assert.Null(MediaFoundationDecoder.EditToApply(edit, firstTimestamp: 0, TimeSpan.FromSeconds(3).Ticks));
+        Assert.Null(MediaFoundationDecoder.EditToApply(new Mp4AudioStart(TimeSpan.FromSeconds(4.5), TimeSpan.Zero), 0, TimeSpan.FromSeconds(3).Ticks));
+        Assert.NotNull(MediaFoundationDecoder.EditToApply(new Mp4AudioStart(TimeSpan.FromSeconds(3.5), TimeSpan.Zero), 0, TimeSpan.FromSeconds(3).Ticks));
     }
 
     [Fact]
     public void NoEmptyEdit_OrOneWithinCodecJitter_IsNotApplied()
     {
-        Assert.Null(MediaFoundationDecoder.EditToApply(Mp4AudioStart.None, firstTimestamp: 0));
-        Assert.Null(MediaFoundationDecoder.EditToApply(new Mp4AudioStart(TimeSpan.Zero, TimeSpan.FromMilliseconds(23)), firstTimestamp: 0));
-        Assert.Null(MediaFoundationDecoder.EditToApply(new Mp4AudioStart(TimeSpan.FromMilliseconds(10), TimeSpan.Zero), firstTimestamp: 0));
+        Assert.Null(MediaFoundationDecoder.EditToApply(Mp4AudioStart.None, firstTimestamp: 0, declaredTicks: 0));
+        Assert.Null(MediaFoundationDecoder.EditToApply(new Mp4AudioStart(TimeSpan.Zero, TimeSpan.FromMilliseconds(23)), firstTimestamp: 0, declaredTicks: 0));
+        Assert.Null(MediaFoundationDecoder.EditToApply(new Mp4AudioStart(TimeSpan.FromMilliseconds(10), TimeSpan.Zero), firstTimestamp: 0, declaredTicks: 0));
     }
+}
+
+/// <summary>The decoder's timeline (silence, edit list, trim) on PCM fed directly, checked on any OS.</summary>
+public sealed class MediaFoundationDecoderPipelineTests
+{
+    private const int Rate = 16_000;
+    private static readonly long Declared = TimeSpan.FromSeconds(3).Ticks;
+
+    private static CancellationToken Ct => TestContext.Current.CancellationToken;
+
+    [Fact]
+    public void AStreamTickAtZero_BeforeTheFirstSample_DoesNotDoubleTheLeadingSilence()
+    {
+        var samples = Run(new Mp4AudioStart(TimeSpan.FromSeconds(1), TimeSpan.Zero), pipeline =>
+        {
+            pipeline.PadTo(0, sample: false, Declared, Ct);
+            pipeline.PadTo(0, sample: true, Declared, Ct);
+            pipeline.Write(Tone(TimeSpan.FromSeconds(2)));
+        });
+
+        Assert.Equal(3 * Rate, samples.Length);
+        Assert.Equal(Rate, FirstSound(samples));
+    }
+
+    [Fact]
+    public void StreamTicks_OnlyFillGaps_UntilTheFirstSampleDecides()
+    {
+        // A reader that honours the edit: a tick at 0, then the first sample at 1 s. Nothing is shifted.
+        var samples = Run(new Mp4AudioStart(TimeSpan.FromSeconds(1), TimeSpan.Zero), pipeline =>
+        {
+            pipeline.PadTo(0, sample: false, Declared, Ct);
+            Assert.Equal(TimeSpan.FromSeconds(1).Ticks, pipeline.PadTo(TimeSpan.FromSeconds(1).Ticks, sample: true, Declared, Ct));
+            pipeline.Write(Tone(TimeSpan.FromSeconds(2)));
+        });
+
+        Assert.Equal(3 * Rate, samples.Length);
+        Assert.Equal(Rate, FirstSound(samples));
+    }
+
+    [Fact]
+    public void AnIgnoredEdit_ShiftsTheTimestamps_AndDropsItsStartTrim()
+    {
+        var edit = new Mp4AudioStart(TimeSpan.FromSeconds(1), TimeSpan.FromMilliseconds(500));
+        var samples = Run(edit, pipeline =>
+        {
+            Assert.Equal(TimeSpan.FromMilliseconds(500).Ticks, pipeline.PadTo(0, sample: true, Declared, Ct));
+            pipeline.Write(Tone(TimeSpan.FromSeconds(1)));
+            Assert.Equal(TimeSpan.FromMilliseconds(1500).Ticks, pipeline.PadTo(TimeSpan.FromSeconds(1).Ticks, sample: true, Declared, Ct));
+            pipeline.Write(Tone(TimeSpan.FromSeconds(1)));
+        });
+
+        // 1 s of silence, then 2 s of tone less the 0.5 s trim.
+        Assert.Equal((int)(2.5 * Rate), samples.Length);
+        Assert.Equal(Rate, FirstSound(samples));
+    }
+
+    [Fact]
+    public void ALongLeadingSilence_StopsWhenCancelled()
+    {
+        using var cancelled = new CancellationTokenSource();
+        cancelled.Cancel();
+
+        Assert.Throws<OperationCanceledException>(() => Run(
+            new Mp4AudioStart(TimeSpan.FromHours(1), TimeSpan.Zero),
+            pipeline => pipeline.PadTo(0, sample: true, declaredTicks: 0, cancelled.Token)));
+    }
+
+    private static float[] Run(Mp4AudioStart edit, Action<MediaFoundationDecoder.Pipeline> feed)
+    {
+        var stream = new MemoryStream();
+        using (var writer = new WavPcm16Writer(stream, Rate, 1, leaveOpen: true))
+        using (var pipeline = new MediaFoundationDecoder.Pipeline(new MediaFoundationDecoder.PcmFormat(new AudioFormat(Rate, 1), Pcm16: false), writer, edit))
+        {
+            feed(pipeline);
+            pipeline.Finish();
+        }
+
+        stream.Position = 0;
+        using var reader = WavReader.Open(stream);
+        var samples = new float[reader.FrameCount];
+        Assert.Equal(samples.Length, reader.Read(samples));
+        return samples;
+    }
+
+    /// <summary>A constant 0.5 (16 kHz mono): exact through the pass-through resampler, easy to find.</summary>
+    private static float[] Tone(TimeSpan duration) => Enumerable.Repeat(0.5f, (int)(duration.TotalSeconds * Rate)).ToArray();
+
+    private static int FirstSound(float[] samples) => Array.FindIndex(samples, s => MathF.Abs(s) > 0.1f);
 }
 
 /// <summary>The decoder against real files through Media Foundation. Windows only.</summary>
@@ -218,18 +330,21 @@ public sealed class MediaFoundationDecoderTests : IDisposable
         var stored = Mp4EditList.ReadAudioStart(path, out var problem);
         Assert.Null(problem);
         TestContext.Current.TestOutputHelper?.WriteLine($"late.mp4 audio edit: delay {stored.Delay}, trim {stored.Trim}");
+        if (stored.Delay < TimeSpan.FromMilliseconds(500))
+        {
+            Assert.Skip($"the MP4 sink stored no audio offset (delay {stored.Delay}); the late-audio path is checked with -ImportSamples late-audio.mp4");
+        }
+
         var probe = await _decoder.ProbeAsync(path, Ct);
         await _decoder.DecodeAudioAsync(path, destination, null, Ct);
 
         // Silence for the stored delay, then the 2 s of tone that were written.
         AssertTone(destination, stored.Delay + TimeSpan.FromSeconds(2), toneFrom: stored.Delay);
         AssertNear(TimeSpan.FromSeconds(3), probe.Duration, "probe duration");
-        if (stored.Delay > TimeSpan.FromMilliseconds(500))
-        {
-            // The offset survived in the file, so the track is as long as the picture.
-            using var reader = WavReader.Open(destination);
-            AssertNear(probe.Duration, reader.Duration, "decoded duration against the probe");
-        }
+
+        // The offset survived in the file, so the track is as long as the picture.
+        using var reader = WavReader.Open(destination);
+        AssertNear(probe.Duration, reader.Duration, "decoded duration against the probe");
     }
 
     [Fact]

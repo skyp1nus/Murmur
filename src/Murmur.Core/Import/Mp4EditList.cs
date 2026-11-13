@@ -33,7 +33,8 @@ public readonly record struct Mp4AudioStart(TimeSpan Delay, TimeSpan Trim)
 /// <para><b>Format.</b> 32- and 64-bit box sizes (<c>size == 1</c>), a size of 0 (to the end of the parent), <c>elst</c>
 /// versions 0 and 1, <c>mvhd</c>/<c>mdhd</c> versions 0 and 1, <c>moov</c> before or after <c>mdat</c>.</para>
 /// <para><b>Bounded.</b> Only box headers and the few fields needed are read (stack buffers, no allocation per box);
-/// boxes are skipped by seeking. At most <see cref="MaxEdits"/> leading edits are looked at.</para>
+/// boxes are skipped by seeking. At most <see cref="MaxEdits"/> leading edits and <see cref="MaxBoxesPerLevel"/> boxes per
+/// parent are looked at. A damaged track other than the audio one is skipped.</para>
 /// <para><b>Never throws</b> on a malformed, truncated or unreadable file: the result is <see cref="Mp4AudioStart.None"/>
 /// and the problem is reported in words.</para>
 /// </remarks>
@@ -41,6 +42,12 @@ public static class Mp4EditList
 {
     /// <summary>Edits looked at before giving up (real files have one or two).</summary>
     public const int MaxEdits = 1024;
+
+    /// <summary>Boxes looked at in one parent (the file, <c>moov</c>, a <c>trak</c>...) before the file is taken as damaged.</summary>
+    public const int MaxBoxesPerLevel = 4096;
+
+    /// <summary><c>media_rate</c> 1.0 (16.16 fixed point: <c>media_rate_integer</c> 1, <c>media_rate_fraction</c> 0).</summary>
+    private const int NormalRate = 0x0001_0000;
 
     private const uint Moov = 0x6D6F6F76; // 'moov'
     private const uint Mvhd = 0x6D766864; // 'mvhd'
@@ -99,11 +106,19 @@ public static class Mp4EditList
         }
     }
 
-    private static Mp4AudioStart Read(Stream stream, out string? problem)
+    private static Mp4AudioStart Read(Stream file, out string? problem)
     {
+        var stream = new Source(file, file.Length);
         var end = stream.Length;
+        var visited = 0;
         for (var position = 0L; position + 8 <= end;)
         {
+            if (++visited > MaxBoxesPerLevel)
+            {
+                problem = $"the file has more than {MaxBoxesPerLevel} top-level boxes before its 'moov'";
+                return Mp4AudioStart.None;
+            }
+
             if (!TryHeader(stream, position, end, out var box))
             {
                 problem = $"a top-level box at {position} is damaged or runs past the end of the file";
@@ -122,13 +137,21 @@ public static class Mp4EditList
         return Mp4AudioStart.None;
     }
 
-    private static Mp4AudioStart ReadMovie(Stream stream, Box moov, out string? problem)
+    private static Mp4AudioStart ReadMovie(Source stream, Box moov, out string? problem)
     {
         uint movieScale = 0;
         var audio = default(Track);
         var found = false;
+        var damagedTrak = -1L;
+        var visited = 0;
         for (var position = moov.Payload; position + 8 <= moov.End;)
         {
+            if (++visited > MaxBoxesPerLevel)
+            {
+                problem = $"the 'moov' has more than {MaxBoxesPerLevel} boxes";
+                return Mp4AudioStart.None;
+            }
+
             if (!TryHeader(stream, position, moov.End, out var box))
             {
                 problem = $"a box in 'moov' at {position} is damaged";
@@ -147,11 +170,11 @@ public static class Mp4EditList
             {
                 if (!TryTrack(stream, box, out var track))
                 {
-                    problem = $"the 'trak' at {position} is damaged";
-                    return Mp4AudioStart.None;
+                    // Its own size is sound, so the next track is still found; a damaged video track must not cost the
+                    // audio its offset.
+                    damagedTrak = damagedTrak < 0 ? position : damagedTrak;
                 }
-
-                if (track.IsSound)
+                else if (track.IsSound)
                 {
                     audio = track;
                     found = true;
@@ -162,7 +185,17 @@ public static class Mp4EditList
         }
 
         problem = null;
-        if (!found || !audio.HasEdits)
+        if (!found)
+        {
+            if (damagedTrak >= 0)
+            {
+                problem = $"the 'trak' at {damagedTrak} is damaged and no audio track could be read";
+            }
+
+            return Mp4AudioStart.None;
+        }
+
+        if (!audio.HasEdits)
         {
             return Mp4AudioStart.None;
         }
@@ -183,12 +216,13 @@ public static class Mp4EditList
         return new Mp4AudioStart(delay, trim);
     }
 
-    private static bool TryTrack(Stream stream, Box trak, out Track track)
+    private static bool TryTrack(Source stream, Box trak, out Track track)
     {
         track = default;
+        var visited = 0;
         for (var position = trak.Payload; position + 8 <= trak.End;)
         {
-            if (!TryHeader(stream, position, trak.End, out var box))
+            if (++visited > MaxBoxesPerLevel || !TryHeader(stream, position, trak.End, out var box))
             {
                 return false;
             }
@@ -211,12 +245,13 @@ public static class Mp4EditList
         return true;
     }
 
-    private static bool TryMedia(Stream stream, Box mdia, ref Track track)
+    private static bool TryMedia(Source stream, Box mdia, ref Track track)
     {
         Span<byte> field = stackalloc byte[12];
+        var visited = 0;
         for (var position = mdia.Payload; position + 8 <= mdia.End;)
         {
-            if (!TryHeader(stream, position, mdia.End, out var box))
+            if (++visited > MaxBoxesPerLevel || !TryHeader(stream, position, mdia.End, out var box))
             {
                 return false;
             }
@@ -247,11 +282,12 @@ public static class Mp4EditList
         return true;
     }
 
-    private static bool TryEdits(Stream stream, Box edts, ref Track track)
+    private static bool TryEdits(Source stream, Box edts, ref Track track)
     {
+        var visited = 0;
         for (var position = edts.Payload; position + 8 <= edts.End;)
         {
-            if (!TryHeader(stream, position, edts.End, out var box))
+            if (++visited > MaxBoxesPerLevel || !TryHeader(stream, position, edts.End, out var box))
             {
                 return false;
             }
@@ -268,7 +304,7 @@ public static class Mp4EditList
     }
 
     /// <summary>The leading empty edits summed (movie units) and the media time of the first edit that plays media.</summary>
-    private static bool TryEditList(Stream stream, Box elst, ref Track track)
+    private static bool TryEditList(Source stream, Box elst, ref Track track)
     {
         Span<byte> field = stackalloc byte[20];
         if (elst.End - elst.Payload < 8 || !TryRead(stream, elst.Payload, field[..8]))
@@ -301,20 +337,25 @@ public static class Mp4EditList
 
             ulong duration;
             long mediaTime;
+            int rate;
             if (version == 1)
             {
                 duration = BinaryPrimitives.ReadUInt64BigEndian(entry);
                 mediaTime = BinaryPrimitives.ReadInt64BigEndian(entry[8..]);
+                rate = BinaryPrimitives.ReadInt32BigEndian(entry[16..]);
             }
             else
             {
                 duration = BinaryPrimitives.ReadUInt32BigEndian(entry);
                 mediaTime = BinaryPrimitives.ReadInt32BigEndian(entry[4..]);
+                rate = BinaryPrimitives.ReadInt32BigEndian(entry[8..]);
             }
 
             if (mediaTime != -1)
             {
-                track.MediaTime = Math.Max(mediaTime, 0);
+                // Only an edit that plays at normal speed trims the media's start; a dwell (rate 0) or another rate
+                // is not a trim.
+                track.MediaTime = rate == NormalRate ? Math.Max(mediaTime, 0) : 0;
                 break;
             }
 
@@ -331,7 +372,7 @@ public static class Mp4EditList
     }
 
     /// <summary>The <c>timescale</c> of an <c>mvhd</c> or <c>mdhd</c> (same layout up to it, versions 0 and 1).</summary>
-    private static bool TryTimescale(Stream stream, Box box, out uint scale)
+    private static bool TryTimescale(Source stream, Box box, out uint scale)
     {
         scale = 0;
         Span<byte> field = stackalloc byte[24];
@@ -370,7 +411,7 @@ public static class Mp4EditList
     }
 
     /// <summary>The box at <paramref name="position"/>, which must end within <paramref name="parentEnd"/>.</summary>
-    private static bool TryHeader(Stream stream, long position, long parentEnd, out Box box)
+    private static bool TryHeader(Source stream, long position, long parentEnd, out Box box)
     {
         box = default;
         Span<byte> header = stackalloc byte[16];
@@ -408,16 +449,19 @@ public static class Mp4EditList
         return true;
     }
 
-    private static bool TryRead(Stream stream, long position, Span<byte> destination)
+    private static bool TryRead(Source stream, long position, Span<byte> destination)
     {
         if (position < 0 || position > stream.Length - destination.Length)
         {
             return false;
         }
 
-        stream.Position = position;
-        return stream.ReadAtLeast(destination, destination.Length, throwOnEndOfStream: false) == destination.Length;
+        stream.Stream.Position = position;
+        return stream.Stream.ReadAtLeast(destination, destination.Length, throwOnEndOfStream: false) == destination.Length;
     }
+
+    /// <summary>The file and its length (read once).</summary>
+    private readonly record struct Source(Stream Stream, long Length);
 
     /// <param name="Payload">Where the box's content starts (after its header).</param>
     /// <param name="End">Where the box ends (its first byte plus its size).</param>
