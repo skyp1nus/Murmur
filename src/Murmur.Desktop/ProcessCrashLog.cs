@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Text;
 using Murmur.Core.Diagnostics;
 using Murmur.Core.Settings;
+using Murmur.Storage;
 
 namespace Murmur.Desktop;
 
@@ -25,6 +26,25 @@ internal static class ProcessCrashLog
     {
         log.Write(LogLevel.Error, "app", "task.unobserved", LogText.Error(e.Exception));
         e.SetObserved();
+    }
+
+    /// <summary>
+    /// The process ended normally. Only the user's own app run counts as a clean exit that marks an earlier crash as seen; a second start
+    /// that only woke the first one and a diagnostic run (<see cref="SingleInstance.IsDiagnostic"/>: the probes and <c>--autorecord</c>,
+    /// which the scripts run against the real data folder) just flush their warnings, so the notice of a real crash stays for the user.
+    /// </summary>
+    internal static void OnExit(FileAppLog log, IReadOnlyList<string> args, bool isPrimary)
+    {
+        ArgumentNullException.ThrowIfNull(log);
+        ArgumentNullException.ThrowIfNull(args);
+        if (isPrimary && !SingleInstance.IsDiagnostic(args))
+        {
+            log.MarkCleanExit();
+        }
+        else
+        {
+            log.Flush();
+        }
     }
 
     /// <summary>Something that is not an <see cref="Exception"/> was thrown (another language's code); only its type is kept.</summary>

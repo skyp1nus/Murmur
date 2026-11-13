@@ -1,6 +1,7 @@
 using Murmur.Core.Diagnostics;
 using Murmur.Core.Settings;
 using Murmur.Core.Tests.Fakes;
+using Murmur.Storage;
 
 namespace Murmur.Desktop.Tests;
 
@@ -34,6 +35,63 @@ public sealed class ProcessCrashLogTests
         var line = Assert.Single(log.Events);
         Assert.Equal((LogLevel.Error, "app", "task.unobserved", "IOException 0x80070070"), line);
         Assert.Empty(log.Crashes);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true, "--startup-probe", "probe.json")]
+    [InlineData(true, "--autorecord", "60", "--perf-out", "perf.json")]
+    [InlineData(true, "--probe-open-latest")]
+    [InlineData(true, "--probe-crash")]
+    public void ASecondStartOrADiagnosticRun_LeavesTheUnseenCrashForTheUser(bool primary, params string[] args)
+    {
+        var paths = CrashedDataFolder(out var root);
+        try
+        {
+            using (var run = new FileAppLog(paths, TimeProvider.System))
+            {
+                Assert.NotNull(run.UnseenCrash);
+                run.Write(LogLevel.Warning, "test", "pending");
+                ProcessCrashLog.OnExit(run, args, primary);
+            }
+
+            using var next = new FileAppLog(paths, TimeProvider.System);
+            Assert.NotNull(next.UnseenCrash);
+            Assert.Contains(Directory.GetFiles(paths.LogsDirectory, "murmur-*.log"), f => File.ReadAllText(f).Contains(" test pending", StringComparison.Ordinal));
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void TheUsersOwnCleanExit_MarksTheCrashSeen()
+    {
+        var paths = CrashedDataFolder(out var root);
+        try
+        {
+            using (var run = new FileAppLog(paths, TimeProvider.System))
+            {
+                ProcessCrashLog.OnExit(run, [], isPrimary: true);
+            }
+
+            using var next = new FileAppLog(paths, TimeProvider.System);
+            Assert.Null(next.UnseenCrash);
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
+    private static StoragePaths CrashedDataFolder(out string root)
+    {
+        root = Path.Combine(Path.GetTempPath(), "murmur-desktop-exit-" + Guid.NewGuid().ToString("N"));
+        var paths = new StoragePaths(root);
+        using var crashed = new FileAppLog(paths, TimeProvider.System);
+        crashed.Crash(new InvalidOperationException("earlier run"), "app");
+        return paths;
     }
 
     [Fact]

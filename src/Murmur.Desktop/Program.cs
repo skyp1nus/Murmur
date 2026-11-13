@@ -20,19 +20,19 @@ internal static class Program
         using var log = new FileAppLog(StoragePaths.FromEnvironment(), TimeProvider.System, diagnostics.Describe);
         ProcessCrashLog.Attach(log);
 
-        var code = Run(args, log, diagnostics);
+        var code = Run(args, log, diagnostics, out var primary);
 
-        // Reached only when the app ended normally (an unhandled exception ends the process in its handler): the pending warnings go to
-        // the disk, and a crash file of an earlier run counts as seen.
-        log.MarkCleanExit();
+        // Reached only when the process ended normally (an unhandled exception ends it in its handler).
+        ProcessCrashLog.OnExit(log, args, primary);
         return code;
     }
 
-    private static int Run(string[] args, FileAppLog log, DiagnosticContext diagnostics)
+    private static int Run(string[] args, FileAppLog log, DiagnosticContext diagnostics, out bool primary)
     {
         // One Murmur per user session: a second start wakes the first and ends here, before any UI. The mutex is held until
         // Run returns (declared first, so it is disposed last).
         using var instance = SingleInstance.Enter(args, SingleInstance.OpenSystemChannel, log: log);
+        primary = instance.IsPrimary;
         if (!instance.IsPrimary)
         {
             return 0;
