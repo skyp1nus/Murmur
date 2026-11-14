@@ -82,7 +82,7 @@ internal sealed class FakeStorage : IStorage
 
     public ValueTask SaveTranscriptAsync(Transcript transcript, CancellationToken cancellationToken) => throw new NotSupportedException();
 
-    public ValueTask<SessionRecord> CreateSessionAsync(string title, DateTimeOffset startedAt, CancellationToken cancellationToken) => throw new NotSupportedException();
+    public ValueTask<SessionRecord> CreateSessionAsync(string title, DateTimeOffset startedAt, SessionSource source, CancellationToken cancellationToken) => throw new NotSupportedException();
 
     public ValueTask UpdateSessionAsync(SessionRecord session, CancellationToken cancellationToken) => throw new NotSupportedException();
 

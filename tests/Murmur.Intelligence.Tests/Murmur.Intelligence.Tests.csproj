@@ -18,12 +18,8 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\Murmur.TestSupport\Murmur.TestSupport.csproj" />
     <ProjectReference Include="..\..\src\Murmur.Intelligence\Murmur.Intelligence.csproj" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <!-- The log fake of the Core tests: what LocalLlm reports when a server does not start (#100). -->
-    <Compile Include="..\Murmur.Core.Tests\Fakes\RecordingAppLog.cs" Link="Fakes\RecordingAppLog.cs" />
   </ItemGroup>
 
 </Project>

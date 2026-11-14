@@ -10,7 +10,7 @@ namespace Murmur.Core.Tests.Fakes;
 /// starved the machine is, so a test can assert exact values instead of a tolerance that a loaded run eats up.
 /// Also compiled into the crash-test helper (internal, so the two copies never clash).
 /// </summary>
-internal sealed class SampleClock : TimeProvider
+public sealed class SampleClock : TimeProvider
 {
     private const string SourceThreadPrefix = "Synthetic audio (";
 
