@@ -295,6 +295,40 @@ public sealed class ScreenPlaybackSyncTests
     }
 
     [Fact]
+    public void Update_DoesNotAllocate_OnTheSeekLeadAndPlayPausePaths()
+    {
+        // A video that lags and then follows the audio, a paused tick and an unplayable segment: the paths the
+        // round-robin states above reach only rarely (seek-lead learning, pending seek, Play/Pause, Rate).
+        var (sync, time) = Create();
+        sync.Rate = 1.5;
+        sync.MarkUnplayable(2);
+
+        void Run()
+        {
+            var audio = S(2);
+            var video = TimeSpan.Zero;
+            for (var i = 0; i < 2_000; i++)
+            {
+                time.Advance(33 * Ms);
+                audio += 50 * Ms;
+                video += i % 7 == 0 ? 20 * Ms : 50 * Ms; // drifts, so seeks and lead updates happen
+                var command = sync.Update(audio, i % 11 != 0, VideoPlayerState.Open(0, video, i % 5 != 0, S(10)));
+                if (command.Has(VideoSyncActions.Seek))
+                {
+                    video = command.Position;
+                }
+
+                if (audio > S(12))
+                {
+                    audio = S(2);
+                }
+            }
+        }
+
+        Assert.Equal(0, Allocations.SteadyState(Run));
+    }
+
+    [Fact]
     public void Simulation_TwoSegmentsWithGaps_PlaysThrough_InSync()
     {
         // Session 0..40 s; screen 3..13 s (segment 0) and 20..32 s (segment 1). Opens take 120 ms, seeks 80 ms.
