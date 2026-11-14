@@ -63,6 +63,9 @@ public sealed class ImportQueue : IImportQueue, IDisposable
 
     private const int CopyBufferBytes = 1 << 20;
 
+    /// <summary>How often a running import looks whether the user deleted its session (see <see cref="SessionWatch"/>).</summary>
+    internal static readonly TimeSpan SessionCheckInterval = TimeSpan.FromSeconds(1);
+
     private readonly ISessionStore _sessions;
     private readonly IImportStore _store;
     private readonly IMediaDecoder _decoder;
@@ -616,6 +619,9 @@ public sealed class ImportQueue : IImportQueue, IDisposable
                 _languages[created.Id] = request.Options.Language;
             }
 
+            // The store has no deletion event: a timer looks (off the decode loop) and stops the decode when the session is gone.
+            using var watch = new SessionWatch(_sessions, created.Id, linked, _time);
+
             var files = _sessions.GetFiles(created.Id);
             var extension = CompositeMediaDecoder.ExtensionOf(path);
             var copy = request.Options.OriginalFile == OriginalFileMode.CopyToLibrary;
@@ -1029,6 +1035,61 @@ public sealed class ImportQueue : IImportQueue, IDisposable
         public TaskCompletionSource? Attempt { get; set; }
 
         public ImportItem Snapshot() => new(Id, Request.Path, State, Progress, Session, Error);
+    }
+
+    /// <summary>
+    /// Cancels a running import when its session was deleted from the library: every <see cref="SessionCheckInterval"/> a
+    /// timer asks the store whether the session still exists. Nothing runs inside the decode loop.
+    /// </summary>
+    private sealed class SessionWatch : IDisposable
+    {
+        private readonly ISessionStore _sessions;
+        private readonly SessionId _session;
+        private readonly CancellationTokenSource _import;
+        private readonly ITimer _timer;
+        private int _checking;
+        private volatile bool _disposed;
+
+        public SessionWatch(ISessionStore sessions, SessionId session, CancellationTokenSource import, TimeProvider time)
+        {
+            _sessions = sessions;
+            _session = session;
+            _import = import;
+            _timer = time.CreateTimer(static state => ((SessionWatch)state!).Tick(), this, SessionCheckInterval, SessionCheckInterval);
+        }
+
+        public void Dispose()
+        {
+            _disposed = true;
+            _timer.Dispose();
+        }
+
+        private void Tick()
+        {
+            if (!_disposed && Interlocked.CompareExchange(ref _checking, 1, 0) == 0)
+            {
+                _ = CheckAsync();
+            }
+        }
+
+        private async Task CheckAsync()
+        {
+            try
+            {
+                if (!_disposed && await _sessions.GetSessionAsync(_session, CancellationToken.None).ConfigureAwait(false) is null)
+                {
+                    await _import.CancelAsync().ConfigureAwait(false);
+                }
+            }
+            catch (Exception)
+            {
+                // A store error or an import that has ended meanwhile (its token source is disposed): nothing to stop.
+            }
+            finally
+            {
+                Volatile.Write(ref _checking, 0);
+            }
+        }
     }
 
     /// <summary>Synchronous <see cref="IProgress{T}"/> (no <see cref="SynchronizationContext"/> capture).</summary>

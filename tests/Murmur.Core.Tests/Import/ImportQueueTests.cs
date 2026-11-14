@@ -612,6 +612,51 @@ public sealed class ImportQueueTests : IAsyncDisposable
     }
 
     [Fact]
+    public async Task DeletingTheSession_OfARunningDecode_StopsTheDecodePromptly_AndCancelsTheImport()
+    {
+        using var gate = new SemaphoreSlim(0); // never released: the decode only ends by cancellation
+        var decoder = new FakeMediaDecoder(".mp3") { Gate = gate };
+        var time = new ManualTimeProvider();
+        var imports = await StartAsync(decoder, time);
+        var items = await imports.EnqueueAsync([new ImportRequest(await NewFileAsync("long.mp3"), Copy)], Ct);
+        await decoder.Started.Task.WaitAsync(Timeout, Ct);
+        var half = (await WaitForItemAsync(imports, items[0].Id, ImportState.Decoding)).Session!.Value;
+
+        await _sessions.DeleteSessionAsync(half, Ct); // from the library, while the decode is blocked
+        time.Advance(ImportQueue.SessionCheckInterval);
+
+        var cancelled = await WaitForItemAsync(imports, items[0].Id, ImportState.Cancelled);
+        Assert.Null(cancelled.Session);
+        Assert.Null(cancelled.Error);
+        Assert.Empty(_store.Rows);
+        await WaitUntilAsync(() => _queue.Status is { Pending: 0, Running: 0 }, "the job to end");
+        Assert.Single(decoder.Decoded);
+        Assert.Equal(0, time.ActiveTimers); // the watch is gone with the import
+    }
+
+    [Fact]
+    public async Task ARunningDecode_WhoseSessionStillExists_IsNotStopped()
+    {
+        using var gate = new SemaphoreSlim(0);
+        var decoder = new FakeMediaDecoder(".mp3") { Gate = gate };
+        var time = new ManualTimeProvider();
+        var imports = await StartAsync(decoder, time);
+        var items = await imports.EnqueueAsync([new ImportRequest(await NewFileAsync("long.mp3"), Copy)], Ct);
+        await decoder.Started.Task.WaitAsync(Timeout, Ct);
+        await WaitForItemAsync(imports, items[0].Id, ImportState.Decoding);
+
+        for (var i = 0; i < 3; i++)
+        {
+            time.Advance(ImportQueue.SessionCheckInterval);
+        }
+
+        await Task.Delay(100, Ct);
+        Assert.Equal(ImportState.Decoding, Assert.Single(imports.Items).State);
+        gate.Release();
+        await WaitForItemAsync(imports, items[0].Id, ImportState.Done);
+    }
+
+    [Fact]
     public async Task AtStart_HalfMadeImportedSessionsNoEntryRefersTo_AreDeleted_OthersAreKept()
     {
         async Task<SessionRecord> SeedAsync(string title, SessionState state, SessionSource source, bool track = false)
