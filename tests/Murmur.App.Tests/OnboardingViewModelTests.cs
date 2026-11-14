@@ -946,7 +946,67 @@ public sealed class OnboardingViewModelTests : IDisposable
     }
 
     [Fact]
-    public async Task FirstRecording_ASessionTheProcessorStillWorksOn_IsNeverDeleted_UntilItIsFinished()
+    public async Task FirstRecording_ClosedMidTranscription_CancelsTheJob_AndDeletesTheSessionAtOnce()
+    {
+        using var rig = new OnboardingRig();
+        rig.Processing.CancelResult = true;
+        await RecordTenSecondsAsync(rig);
+        var id = rig.Onboarding.FirstRecording.Trial!.Id;
+        rig.Processing.Raise(new SessionProcessingStatus(id, SessionProcessingStage.Transcribing, 0.3));
+        var deleted = 0;
+        rig.Onboarding.TrialSessionDeleted += () => deleted++;
+
+        rig.Onboarding.ContinueCommand.Execute(null); // "Open Murmur" while it transcribes
+        await rig.Onboarding.FinishTask;
+
+        Assert.Equal([id], rig.Processing.Cancelled);
+        Assert.Equal([id], rig.Sessions.Deleted); // no wait for the pipeline, no deletion at the next start
+        Assert.Equal(1, deleted);
+        Assert.Null(rig.Processing.GetStatus(id));
+        Assert.Same(rig.Shell.Library, rig.Shell.CurrentPage);
+    }
+
+    [Fact]
+    public async Task FirstRecording_ClosedMidTranscription_DeletesOnlyAfterTheCancelHasReturned()
+    {
+        using var rig = new OnboardingRig();
+        rig.Processing.CancelResult = true;
+        var stopped = new TaskCompletionSource();
+        rig.Processing.CancelGate = stopped.Task;
+        await RecordTenSecondsAsync(rig);
+        var id = rig.Onboarding.FirstRecording.Trial!.Id;
+        rig.Processing.Raise(new SessionProcessingStatus(id, SessionProcessingStage.Transcribing, 0.3));
+
+        rig.Onboarding.BackCommand.Execute(null);
+        await OnboardingRig.UntilAsync(() => rig.Processing.Cancelled.Count == 1);
+        Assert.Empty(rig.Sessions.Deleted); // the job is still stopping: the session is still read
+
+        stopped.SetResult();
+        await rig.Onboarding.FirstRecording.Settled;
+
+        Assert.Equal([id], rig.Sessions.Deleted);
+    }
+
+    [Fact]
+    public async Task FirstRecording_WhenTheCancelFails_TheDeletionWaitsForThePipeline()
+    {
+        using var rig = new OnboardingRig();
+        rig.Processing.CancelFailure = new InvalidOperationException("boom");
+        await RecordTenSecondsAsync(rig);
+        var id = rig.Onboarding.FirstRecording.Trial!.Id;
+        rig.Processing.Raise(new SessionProcessingStatus(id, SessionProcessingStage.Transcribing, 0.3));
+
+        rig.Onboarding.ContinueCommand.Execute(null);
+        await rig.Onboarding.FinishTask;
+        Assert.Empty(rig.Sessions.Deleted);
+
+        rig.Processing.Raise(new SessionProcessingStatus(id, SessionProcessingStage.Completed, 1));
+        await rig.Onboarding.FirstRecording.DeleteTask;
+        Assert.Equal([id], rig.Sessions.Deleted);
+    }
+
+    [Fact]
+    public async Task FirstRecording_ASessionTheProcessorCannotCancel_IsNeverDeleted_UntilItIsFinished()
     {
         using var rig = new OnboardingRig();
         await RecordTenSecondsAsync(rig);

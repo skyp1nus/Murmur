@@ -87,8 +87,8 @@ public sealed class SessionProcessor : IDisposable
     private readonly object _gate = new();
     private readonly HashSet<SessionId> _needsIndex = [];
     private readonly Dictionary<SessionId, SessionProcessingStatus> _statuses = [];
-    private readonly Dictionary<SessionId, JobHandle?> _transcriptionJobs = [];
-    private readonly Dictionary<SessionId, JobHandle?> _indexingJobs = [];
+    private readonly Dictionary<SessionId, JobEntry> _transcriptionJobs = [];
+    private readonly Dictionary<SessionId, JobEntry> _indexingJobs = [];
 
     private SessionId? _recordingSession;
     private bool _pausedForRecording;
@@ -254,6 +254,48 @@ public sealed class SessionProcessor : IDisposable
         return queued;
     }
 
+    /// <summary>Cancels the session's queued or running transcription and indexing; <c>true</c> when something was cancelled. Waits until the running job has stopped, so the caller may delete the session afterwards.</summary>
+    /// <remarks>
+    /// A job that is still queued is dropped without running (it does not wait for the queue: a pause for a recording or a
+    /// long job in front of it does not delay this call); a running one is stopped through its token (the ASR client then
+    /// cancels its worker). The status of the session is cleared (<see cref="StatusCleared"/>, <see cref="GetStatus"/> is
+    /// <c>null</c>); the session row is left as it was (e.g. Transcribing, picked up again by <see cref="ResumePendingAsync"/>
+    /// at the next start), so a caller that does not delete the session may <see cref="EnqueueAsync"/> it again.
+    /// </remarks>
+    public async ValueTask<bool> CancelAsync(SessionId session, CancellationToken cancellationToken)
+    {
+        // Transcription first and awaited: it may queue the indexing job itself, which is then found below.
+        var cancelled = await CancelJobAsync(_transcriptionJobs, session, cancellationToken).ConfigureAwait(false);
+        cancelled |= await CancelJobAsync(_indexingJobs, session, cancellationToken).ConfigureAwait(false);
+        if (cancelled)
+        {
+            ClearStatus(session);
+        }
+
+        return cancelled;
+    }
+
+    private async ValueTask<bool> CancelJobAsync(Dictionary<SessionId, JobEntry> jobs, SessionId session, CancellationToken cancellationToken)
+    {
+        JobEntry? entry;
+        lock (_gate)
+        {
+            if (!jobs.TryGetValue(session, out entry) || !entry.IsLive)
+            {
+                return false;
+            }
+        }
+
+        // A job not started yet never starts (the queue just finds it cancelled); a running one is waited for.
+        var running = await entry.CancelAsync().ConfigureAwait(false);
+        if (running is not null)
+        {
+            await running.WaitAsync(cancellationToken).ConfigureAwait(false);
+        }
+
+        return true;
+    }
+
     /// <summary>Stops following the recorder and lifts its pause of the queue. Queued jobs stay in the queue.</summary>
     public void Dispose()
     {
@@ -357,10 +399,10 @@ public sealed class SessionProcessor : IDisposable
     }
 
     private bool EnqueueTranscription(SessionId session, bool explicitRequest) =>
-        TryEnqueue(_transcriptionJobs, session, JobPriority.Transcription, "transcribe ", SessionProcessingStage.Queued, 0, ct => TranscribeAsync(session, explicitRequest, ct));
+        TryEnqueue(_transcriptionJobs, session, JobPriority.Transcription, "transcribe ", SessionProcessingStage.Queued, 0, (entry, ct) => TranscribeAsync(session, explicitRequest, entry, ct));
 
     private bool EnqueueIndexing(SessionId session, bool reindex = false) =>
-        _indexer is not null && TryEnqueue(_indexingJobs, session, JobPriority.Indexing, "index ", SessionProcessingStage.Indexing, 1, ct => IndexAsync(session, reindex, ct));
+        _indexer is not null && TryEnqueue(_indexingJobs, session, JobPriority.Indexing, "index ", SessionProcessingStage.Indexing, 1, (_, ct) => IndexAsync(session, reindex, ct));
 
     private string NeedsIndexMarkerPath(SessionId session) => Path.Combine(_sessions.GetFiles(session).Directory, NeedsIndexMarker);
 
@@ -407,28 +449,29 @@ public sealed class SessionProcessor : IDisposable
     {
         lock (_gate)
         {
-            return _indexingJobs.TryGetValue(session, out var job) && job?.State is null or JobState.Pending or JobState.Running;
+            return _indexingJobs.TryGetValue(session, out var job) && job.IsActive;
         }
     }
 
     /// <summary>Queues a job unless one for the same session is already pending or running in <paramref name="jobs"/>.</summary>
-    private bool TryEnqueue(Dictionary<SessionId, JobHandle?> jobs, SessionId session, JobPriority priority, string name, SessionProcessingStage stage, double progress, Func<CancellationToken, Task> work)
+    private bool TryEnqueue(Dictionary<SessionId, JobEntry> jobs, SessionId session, JobPriority priority, string name, SessionProcessingStage stage, double progress, Func<JobEntry, CancellationToken, Task> work)
     {
+        var entry = new JobEntry();
         lock (_gate)
         {
-            if (_disposed || (jobs.TryGetValue(session, out var existing) && existing?.State is null or JobState.Pending or JobState.Running))
+            if (_disposed || (jobs.TryGetValue(session, out var existing) && existing.IsActive))
             {
                 return false;
             }
 
-            jobs[session] = null; // reserved until the handle exists
+            jobs[session] = entry; // reserved until the handle exists
         }
 
         SetStatus(session, stage, progress);
         JobHandle job;
         try
         {
-            job = _queue.Enqueue(priority, name + session, work);
+            job = _queue.Enqueue(priority, name + session, ct => RunJobAsync(entry, work, ct));
         }
         catch (ObjectDisposedException)
         {
@@ -443,13 +486,39 @@ public sealed class SessionProcessor : IDisposable
 
         lock (_gate)
         {
-            jobs[session] = job;
+            entry.Handle = job;
         }
 
         return true;
     }
 
-    private async Task TranscribeAsync(SessionId id, bool explicitRequest, CancellationToken cancellationToken)
+    /// <summary>
+    /// Runs the work under a token that also fires when <see cref="CancelAsync"/> cancels the entry. A cancelled entry never
+    /// starts, and one cancelled while running ends quietly (so the queue neither re-queues nor reports it as failed).
+    /// </summary>
+    private static async Task RunJobAsync(JobEntry entry, Func<JobEntry, CancellationToken, Task> work, CancellationToken queueToken)
+    {
+        if (!entry.TryStart())
+        {
+            return;
+        }
+
+        try
+        {
+            using var linked = CancellationTokenSource.CreateLinkedTokenSource(queueToken, entry.Token);
+            await work(entry, linked.Token).ConfigureAwait(false);
+        }
+        catch (Exception) when (entry.IsCancelled)
+        {
+            // Cancelled by the user (possibly together with a pre-emption): the job is over, it does not run again.
+        }
+        finally
+        {
+            entry.MarkFinished();
+        }
+    }
+
+    private async Task TranscribeAsync(SessionId id, bool explicitRequest, JobEntry entry, CancellationToken cancellationToken)
     {
         var session = await _sessions.GetSessionAsync(id, cancellationToken).ConfigureAwait(false);
         if (session is null || session.State == SessionState.Recording
@@ -525,13 +594,23 @@ public sealed class SessionProcessor : IDisposable
         catch (Exception) when (cancellationToken.IsCancellationRequested)
         {
             // Pre-empted by a recording or shutting down: stays Transcribing and runs again later.
-            SetStatus(id, SessionProcessingStage.Queued, 0);
+            // (Cancelled by the user: no status, the caller of CancelAsync clears it.)
+            if (!entry.IsCancelled)
+            {
+                SetStatus(id, SessionProcessingStage.Queued, 0);
+            }
+
             throw;
         }
         catch (Exception ex)
         {
             await FailAsync(id, ex).ConfigureAwait(false);
             return;
+        }
+
+        if (entry.IsCancelled)
+        {
+            return; // Cancelled while saving: the transcript is kept, nothing follows (no indexing job is queued).
         }
 
         // An indexing job that is already pending or running (e.g. a ReindexAll queued before a manual re-transcription)
@@ -659,6 +738,80 @@ public sealed class SessionProcessor : IDisposable
         if (removed)
         {
             StatusCleared?.Invoke(id);
+        }
+    }
+
+    /// <summary>One queued job of a session: its handle (set once queued) and the token <see cref="CancelAsync"/> fires.</summary>
+    private sealed class JobEntry
+    {
+        private readonly object _lock = new();
+        private readonly CancellationTokenSource _cts = new();
+        private bool _cancelled;
+
+        // Completed when the current run ends; null between runs (a pre-empted job runs more than once).
+        private TaskCompletionSource? _running;
+
+        /// <summary>Set under the processor's lock once the job is queued; <c>null</c> until then.</summary>
+        public JobHandle? Handle { get; set; }
+
+        public bool IsCancelled
+        {
+            get
+            {
+                lock (_lock)
+                {
+                    return _cancelled;
+                }
+            }
+        }
+
+        public CancellationToken Token => _cts.Token;
+
+        /// <summary>The queue has not finished the job yet (it is being queued, pending or running); read under the processor's lock.</summary>
+        public bool IsLive => Handle?.State is null or JobState.Pending or JobState.Running;
+
+        /// <summary>Live and not cancelled: a new job for the session is refused meanwhile.</summary>
+        public bool IsActive => IsLive && !IsCancelled;
+
+        /// <summary>The queue starts the job: <c>false</c> when it was cancelled before, so it never runs.</summary>
+        public bool TryStart()
+        {
+            lock (_lock)
+            {
+                if (_cancelled)
+                {
+                    return false;
+                }
+
+                _running = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+                return true;
+            }
+        }
+
+        public void MarkFinished()
+        {
+            TaskCompletionSource? running;
+            lock (_lock)
+            {
+                running = _running;
+                _running = null;
+            }
+
+            running?.TrySetResult();
+        }
+
+        /// <summary>Cancels the job; returns what to wait for when it already runs, else <c>null</c>.</summary>
+        public async ValueTask<Task?> CancelAsync()
+        {
+            Task? running;
+            lock (_lock)
+            {
+                _cancelled = true;
+                running = _running?.Task;
+            }
+
+            await _cts.CancelAsync().ConfigureAwait(false);
+            return running;
         }
     }
 
