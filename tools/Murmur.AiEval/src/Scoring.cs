@@ -25,32 +25,8 @@ public static class Scoring
     /// <summary>Retrieval modes: a hit "contains the fact" when the fact's start lies inside it, widened by this much.</summary>
     public static readonly TimeSpan RetrievalSlack = TimeSpan.FromSeconds(2);
 
-    // Lower-case markers of "the recording does not say"; apostrophes are normalized to U+0027 first.
-    private static readonly string[] NotFoundMarkers =
-    [
-        "немає", "нема ", "нема,", "нема.", "не згаду", "не знайд", "не знайш", "не знайти", "не обговорю", "не обговорювал", "не йдеться",
-        "не було", "відсутн", "не міст", "не вказ", "не сказано", "не прозвуча", "невідомо", "не можу знайти",
-        "not mentioned", "no mention", "not found", "no information", "not in the", "isn't mentioned",
-        "is not mentioned", "does not contain", "doesn't contain", "do not contain", "don't contain", "not discussed",
-        "no record", "don't have", "do not have", "not available", "cannot find", "can't find", "couldn't find",
-        "could not find", "not specified", "not stated", "doesn't say", "does not say", "no details",
-    ];
-
-    /// <summary>Simple UA/EN keyword check: does the answer say the information is not in the recording?</summary>
-    public static bool SaysNotFound(string answer)
-    {
-        ArgumentNullException.ThrowIfNull(answer);
-        var text = Normalize(answer) + " ";
-        foreach (var marker in NotFoundMarkers)
-        {
-            if (text.Contains(marker, StringComparison.Ordinal))
-            {
-                return true;
-            }
-        }
-
-        return false;
-    }
+    /// <summary>Simple UA/EN keyword check: does the answer say the information is not in the recording? The assistant's own check.</summary>
+    public static bool SaysNotFound(string answer) => NotFoundAnswer.IsNotFound(answer);
 
     /// <summary>Does the answer contain one of the question's <see cref="EvalQuestion.FactStems"/> (case-insensitive)?</summary>
     public static bool ContainsAnyFactStem(string answer, EvalQuestion question)
@@ -84,8 +60,8 @@ public static class Scoring
     /// only the assistant's fallback citation of the top excerpt is within it (that is the chip the user clicks) and
     /// the answer conveys the fact (<see cref="ConveysFact"/>): the fallback is added whatever the model wrote, so an
     /// empty, "not found" or off-topic answer must not ride on good retrieval. Unanswerable: pass
-    /// when the answer says it is not in the recording and wrote no timestamp of its own (the assistant always adds
-    /// the top excerpt as a fallback citation, which is not a confident claim).
+    /// when the answer says it is not in the recording and wrote no timestamp of its own (the assistant adds no fallback
+    /// citation to such an answer, see <see cref="NotFoundAnswer"/>).
     /// </summary>
     public static QuestionScore ScoreAnswer(EvalQuestion question, string answer, IReadOnlyList<Citation> citations)
     {

@@ -153,7 +153,11 @@ public sealed class Assistant : IAssistant
             yield return new AssistantUpdate(delta, [], false);
         }
 
-        var citations = CitationResolver.Resolve(answer.ToString(), excerpts, _options.CitationTolerance, _options.SnippetLength);
+        // The top excerpt is the fallback citation only for an answer that does not say "nothing found": a chip on such an answer would point at
+        // an excerpt that does not answer the question. Citations the model wrote itself are always kept.
+        var text = answer.ToString();
+        var citations = CitationResolver.Resolve(
+            text, excerpts, _options.CitationTolerance, _options.SnippetLength, fallbackToTopExcerpt: !NotFoundAnswer.IsNotFound(text));
         yield return new AssistantUpdate(string.Empty, citations, true);
     }
 
