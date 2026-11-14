@@ -862,6 +862,170 @@ public sealed class SessionProcessorTests : IAsyncDisposable
     }
 
     [Fact]
+    public async Task Cancel_AQueuedJob_IsDroppedAndNeverRuns()
+    {
+        using var processor = Create();
+        var queued = await CreateSessionAsync(mic: true, system: false, SessionState.Recorded);
+        var recording = await CreateSessionAsync(mic: true, system: false, SessionState.Recording);
+        _recorder.BeginRecording(recording); // the queue is paused: the job waits
+        Assert.True(await processor.EnqueueAsync(queued.Id, Ct));
+        var cleared = new List<SessionId>();
+        processor.StatusCleared += cleared.Add;
+
+        Assert.True(await processor.CancelAsync(queued.Id, Ct)); // returns although the queue is paused
+
+        Assert.Null(processor.GetStatus(queued.Id));
+        Assert.Equal([queued.Id], cleared);
+        await _sessions.UpdateSessionAsync(_sessions.Get(recording.Id)! with { State = SessionState.Recorded }, Ct);
+        _recorder.EndRecording();
+        await WaitForStateAsync(recording.Id, SessionState.Ready);
+        Assert.Equal(_sessions.GetFiles(recording.Id).MicrophoneAudio, Assert.Single(_asr.Requests).AudioPath); // only the recording was transcribed
+        Assert.Equal(SessionState.Recorded, _sessions.Get(queued.Id)!.State);
+        Assert.Null(processor.GetStatus(queued.Id));
+        Assert.False(await processor.CancelAsync(queued.Id, Ct)); // the dropped job is over: nothing left to cancel
+    }
+
+    [Fact]
+    public async Task Cancel_AQueuedJobBehindARunningOne_DoesNotWaitForIt()
+    {
+        _asr.Gate = new SemaphoreSlim(0);
+        using var processor = Create();
+        var running = await CreateSessionAsync(mic: true, system: false, SessionState.Recorded);
+        var queued = await CreateSessionAsync(mic: true, system: false, SessionState.Recorded);
+        Assert.True(await processor.EnqueueAsync(running.Id, Ct));
+        await _asr.Started.Task.WaitAsync(Timeout, Ct);
+        Assert.True(await processor.EnqueueAsync(queued.Id, Ct));
+
+        Assert.True(await processor.CancelAsync(queued.Id, Ct).AsTask().WaitAsync(Timeout, Ct));
+
+        Assert.NotNull(processor.GetStatus(running.Id)); // the running job is untouched
+        Assert.Equal(AsrStatus.Busy, _asr.Status);
+        _asr.Gate.Release(10);
+        await WaitForStateAsync(running.Id, SessionState.Ready);
+        Assert.Equal(SessionState.Recorded, _sessions.Get(queued.Id)!.State);
+        Assert.Single(_asr.Requests);
+    }
+
+    [Fact]
+    public async Task Cancel_ARunningJob_StopsItAndReturnsAfterItEnded()
+    {
+        _asr.Gate = new SemaphoreSlim(0); // the fake ASR blocks until it is cancelled
+        using var processor = Create();
+        var session = await CreateSessionAsync(mic: true, system: true, SessionState.Recorded);
+        Assert.True(await processor.EnqueueAsync(session.Id, Ct));
+        await _asr.Started.Task.WaitAsync(Timeout, Ct);
+        Assert.Equal(AsrStatus.Busy, _asr.Status);
+        var cleared = 0;
+        processor.StatusCleared += _ => cleared++;
+
+        Assert.True(await processor.CancelAsync(session.Id, Ct).AsTask().WaitAsync(Timeout, Ct));
+
+        Assert.Equal(AsrStatus.Idle, _asr.Status); // the ASR call has ended: the caller may delete the session
+        Assert.Single(_asr.Requests); // the second track was not started
+        Assert.Null(processor.GetStatus(session.Id));
+        Assert.Equal(1, cleared);
+        Assert.DoesNotContain(_statuses.ToArray(), st => st.Session == session.Id && st.Stage == SessionProcessingStage.Failed);
+        await WaitUntilAsync(() => _queue.Status is { Pending: 0, Running: 0 }); // not re-queued
+        Assert.Equal(SessionState.Transcribing, _sessions.Get(session.Id)!.State); // not Failed: resumed at the next start
+        Assert.Null(_sessions.Get(session.Id)!.Error);
+        Assert.Null(await _transcripts.GetTranscriptAsync(session.Id, Ct));
+        Assert.Equal(SessionProcessingStage.Completed, (await RetryAsync(processor, session.Id))!.Stage); // and it can be queued again
+    }
+
+    [Fact]
+    public async Task Cancel_ARunningJob_AlongsideARecordingPreemption_StillEndsTheJob()
+    {
+        _asr.Gate = new SemaphoreSlim(0);
+        using var processor = Create();
+        var session = await CreateSessionAsync(mic: true, system: false, SessionState.Recorded);
+        Assert.True(await processor.EnqueueAsync(session.Id, Ct));
+        await _asr.Started.Task.WaitAsync(Timeout, Ct);
+        var recording = await CreateSessionAsync(mic: true, system: false, SessionState.Recording);
+        _recorder.BeginRecording(recording); // pre-empts the job
+
+        await processor.CancelAsync(session.Id, Ct).AsTask().WaitAsync(Timeout, Ct);
+        await _sessions.UpdateSessionAsync(_sessions.Get(recording.Id)! with { State = SessionState.Recorded }, Ct);
+        _recorder.EndRecording();
+        _asr.Gate.Release(10);
+
+        await WaitForStateAsync(recording.Id, SessionState.Ready);
+        Assert.Equal(SessionState.Transcribing, _sessions.Get(session.Id)!.State); // never ran again
+        Assert.Null(processor.GetStatus(session.Id));
+    }
+
+    [Fact]
+    public async Task Cancel_ARunningIndexingJob_StopsIt()
+    {
+        var started = new TaskCompletionSource();
+        var ended = false;
+        using var processor = Create(async (_, ct) =>
+        {
+            started.TrySetResult();
+            try
+            {
+                await Task.Delay(Timeout, ct);
+            }
+            finally
+            {
+                ended = true;
+            }
+        });
+        var session = await RecordAsync(mic: true, system: false);
+        await started.Task.WaitAsync(Timeout, Ct);
+
+        Assert.True(await processor.CancelAsync(session.Id, Ct).AsTask().WaitAsync(Timeout, Ct));
+
+        Assert.True(ended);
+        Assert.Null(processor.GetStatus(session.Id));
+        Assert.Equal(SessionState.Indexing, _sessions.Get(session.Id)!.State); // not Ready, not failed: resumed at the next start
+        Assert.Null(_sessions.Get(session.Id)!.Error);
+    }
+
+    [Fact]
+    public async Task Cancel_AnUnknownSession_ReturnsFalse()
+    {
+        using var processor = Create();
+
+        Assert.False(await processor.CancelAsync(SessionId.New(), Ct));
+    }
+
+    [Fact]
+    public async Task Cancel_AFinishedSession_ReturnsFalse_AndKeepsItsStatus()
+    {
+        using var processor = Create();
+        var session = await RecordAsync(mic: true, system: false);
+        await WaitForStateAsync(session.Id, SessionState.Ready);
+
+        Assert.False(await processor.CancelAsync(session.Id, Ct));
+
+        Assert.Equal(SessionProcessingStage.Completed, processor.GetStatus(session.Id)!.Stage);
+    }
+
+    [Fact]
+    public async Task Cancel_ACancelledSession_CanBeQueuedAgain()
+    {
+        _asr.Gate = new SemaphoreSlim(0);
+        using var processor = Create();
+        var session = await CreateSessionAsync(mic: true, system: false, SessionState.Recorded);
+        Assert.True(await processor.EnqueueAsync(session.Id, Ct));
+        await _asr.Started.Task.WaitAsync(Timeout, Ct);
+        await processor.CancelAsync(session.Id, Ct);
+
+        _asr.Gate.Release(10);
+        Assert.True(await processor.EnqueueAsync(session.Id, Ct));
+
+        await WaitForStateAsync(session.Id, SessionState.Ready);
+    }
+
+    private async Task<SessionProcessingStatus?> RetryAsync(SessionProcessor processor, SessionId id)
+    {
+        _asr.Gate!.Release(10);
+        Assert.True(await processor.EnqueueAsync(id, Ct));
+        await WaitForStateAsync(id, SessionState.Ready);
+        return processor.GetStatus(id);
+    }
+
+    [Fact]
     public async Task Dispose_StopsFollowingTheRecorderAndLiftsItsPause()
     {
         var processor = Create();

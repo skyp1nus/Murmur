@@ -99,7 +99,7 @@ internal sealed class CompositionRoot : IDisposable
         var log = _log;
         if (_storage is null)
         {
-            _storage = new SqliteStorage(paths, () => settings.Current.RecordingsDirectory);
+            _storage = new SqliteStorage(paths, () => settings.Current.RecordingsDirectory, log);
             _storage.RecordingsFolderFallback += info => log.Write(
                 LogLevel.Warning, "storage", "recordings.fallback", RecordingsFallbackDetail(info));
         }

@@ -56,6 +56,9 @@ internal static class VectorSearch
         return true;
     }
 
+    /// <summary>Whether every value is finite (no NaN, no infinity). Used when stored vectors are loaded, never in the scan.</summary>
+    public static bool IsFinite(ReadOnlySpan<float> vector) => float.IsFinite(TensorPrimitives.SumOfSquares(vector));
+
     /// <summary>Little-endian float32 encoding, the on-disk vector format.</summary>
     public static void ToBytes(ReadOnlySpan<float> source, Span<byte> destination)
     {

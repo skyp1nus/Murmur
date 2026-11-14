@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using Microsoft.Data.Sqlite;
+using Murmur.Core.Diagnostics;
 using Murmur.Core.Sessions;
 using Murmur.Core.Transcription;
 
@@ -16,6 +17,7 @@ public sealed partial class SqliteStorage : IStorage, IDisposable
         "id, title, started_at, duration_ms, state, has_mic, has_system, screen_segments, error, source, original_path";
 
     private readonly StoragePaths _paths;
+    private readonly IAppLog _log;
     private readonly Func<string?>? _recordingsFolder;
     private readonly RecordingsFolderProbe _folderProbe;
     private readonly string _connectionString;
@@ -48,9 +50,16 @@ public sealed partial class SqliteStorage : IStorage, IDisposable
     {
     }
 
-    /// <summary>Test seam: the folder probe (blocking file-system work, clock and timeout) is supplied by the caller.</summary>
-    internal SqliteStorage(StoragePaths paths, Func<string?>? recordingsFolder, RecordingsFolderProbe folderProbe)
+    /// <summary>As the two-argument constructor; <paramref name="log"/> receives the storage's warnings (a session with damaged chunks), <c>null</c> = nowhere.</summary>
+    public SqliteStorage(StoragePaths paths, Func<string?>? recordingsFolder, IAppLog? log)
+        : this(paths, recordingsFolder, RecordingsFolderProbe.CreateDefault(), log)
     {
+    }
+
+    /// <summary>Test seam: the folder probe (blocking file-system work, clock and timeout) is supplied by the caller.</summary>
+    internal SqliteStorage(StoragePaths paths, Func<string?>? recordingsFolder, RecordingsFolderProbe folderProbe, IAppLog? log = null)
+    {
+        _log = log ?? NullAppLog.Instance;
         ArgumentNullException.ThrowIfNull(paths);
         ArgumentNullException.ThrowIfNull(folderProbe);
         _paths = paths;

@@ -526,16 +526,38 @@ public sealed partial class FirstRecordingStepViewModel : OnboardingStepViewMode
         }
     }
 
-    /// <summary>Deletes the trial session now when the pipeline is done with it, else as soon as it reports that it is.</summary>
-    private Task DeleteWhenSafeAsync(SessionRecord trial)
+    /// <summary>
+    /// Deletes the trial session now: when the pipeline is done with it, or after its queued or running job was cancelled
+    /// (<see cref="ISessionProcessing.CancelAsync"/> returns once the job has stopped). Only when the pipeline cannot cancel it
+    /// the deletion waits until the pipeline reports the session finished (or, at the latest, until the next start).
+    /// </summary>
+    private async Task DeleteWhenSafeAsync(SessionRecord trial)
     {
-        if (IsFinished(trial))
+        if (!IsFinished(trial) && !await CancelJobAsync(trial.Id).ConfigureAwait(true) && !IsFinished(trial))
         {
-            return DeleteTask = DeleteAsync(trial.Id);
+            _deleteWhenFinished.Add(trial.Id);
+            return;
         }
 
-        _deleteWhenFinished.Add(trial.Id);
-        return Task.CompletedTask;
+        await (DeleteTask = DeleteAsync(trial.Id)).ConfigureAwait(true);
+    }
+
+    private async Task<bool> CancelJobAsync(SessionId id)
+    {
+        if (_processing is null)
+        {
+            return false;
+        }
+
+        try
+        {
+            return await _processing.CancelAsync(id, CancellationToken.None).ConfigureAwait(true);
+        }
+        catch (Exception)
+        {
+            // Best effort: the deletion then waits for the pipeline, and the next start removes what is left.
+            return false;
+        }
     }
 
     private bool IsFinished(SessionRecord trial)
