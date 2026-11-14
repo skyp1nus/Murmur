@@ -19,6 +19,16 @@ internal sealed class FakeProcessing : ISessionProcessing
 
     public List<SessionId> Enqueued { get; } = [];
 
+    /// <summary>What <see cref="CancelAsync"/> answers; <c>true</c> also drops the status, as the real processor does.</summary>
+    public bool CancelResult { get; set; }
+
+    public Exception? CancelFailure { get; set; }
+
+    /// <summary>When set, <see cref="CancelAsync"/> returns only once it completes (the job is still stopping).</summary>
+    public Task? CancelGate { get; set; }
+
+    public List<SessionId> Cancelled { get; } = [];
+
     public event Action<SessionProcessingStatus>? ProgressChanged;
 
     public SessionProcessingStatus? GetStatus(SessionId session) => _statuses.GetValueOrDefault(session);
@@ -32,6 +42,27 @@ internal sealed class FakeProcessing : ISessionProcessing
         }
 
         return ValueTask.FromResult(EnqueueResult);
+    }
+
+    public async ValueTask<bool> CancelAsync(SessionId session, CancellationToken cancellationToken)
+    {
+        Cancelled.Add(session);
+        if (CancelFailure is { } failure)
+        {
+            throw failure;
+        }
+
+        if (CancelGate is { } gate)
+        {
+            await gate.ConfigureAwait(false);
+        }
+
+        if (CancelResult)
+        {
+            _statuses.Remove(session);
+        }
+
+        return CancelResult;
     }
 
     /// <summary>Stores the status (as the real processor does) and raises the event.</summary>

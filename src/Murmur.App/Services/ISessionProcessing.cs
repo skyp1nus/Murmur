@@ -25,6 +25,9 @@ public interface ISessionProcessing
 
     /// <summary>Queues a session for (re-)transcription; <c>false</c> when it is already queued or still recording.</summary>
     ValueTask<bool> EnqueueAsync(SessionId session, CancellationToken cancellationToken);
+
+    /// <summary>Cancels the session's queued or running transcription and indexing; <c>true</c> when something was cancelled. Waits until the running job has stopped, so the caller may delete the session afterwards.</summary>
+    ValueTask<bool> CancelAsync(SessionId session, CancellationToken cancellationToken);
 }
 
 /// <summary><see cref="ISessionProcessing"/> over the real <see cref="SessionProcessor"/>.</summary>
@@ -55,6 +58,9 @@ public sealed class SessionProcessingAdapter : ISessionProcessing
 
     public ValueTask<bool> EnqueueAsync(SessionId session, CancellationToken cancellationToken) =>
         _processor.EnqueueAsync(session, cancellationToken);
+
+    public ValueTask<bool> CancelAsync(SessionId session, CancellationToken cancellationToken) =>
+        _processor.CancelAsync(session, cancellationToken);
 }
 
 /// <summary>No pipeline (designer, tests that do not care): nothing is ever processed.</summary>
@@ -75,4 +81,6 @@ internal sealed class NullSessionProcessing : ISessionProcessing
     public SessionProcessingStatus? GetStatus(SessionId session) => null;
 
     public ValueTask<bool> EnqueueAsync(SessionId session, CancellationToken cancellationToken) => ValueTask.FromResult(false);
+
+    public ValueTask<bool> CancelAsync(SessionId session, CancellationToken cancellationToken) => ValueTask.FromResult(false);
 }
