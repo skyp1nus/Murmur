@@ -190,7 +190,7 @@ public sealed class ImportEndToEndTests : IDisposable
         Assert.DoesNotContain(all, s => s.State is SessionState.Failed or SessionState.Recording);
     }
 
-    [Fact(Skip = "follow-up: reviewer P2 (a) - ImportQueue.StartAsync counts the session of a Failed/Cancelled entry as referenced although the same pass deletes that entry, so its half-made session survives one extra start")]
+    [Fact]
     public async Task AtStart_TheHalfMadeSessionOfAFailedEntry_IsDeletedInTheSamePass()
     {
         var path = await NewFileAsync("x.mp3");

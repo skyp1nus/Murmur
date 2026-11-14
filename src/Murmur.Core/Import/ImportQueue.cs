@@ -34,7 +34,8 @@ namespace Murmur.Core.Import;
 /// save fails the session is kept. <see cref="StartAsync"/> (once at start-up, after the crash recovery and before
 /// <see cref="SessionProcessor.ResumePendingAsync"/>) restarts the imports that were queued or decoding (a half-made
 /// session is deleted first; one whose decode had finished is handed off) and deletes the half-made imported sessions no
-/// entry refers to (a crash between creating the session and saving the entry). Done entries stay stored with their
+/// entry refers to (a crash between creating the session and saving the entry; the entries deleted in the same pass, Failed and
+/// Cancelled, do not count as referring). Done entries stay stored with their
 /// session so <see cref="LanguageOf"/> still knows the spoken language after a restart. Failed and cancelled entries are
 /// removed from the store and stay in <see cref="Items"/> until dismissed.</para>
 /// <para><b>Errors.</b> <see cref="ImportItem.Error"/> holds a code (the App words it), optionally followed by
@@ -154,16 +155,12 @@ public sealed class ImportQueue : IImportQueue, IDisposable
         foreach (var import in stored)
         {
             var item = import.Item;
-            if (item.Session is { } session)
-            {
-                referenced.Add(session);
-            }
-
             switch (item.State)
             {
                 case ImportState.Done:
                     if (item.Session is { } done)
                     {
+                        referenced.Add(done);
                         lock (_gate)
                         {
                             _languages[done] = import.Request.Options.Language;
@@ -174,10 +171,16 @@ public sealed class ImportQueue : IImportQueue, IDisposable
 
                 case ImportState.Queued or ImportState.Decoding:
                     // A decode that was running when the app stopped starts again; its half-made session goes first.
+                    if (item.Session is { } half)
+                    {
+                        referenced.Add(half);
+                    }
+
                     resumed.Add(new Entry(item.Id, import.Request) { Session = item.Session });
                     break;
 
                 default:
+                    // Failed or Cancelled: the entry goes now, so the half-made session it names is an orphan of this very pass.
                     await _store.DeleteImportAsync(item.Id, cancellationToken).ConfigureAwait(false);
                     break;
             }
