@@ -87,6 +87,10 @@ namespace Murmur.App;
 /// The diagnostic log (#100): the app records its background failures there, the Library shows its unseen crash and Settings -> About opens
 /// and copies it. <c>null</c> = <see cref="NullAppLog"/> (designer, tests, the parity boards: no notice, no About rows).
 /// </param>
+/// <param name="TranscriptFixed">
+/// Called with the session after a word of its transcript was fixed and stored (#95): the host refreshes the embedded chunks of the
+/// session lazily (vector search, Ask AI). It must return at once and not throw; <c>null</c> = nothing is told.
+/// </param>
 public sealed record AppServices(
     IRecorder Recorder,
     ICapture Capture,
@@ -120,7 +124,8 @@ public sealed record AppServices(
     IBookmarkStore? BookmarkStore = null,
     IVocabularyStore? Vocabulary = null,
     IFloatingWindowStyle? FloatingWindowStyle = null,
-    IAppLog? Log = null)
+    IAppLog? Log = null,
+    Action<SessionId>? TranscriptFixed = null)
 {
     /// <summary><see cref="Log"/>, or the null log.</summary>
     public IAppLog AppLog => Log ?? NullAppLog.Instance;

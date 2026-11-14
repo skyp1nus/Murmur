@@ -50,6 +50,45 @@ public sealed class SearchIndexTests : IDisposable
 
     private static string[] Texts(IReadOnlyList<SearchHit> hits) => [.. hits.Select(h => h.Chunk.Text)];
 
+    // ---- stored chunks ----
+
+    [Fact]
+    public async Task GetChunks_ReturnsTheStoredChunksWithNormalizedVectors()
+    {
+        var storage = Open();
+        var id = await NewSession(storage);
+        TextChunk[] chunks = [new(id, Ms(0), Ms(1000), "alpha"), new(id, Ms(1000), Ms(2500), "beta")];
+        await storage.ReplaceChunksAsync(id, chunks, [new float[] { 3, 4 }, new float[] { 0, 2 }], Ct);
+
+        var stored = await storage.GetChunksAsync(id, Ct);
+
+        Assert.Equal(["alpha", "beta"], stored.Select(c => c.Chunk.Text));
+        Assert.Equal(Ms(2500), stored[1].Chunk.End);
+        Assert.Equal(new float[] { 0.6f, 0.8f }, stored[0].Vector.ToArray());
+        Assert.Equal(new float[] { 0, 1 }, stored[1].Vector.ToArray());
+    }
+
+    [Fact]
+    public async Task GetChunks_IsEmptyForASessionWithoutChunks()
+    {
+        var storage = Open();
+        var id = await NewSession(storage);
+
+        Assert.Empty(await storage.GetChunksAsync(id, Ct));
+    }
+
+    [Fact]
+    public async Task GetChunks_FollowsAReplacementAndSurvivesAReopen()
+    {
+        var storage = Open();
+        var id = await NewSession(storage);
+        await storage.ReplaceChunksAsync(id, [new TextChunk(id, Ms(0), Ms(1000), "old")], [new float[] { 1, 0 }], Ct);
+        await storage.ReplaceChunksAsync(id, [new TextChunk(id, Ms(0), Ms(1000), "new")], [new float[] { 0, 1 }], Ct);
+
+        Assert.Equal(["new"], (await storage.GetChunksAsync(id, Ct)).Select(c => c.Chunk.Text));
+        Assert.Equal(["new"], (await Open().GetChunksAsync(id, Ct)).Select(c => c.Chunk.Text));
+    }
+
     // ---- keyword search ----
 
     [Fact]

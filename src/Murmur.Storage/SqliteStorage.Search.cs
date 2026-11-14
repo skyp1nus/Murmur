@@ -51,6 +51,29 @@ public sealed partial class SqliteStorage
         return Run<IReadOnlyList<SearchHit>>(() => SearchVector(query, scope, limit), cancellationToken);
     }
 
+    /// <summary>
+    /// The embedded chunks of a session with their stored vectors (L2-normalized, as they are searched), in the order they were stored; empty for
+    /// a session without chunks. Lets a caller that re-chunks a transcript after a small change keep the vectors of the chunks that did not change
+    /// and embed only the others. Not part of <see cref="ISearchIndex"/>.
+    /// </summary>
+    public ValueTask<IReadOnlyList<(TextChunk Chunk, ReadOnlyMemory<float> Vector)>> GetChunksAsync(SessionId session, CancellationToken cancellationToken) =>
+        Run<IReadOnlyList<(TextChunk Chunk, ReadOnlyMemory<float> Vector)>>(() => GetChunks(session), cancellationToken);
+
+    private List<(TextChunk Chunk, ReadOnlyMemory<float> Vector)> GetChunks(SessionId session)
+    {
+        var source = GetVectorSources(session)[0];
+        var result = new List<(TextChunk, ReadOnlyMemory<float>)>(source.Count);
+        for (var i = 0; i < source.Count; i++)
+        {
+            var info = source.Chunks[i];
+            result.Add((
+                new TextChunk(session, TimeSpan.FromMilliseconds(info.StartMs), TimeSpan.FromMilliseconds(info.EndMs), info.Text),
+                source.Data.AsSpan(i * source.Dim, source.Dim).ToArray()));
+        }
+
+        return result;
+    }
+
     /// <summary>Turns free user text into a safe FTS5 expression, or <see langword="null"/> when no searchable word is left.</summary>
     internal static string? BuildFtsQuery(string text)
     {

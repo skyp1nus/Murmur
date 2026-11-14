@@ -38,16 +38,76 @@ internal sealed class FakeStorage : IStorage
         return ValueTask.FromResult<IReadOnlyList<SearchHit>>(KeywordHits);
     }
 
+    /// <summary>The chunks stored through <see cref="ReplaceChunksAsync"/> with their vectors, per session.</summary>
+    public Dictionary<SessionId, List<(TextChunk Chunk, ReadOnlyMemory<float> Vector)>> Index { get; } = [];
+
+    /// <summary>When set, <see cref="SearchVectorAsync"/> ranks the stored <see cref="Index"/> by cosine similarity (hits with a positive score) instead of answering <see cref="VectorHits"/>.</summary>
+    public bool CosineSearch { get; set; }
+
+    /// <summary>Thrown by <see cref="ReplaceChunksAsync"/> when set (nothing is stored then).</summary>
+    public Exception? ReplaceFailure { get; set; }
+
     public ValueTask<IReadOnlyList<SearchHit>> SearchVectorAsync(ReadOnlyMemory<float> embedding, SessionId? scope, int limit, CancellationToken cancellationToken)
     {
         VectorCalls.Add((embedding, scope, limit));
-        return ValueTask.FromResult<IReadOnlyList<SearchHit>>(VectorHits);
+        if (!CosineSearch)
+        {
+            return ValueTask.FromResult<IReadOnlyList<SearchHit>>(VectorHits);
+        }
+
+        var hits = new List<SearchHit>();
+        foreach (var (session, entries) in Index)
+        {
+            if (scope is { } only && only != session)
+            {
+                continue;
+            }
+
+            foreach (var (chunk, vector) in entries)
+            {
+                var score = Cosine(embedding.Span, vector.Span);
+                if (score > 0)
+                {
+                    hits.Add(new SearchHit(chunk, score, SearchSource.Vector));
+                }
+            }
+        }
+
+        return ValueTask.FromResult<IReadOnlyList<SearchHit>>([.. hits.OrderByDescending(h => h.Score).Take(limit)]);
     }
 
     public ValueTask ReplaceChunksAsync(SessionId session, IReadOnlyList<TextChunk> chunks, IReadOnlyList<ReadOnlyMemory<float>> embeddings, CancellationToken cancellationToken)
     {
+        if (ReplaceFailure is { } failure)
+        {
+            throw failure;
+        }
+
         Replaced.Add((session, chunks, embeddings));
+        Index[session] = [.. chunks.Select((chunk, i) => (chunk, embeddings[i]))];
         return ValueTask.CompletedTask;
+    }
+
+    /// <summary>What <see cref="ChunkRefresher"/> reads: the stored chunks with their vectors.</summary>
+    public ValueTask<IReadOnlyList<(TextChunk Chunk, ReadOnlyMemory<float> Vector)>> ReadChunksAsync(SessionId session, CancellationToken cancellationToken) =>
+        ValueTask.FromResult<IReadOnlyList<(TextChunk Chunk, ReadOnlyMemory<float> Vector)>>(Index.TryGetValue(session, out var entries) ? [.. entries] : []);
+
+    private static double Cosine(ReadOnlySpan<float> a, ReadOnlySpan<float> b)
+    {
+        if (a.Length != b.Length)
+        {
+            return 0;
+        }
+
+        double dot = 0, na = 0, nb = 0;
+        for (var i = 0; i < a.Length; i++)
+        {
+            dot += a[i] * b[i];
+            na += a[i] * a[i];
+            nb += b[i] * b[i];
+        }
+
+        return na == 0 || nb == 0 ? 0 : dot / Math.Sqrt(na * nb);
     }
 
     /// <summary>How many times a transcript was read.</summary>
@@ -149,13 +209,16 @@ internal sealed class FakeEmbeddingGenerator : IEmbeddingGenerator<string, Embed
 {
     public List<string[]> Batches { get; } = [];
 
+    /// <summary>Turns an input into its vector; the default is <c>{length, 1}</c>.</summary>
+    public Func<string, float[]>? Vectorizer { get; set; }
+
     public Task<GeneratedEmbeddings<Embedding<float>>> GenerateAsync(
         IEnumerable<string> values, EmbeddingGenerationOptions? options = null, CancellationToken cancellationToken = default)
     {
         var batch = values.ToArray();
         Batches.Add(batch);
         var result = new GeneratedEmbeddings<Embedding<float>>(
-            batch.Select(v => new Embedding<float>(new[] { v.Length, 1f })));
+            batch.Select(v => new Embedding<float>(Vectorizer?.Invoke(v) ?? [v.Length, 1f])));
         return Task.FromResult(result);
     }
 
@@ -218,6 +281,9 @@ internal sealed class FakeLlm : ILlm
 
     public bool Paused { get; set; }
 
+    /// <summary>Thrown when the embedding generator is requested, when set (a missing embedding model is a <see cref="FileNotFoundException"/>).</summary>
+    public Exception? EmbeddingFailure { get; set; }
+
     public int EmbeddingRequests { get; private set; }
 
     public ValueTask<IChatClient> GetChatClientAsync(CancellationToken cancellationToken) =>
@@ -226,6 +292,11 @@ internal sealed class FakeLlm : ILlm
     public ValueTask<IEmbeddingGenerator<string, Embedding<float>>> GetEmbeddingGeneratorAsync(CancellationToken cancellationToken)
     {
         EmbeddingRequests++;
+        if (EmbeddingFailure is { } failure)
+        {
+            throw failure;
+        }
+
         return Paused ? throw new AiPausedException() : ValueTask.FromResult<IEmbeddingGenerator<string, Embedding<float>>>(Embeddings);
     }
 

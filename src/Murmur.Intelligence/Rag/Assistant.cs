@@ -67,33 +67,13 @@ public sealed class Assistant : IAssistant
         Invalidate(session);
         var names = await _storage.GetSpeakerNamesAsync(session, cancellationToken).ConfigureAwait(false);
         var chunks = _chunker.Chunk(transcript, names);
-        var embeddings = new List<ReadOnlyMemory<float>>(chunks.Count);
-        if (chunks.Count > 0)
+        var texts = new string[chunks.Count];
+        for (var i = 0; i < texts.Length; i++)
         {
-            var generator = await _llm.GetEmbeddingGeneratorAsync(cancellationToken).ConfigureAwait(false);
-            var batchSize = Math.Max(1, _options.EmbeddingBatchSize);
-            for (var offset = 0; offset < chunks.Count; offset += batchSize)
-            {
-                var count = Math.Min(batchSize, chunks.Count - offset);
-                var inputs = new string[count];
-                for (var i = 0; i < count; i++)
-                {
-                    inputs[i] = EmbeddingPrompts.Document(chunks[offset + i].Text);
-                }
-
-                var generated = await generator.GenerateAsync(inputs, options: null, cancellationToken).ConfigureAwait(false);
-                if (generated.Count != count)
-                {
-                    throw new InvalidDataException($"Expected {count} embeddings, got {generated.Count}.");
-                }
-
-                foreach (var embedding in generated)
-                {
-                    embeddings.Add(embedding.Vector);
-                }
-            }
+            texts[i] = chunks[i].Text;
         }
 
+        var embeddings = await DocumentEmbedder.EmbedAsync(_llm, texts, _options.EmbeddingBatchSize, cancellationToken).ConfigureAwait(false);
         await _storage.ReplaceChunksAsync(session, chunks, embeddings, cancellationToken).ConfigureAwait(false);
     }
 
@@ -347,7 +327,12 @@ public sealed class Assistant : IAssistant
         }
     }
 
-    /// <summary>Forgets what was built from the transcript of <paramref name="session"/> and tells running searches not to keep what they build.</summary>
+    /// <summary>
+    /// Forgets what was built from the transcript of <paramref name="session"/> (the speaker-name views of its chunks) and tells running searches not to
+    /// keep what they build: call it when the transcript changed (a fixed word), so the next search reads it again.
+    /// </summary>
+    public void InvalidateSession(SessionId session) => Invalidate(session);
+
     private void Invalidate(SessionId session)
     {
         _generations.AddOrUpdate(session, 1, static (_, generation) => generation + 1);

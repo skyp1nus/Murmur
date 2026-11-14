@@ -13,8 +13,8 @@ namespace Murmur.App.ViewModels;
 /// and adds the word to the vocabulary; "Keep" stores the word as it is, which only takes its doubt away (in this recording).
 /// </summary>
 /// <remarks>
-/// The search and the export read the fixed text at once; the AI's embedded chunks keep the old wording until the recording is indexed
-/// again (not needed for the fix to show). The Session boards' demo words have no confidence, so the boards show no underline.
+/// The search and the export read the fixed text at once; the AI's embedded chunks keep the old wording until the host refreshes them
+/// (<see cref="Services.SessionServices.TranscriptFixed"/>, #95: lazily, batched, never while recording; not needed for the fix to show). The Session boards' demo words have no confidence, so the boards show no underline.
 /// </remarks>
 public sealed partial class SessionViewModel
 {
@@ -163,6 +163,9 @@ public sealed partial class SessionViewModel
             ActionMessage = UiText.Format(Strings.DidYouMean_FixFailed, ex.Message);
             return;
         }
+
+        // The full-text index is right now; the host brings the embedded chunks up to date later (batched, never while recording).
+        _services.TranscriptFixed?.Invoke(Id);
 
         if (_disposed)
         {
