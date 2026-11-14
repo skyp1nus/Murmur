@@ -143,12 +143,6 @@ public sealed partial class ShellViewModel : ObservableObject
     /// </summary>
     public TopBarViewModel TopBar { get; } = new();
 
-    /// <summary>
-    /// The page still expects the 48 px margin of the old frame (its view draws its own header and spacing for it). A page that was
-    /// redrawn after the canvas fills the area under the top bar itself and says so by implementing <see cref="IFillsFrame"/>.
-    /// </summary>
-    public bool PageUsesFrameInset => CurrentPage is not (IFillsFrame or OnboardingViewModel);
-
     /// <summary>The first-run onboarding once it has been needed (it is built lazily), else <c>null</c>.</summary>
     public OnboardingViewModel? Onboarding => _onboarding;
 
@@ -588,7 +582,6 @@ public sealed partial class ShellViewModel : ObservableObject
     partial void OnCurrentPageChanged(ObservableObject value)
     {
         OnPropertyChanged(nameof(IsOnboarding));
-        OnPropertyChanged(nameof(PageUsesFrameInset));
         CloseImportDialog();
         UpdateTopBar(value);
         if (_sidebar is null)

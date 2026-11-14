@@ -38,7 +38,7 @@ public readonly record struct RecordingSources(bool Microphone, bool SystemAudio
 /// through <see cref="IAssistant.SearchAsync"/> (which itself drops to BM25 when the embedding model is missing or AI
 /// is paused); when the assistant is missing or throws, <see cref="ISearchIndex.SearchKeywordAsync"/> answers.</para>
 /// </remarks>
-public sealed partial class LibraryViewModel : ObservableObject, IDisposable, IFillsFrame
+public sealed partial class LibraryViewModel : ObservableObject, IDisposable
 {
     /// <summary>Quiet time after the last keystroke before the transcript search runs.</summary>
     public static readonly TimeSpan SearchDebounce = TimeSpan.FromMilliseconds(300);

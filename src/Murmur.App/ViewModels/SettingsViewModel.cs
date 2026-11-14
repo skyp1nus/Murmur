@@ -26,7 +26,7 @@ public sealed record SettingsSection(string Id, string Title);
 /// <para><b>Follows the store.</b> A change saved by anyone else (the onboarding, the hotkey registration) is re-read into
 /// the sections that exist; the event is marshalled to the UI thread. <see cref="Dispose"/> unsubscribes.</para>
 /// </remarks>
-public sealed partial class SettingsViewModel : ObservableObject, IDisposable, IFillsFrame
+public sealed partial class SettingsViewModel : ObservableObject, IDisposable
 {
     public const string ModelsSectionId = "models";
     public const string DevicesSectionId = "devices";

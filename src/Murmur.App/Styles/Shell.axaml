@@ -157,9 +157,6 @@
   <Style Selector="ContentControl.page">
     <Setter Property="Margin" Value="0" />
   </Style>
-  <Style Selector="ContentControl.page.inset">
-    <Setter Property="Margin" Value="{StaticResource Inset.48}" />
-  </Style>
 
   <!-- ==== Text ================================================================================================================== -->
   <Style Selector="TextBlock.t12">

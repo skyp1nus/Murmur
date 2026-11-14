@@ -24,7 +24,7 @@ namespace Murmur.App.ViewModels;
 /// a cited recording does not start a new one (<see cref="ShellViewModel.ShowLibraryChat"/>).
 /// </para>
 /// </remarks>
-public sealed partial class LibraryChatViewModel : ObservableObject, IFillsFrame, IDisposable
+public sealed partial class LibraryChatViewModel : ObservableObject, IDisposable
 {
     /// <summary>How many saved chats the sidebar lists.</summary>
     public const int ThreadLimit = 50;

@@ -510,8 +510,6 @@ public sealed class ChatThreadTests
 
         Assert.Same(rig.Shell.LibraryChat!.ScopePills, rig.Shell.TopBar.Leading);
         Assert.Same(rig.Shell.LibraryChat.ModelChip, rig.Shell.TopBar.Trailing);
-        Assert.True(rig.Shell.LibraryChat is IFillsFrame);
-        Assert.False(rig.Shell.PageUsesFrameInset);
         Assert.Equal(rig.ClientDemo.Title, rig.Shell.LibraryChat.ScopePills.SessionTitle);
     }
 
