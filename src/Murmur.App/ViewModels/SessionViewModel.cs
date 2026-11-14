@@ -830,6 +830,7 @@ public sealed partial class SessionViewModel : ObservableObject, IDisposable, IF
         if (_bookmarkRows.Length > 0)
         {
             RebuildBookmarkFlags();
+            OnPropertyChanged(nameof(ShowBookmarksHint));
         }
     }
 

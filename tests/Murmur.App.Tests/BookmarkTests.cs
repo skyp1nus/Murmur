@@ -109,6 +109,142 @@ public sealed class BookmarkTests : IDisposable
         Assert.False(vm.ShowBookmarksEmpty);
     }
 
+    // The hint "Marked during the call" --------------------------------------------------------------------------
+
+    [Fact]
+    public async Task TheHint_IsHidden_WithTheEmptyState()
+    {
+        var vm = await LoadAsync();
+
+        Assert.True(vm.ShowBookmarksEmpty);
+        Assert.False(vm.ShowBookmarksHint);
+    }
+
+    [Fact]
+    public async Task TheHint_IsHidden_WhenTheOnlyMarksWereAddedWhileReviewing()
+    {
+        var vm = await LoadAsync();
+        vm.SeekTo(S(42));
+
+        await vm.AddBookmarkAtPlayheadCommand.ExecuteAsync(null);
+        vm.SeekTo(S(900));
+        await vm.AddBookmarkAtPlayheadCommand.ExecuteAsync(null);
+
+        Assert.Equal(2, vm.Bookmarks.Count);
+        Assert.False(vm.ShowBookmarksHint);
+    }
+
+    [Fact]
+    public async Task TheHint_IsShown_ForMarksOfTheRecording_AndStaysWhenReviewMarksComeToThem()
+    {
+        _store.Put(_fixture.Record.Id, (761, "Pricing question"));
+        var vm = await LoadAsync();
+
+        Assert.True(vm.ShowBookmarksHint);
+        var changes = new List<string?>();
+        vm.PropertyChanged += (_, e) => changes.Add(e.PropertyName);
+
+        vm.SeekTo(S(42));
+        await vm.AddBookmarkAtPlayheadCommand.ExecuteAsync(null);
+
+        Assert.Equal(2, vm.Bookmarks.Count);
+        Assert.True(vm.ShowBookmarksHint);
+        Assert.Contains(nameof(SessionViewModel.ShowBookmarksHint), changes);
+    }
+
+    [Fact]
+    public async Task TheHint_FollowsTheDeleteOfTheLastRecordedMark()
+    {
+        _store.Put(_fixture.Record.Id, (761, ""));
+        var vm = await LoadAsync();
+        vm.SeekTo(S(42));
+        await vm.AddBookmarkAtPlayheadCommand.ExecuteAsync(null);
+        Assert.True(vm.ShowBookmarksHint);
+
+        vm.Bookmarks.Single(b => b.At == S(761)).DeleteCommand.Execute(null);
+        await Task.Yield();
+
+        Assert.Single(vm.Bookmarks);
+        Assert.False(vm.ShowBookmarksHint);
+    }
+
+    [Fact]
+    public async Task TheHint_IsHidden_ForAnImportedFile_EvenWithStoredMarks()
+    {
+        var imported = _fixture.Record with { Source = SessionSource.Imported };
+        _store.Put(imported.Id, (30, "From the file"));
+        var vm = Create(record: imported);
+        await vm.LoadAsync();
+
+        Assert.True(vm.HasBookmarks);
+        Assert.False(vm.ShowBookmarksHint);
+    }
+
+    [Fact]
+    public async Task TheHint_IsHidden_ForAMarkPastTheEndOfTheRecording()
+    {
+        _store.Put(_fixture.Record.Id, (S(90 * 60).TotalSeconds, "Beyond the capture window"));
+
+        var vm = await LoadAsync();
+
+        Assert.True(vm.HasBookmarks);
+        Assert.False(vm.ShowBookmarksHint);
+    }
+
+    [Fact]
+    public async Task WithoutAStore_TheHintIsHidden()
+    {
+        var vm = await LoadAsync(withStore: false);
+
+        Assert.False(vm.ShowBookmarksHint);
+    }
+
+    [Fact]
+    [Trait("Category", "Slow")]
+    public async Task TheCard_ShowsTheHintText_OnlyWithMarksOfTheRecording()
+    {
+        var (_, shell) = await OpenAsync();
+        bool Hint(Window window) => window.GetVisualDescendants().OfType<TextBlock>().Single(t => t.Classes.Contains("bookmarksHint")).IsEffectivelyVisible;
+
+        var empty = await Session.Dispatch(
+            () =>
+            {
+                var window = UiHarness.Show(shell);
+                var shown = Hint(window);
+                window.Close();
+                return shown;
+            },
+            Ct);
+
+        shell.Session!.SeekTo(S(42));
+        await shell.Session.AddBookmarkAtPlayheadCommand.ExecuteAsync(null);
+        var onlyReview = await Session.Dispatch(
+            () =>
+            {
+                var window = UiHarness.Show(shell);
+                var shown = Hint(window);
+                window.Close();
+                return shown;
+            },
+            Ct);
+
+        _store.Put(_fixture.Record.Id, (761, "Pricing question"));
+        var (_, withRecorded) = await OpenAsync();
+        var recorded = await Session.Dispatch(
+            () =>
+            {
+                var window = UiHarness.Show(withRecorded);
+                var shown = Hint(window);
+                window.Close();
+                return shown;
+            },
+            Ct);
+
+        Assert.False(empty);
+        Assert.False(onlyReview);
+        Assert.True(recorded);
+    }
+
     [Fact]
     public async Task BookmarksThatCannotBeRead_AreAsGoodAsNone()
     {
