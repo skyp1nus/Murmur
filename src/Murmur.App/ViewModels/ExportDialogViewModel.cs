@@ -99,7 +99,7 @@ public sealed partial class ExportDialogViewModel : ObservableObject, IDisposabl
     [NotifyPropertyChangedFor(nameof(IsChapterRange), nameof(HasSpeech), nameof(CanCopy), nameof(CanSave))]
     public partial bool IsWholeRange { get; set; } = true;
 
-    /// <summary>The preview text (the whole export, cut at <see cref="MaxPreviewChars"/>).</summary>
+    /// <summary>The preview text (the export, built only up to <see cref="MaxPreviewChars"/>).</summary>
     [ObservableProperty]
     public partial string Preview { get; private set; }
 
@@ -333,7 +333,7 @@ public sealed partial class ExportDialogViewModel : ObservableObject, IDisposabl
         }
     }
 
-    /// <summary>The preview: the export cut at <see cref="MaxPreviewChars"/>, or the empty-state line when the range holds no speech.</summary>
+    /// <summary>The preview: the export built up to <see cref="MaxPreviewChars"/> characters, or the empty-state line when the range holds no speech.</summary>
     private string PreviewOf(ExportFormat format, ExportOptions options, ExportRange? range, CancellationToken cancellationToken)
     {
         if (range is { } part && !_transcript.Segments.Any(segment => Overlaps(part, segment)))
@@ -341,7 +341,8 @@ public sealed partial class ExportDialogViewModel : ObservableObject, IDisposabl
             return Strings.Export_PreviewEmpty;
         }
 
-        return Cut(TranscriptExport.Format(format, _record with { Title = Title }, _transcript, _summary, _labels, options, range, cancellationToken));
+        // The formatter stops building at the budget: a three-hour transcript is never formatted whole for the preview.
+        return TranscriptExport.Format(format, _record with { Title = Title }, _transcript, _summary, _labels, options, range, MaxPreviewChars, cancellationToken);
     }
 
     /// <summary>The same test the formatter makes: the segment overlaps <c>[Start, End)</c>, a segment without length counts as a point.</summary>
@@ -370,17 +371,6 @@ public sealed partial class ExportDialogViewModel : ObservableObject, IDisposabl
         }
 
         return end;
-    }
-
-    private static string Cut(string text)
-    {
-        if (text.Length <= MaxPreviewChars)
-        {
-            return text;
-        }
-
-        var end = text.LastIndexOf('\n', MaxPreviewChars);
-        return text[..(end > 0 ? end : MaxPreviewChars)] + "\n…\n";
     }
 
     private async Task CopyAsync()

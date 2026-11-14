@@ -183,6 +183,10 @@ public sealed class ExportDialogTests : IDisposable
         Assert.InRange(vm.Preview.Length, 1000, ExportDialogViewModel.MaxPreviewChars + 10);
         Assert.EndsWith("\n…\n", vm.Preview, StringComparison.Ordinal);
 
+        // The build stopped at the budget, and what is shown is the full export up to the cut point.
+        var full = TranscriptExport.Format(ExportFormat.Markdown, Record, long_, Summary, ExportLabels.English, ExportOptions.Default, null, TestContext.Current.CancellationToken);
+        Assert.StartsWith(vm.Preview[..^"\n…\n".Length], full, StringComparison.Ordinal);
+
         vm.SaveCommand.Execute(null);
         await vm.ActionTask;
         Assert.Contains("Line number 3999 of a long meeting.", _saver.Texts[0].Content, StringComparison.Ordinal);
