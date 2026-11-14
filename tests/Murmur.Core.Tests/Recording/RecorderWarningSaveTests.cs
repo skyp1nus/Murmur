@@ -91,16 +91,14 @@ public sealed class RecorderWarningSaveTests : IDisposable
         await Task.Delay(200, Ct);
         Assert.Single(_store.Updates); // flushes ran, but the last write (the start) is less than a second old
 
-        _clock.Advance(TimeSpan.FromSeconds(0.6), _synthetic);
-        SampleClock.WaitUntil(() => _store.Get(session.Id)?.Error == SessionNotes.ScreenFramesDropped, "the first warning to reach the store");
+        AdvanceUntil(() => _store.Get(session.Id)?.Error == SessionNotes.ScreenFramesDropped, "the first warning to reach the store");
 
         _screen.Raise(new CaptureFault("screen", "cpu", false, CaptureFaultKind.CpuFallback));
         _clock.Advance(TimeSpan.FromSeconds(0.3), _synthetic);
         await Task.Delay(200, Ct);
         Assert.Equal(2, _store.Updates.Count);
 
-        _clock.Advance(TimeSpan.FromSeconds(1), _synthetic);
-        SampleClock.WaitUntil(
+        AdvanceUntil(
             () => _store.Get(session.Id)?.Error == $"{SessionNotes.ScreenFramesDropped}\n{SessionNotes.ScreenCpuFallback}",
             "the second warning to reach the store");
         Assert.Equal(3, _store.Updates.Count);
@@ -163,6 +161,30 @@ public sealed class RecorderWarningSaveTests : IDisposable
 
         Assert.Equal(RecorderState.Recording, recorder.State);
         await recorder.StopAsync(Ct);
+    }
+
+    /// <summary>
+    /// Moves the clock in small steps until <paramref name="condition"/> holds: the writer flushes only while the clock moves, so
+    /// the one jump that is "enough" on paper can land between two flushes.
+    /// </summary>
+    private void AdvanceUntil(Func<bool> condition, string what)
+    {
+        for (var i = 0; i < 40; i++)
+        {
+            _clock.Advance(TimeSpan.FromSeconds(0.25), _synthetic);
+            var deadline = Environment.TickCount64 + 100;
+            while (Environment.TickCount64 < deadline)
+            {
+                if (condition())
+                {
+                    return;
+                }
+
+                Thread.Sleep(1);
+            }
+        }
+
+        throw new TimeoutException($"Timed out waiting for {what}.");
     }
 
     private Recorder Create(RecorderSettings settings) => new(new RaisingCapture(_synthetic, _screen), _store, _clock, settings);
