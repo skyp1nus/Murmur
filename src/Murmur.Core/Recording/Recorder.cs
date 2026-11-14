@@ -51,6 +51,14 @@ namespace Murmur.Core.Recording;
 /// threads: the handler never blocks and holds no lock across a callback.
 /// </para>
 /// <para>
+/// <b>Warnings are saved as they happen.</b> A warning added to the session after the start (a screen fault, a screen that
+/// could not restart) is written to the store soon after, not only at the stop, so a crash keeps it: the flusher thread
+/// (the recorder's slow background loop, once per flush interval) queues one write behind the gate when something changed
+/// and at least a second passed since the last write. Nothing is written from a capture callback or the writer thread; a
+/// burst of warnings is one write. The stop writes the whole list itself and a queued write that finds the recording gone
+/// does nothing, so no warning is stored twice (the stored text is replaced, never appended).
+/// </para>
+/// <para>
 /// <b>Stop.</b> Every step of a stop runs even if an earlier one threw: each source is stopped and released, every
 /// file closed, the open screen segment finalized (and kept on the timeline even if finalizing fails) and the screen
 /// recorder released; the recorder always returns to <see cref="RecorderState.Idle"/>. A failure is reported in
@@ -86,6 +94,9 @@ public sealed class Recorder : IRecorder
     private const int ReadFrames = 4096;
     private const int WarmupIterations = 8;
     private const double LevelHalfLifeSeconds = 0.12;
+
+    /// <summary>The least time between two writes of the session's warnings while recording (a burst of warnings is one write).</summary>
+    private static readonly TimeSpan WarningSaveInterval = TimeSpan.FromSeconds(1);
 
     // What the writer thread does with the audio of the sources (ActiveRecording.Mode). The two "requested" values are
     // the handshake of PauseAsync / ResumeAsync: the writer moves on to the next mode and signals ModeChanged.
@@ -486,9 +497,10 @@ public sealed class Recorder : IRecorder
                 State = SessionState.Recording,
                 HasMicrophone = active.Tracks.Exists(t => t.Kind == AudioDeviceKind.Microphone),
                 HasSystemAudio = active.Tracks.Exists(t => t.Kind == AudioDeviceKind.SystemOutput),
-                Error = active.WarningText,
+                Error = active.SnapshotWarnings(out var storedWarnings),
             };
             await _store.UpdateSessionAsync(active.Record, cancellationToken).ConfigureAwait(false);
+            active.MarkWarningsSaved(storedWarnings, _time.GetTimestamp());
 
             // A started track may have faulted fatally while a sibling was failing to start: its auto-stop check saw
             // the failed sibling as healthy. Re-check now that the track list is final (the stop runs after the gate).
@@ -800,8 +812,7 @@ public sealed class Recorder : IRecorder
                         }
                     }
 
-                    active.Record = active.Record with { Error = active.WarningText };
-                    await _store.UpdateSessionAsync(active.Record, CancellationToken.None).ConfigureAwait(false);
+                    await SaveWarningsAsync(active).ConfigureAwait(false);
                 }
             }
             catch (Exception ex)
@@ -813,6 +824,55 @@ public sealed class Recorder : IRecorder
                 _gate.Release();
             }
         });
+    }
+
+    /// <summary>
+    /// Called by the flusher thread after each flush (so at most once per flush interval, and never from an audio or video
+    /// callback): when a warning was raised since the session was last written, queues one write behind the recorder's gate.
+    /// A burst of warnings is one write; a failed write is retried at the next flush. Stop and the screen-stop cleanup
+    /// write the full list themselves, so a write queued before them finds the recording gone or the list already saved.
+    /// </summary>
+    private void ScheduleWarningSave(ActiveRecording active)
+    {
+        if (!active.HasUnsavedWarnings || _time.GetElapsedTime(active.LastWarningSaveStamp) < WarningSaveInterval)
+        {
+            return;
+        }
+
+        if (Interlocked.Exchange(ref active.WarningSaveScheduled, 1) != 0)
+        {
+            return;
+        }
+
+        _ = Task.Run(async () =>
+        {
+            await _gate.WaitAsync().ConfigureAwait(false);
+            try
+            {
+                if (ReferenceEquals(_active, active) && _state is RecorderState.Recording or RecorderState.Paused && active.HasUnsavedWarnings)
+                {
+                    await SaveWarningsAsync(active).ConfigureAwait(false);
+                }
+            }
+            catch (Exception ex)
+            {
+                LogError("recording.warning-save-failed", ex);
+            }
+            finally
+            {
+                _gate.Release();
+                Volatile.Write(ref active.WarningSaveScheduled, 0);
+            }
+        });
+    }
+
+    /// <summary>Writes the session's warnings so far to the store (the gate holder only): a crash later must not lose them.</summary>
+    private async ValueTask SaveWarningsAsync(ActiveRecording active)
+    {
+        var text = active.SnapshotWarnings(out var version);
+        active.Record = active.Record with { Error = text };
+        await _store.UpdateSessionAsync(active.Record, CancellationToken.None).ConfigureAwait(false);
+        active.MarkWarningsSaved(version, _time.GetTimestamp());
     }
 
     private void LogError(string code, Exception ex) => _log.Write(LogLevel.Error, "recording", code, LogText.Error(ex));
@@ -1285,7 +1345,7 @@ public sealed class Recorder : IRecorder
     }
 
     /// <summary>Flushes every track to disk whenever the writer asks; a slow flush only delays the next one.</summary>
-    private static void FlusherLoop(ActiveRecording active)
+    private void FlusherLoop(ActiveRecording active)
     {
         try
         {
@@ -1304,6 +1364,9 @@ public sealed class Recorder : IRecorder
                 }
 
                 active.MaxFlushTicks = Math.Max(active.MaxFlushTicks, Stopwatch.GetTimestamp() - start);
+
+                // Off the audio path: this thread is the recorder's slow background loop (one wake-up per flush interval).
+                ScheduleWarningSave(active);
             }
         }
         catch (Exception ex)
@@ -1614,15 +1677,40 @@ public sealed class Recorder : IRecorder
         public string? Warning { get; set; }
 
         /// <summary>The session's warnings: <see cref="Warning"/> followed by the screen problems reported since.</summary>
-        public string? WarningText
+        public string? WarningText => SnapshotWarnings(out _);
+
+        /// <summary>Incremented (under the lock) whenever <see cref="AddWarning"/> adds a text.</summary>
+        private int _warningVersion;
+
+        /// <summary>The version of the list the store holds (gate holder only).</summary>
+        private int _savedWarningVersion;
+
+        private long _lastWarningSaveStamp;
+
+        /// <summary>A queued write of the warnings is pending (Interlocked).</summary>
+        public int WarningSaveScheduled;
+
+        /// <summary>A warning was added that the stored session does not have yet.</summary>
+        public bool HasUnsavedWarnings => Volatile.Read(ref _warningVersion) != Volatile.Read(ref _savedWarningVersion);
+
+        /// <summary>The time-source timestamp of the last write of the warnings (the start counts).</summary>
+        public long LastWarningSaveStamp => Volatile.Read(ref _lastWarningSaveStamp);
+
+        /// <summary>The warnings and the version of that list, read together.</summary>
+        public string? SnapshotWarnings(out int version)
         {
-            get
+            lock (_warningLock)
             {
-                lock (_warningLock)
-                {
-                    return Warning;
-                }
+                version = _warningVersion;
+                return Warning;
             }
+        }
+
+        /// <summary>Records that the store holds the list of <paramref name="version"/> (a later warning keeps <see cref="HasUnsavedWarnings"/> true).</summary>
+        public void MarkWarningsSaved(int version, long timestamp)
+        {
+            Volatile.Write(ref _savedWarningVersion, version);
+            Volatile.Write(ref _lastWarningSaveStamp, timestamp);
         }
 
         /// <summary>Adds a warning text to the session; <c>false</c> when this exact text was already added.</summary>
@@ -1636,6 +1724,7 @@ public sealed class Recorder : IRecorder
                 }
 
                 Warning = JoinMessages(Warning, text);
+                _warningVersion++;
                 return true;
             }
         }

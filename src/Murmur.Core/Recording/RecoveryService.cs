@@ -8,7 +8,9 @@ namespace Murmur.Core.Recording;
 /// Run once at app start, before anything records: every session still in <see cref="SessionState.Recording"/>
 /// belongs to a process that died. Its WAV headers are repaired from the real file lengths, the duration is taken from
 /// the WAVs and the session becomes <see cref="SessionState.Interrupted"/> (or <see cref="SessionState.Failed"/> when
-/// no audio could be recovered at all: every track file is missing or not a valid WAV). Imported sessions
+/// no audio could be recovered at all: every track file is missing or not a valid WAV). The warnings the recorder stored
+/// while it ran (<see cref="SessionRecord.Error"/>) are kept; <see cref="SessionNotes.RecoveryLost"/> is added to them when no audio was
+/// recovered. Imported sessions
 /// (<see cref="SessionSource.Imported"/>) are left alone: one still in Recording is a half-made import, which the import
 /// queue restarts or deletes.
 /// </summary>
@@ -200,7 +202,8 @@ public sealed class RecoveryService
             HasMicrophone = hasMicrophone,
             HasSystemAudio = hasSystem,
             State = hasMicrophone || hasSystem ? SessionState.Interrupted : SessionState.Failed,
-            Error = hasMicrophone || hasSystem ? null : SessionNotes.RecoveryLost,
+            // The warnings the recorder stored while it ran (a lost microphone, a screen that stopped) stay with the session.
+            Error = hasMicrophone || hasSystem ? session.Error : SessionNotes.Join(session.Error, SessionNotes.RecoveryLost),
         };
 
         await _store.UpdateSessionAsync(updated, cancellationToken).ConfigureAwait(false);

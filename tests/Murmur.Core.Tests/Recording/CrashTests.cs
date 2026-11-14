@@ -190,6 +190,76 @@ public sealed class CrashTests : IDisposable
         }
     }
 
+    /// <summary>
+    /// A non-fatal warning raised mid-recording is stored soon after, not at the stop: the helper stores it (its in-memory store
+    /// writes the text to a file, the stand-in for the database row) and the process is killed after that. The recovered session
+    /// carries the warning.
+    /// </summary>
+    [Fact]
+    public async Task KilledAfterAWarning_TheRecoveredSessionCarriesTheWarning()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var helper = Path.Combine(AppContext.BaseDirectory, "Murmur.Core.CrashHelper.dll");
+        Assert.True(File.Exists(helper), $"{helper} is missing");
+
+        var start = new ProcessStartInfo(DotnetHost())
+        {
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            UseShellExecute = false,
+        };
+        start.ArgumentList.Add(helper);
+        start.ArgumentList.Add(_dir.Path);
+        start.ArgumentList.Add("--warn-at");
+        start.ArgumentList.Add("0.5");
+
+        using var process = Process.Start(start) ?? throw new InvalidOperationException("could not start the helper");
+        SessionId? sessionId = null;
+        var warned = false;
+
+        try
+        {
+            using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
+            timeout.CancelAfter(TimeSpan.FromSeconds(60));
+            while (true)
+            {
+                var line = await process.StandardOutput.ReadLineAsync(timeout.Token)
+                    ?? throw new InvalidOperationException("helper exited: " + await process.StandardError.ReadToEndAsync(ct));
+                if (line.StartsWith("SESSION ", StringComparison.Ordinal))
+                {
+                    sessionId = SessionId.Parse(line["SESSION ".Length..]);
+                }
+                else if (line == "WARNED")
+                {
+                    warned = true;
+                }
+                else if (line == "STORED")
+                {
+                    break;
+                }
+            }
+        }
+        finally
+        {
+            process.Kill(entireProcessTree: true);
+            await process.WaitForExitAsync(ct);
+        }
+
+        Assert.NotNull(sessionId);
+        Assert.True(warned, "the helper stored a warning it never raised");
+
+        var store = new InMemorySessionStore(_dir.Path);
+        var storedError = await File.ReadAllTextAsync(Path.Combine(store.GetFiles(sessionId.Value).Directory, "stored-error.txt"), ct);
+        Assert.Equal(SessionNotes.ScreenFramesDropped, storedError);
+        store.Seed(new SessionRecord { Id = sessionId.Value, Title = "crash test", StartedAt = DateTimeOffset.Now, State = SessionState.Recording, Error = storedError });
+
+        var recovered = Assert.Single(await new RecoveryService(store).RecoverAsync(ct));
+
+        Assert.Equal(SessionState.Interrupted, recovered.State);
+        Assert.True(recovered.HasMicrophone);
+        Assert.Equal(SessionNotes.ScreenFramesDropped, recovered.Error);
+    }
+
     private static string DotnetHost()
     {
         var host = Environment.GetEnvironmentVariable("DOTNET_HOST_PATH");
