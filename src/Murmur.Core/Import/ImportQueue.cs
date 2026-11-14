@@ -70,8 +70,10 @@ public sealed class ImportQueue : IImportQueue, IDisposable
     private readonly object _gate = new();
     private readonly List<Entry> _entries = [];
     private readonly Dictionary<SessionId, string?> _languages = [];
+    private readonly TimeProvider _time;
 
     private Entry? _inFlight;
+    private ITimer? _retryTimer;
     private long _transientId;
     private int _changedRequested;
     private int _dispatching;
@@ -79,7 +81,8 @@ public sealed class ImportQueue : IImportQueue, IDisposable
     private bool _disposed;
 
     /// <param name="queue">The job queue the <paramref name="processor"/> works on (it pauses it while recording).</param>
-    public ImportQueue(ISessionStore sessions, IImportStore store, IMediaDecoder decoder, JobQueue queue, SessionProcessor processor)
+    /// <param name="time">The clock of the retry delays of deferred entries; the system clock when <c>null</c>.</param>
+    public ImportQueue(ISessionStore sessions, IImportStore store, IMediaDecoder decoder, JobQueue queue, SessionProcessor processor, TimeProvider? time = null)
     {
         ArgumentNullException.ThrowIfNull(sessions);
         ArgumentNullException.ThrowIfNull(store);
@@ -91,6 +94,7 @@ public sealed class ImportQueue : IImportQueue, IDisposable
         _decoder = decoder;
         _queue = queue;
         _processor = processor;
+        _time = time ?? TimeProvider.System;
     }
 
     /// <summary>Raised on the thread pool after changes of <see cref="Items"/>: coalesced, one handler call at a time, never concurrently.</summary>
@@ -115,6 +119,12 @@ public sealed class ImportQueue : IImportQueue, IDisposable
             }
         }
     }
+
+    /// <summary>
+    /// How long a deferred entry (its leftover session could not be deleted) waits before the next try: one delay per failed
+    /// try, the last one repeated.
+    /// </summary>
+    internal static IReadOnlyList<TimeSpan> RetryDelays { get; } = [TimeSpan.FromSeconds(5), TimeSpan.FromSeconds(30), TimeSpan.FromMinutes(2)];
 
     /// <summary>Test seam: <c>File.CreateHardLink(link, target)</c>.</summary>
     internal Action<string, string> CreateHardLink { get; set; } = static (link, target) => File.CreateHardLink(link, target);
@@ -319,10 +329,15 @@ public sealed class ImportQueue : IImportQueue, IDisposable
     /// <summary>Stops queuing further imports. A running decode is stopped by the job queue's disposal (it restarts next time).</summary>
     public void Dispose()
     {
+        ITimer? timer;
         lock (_gate)
         {
             _disposed = true;
+            timer = _retryTimer;
+            _retryTimer = null;
         }
+
+        timer?.Dispose();
     }
 
     /// <summary>Session title of an imported file: the file name without extension, underscores to spaces.</summary>
@@ -392,6 +407,7 @@ public sealed class ImportQueue : IImportQueue, IDisposable
     private void Pump()
     {
         Entry? next = null;
+        var wait = Timeout.InfiniteTimeSpan;
         lock (_gate)
         {
             if (_disposed || !_started || _inFlight is not null)
@@ -399,17 +415,35 @@ public sealed class ImportQueue : IImportQueue, IDisposable
                 return;
             }
 
+            var now = _time.GetUtcNow();
             foreach (var entry in _entries)
             {
-                if (entry.State == ImportState.Queued && !entry.CancelRequested && !entry.Deferred)
+                if (entry.State != ImportState.Queued || entry.CancelRequested)
+                {
+                    continue;
+                }
+
+                if (!entry.Deferred || entry.RetryAt <= now)
                 {
                     next = entry;
                     break;
+                }
+
+                var left = entry.RetryAt - now;
+                if (wait == Timeout.InfiniteTimeSpan || left < wait)
+                {
+                    wait = left;
                 }
             }
 
             if (next is null)
             {
+                // Only deferred entries are left: wake up when the first of them is due.
+                if (wait != Timeout.InfiniteTimeSpan)
+                {
+                    ScheduleRetry(wait);
+                }
+
                 return;
             }
 
@@ -440,6 +474,18 @@ public sealed class ImportQueue : IImportQueue, IDisposable
             TaskScheduler.Default);
     }
 
+    /// <summary>Called with the gate held. One timer, moved to the next due time; its tick pumps again.</summary>
+    private void ScheduleRetry(TimeSpan wait)
+    {
+        if (_retryTimer is { } timer)
+        {
+            timer.Change(wait, Timeout.InfiniteTimeSpan);
+            return;
+        }
+
+        _retryTimer = _time.CreateTimer(static state => ((ImportQueue)state!).Pump(), this, wait, Timeout.InfiniteTimeSpan);
+    }
+
     private void OnJobFinished()
     {
         lock (_gate)
@@ -461,6 +507,7 @@ public sealed class ImportQueue : IImportQueue, IDisposable
             }
 
             entry.Running = true;
+            entry.Deferred = false; // a retry of a deferred entry starts now; a new deferral sets it again
             attempt = entry.Attempt = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         }
 
@@ -499,8 +546,14 @@ public sealed class ImportQueue : IImportQueue, IDisposable
 
                 if (!await ReleaseSessionAsync(entry).ConfigureAwait(false))
                 {
-                    // The leftover cannot be deleted now (a file held open): stays queued, tried again at the next start.
-                    Update(entry, e => e.Deferred = true);
+                    // The leftover cannot be deleted now (a file held open): stays queued, tried again after a delay (see RetryDelays) and at the next start.
+                    Update(entry, e =>
+                    {
+                        var delays = RetryDelays;
+                        e.Deferred = true;
+                        e.RetryAt = _time.GetUtcNow() + delays[Math.Min(e.Deferrals, delays.Count - 1)];
+                        e.Deferrals++;
+                    });
                     return;
                 }
             }
@@ -925,8 +978,13 @@ public sealed class ImportQueue : IImportQueue, IDisposable
 
         public bool Running { get; set; }
 
-        /// <summary>Waits for the next start: the half-made session of an earlier attempt could not be deleted.</summary>
+        /// <summary>Waits until <see cref="RetryAt"/>: the half-made session of an earlier attempt could not be deleted.</summary>
         public bool Deferred { get; set; }
+
+        public DateTimeOffset RetryAt { get; set; }
+
+        /// <summary>How many times the entry was deferred (picks the delay of the next retry).</summary>
+        public int Deferrals { get; set; }
 
         public TaskCompletionSource? Attempt { get; set; }
 
