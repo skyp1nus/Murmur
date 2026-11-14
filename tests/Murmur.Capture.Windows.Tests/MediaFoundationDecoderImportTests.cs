@@ -130,7 +130,7 @@ public sealed class MediaFoundationDecoderImportTests(ITestOutputHelper output) 
                 if (Mp4EditList.AppliesTo(file) && format == (16_000, 1, 16))
                 {
                     // An MP4 whose sound starts late (an empty edit): the track must start with that much silence.
-                    var edit = Mp4EditList.ReadAudioStart(file, out var problem);
+                    var edit = Mp4EditList.ReadAudioStart(file, out var problem, TestContext.Current.CancellationToken);
                     var silence = LeadingSilence(reader, edit.Delay + TimeSpan.FromSeconds(2));
                     line += $", audio edit delay {edit.Delay:g} trim {edit.Trim:g}{(problem is null ? string.Empty : $" ({problem})")}, leading silence {silence:g}";
                     if (edit.Delay > TimeSpan.FromMilliseconds(500) && silence < edit.Delay - TimeSpan.FromMilliseconds(200))

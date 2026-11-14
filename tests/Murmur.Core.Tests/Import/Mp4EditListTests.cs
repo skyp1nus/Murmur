@@ -214,6 +214,173 @@ public sealed class Mp4EditListTests
     }
 
     [Fact]
+    public void MoreBoxesInTheWholeFileThanTheBudget_IsAProblem_AndIsGivenUpQuickly()
+    {
+        // Each level stays under its own cap: 20 non-audio traks of 4000 tiny boxes (80 000 in all) before the audio one.
+        var tiny = Enumerable.Repeat(Box("free"), 4000).ToArray();
+        var traks = Enumerable.Range(0, 20).Select(_ => Box("trak", tiny)).ToArray();
+        var file = Mp4(Box("moov", [Mvhd(1000), .. traks, Track("soun", 44_100, Elst(0, (1000, -1), (2000, 0)))]));
+        var clock = System.Diagnostics.Stopwatch.StartNew();
+
+        var start = Read(file, out var problem);
+
+        Assert.True(start.IsNone);
+        Assert.Contains(Mp4EditList.MaxBoxes.ToString(System.Globalization.CultureInfo.InvariantCulture), problem, StringComparison.Ordinal);
+        Assert.True(clock.Elapsed < TimeSpan.FromSeconds(5), $"took {clock.Elapsed}");
+    }
+
+    [Fact]
+    public void AFileWithinTheBudget_IsStillRead()
+    {
+        // 60 000 boxes in 15 traks of 4000: under the 65 536 budget, the audio edit list after them is found.
+        var tiny = Enumerable.Repeat(Box("free"), 3900).ToArray();
+        var traks = Enumerable.Range(0, 15).Select(_ => Box("trak", tiny)).ToArray();
+        var file = Mp4(Box("moov", [Mvhd(1000), .. traks, Track("soun", 44_100, Elst(0, (1000, -1), (2000, 0)))]));
+
+        var start = Read(file, out var problem);
+
+        Assert.Null(problem);
+        Assert.Equal(TimeSpan.FromSeconds(1), start.Delay);
+    }
+
+    [Fact]
+    public void ACancelledToken_ThrowsAtOnce_AndNothingElse()
+    {
+        using var cts = new CancellationTokenSource();
+        cts.Cancel();
+        var stream = new MemoryStream(LateAudioSample(), writable: false);
+
+        Assert.Throws<OperationCanceledException>(() => Mp4EditList.ReadAudioStart(stream, out _, cts.Token));
+        Assert.Equal(0, stream.Position);
+    }
+
+    [Fact]
+    public void ACancelMidRead_StopsWithinABox_NotAtTheEndOfTheFile()
+    {
+        var tiny = Enumerable.Repeat(Box("free"), 4000).ToArray();
+        var traks = Enumerable.Range(0, 20).Select(_ => Box("trak", tiny)).ToArray();
+        var file = Mp4(Box("moov", [Mvhd(1000), .. traks]));
+        using var cts = new CancellationTokenSource();
+        var stream = new CancelAfterReads(file, reads: 50, cts);
+
+        Assert.Throws<OperationCanceledException>(() => Mp4EditList.ReadAudioStart(stream, out _, cts.Token));
+
+        Assert.True(stream.Reads <= 52, $"{stream.Reads} reads");
+    }
+
+    [Fact]
+    public void ACancelledToken_ThrowsFromAFileOnDisk_ToO()
+    {
+        var dir = Path.Combine(Path.GetTempPath(), "murmur-mp4-edit-tests", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(dir);
+        try
+        {
+            var path = Path.Combine(dir, "late-audio.mp4");
+            File.WriteAllBytes(path, LateAudioSample());
+            using var cts = new CancellationTokenSource();
+            cts.Cancel();
+
+            Assert.Throws<OperationCanceledException>(() => Mp4EditList.ReadAudioStart(path, out _, cts.Token));
+            Assert.Equal(TimeSpan.FromMilliseconds(976), Mp4EditList.ReadAudioStart(path, out _, TestContext.Current.CancellationToken).Delay);
+        }
+        finally
+        {
+            Directory.Delete(dir, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void TheMovieDuration_IsReturned_InTheMovieTimescale()
+    {
+        var file = Mp4(Box("moov", Mvhd(600, durationUnits: 1800), Track("soun", 44_100, Elst(0, (300, -1), (1500, 0)))));
+
+        var start = Read(file, out var problem);
+
+        Assert.Null(problem);
+        Assert.Equal(TimeSpan.FromSeconds(3), start.MovieDuration);
+        Assert.Equal(TimeSpan.FromMilliseconds(500), start.Delay);
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(1)]
+    public void TheMovieDuration_OfVersion0And1_IsRead_AndAnUnknownOneIsZero(byte version)
+    {
+        var known = Mp4(Box("moov", Mvhd(1000, version, durationUnits: 4000), Track("soun", 44_100, Elst(version, (500, -1), (1500, 0)))));
+        var unknown = Mp4(Box("moov", Mvhd(1000, version, durationUnits: version == 1 ? ulong.MaxValue : uint.MaxValue), Track("soun", 44_100, Elst(version, (500, -1), (1500, 0)))));
+        var none = Mp4(Box("moov", Mvhd(1000, version), Track("soun", 44_100, Elst(version, (500, -1), (1500, 0)))));
+
+        Assert.Equal(TimeSpan.FromSeconds(4), Read(known, out _).MovieDuration);
+        Assert.Equal(TimeSpan.Zero, Read(unknown, out _).MovieDuration);
+        Assert.Equal(TimeSpan.Zero, Read(none, out _).MovieDuration);
+    }
+
+    [Fact]
+    public void AnEditListWithAHugeEmptyEdit_AndNoDuration_ReportsTheEditForTheCallerToBound()
+    {
+        // 23 h of empty edit, mvhd duration 0: the parser reports what the file says; the decoder bounds the pad.
+        var file = Mp4(Box("moov", Mvhd(1000), Track("soun", 44_100, Elst(0, (23 * 3600 * 1000, -1), (1000, 0)))));
+
+        var start = Read(file, out var problem);
+
+        Assert.Null(problem);
+        Assert.Equal(TimeSpan.FromHours(23), start.Delay);
+        Assert.Equal(TimeSpan.Zero, start.MovieDuration);
+    }
+
+    [Fact]
+    public void MoreEmptyEditsThanTheCap_WithNoMediaEdit_IsAProblem_NotAPartialDelay()
+    {
+        var entries = Enumerable.Range(0, Mp4EditList.MaxEdits + 10).Select(_ => (Duration: 10L, MediaTime: -1L)).ToArray();
+        var file = Mp4(Box("moov", Mvhd(1000), Track("soun", 44_100, Elst(0, entries))));
+
+        var start = Read(file, out var problem);
+
+        Assert.True(start.IsNone);
+        Assert.Contains(Mp4EditList.MaxEdits.ToString(System.Globalization.CultureInfo.InvariantCulture), problem, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void MoreEditsThanTheCap_OnATrackThatIsNotAudio_IsIgnored()
+    {
+        var entries = Enumerable.Range(0, Mp4EditList.MaxEdits + 10).Select(_ => (Duration: 10L, MediaTime: -1L)).ToArray();
+        var file = Mp4(Box("moov", Mvhd(1000), Track("vide", 15_360, Elst(0, entries)), Track("soun", 44_100, Elst(0, (976, -1), (2000, 0)))));
+
+        var start = Read(file, out var problem);
+
+        Assert.Null(problem);
+        Assert.Equal(TimeSpan.FromMilliseconds(976), start.Delay);
+    }
+
+    [Fact]
+    public void ExactlyTheCapOfEmptyEdits_IsStillSummed()
+    {
+        var entries = Enumerable.Range(0, Mp4EditList.MaxEdits).Select(_ => (Duration: 10L, MediaTime: -1L)).ToArray();
+        var file = Mp4(Box("moov", Mvhd(1000), Track("soun", 44_100, Elst(0, entries))));
+
+        var start = Read(file, out var problem);
+
+        Assert.Null(problem);
+        Assert.Equal(TimeSpan.FromMilliseconds(10 * Mp4EditList.MaxEdits), start.Delay);
+    }
+
+    [Fact]
+    public void TheReferenceFileOfTheLateAudioTest_HasTheDelayItsEditListSays()
+    {
+        // Resources/late-audio.mp4 of the Windows tests (ffmpeg -itsoffset 1 ... see Resources/README.md): the audio edit
+        // list is an empty edit of 976 ms (the 1 s offset less the AAC priming) followed by the media.
+        var path = Path.Combine(AppContext.BaseDirectory, "Resources", "late-audio.mp4");
+        Assert.True(File.Exists(path), $"the reference file is missing: {path}");
+
+        var start = Mp4EditList.ReadAudioStart(path, out var problem, TestContext.Current.CancellationToken);
+
+        Assert.Null(problem);
+        Assert.Equal(TimeSpan.FromMilliseconds(976), start.Delay);
+        Assert.Equal(TimeSpan.Zero, start.Trim);
+        Assert.Equal(TimeSpan.FromSeconds(3), start.MovieDuration);
+    }
+
+    [Fact]
     public void NoMoov_IsAProblem()
     {
         var file = Concat(Box("ftyp", Ascii("isom"), new byte[4]), Box("mdat", new byte[32]));
@@ -330,7 +497,7 @@ public sealed class Mp4EditListTests
     public void ReadingAFile_AllocatesNothingPerBox()
     {
         var stream = new MemoryStream(LateAudioSample());
-        _ = Mp4EditList.ReadAudioStart(stream, out _);
+        _ = Mp4EditList.ReadAudioStart(stream, out _, CancellationToken.None);
 
         Assert.Equal(
             0,
@@ -353,10 +520,10 @@ public sealed class Mp4EditListTests
             var path = Path.Combine(dir, "late-audio.mp4");
             File.WriteAllBytes(path, LateAudioSample());
 
-            Assert.Equal(TimeSpan.FromMilliseconds(976), Mp4EditList.ReadAudioStart(path, out var problem).Delay);
+            Assert.Equal(TimeSpan.FromMilliseconds(976), Mp4EditList.ReadAudioStart(path, out var problem, TestContext.Current.CancellationToken).Delay);
             Assert.Null(problem);
 
-            var missing = Mp4EditList.ReadAudioStart(Path.Combine(dir, "gone.mp4"), out problem);
+            var missing = Mp4EditList.ReadAudioStart(Path.Combine(dir, "gone.mp4"), out problem, TestContext.Current.CancellationToken);
             Assert.True(missing.IsNone);
             Assert.NotNull(problem);
         }
@@ -401,18 +568,28 @@ public sealed class Mp4EditListTests
             : Box("trak", Box("tkhd", new byte[84]), Box("edts", edits), mdia);
     }
 
-    private static byte[] Mvhd(uint scale, byte version = 0) => Box("mvhd", TimeHeader(scale, version, extra: 80));
+    private static byte[] Mvhd(uint scale, byte version = 0, ulong durationUnits = 0) =>
+        Box("mvhd", TimeHeader(scale, version, extra: 80, durationUnits));
 
-    private static byte[] Mdhd(uint scale, byte version = 0) => Box("mdhd", TimeHeader(scale, version, extra: 4));
+    private static byte[] Mdhd(uint scale, byte version = 0) => Box("mdhd", TimeHeader(scale, version, extra: 4, durationUnits: 0));
 
     /// <summary>version, flags, creation and modification time, timescale, duration, then <paramref name="extra"/> bytes.</summary>
-    private static byte[] TimeHeader(uint scale, byte version, int extra)
+    private static byte[] TimeHeader(uint scale, byte version, int extra, ulong durationUnits)
     {
         var times = version == 1 ? 16 : 8;
         var duration = version == 1 ? 8 : 4;
         var payload = new byte[4 + times + 4 + duration + extra];
         payload[0] = version;
         BinaryPrimitives.WriteUInt32BigEndian(payload.AsSpan(4 + times), scale);
+        if (version == 1)
+        {
+            BinaryPrimitives.WriteUInt64BigEndian(payload.AsSpan(4 + times + 4), durationUnits);
+        }
+        else
+        {
+            BinaryPrimitives.WriteUInt32BigEndian(payload.AsSpan(4 + times + 4), (uint)durationUnits);
+        }
+
         return payload;
     }
 
@@ -464,6 +641,22 @@ public sealed class Mp4EditListTests
         BinaryPrimitives.WriteUInt64BigEndian(box.AsSpan(8), (ulong)box.Length);
         payload.CopyTo(box, 16);
         return box;
+    }
+
+    /// <summary>A file that cancels its token after a number of reads, and counts them.</summary>
+    private sealed class CancelAfterReads(byte[] file, int reads, CancellationTokenSource cts) : MemoryStream(file, writable: false)
+    {
+        public int Reads { get; private set; }
+
+        public override int Read(Span<byte> buffer)
+        {
+            if (++Reads >= reads)
+            {
+                cts.Cancel();
+            }
+
+            return base.Read(buffer);
+        }
     }
 
     private static byte[] Ascii(string text) => Encoding.ASCII.GetBytes(text);

@@ -29,7 +29,11 @@
   <ItemGroup>
     <!-- The MP4 reader of scripts/check-recording.ps1: the recorded files must pass the same duration check. -->
     <Compile Include="..\..\scripts\MurmurMp4Scan.cs" Link="MurmurMp4Scan.cs" />
-    <!-- The in-memory session store of the Core tests: the recorder tests here need one. -->
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Reference media of the import tests (Resources/README.md): copied next to the tests. -->
+    <None Include="Resources\*.mp4" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
   <ItemGroup>

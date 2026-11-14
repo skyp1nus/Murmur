@@ -86,6 +86,39 @@ public sealed class MediaFoundationDecoderRulesTests
     }
 
     [Fact]
+    public void ADelayWhenTheReaderKnowsNoDuration_IsBoundedByTheMovieDuration()
+    {
+        // A crafted file: duration 0 from the reader, a 23 h empty edit, mvhd says 3 s.
+        var huge = new Mp4AudioStart(TimeSpan.FromHours(23), TimeSpan.Zero, TimeSpan.FromSeconds(3));
+        var late = new Mp4AudioStart(TimeSpan.FromSeconds(1), TimeSpan.Zero, TimeSpan.FromSeconds(3));
+        var pastTheEnd = new Mp4AudioStart(TimeSpan.FromSeconds(4.5), TimeSpan.Zero, TimeSpan.FromSeconds(3));
+
+        Assert.Null(MediaFoundationDecoder.EditToApply(huge, firstTimestamp: 0, declaredTicks: 0));
+        Assert.Equal(late, MediaFoundationDecoder.EditToApply(late, firstTimestamp: 0, declaredTicks: 0));
+        Assert.Null(MediaFoundationDecoder.EditToApply(pastTheEnd, firstTimestamp: 0, declaredTicks: 0));
+    }
+
+    [Fact]
+    public void ADelayWhenNeitherTheReaderNorTheMovieKnowsADuration_IsCapped_NotWrittenAsHoursOfSilence()
+    {
+        var cap = MediaFoundationDecoder.UnknownDurationMaxDelay;
+
+        Assert.True(cap >= TimeSpan.FromMinutes(1) && cap <= TimeSpan.FromMinutes(10));
+        Assert.Null(MediaFoundationDecoder.EditToApply(new Mp4AudioStart(TimeSpan.FromHours(23), TimeSpan.Zero), firstTimestamp: 0, declaredTicks: 0));
+        Assert.Null(MediaFoundationDecoder.EditToApply(new Mp4AudioStart(cap + TimeSpan.FromSeconds(2), TimeSpan.Zero), firstTimestamp: 0, declaredTicks: 0));
+        Assert.NotNull(MediaFoundationDecoder.EditToApply(new Mp4AudioStart(cap, TimeSpan.Zero), firstTimestamp: 0, declaredTicks: 0));
+    }
+
+    [Fact]
+    public void TheReadersDuration_WinsOverTheMovieDuration()
+    {
+        // The movie header claims 1 h, the reader knows the file is 3 s: the reader's duration bounds the pad.
+        var edit = new Mp4AudioStart(TimeSpan.FromMinutes(30), TimeSpan.Zero, TimeSpan.FromHours(1));
+
+        Assert.Null(MediaFoundationDecoder.EditToApply(edit, firstTimestamp: 0, TimeSpan.FromSeconds(3).Ticks));
+    }
+
+    [Fact]
     public void NoEmptyEdit_OrOneWithinCodecJitter_IsNotApplied()
     {
         Assert.Null(MediaFoundationDecoder.EditToApply(Mp4AudioStart.None, firstTimestamp: 0, declaredTicks: 0));
@@ -156,7 +189,7 @@ public sealed class MediaFoundationDecoderPipelineTests
 
         Assert.Throws<OperationCanceledException>(() => Run(
             new Mp4AudioStart(TimeSpan.FromHours(1), TimeSpan.Zero),
-            pipeline => pipeline.PadTo(0, sample: true, declaredTicks: 0, cancelled.Token)));
+            pipeline => pipeline.PadTo(0, sample: true, declaredTicks: TimeSpan.FromHours(2).Ticks, cancelled.Token)));
     }
 
     private static float[] Run(Mp4AudioStart edit, Action<MediaFoundationDecoder.Pipeline> feed)
@@ -322,18 +355,17 @@ public sealed class MediaFoundationDecoderTests : IDisposable
     public async Task AnMp4WhoseAudioStartsLate_IsPaddedWithSilence_SoTheTrackStaysInStepWithTheVideo()
     {
         SkipUnlessWindows();
+
+        // The reference file (ffmpeg -itsoffset 1, see Resources/README.md): its audio edit list starts with an empty edit,
+        // which the Media Foundation MPEG-4 source ignores. Not written by the sink writer, so no skip: a decoder that
+        // stops applying the edit fails here instead of passing by skipping.
         var path = Path.Combine(_dir, "late.mp4");
-        TestMedia.WriteRequired(path, TestMedia.Aac, video: true, TimeSpan.FromSeconds(3), audioStart: TimeSpan.FromSeconds(1));
+        File.Copy(Path.Combine(AppContext.BaseDirectory, "Resources", "late-audio.mp4"), path);
         var destination = Path.Combine(_dir, "system.wav");
 
-        // The sink writer stamps the audio at 1 s but may store another offset (or rebase it): expect what the file says.
-        var stored = Mp4EditList.ReadAudioStart(path, out var problem);
+        var stored = Mp4EditList.ReadAudioStart(path, out var problem, Ct);
         Assert.Null(problem);
-        TestContext.Current.TestOutputHelper?.WriteLine($"late.mp4 audio edit: delay {stored.Delay}, trim {stored.Trim}");
-        if (stored.Delay < TimeSpan.FromMilliseconds(500))
-        {
-            Assert.Skip($"the MP4 sink stored no audio offset (delay {stored.Delay}); the late-audio path is checked with -ImportSamples late-audio.mp4");
-        }
+        Assert.InRange(stored.Delay, TimeSpan.FromMilliseconds(900), TimeSpan.FromMilliseconds(1000));
 
         var probe = await _decoder.ProbeAsync(path, Ct);
         await _decoder.DecodeAudioAsync(path, destination, null, Ct);
