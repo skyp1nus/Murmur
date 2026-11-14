@@ -43,6 +43,13 @@ public sealed class MediaFoundationDecoder : IMediaDecoder
     /// <summary>A timestamp this far ahead of the audio written so far is a gap to fill with silence (not codec jitter).</summary>
     private static readonly long GapTolerance = TimeSpan.FromMilliseconds(20).Ticks;
 
+    /// <summary>
+    /// The longest leading silence an edit list may ask for when neither Media Foundation nor the <c>mvhd</c> box says how
+    /// long the file is (no real recording starts its sound minutes late; a bigger delay is damage). Longer is skipped, not
+    /// clipped to this.
+    /// </summary>
+    internal static readonly TimeSpan UnknownDurationMaxDelay = TimeSpan.FromMinutes(5);
+
     private static readonly HashSet<string> SupportedExtensions = new(StringComparer.Ordinal)
     {
         ".mp3", ".m4a", ".aac", ".flac", ".wma", ".ogg", ".mp4", ".mov", ".mkv", ".webm",
@@ -109,7 +116,7 @@ public sealed class MediaFoundationDecoder : IMediaDecoder
             var duration = Math.Max(declared, 1);
             var reported = -1;
             using (var writer = CreateWriter(part))
-            using (var pipeline = new Pipeline(CurrentFormat(reader, path), writer, AudioStartOf(path)))
+            using (var pipeline = new Pipeline(CurrentFormat(reader, path), writer, AudioStartOf(path, cancellationToken)))
             {
                 while (true)
                 {
@@ -186,12 +193,22 @@ public sealed class MediaFoundationDecoder : IMediaDecoder
     /// sample: a leading empty edit (longer than codec jitter) is taken as ignored when that timestamp is nearer 0 than
     /// the point the edit puts the first sample at (<c>Delay - Trim</c>; a reader that honours the edit and delivers the
     /// primed frames starts there). Null when there is none, the reader honoured it, or the delay runs more than a second
-    /// past the file's declared duration (<paramref name="declaredTicks"/>, when known; damage, not an offset).
+    /// past the file's duration (damage, not an offset). That duration is the reader's (<paramref name="declaredTicks"/>);
+    /// when it is 0 or unknown, the <c>mvhd</c> movie duration of the edit list; when that is unknown too, the delay is
+    /// capped at <see cref="UnknownDurationMaxDelay"/>, so a damaged file cannot make the import write hours of silence.
     /// </summary>
     internal static Mp4AudioStart? EditToApply(Mp4AudioStart edit, long firstTimestamp, long declaredTicks)
     {
         var delay = edit.Delay.Ticks;
-        if (delay <= GapTolerance || (declaredTicks > 0 && delay > declaredTicks + TimeSpan.TicksPerSecond))
+        if (delay <= GapTolerance)
+        {
+            return null;
+        }
+
+        var bound = declaredTicks > 0 ? declaredTicks
+            : edit.MovieDuration.Ticks > 0 ? edit.MovieDuration.Ticks
+            : UnknownDurationMaxDelay.Ticks;
+        if (delay > bound + TimeSpan.TicksPerSecond)
         {
             return null;
         }
@@ -200,14 +217,14 @@ public sealed class MediaFoundationDecoder : IMediaDecoder
     }
 
     /// <summary>The audio track's edit list of an MP4/M4A/MOV (none for other files, or when it cannot be read).</summary>
-    private static Mp4AudioStart AudioStartOf(string path)
+    private static Mp4AudioStart AudioStartOf(string path, CancellationToken cancellationToken)
     {
         if (!Mp4EditList.AppliesTo(path))
         {
             return Mp4AudioStart.None;
         }
 
-        var start = Mp4EditList.ReadAudioStart(path, out var problem);
+        var start = Mp4EditList.ReadAudioStart(path, out var problem, cancellationToken);
         if (problem is not null)
         {
             LogWarning($"the edit list of '{Path.GetFileName(path)}' could not be read, the audio is decoded from its first sample: {problem}");

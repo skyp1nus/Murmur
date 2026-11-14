@@ -39,6 +39,11 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- Reference media of the import tests (Resources/README.md): copied next to the tests. -->
+    <None Include="Resources\*.mp4" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\..\src\Murmur.Capture.Windows\Murmur.Capture.Windows.csproj" />
   </ItemGroup>
 
