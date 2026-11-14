@@ -547,6 +547,116 @@ public sealed class ExportDialogViewTests : IDisposable
 
     [Fact]
     [Trait("Category", "Slow")]
+    public async Task TheEmptyRangeLine_IsSetInInter_InSrtAndPlainText_WhileTheFileTextIsMono()
+    {
+        var shell = await OpenShellAsync();
+
+        var (file, empty) = await Session.Dispatch(
+            () =>
+            {
+                var window = UiHarness.Show(shell);
+                shell.Session!.UpdateCurrentChapter(S(800));
+                var actions = window.GetVisualDescendants().OfType<SessionActionsView>().Single();
+                Click(window, ExportButton(actions));
+                var dialog = actions.OpenDialog!;
+                var viewModel = (ExportDialogViewModel)dialog.DataContext!;
+                var text = dialog.GetVisualDescendants().OfType<SelectableTextBlock>().Single(t => t.Name == "PreviewText");
+
+                void Settle()
+                {
+                    for (var i = 0; i < 100 && !viewModel.PreviewTask.IsCompleted; i++)
+                    {
+                        Thread.Sleep(20);
+                        UiHarness.Pump(1);
+                    }
+
+                    UiHarness.Pump(6);
+                }
+
+                var faces = new List<(string Format, string Face)>();
+                var emptyFaces = new List<(string Format, string Face)>();
+                foreach (var name in new[] { "FormatPlainText", "FormatSrt" })
+                {
+                    dialog.GetVisualDescendants().OfType<RadioButton>().Single(r => r.Name == "RangeWhole").IsChecked = true;
+                    dialog.GetVisualDescendants().OfType<RadioButton>().Single(r => r.Name == name).IsChecked = true;
+                    Settle();
+                    faces.Add((name, text.FontFamily.Name));
+                    dialog.GetVisualDescendants().OfType<RadioButton>().Single(r => r.Name == "RangeChapter").IsChecked = true;
+                    Settle();
+                    Assert.Equal("Nothing was said in this range.", viewModel.Preview);
+                    emptyFaces.Add((name, text.FontFamily.Name));
+                }
+
+                window.Close();
+                return (faces, emptyFaces);
+            },
+            Ct);
+
+        Assert.All(file, f => Assert.Contains("Geist", f.Face, StringComparison.Ordinal));
+        Assert.All(empty, f => Assert.DoesNotContain("Geist", f.Face, StringComparison.Ordinal));
+    }
+
+    [Fact]
+    [Trait("Category", "Slow")]
+    public async Task Tab_CyclesInsideTheDialog_AndNeverLeavesIt()
+    {
+        var shell = await OpenShellAsync();
+
+        var (forward, backward, visited) = await Session.Dispatch(
+            () =>
+            {
+                var window = UiHarness.Show(shell);
+                var actions = window.GetVisualDescendants().OfType<SessionActionsView>().Single();
+                Click(window, ExportButton(actions));
+                UiHarness.Pump(4);
+                var dialog = actions.OpenDialog!;
+
+                IInputElement? Focused() => window.FocusManager!.GetFocusedElement();
+                bool Inside(IInputElement? element) => element is Visual visual && (ReferenceEquals(visual, dialog) || dialog.IsVisualAncestorOf(visual));
+
+                void Press(RawInputModifiers modifiers)
+                {
+                    window.KeyPressQwerty(PhysicalKey.Tab, modifiers);
+                    window.KeyReleaseQwerty(PhysicalKey.Tab, modifiers);
+                    UiHarness.Pump(3);
+                }
+
+                var start = Focused();
+                var stops = new List<IInputElement?> { start };
+                var forwardInside = Inside(start);
+                // More presses than the dialog has tab stops: a walk that leaves the dialog (the session behind it) would be seen.
+                for (var i = 0; i < 60; i++)
+                {
+                    Press(RawInputModifiers.None);
+                    forwardInside &= Inside(Focused());
+                    stops.Add(Focused());
+                }
+
+                // Shift+Tab from the first stop wraps to the last one of the dialog instead of going behind it.
+                start!.Focus();
+                UiHarness.Pump(2);
+                var backwardInside = true;
+                for (var i = 0; i < 60; i++)
+                {
+                    Press(RawInputModifiers.Shift);
+                    backwardInside &= Inside(Focused());
+                }
+
+                var distinct = stops.Distinct().Count();
+                var cycled = stops.Skip(1).Contains(start);
+                window.Close();
+                return (forwardInside, backwardInside, (distinct, cycled));
+            },
+            Ct);
+
+        Assert.True(forward, "Tab stayed inside the dialog");
+        Assert.True(backward, "Shift+Tab stayed inside the dialog");
+        Assert.True(visited.distinct >= 8, "the walk goes through the options and the buttons, not one control");
+        Assert.True(visited.cycled, "after the last stop Tab comes back to the first");
+    }
+
+    [Fact]
+    [Trait("Category", "Slow")]
     public async Task ThePreview_ShowsTheText_InTheFaceOfTheFormat()
     {
         var shell = await OpenShellAsync();

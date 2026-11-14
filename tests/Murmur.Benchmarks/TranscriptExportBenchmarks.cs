@@ -70,6 +70,19 @@ public class TranscriptExportBenchmarks
     public string SrtOfAChapter() =>
         TranscriptExport.Format(ExportFormat.Srt, _session, _transcript, null, null, ExportOptions.Default, new ExportRange(TimeSpan.FromMinutes(30), TimeSpan.FromMinutes(60)));
 
+    /// <summary>The dialog's preview of the same transcript: the build stops at 40 000 characters instead of formatting all of it and cutting.</summary>
+    [Benchmark]
+    public string MarkdownPreview() =>
+        TranscriptExport.Format(ExportFormat.Markdown, _session, _transcript, _summary, null, ExportOptions.Default, null, 40_000, default);
+
+    [Benchmark]
+    public string SrtPreview() =>
+        TranscriptExport.Format(ExportFormat.Srt, _session, _transcript, null, null, ExportOptions.Default, null, 40_000, default);
+
+    [Benchmark]
+    public string SrtWhole() =>
+        TranscriptExport.Format(ExportFormat.Srt, _session, _transcript, null, null, ExportOptions.Default, null);
+
     [Benchmark]
     public byte[] Docx() =>
         TranscriptExport.ToDocx(_session, _transcript, _summary, null, ExportOptions.Default, null);

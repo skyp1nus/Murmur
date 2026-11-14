@@ -29,9 +29,12 @@ public sealed partial class SessionViewModel
     private readonly List<TimeSpan> _bookmarksBeingAdded = [];
     private bool _bookmarksLoaded;
 
+    /// <summary>The bookmarks this view added while the recording was being reviewed (M): they are not "marked during the call".</summary>
+    private readonly HashSet<long> _reviewBookmarkIds = [];
+
     /// <summary>The bookmarks in timeline order (the card's rows); empty when there are none.</summary>
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(HasBookmarks), nameof(ShowBookmarksEmpty))]
+    [NotifyPropertyChangedFor(nameof(HasBookmarks), nameof(ShowBookmarksEmpty), nameof(ShowBookmarksHint))]
     public partial IReadOnlyList<BookmarkViewModel> Bookmarks { get; private set; } = [];
 
     /// <summary>The flags above the waveform: the same bookmarks as positions on the waveform's width.</summary>
@@ -45,6 +48,29 @@ public sealed partial class SessionViewModel
 
     /// <summary>The card shows "No bookmarks yet. Press M to add one." instead of rows.</summary>
     public bool ShowBookmarksEmpty => ShowBookmarksCard && _bookmarksLoaded && !HasBookmarks;
+
+    /// <summary>
+    /// "Marked during the call" next to the card title: shown only while there is a bookmark that was made during the call. A
+    /// <see cref="Bookmark"/> stores no origin (id, session, time and note only), so the origin is judged here (<see cref="IsMarkedDuringTheCall"/>).
+    /// </summary>
+    public bool ShowBookmarksHint => ShowBookmarksCard && Array.Exists(_bookmarkRows, IsMarkedDuringTheCall);
+
+    /// <summary>
+    /// A proxy for "made while recording", as a bookmark carries no origin: the session was recorded (an imported file never had a call
+    /// to mark), the bookmark was not added by M in this view, and its time lies inside the capture window (the length of the recording,
+    /// with a second to spare for the rounding of the last mark). A mark added with M in an earlier visit to the recording cannot be told
+    /// from a recorded one: that needs an origin on the stored bookmark.
+    /// </summary>
+    private bool IsMarkedDuringTheCall(BookmarkViewModel row)
+    {
+        if (_record.Source != SessionSource.Recorded || _reviewBookmarkIds.Contains(row.Id))
+        {
+            return false;
+        }
+
+        var window = _record.Duration > TimeSpan.Zero ? _record.Duration : Duration;
+        return row.At >= TimeSpan.Zero && row.At <= window + TimeSpan.FromSeconds(1);
+    }
 
     /// <summary>
     /// Adds a bookmark at the playhead (the M key). The card, the flags and the pills show it as soon as the store has saved it; a store
@@ -71,6 +97,14 @@ public sealed partial class SessionViewModel
             var all = await store.AddBookmarksAsync(Id, [new NewBookmark(at)], CancellationToken.None).ConfigureAwait(true);
             if (!_disposed)
             {
+                foreach (var bookmark in all)
+                {
+                    if (Array.TrueForAll(_bookmarkRows, r => r.Id != bookmark.Id))
+                    {
+                        _reviewBookmarkIds.Add(bookmark.Id);
+                    }
+                }
+
                 ShowBookmarks(all);
             }
         }

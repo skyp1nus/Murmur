@@ -83,23 +83,65 @@ public static class TranscriptExport
         ExportLabels? labels,
         ExportOptions options,
         ExportRange? range,
+        CancellationToken cancellationToken) =>
+        Format(format, session, transcript, summary, labels, options, range, null, cancellationToken);
+
+    /// <summary>
+    /// The same with a character budget for a preview: once the text built so far is longer than <paramref name="maxChars"/> the build
+    /// stops (the next segment is never formatted) and the result is cut as a preview is: at the last line break within the budget,
+    /// followed by <see cref="PreviewEllipsis"/>. The result is the full export up to that cut point plus the ellipsis; when the full
+    /// export fits the budget it is the full export, unchanged. <c>null</c> = no budget.
+    /// </summary>
+    public static string Format(
+        ExportFormat format,
+        SessionRecord session,
+        Transcript transcript,
+        SessionSummary? summary,
+        ExportLabels? labels,
+        ExportOptions options,
+        ExportRange? range,
+        int? maxChars,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(session);
         ArgumentNullException.ThrowIfNull(transcript);
         ArgumentNullException.ThrowIfNull(options);
+        ArgumentOutOfRangeException.ThrowIfLessThan(maxChars ?? 1, 1, nameof(maxChars));
         labels ??= ExportLabels.English;
-        return format switch
+        var text = format switch
         {
-            ExportFormat.Markdown => Markdown(session, transcript, summary, labels, options, range, cancellationToken, escape: true),
+            ExportFormat.Markdown => Markdown(session, transcript, summary, labels, options, range, cancellationToken, escape: true, maxChars),
             // The preview of the .docx: the text as the file carries it, which is not Markdown, so nothing is escaped.
-            ExportFormat.Docx => Markdown(session, transcript, summary, labels, options, range, cancellationToken, escape: false),
-            ExportFormat.PlainText => PlainText(session, transcript, summary, labels, options, range, cancellationToken),
-            ExportFormat.Srt => Srt(transcript, labels, options, range, cancellationToken),
-            ExportFormat.WebVtt => WebVtt(session, transcript, labels, options, range, cancellationToken),
+            ExportFormat.Docx => Markdown(session, transcript, summary, labels, options, range, cancellationToken, escape: false, maxChars),
+            ExportFormat.PlainText => PlainText(session, transcript, summary, labels, options, range, cancellationToken, maxChars),
+            ExportFormat.Srt => Srt(transcript, labels, options, range, cancellationToken, maxChars),
+            ExportFormat.WebVtt => WebVtt(session, transcript, labels, options, range, cancellationToken, maxChars),
             _ => throw new ArgumentOutOfRangeException(nameof(format), format, null),
         };
+        return maxChars is { } budget ? CutPreview(text, budget) : text;
     }
+
+    /// <summary>What a cut preview ends with: an ellipsis on a line of its own.</summary>
+    public const string PreviewEllipsis = "\n…\n";
+
+    /// <summary>
+    /// A text longer than <paramref name="maxChars"/> is cut at the last line break at or before that length (at the length when there
+    /// is none) and gets <see cref="PreviewEllipsis"/>; a shorter text is returned as it is. The formatters stop building once their text is
+    /// past the budget, so what they hand in here can be longer than the budget but never shorter than the cut point.
+    /// </summary>
+    internal static string CutPreview(string text, int maxChars)
+    {
+        if (text.Length <= maxChars)
+        {
+            return text;
+        }
+
+        var end = text.LastIndexOf('\n', maxChars);
+        return string.Concat(text.AsSpan(0, end > 0 ? end : maxChars), PreviewEllipsis);
+    }
+
+    /// <summary>The build has produced more than the budget and there is more to come: stop.</summary>
+    private static bool OverBudget(StringBuilder text, int? maxChars) => maxChars is { } budget && text.Length > budget;
 
     /// <summary>
     /// A minimal valid .docx (WordprocessingML in a zip: <c>[Content_Types].xml</c>, <c>_rels/.rels</c>, <c>word/document.xml</c>,
@@ -219,7 +261,7 @@ public static class TranscriptExport
         return WebVtt(session, transcript, labels ?? ExportLabels.English, ExportOptions.Default, null, CancellationToken.None);
     }
 
-    private static string Markdown(SessionRecord session, Transcript transcript, SessionSummary? summary, ExportLabels labels, ExportOptions options, ExportRange? range, CancellationToken cancellationToken, bool escape)
+    private static string Markdown(SessionRecord session, Transcript transcript, SessionSummary? summary, ExportLabels labels, ExportOptions options, ExportRange? range, CancellationToken cancellationToken, bool escape, int? maxChars = null)
     {
         // Only the user's and the transcript's text is escaped: the title, summary, chapter-like items, speakers and lines; never the
         // headings, bullets, timestamps and meta line the exporter writes itself.
@@ -249,6 +291,12 @@ public static class TranscriptExport
         foreach (var segment in Segments(transcript, range))
         {
             cancellationToken.ThrowIfCancellationRequested();
+            if (OverBudget(text, maxChars))
+            {
+                // Another segment follows: the full text is longer than the budget and starts with what is built.
+                return text.ToString();
+            }
+
             if (options.SpeakerNames)
             {
                 text.Append("**").Append(Text(SpeakerOf(segment, labels), escape)).Append("**");
@@ -270,7 +318,7 @@ public static class TranscriptExport
         return text.ToString().TrimEnd('\n') + "\n";
     }
 
-    private static string PlainText(SessionRecord session, Transcript transcript, SessionSummary? summary, ExportLabels labels, ExportOptions options, ExportRange? range, CancellationToken cancellationToken)
+    private static string PlainText(SessionRecord session, Transcript transcript, SessionSummary? summary, ExportLabels labels, ExportOptions options, ExportRange? range, CancellationToken cancellationToken, int? maxChars = null)
     {
         var text = new StringBuilder();
         text.Append(TitleOf(session, labels)).Append('\n').Append(MetaLine(session, transcript)).Append("\n\n");
@@ -302,6 +350,11 @@ public static class TranscriptExport
         foreach (var segment in Segments(transcript, range))
         {
             cancellationToken.ThrowIfCancellationRequested();
+            if (OverBudget(text, maxChars))
+            {
+                return text.ToString();
+            }
+
             if (options.Timestamps)
             {
                 text.Append('[').Append(Clock(segment.Start)).Append("] ");
@@ -318,13 +371,18 @@ public static class TranscriptExport
         return text.ToString();
     }
 
-    private static string Srt(Transcript transcript, ExportLabels labels, ExportOptions options, ExportRange? range, CancellationToken cancellationToken)
+    private static string Srt(Transcript transcript, ExportLabels labels, ExportOptions options, ExportRange? range, CancellationToken cancellationToken, int? maxChars = null)
     {
         var text = new StringBuilder();
         var number = 1;
         foreach (var segment in Segments(transcript, range))
         {
             cancellationToken.ThrowIfCancellationRequested();
+            if (OverBudget(text, maxChars))
+            {
+                return text.ToString();
+            }
+
             text.Append(number++.ToString(CultureInfo.InvariantCulture)).Append('\n')
                 .Append(CueTime(segment.Start, ',')).Append(" --> ").Append(CueTime(CueEnd(segment), ',')).Append('\n');
             if (options.SpeakerNames)
@@ -338,12 +396,17 @@ public static class TranscriptExport
         return text.ToString();
     }
 
-    private static string WebVtt(SessionRecord session, Transcript transcript, ExportLabels labels, ExportOptions options, ExportRange? range, CancellationToken cancellationToken)
+    private static string WebVtt(SessionRecord session, Transcript transcript, ExportLabels labels, ExportOptions options, ExportRange? range, CancellationToken cancellationToken, int? maxChars = null)
     {
         var text = new StringBuilder("WEBVTT - ").Append(HeaderText(TitleOf(session, labels))).Append("\n\n");
         foreach (var segment in Segments(transcript, range))
         {
             cancellationToken.ThrowIfCancellationRequested();
+            if (OverBudget(text, maxChars))
+            {
+                return text.ToString();
+            }
+
             text.Append(CueTime(segment.Start, '.')).Append(" --> ").Append(CueTime(CueEnd(segment), '.')).Append('\n');
             if (options.SpeakerNames)
             {

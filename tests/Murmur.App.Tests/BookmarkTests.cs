@@ -109,6 +109,142 @@ public sealed class BookmarkTests : IDisposable
         Assert.False(vm.ShowBookmarksEmpty);
     }
 
+    // The hint "Marked during the call" --------------------------------------------------------------------------
+
+    [Fact]
+    public async Task TheHint_IsHidden_WithTheEmptyState()
+    {
+        var vm = await LoadAsync();
+
+        Assert.True(vm.ShowBookmarksEmpty);
+        Assert.False(vm.ShowBookmarksHint);
+    }
+
+    [Fact]
+    public async Task TheHint_IsHidden_WhenTheOnlyMarksWereAddedWhileReviewing()
+    {
+        var vm = await LoadAsync();
+        vm.SeekTo(S(42));
+
+        await vm.AddBookmarkAtPlayheadCommand.ExecuteAsync(null);
+        vm.SeekTo(S(900));
+        await vm.AddBookmarkAtPlayheadCommand.ExecuteAsync(null);
+
+        Assert.Equal(2, vm.Bookmarks.Count);
+        Assert.False(vm.ShowBookmarksHint);
+    }
+
+    [Fact]
+    public async Task TheHint_IsShown_ForMarksOfTheRecording_AndStaysWhenReviewMarksComeToThem()
+    {
+        _store.Put(_fixture.Record.Id, (761, "Pricing question"));
+        var vm = await LoadAsync();
+
+        Assert.True(vm.ShowBookmarksHint);
+        var changes = new List<string?>();
+        vm.PropertyChanged += (_, e) => changes.Add(e.PropertyName);
+
+        vm.SeekTo(S(42));
+        await vm.AddBookmarkAtPlayheadCommand.ExecuteAsync(null);
+
+        Assert.Equal(2, vm.Bookmarks.Count);
+        Assert.True(vm.ShowBookmarksHint);
+        Assert.Contains(nameof(SessionViewModel.ShowBookmarksHint), changes);
+    }
+
+    [Fact]
+    public async Task TheHint_FollowsTheDeleteOfTheLastRecordedMark()
+    {
+        _store.Put(_fixture.Record.Id, (761, ""));
+        var vm = await LoadAsync();
+        vm.SeekTo(S(42));
+        await vm.AddBookmarkAtPlayheadCommand.ExecuteAsync(null);
+        Assert.True(vm.ShowBookmarksHint);
+
+        vm.Bookmarks.Single(b => b.At == S(761)).DeleteCommand.Execute(null);
+        await Task.Yield();
+
+        Assert.Single(vm.Bookmarks);
+        Assert.False(vm.ShowBookmarksHint);
+    }
+
+    [Fact]
+    public async Task TheHint_IsHidden_ForAnImportedFile_EvenWithStoredMarks()
+    {
+        var imported = _fixture.Record with { Source = SessionSource.Imported };
+        _store.Put(imported.Id, (30, "From the file"));
+        var vm = Create(record: imported);
+        await vm.LoadAsync();
+
+        Assert.True(vm.HasBookmarks);
+        Assert.False(vm.ShowBookmarksHint);
+    }
+
+    [Fact]
+    public async Task TheHint_IsHidden_ForAMarkPastTheEndOfTheRecording()
+    {
+        _store.Put(_fixture.Record.Id, (S(90 * 60).TotalSeconds, "Beyond the capture window"));
+
+        var vm = await LoadAsync();
+
+        Assert.True(vm.HasBookmarks);
+        Assert.False(vm.ShowBookmarksHint);
+    }
+
+    [Fact]
+    public async Task WithoutAStore_TheHintIsHidden()
+    {
+        var vm = await LoadAsync(withStore: false);
+
+        Assert.False(vm.ShowBookmarksHint);
+    }
+
+    [Fact]
+    [Trait("Category", "Slow")]
+    public async Task TheCard_ShowsTheHintText_OnlyWithMarksOfTheRecording()
+    {
+        var (_, shell) = await OpenAsync();
+        bool Hint(Window window) => window.GetVisualDescendants().OfType<TextBlock>().Single(t => t.Classes.Contains("bookmarksHint")).IsEffectivelyVisible;
+
+        var empty = await Session.Dispatch(
+            () =>
+            {
+                var window = UiHarness.Show(shell);
+                var shown = Hint(window);
+                window.Close();
+                return shown;
+            },
+            Ct);
+
+        shell.Session!.SeekTo(S(42));
+        await shell.Session.AddBookmarkAtPlayheadCommand.ExecuteAsync(null);
+        var onlyReview = await Session.Dispatch(
+            () =>
+            {
+                var window = UiHarness.Show(shell);
+                var shown = Hint(window);
+                window.Close();
+                return shown;
+            },
+            Ct);
+
+        _store.Put(_fixture.Record.Id, (761, "Pricing question"));
+        var (_, withRecorded) = await OpenAsync();
+        var recorded = await Session.Dispatch(
+            () =>
+            {
+                var window = UiHarness.Show(withRecorded);
+                var shown = Hint(window);
+                window.Close();
+                return shown;
+            },
+            Ct);
+
+        Assert.False(empty);
+        Assert.False(onlyReview);
+        Assert.True(recorded);
+    }
+
     [Fact]
     public async Task BookmarksThatCannotBeRead_AreAsGoodAsNone()
     {
@@ -780,6 +916,63 @@ public sealed class BookmarkTests : IDisposable
 
         Assert.Equal((0d, false), idle);
         Assert.Equal((1d, true), hovered);
+    }
+
+    [Theory]
+    [Trait("Category", "Slow")]
+    [InlineData("Light")]
+    [InlineData("Dark")]
+    public async Task TheHoverFill_ReachesBothEdgesOfTheRow_NotClippedByTheScrollViewer(string theme)
+    {
+        _store.Put(_fixture.Record.Id, (761, "Pricing question"), (1205, "Demo date"));
+        var (_, shell) = await OpenAsync();
+        var variant = theme == "Dark" ? Avalonia.Styling.ThemeVariant.Dark : Avalonia.Styling.ThemeVariant.Light;
+
+        var (edges, stone, surface, viewport, rowBox) = await Session.Dispatch(
+            () =>
+            {
+                var window = new MainWindow { DataContext = shell, RequestedThemeVariant = variant };
+                window.Show();
+                UiHarness.Pump();
+                var row = window.GetVisualDescendants().OfType<Border>().First(b => b.Classes.Contains("bookmarkRow"));
+                var scroll = row.FindAncestorOfType<ScrollViewer>()!;
+                var origin = row.TranslatePoint(new Avalonia.Point(0, 0), window)!.Value;
+                var middle = new Avalonia.Point(row.Bounds.Width / 2, row.Bounds.Height / 2);
+                window.MouseMove(row.TranslatePoint(middle, window)!.Value, RawInputModifiers.None);
+                UiHarness.Pump();
+                Assert.True(row.IsPointerOver);
+
+                using var frame = window.CaptureRenderedFrame()!;
+                using var buffer = frame.Lock();
+                Avalonia.Media.Color At(double x, double y)
+                {
+                    var offset = ((int)y * buffer.RowBytes) + ((int)x * 4);
+                    var bytes = new byte[4];
+                    System.Runtime.InteropServices.Marshal.Copy(buffer.Address + offset, bytes, 0, 4);
+                    return buffer.Format == Avalonia.Platform.PixelFormat.Rgba8888
+                        ? Avalonia.Media.Color.FromRgb(bytes[0], bytes[1], bytes[2])
+                        : Avalonia.Media.Color.FromRgb(bytes[2], bytes[1], bytes[0]);
+                }
+
+                var y = origin.Y + (row.Bounds.Height / 2);
+                Avalonia.Media.Color Token(string key) =>
+                    Avalonia.Application.Current!.TryGetResource(key, variant, out var value) && value is Avalonia.Media.ISolidColorBrush brush ? brush.Color : throw new InvalidOperationException(key);
+                var brushes = (Token("Brush.Stone"), Token("Brush.Surface"));
+                var left = At(origin.X + 1, y);
+                var right = At(origin.X + row.Bounds.Width - 2, y);
+                var scrollOrigin = scroll.TranslatePoint(new Avalonia.Point(0, 0), window)!.Value;
+                var result = ((left, right), brushes.Item1, brushes.Item2, (scrollOrigin.X, scroll.Bounds.Width), (origin.X, row.Bounds.Width));
+                window.Close();
+                return result;
+            },
+            Ct);
+
+        Assert.NotEqual(stone, surface);
+        Assert.Equal(stone, edges.left);
+        Assert.Equal(stone, edges.right);
+        // The row spans the viewport: nothing of the fill is cut off, and nothing of it is left outside.
+        Assert.Equal(viewport.Item1, rowBox.Item1, 0.5);
+        Assert.Equal(viewport.Item2, rowBox.Item2, 0.5);
     }
 
     [Fact]
