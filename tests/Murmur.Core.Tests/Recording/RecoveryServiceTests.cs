@@ -81,6 +81,33 @@ public sealed class RecoveryServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task TheWarningsStoredWhileRecording_SurviveTheRecovery()
+    {
+        var warnings = $"{SessionNotes.OnlySystemAudio}\n{SessionNotes.ScreenFramesDropped}";
+        var session = Seed(SessionState.Recording);
+        _store.Seed(session with { Error = warnings });
+        WriteCrashedWav(_store.GetFiles(session.Id).SystemAudio, flushedSamples: 0, unflushedSamples: 8_000);
+
+        var recovered = Assert.Single(await new RecoveryService(_store).RecoverAsync(Ct));
+
+        Assert.Equal(SessionState.Interrupted, recovered.State);
+        Assert.Equal(warnings, recovered.Error);
+        Assert.Equal(warnings, _store.Get(session.Id)?.Error);
+    }
+
+    [Fact]
+    public async Task WhenNoAudioIsLeft_TheWarningsStayAndTheLossIsAddedOnce()
+    {
+        var session = Seed(SessionState.Recording);
+        _store.Seed(session with { Error = SessionNotes.ScreenStopped });
+
+        var recovered = Assert.Single(await new RecoveryService(_store).RecoverAsync(Ct));
+
+        Assert.Equal(SessionState.Failed, recovered.State);
+        Assert.Equal($"{SessionNotes.ScreenStopped}\n{SessionNotes.RecoveryLost}", recovered.Error);
+    }
+
+    [Fact]
     public async Task FinishedSessions_AreLeftAlone()
     {
         Seed(SessionState.Recorded);
