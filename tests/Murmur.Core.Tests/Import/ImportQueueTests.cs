@@ -591,6 +591,27 @@ public sealed class ImportQueueTests : IAsyncDisposable
     }
 
     [Fact]
+    public async Task LanguageOf_ForgetsASessionThatNoLongerExists_AndKeepsTheOthers()
+    {
+        var imports = await StartAsync(new FakeMediaDecoder(".mp3"));
+        var items = await imports.EnqueueAsync(
+        [
+            new ImportRequest(await NewFileAsync("a.mp3"), new ImportOptions("uk", OriginalFileMode.CopyToLibrary)),
+            new ImportRequest(await NewFileAsync("b.mp3"), new ImportOptions("en", OriginalFileMode.CopyToLibrary)),
+        ], Ct);
+        var a = (await WaitForItemAsync(imports, items[0].Id, ImportState.Done)).Session!.Value;
+        var b = (await WaitForItemAsync(imports, items[1].Id, ImportState.Done)).Session!.Value;
+        await _sessions.DeleteSessionAsync(a, Ct);
+
+        Assert.Equal("uk", imports.LanguageOf(a)); // the answer itself is still given
+        await WaitUntilAsync(() => imports.RememberedLanguages == 1, "the deleted session to be forgotten");
+
+        Assert.Null(imports.LanguageOf(a));
+        Assert.Equal("en", imports.LanguageOf(b));
+        Assert.Equal(1, imports.RememberedLanguages);
+    }
+
+    [Fact]
     public async Task AtStart_HalfMadeImportedSessionsNoEntryRefersTo_AreDeleted_OthersAreKept()
     {
         async Task<SessionRecord> SeedAsync(string title, SessionState state, SessionSource source, bool track = false)

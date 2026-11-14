@@ -139,9 +139,49 @@ public sealed class ImportQueue : IImportQueue, IDisposable
     /// </summary>
     public string? LanguageOf(SessionId session)
     {
+        bool known;
+        string? language;
         lock (_gate)
         {
-            return _languages.GetValueOrDefault(session);
+            known = _languages.TryGetValue(session, out language);
+        }
+
+        if (known)
+        {
+            // The answer is given now; a session deleted since the import must not keep its entry for the rest of the run.
+            _ = ForgetLanguageIfGoneAsync(session);
+        }
+
+        return language;
+    }
+
+    /// <summary>Number of sessions whose import language is remembered (for tests).</summary>
+    internal int RememberedLanguages
+    {
+        get
+        {
+            lock (_gate)
+            {
+                return _languages.Count;
+            }
+        }
+    }
+
+    private async Task ForgetLanguageIfGoneAsync(SessionId session)
+    {
+        try
+        {
+            if (await _sessions.GetSessionAsync(session, CancellationToken.None).ConfigureAwait(false) is null)
+            {
+                lock (_gate)
+                {
+                    _languages.Remove(session);
+                }
+            }
+        }
+        catch (Exception)
+        {
+            // Best effort: the entry is tiny and the next lookup tries again.
         }
     }
 
