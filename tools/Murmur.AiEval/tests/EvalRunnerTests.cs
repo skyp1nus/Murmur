@@ -143,6 +143,13 @@ public sealed class EvalRunnerTests
             Assert.False(q.ConveysFact);
             Assert.False(q.MatchedExplicitly);
 
+            if (fixedAnswer.Length > 0)
+            {
+                // A "not found" answer gets no fallback citation at all.
+                Assert.Empty(q.Cited);
+                continue;
+            }
+
             // The fallback citation is within the tolerance: the old rule would have passed this question.
             Assert.Contains(q.Cited, label =>
                 Math.Abs(TimeSpan.ParseExact(label, @"mm\:ss", CultureInfo.InvariantCulture).TotalMilliseconds - q.ExpectedMs!.Value)

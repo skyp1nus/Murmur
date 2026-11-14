@@ -104,6 +104,17 @@ public sealed class CitationResolverTests
     }
 
     [Fact]
+    public void Resolve_FallbackDisabled_NoCitationWhenNothingResolves_ButExplicitOnesStay()
+    {
+        TextChunk[] excerpts = [Chunk(S2, 125, 180, "головний"), Chunk(S1, 0, 60)];
+
+        Assert.Empty(CitationResolver.Resolve("Без посилань.", excerpts, TimeSpan.FromSeconds(15), 120, fallbackToTopExcerpt: false));
+        Assert.Empty(CitationResolver.Resolve("Дивно [45:00].", excerpts, TimeSpan.FromSeconds(15), 120, fallbackToTopExcerpt: false));
+        var kept = CitationResolver.Resolve("Є [00:30].", excerpts, TimeSpan.FromSeconds(15), 120, fallbackToTopExcerpt: false);
+        Assert.Equal((S1, TimeSpan.FromSeconds(30)), (kept[0].Session, kept[0].At));
+    }
+
+    [Fact]
     public void Resolve_NoExcerpts_NoCitations()
     {
         Assert.Empty(CitationResolver.Resolve("[00:10]", [], TimeSpan.FromSeconds(15), 120));

@@ -232,6 +232,56 @@ public sealed class AssistantTests
         Assert.Equal((S2, TimeSpan.FromSeconds(125), "02:05", "top"), (citation.Session, citation.At, citation.Label, citation.Snippet));
     }
 
+    [Theory]
+    [InlineData("У записах цього немає інформації про зарплату.")]
+    [InlineData("Про це в записі нічого не згадується.")]
+    [InlineData("This is not mentioned in the recording.")]
+    [InlineData("I couldn't find anything about it.")]
+    public async Task Ask_NotFoundAnswer_GetsNoFallbackChipAndNoSources(string answer)
+    {
+        _storage.VectorHits = [Hit(S2, 125, 180, 0.9, SearchSource.Vector, "top"), Hit(S1, 0, 60, 0.5, SearchSource.Vector, "second")];
+        _llm.Chat.Pieces = [answer];
+
+        var updates = await CollectAsync(Create().AskAsync(new AskRequest("q"), Ct));
+
+        Assert.Empty(updates[^1].Citations);
+        Assert.Equal(answer, string.Concat(updates.Select(u => u.TextDelta)));
+    }
+
+    [Fact]
+    public async Task Ask_NotFoundAnswerWithAnOutOfRangeTime_GetsNoFallbackChip()
+    {
+        _storage.VectorHits = [Hit(S1, 0, 60, 0.9, SearchSource.Vector, "top")];
+        _llm.Chat.Pieces = ["Немає інформації про це [45:00]."];
+
+        var final = await LastAsync(Create().AskAsync(new AskRequest("q"), Ct));
+
+        Assert.Empty(final.Citations);
+    }
+
+    [Fact]
+    public async Task Ask_ExplicitCitationWithANotFoundPhrase_KeepsTheCitation()
+    {
+        _storage.VectorHits = [Hit(S1, 0, 60, 0.9, SearchSource.Vector, "бюджет"), Hit(S2, 125, 180, 0.5, SearchSource.Vector, "other")];
+        _llm.Chat.Pieces = ["Немає інформації про зарплату, але бюджет обговорили [00:42]."];
+
+        var final = await LastAsync(Create().AskAsync(new AskRequest("q"), Ct));
+
+        var citation = Assert.Single(final.Citations);
+        Assert.Equal((S1, TimeSpan.FromSeconds(42)), (citation.Session, citation.At));
+    }
+
+    [Fact]
+    public async Task Ask_NormalAnswerWithoutCitation_KeepsTheFallbackChip()
+    {
+        _storage.VectorHits = [Hit(S2, 125, 180, 0.9, SearchSource.Vector, "top")];
+        _llm.Chat.Pieces = ["Бюджет затвердили на квартал."];
+
+        var final = await LastAsync(Create().AskAsync(new AskRequest("q"), Ct));
+
+        Assert.Equal(TimeSpan.FromSeconds(125), Assert.Single(final.Citations).At);
+    }
+
     [Fact]
     public async Task Ask_NoExcerpts_TellsTheModelAndReturnsNoCitations()
     {
@@ -259,6 +309,17 @@ public sealed class AssistantTests
     public async Task Ask_BlankQuestion_Throws()
     {
         await Assert.ThrowsAsync<ArgumentException>(() => LastAsync(Create().AskAsync(new AskRequest(" "), Ct)));
+    }
+
+    private static async Task<List<AssistantUpdate>> CollectAsync(IAsyncEnumerable<AssistantUpdate> updates)
+    {
+        var all = new List<AssistantUpdate>();
+        await foreach (var update in updates)
+        {
+            all.Add(update);
+        }
+
+        return all;
     }
 
     private static async Task<AssistantUpdate> LastAsync(IAsyncEnumerable<AssistantUpdate> updates)

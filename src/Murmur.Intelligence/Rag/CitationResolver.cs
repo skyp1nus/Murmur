@@ -37,10 +37,13 @@ public static partial class CitationResolver
 
     /// <summary>
     /// Resolves each cited time to the best-ranked excerpt whose [Start − tolerance, End + tolerance] contains it,
-    /// dropping times that match no excerpt and duplicates. When nothing resolves, the top excerpt's start is cited.
+    /// dropping times that match no excerpt and duplicates. When nothing resolves, the top excerpt's start is cited
+    /// (unless <paramref name="fallbackToTopExcerpt"/> is <c>false</c>); explicit citations are kept either way.
     /// </summary>
     /// <param name="excerpts">Retrieved chunks, best first.</param>
-    public static IReadOnlyList<Citation> Resolve(string answer, IReadOnlyList<TextChunk> excerpts, TimeSpan tolerance, int snippetLength)
+    /// <param name="fallbackToTopExcerpt">Cite the top excerpt when no time in the answer resolves.</param>
+    public static IReadOnlyList<Citation> Resolve(
+        string answer, IReadOnlyList<TextChunk> excerpts, TimeSpan tolerance, int snippetLength, bool fallbackToTopExcerpt = true)
     {
         ArgumentNullException.ThrowIfNull(excerpts);
         var citations = new List<Citation>();
@@ -63,7 +66,7 @@ public static partial class CitationResolver
             }
         }
 
-        if (citations.Count == 0 && excerpts.Count > 0)
+        if (fallbackToTopExcerpt && citations.Count == 0 && excerpts.Count > 0)
         {
             var top = excerpts[0];
             citations.Add(new Citation(top.Session, top.Start, Timestamps.Format(top.Start), Snippet(top, top.Start, snippetLength)));
