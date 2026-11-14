@@ -2,6 +2,7 @@ using System.Buffers;
 using System.Globalization;
 using System.Text;
 using Microsoft.Data.Sqlite;
+using Murmur.Core.Diagnostics;
 using Murmur.Core.Sessions;
 
 namespace Murmur.Storage;
@@ -14,6 +15,7 @@ public sealed partial class SqliteStorage
     private readonly Dictionary<SessionId, SessionVectors> _vectorCache = [];
     private SessionVectors[]? _vectorSnapshot;
     private bool _vectorCacheComplete;
+    private readonly HashSet<SessionId> _damagedReported = [];
 
     /// <summary>
     /// BM25-ranked full-text search over transcript segments. The query is sanitized into a safe FTS5 expression:
@@ -41,8 +43,8 @@ public sealed partial class SqliteStorage
 
     /// <summary>
     /// Cosine similarity of <paramref name="embedding"/> against every embedded chunk (optionally of one session),
-    /// best first. Chunks embedded with another dimension than the query are skipped (stale model); an empty,
-    /// zero or non-finite query yields no results.
+    /// best first. Chunks embedded with another dimension than the query are skipped (stale model); a session whose stored
+    /// chunks are damaged is skipped too (see <see cref="LoadVectors"/>) instead of failing the search; an empty, zero or non-finite query yields no results.
     /// </summary>
     public ValueTask<IReadOnlyList<SearchHit>> SearchVectorAsync(ReadOnlyMemory<float> embedding, SessionId? scope, int limit, CancellationToken cancellationToken)
     {
@@ -317,7 +319,12 @@ public sealed partial class SqliteStorage
         }
     }
 
-    /// <summary>Reads the chunks of one session (or of all) from SQLite into the cache. Call under <see cref="_vectorLock"/>.</summary>
+    /// <summary>
+    /// Reads the chunks of one session (or of all) from SQLite into the cache. A session with a damaged chunk (a BLOB that is not
+    /// <c>dim * 4</c> bytes, mixed dimensions, a NaN or infinity) is left out as a whole, so it neither fails the load nor ends up half-searched;
+    /// it is reported once per run (<see cref="ReportDamaged"/>) and stays out of the cache until its chunks are replaced.
+    /// Call under <see cref="_vectorLock"/>.
+    /// </summary>
     private void LoadVectors(SessionId? scope)
     {
         using var connection = OpenConnection();
@@ -336,10 +343,11 @@ public sealed partial class SqliteStorage
         var dim = 0;
         byte[] buffer = [];
         var open = false;
+        var damaged = false;
 
         void Flush()
         {
-            if (open)
+            if (open && !damaged)
             {
                 _vectorCache[current] = new SessionVectors(current, dim, data.AsSpan(0, infos.Count * dim).ToArray(), [.. infos]);
             }
@@ -359,23 +367,26 @@ public sealed partial class SqliteStorage
                 current = session;
                 dim = rowDim;
                 open = true;
-                data = new float[Math.Max(dim * 16, 1)];
+                damaged = false;
+                data = new float[Math.Max(Math.Max(dim, 0) * 16, 1)];
             }
 
-            if (rowDim != dim || rowDim <= 0)
+            if (damaged)
             {
-                throw new InvalidDataException($"Chunks of session {session} have mixed dimensions.");
+                continue;
             }
 
             var length = dim * sizeof(float);
+            if (rowDim != dim || rowDim <= 0 || reader.IsDBNull(5) || reader.GetBytes(5, 0, null, 0, 0) != length)
+            {
+                damaged = true;
+                ReportDamaged(session);
+                continue;
+            }
+
             if (buffer.Length < length)
             {
                 buffer = new byte[length];
-            }
-
-            if (reader.GetBytes(5, 0, buffer, 0, length) != length)
-            {
-                throw new InvalidDataException($"A chunk vector of session {session} is not {dim} floats long.");
             }
 
             var row = infos.Count;
@@ -384,12 +395,36 @@ public sealed partial class SqliteStorage
                 Array.Resize(ref data, data.Length * 2);
             }
 
-            VectorSearch.FromBytes(buffer, data.AsSpan(row * dim, dim));
+            var vector = data.AsSpan(row * dim, dim);
+            if (reader.GetBytes(5, 0, buffer, 0, length) != length)
+            {
+                damaged = true;
+                ReportDamaged(session);
+                continue;
+            }
+
+            VectorSearch.FromBytes(buffer, vector);
+            if (!VectorSearch.IsFinite(vector))
+            {
+                damaged = true;
+                ReportDamaged(session);
+                continue;
+            }
+
             infos.Add(new ChunkInfo(reader.GetInt64(1), reader.GetInt64(2), reader.GetString(3)));
         }
 
         Flush();
         _vectorSnapshot = null;
+    }
+
+    /// <summary>Warns once per session and run that its chunks are damaged and skipped (session id only; no content). Call under <see cref="_vectorLock"/>.</summary>
+    private void ReportDamaged(SessionId session)
+    {
+        if (_damagedReported.Add(session))
+        {
+            _log.Write(LogLevel.Warning, "search", "chunks.damaged", session.ToString());
+        }
     }
 
     /// <summary>Drops the cached vectors of a session. Call under <see cref="_vectorLock"/> after its rows are gone.</summary>
