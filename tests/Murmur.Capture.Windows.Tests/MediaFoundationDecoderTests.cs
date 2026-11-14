@@ -1,7 +1,9 @@
 using Murmur.Capture.Windows.Import;
 using Murmur.Core.Audio;
 using Murmur.Core.Capture;
+using Murmur.Core.Diagnostics;
 using Murmur.Core.Import;
+using Murmur.Core.Tests.Fakes;
 
 namespace Murmur.Capture.Windows.Tests;
 
@@ -22,6 +24,57 @@ public sealed class MediaFoundationDecoderRulesTests
         Assert.DoesNotContain(".wav", new MediaFoundationDecoder().Extensions);
         Assert.Contains(".wav", composite.Extensions);
         Assert.Contains(".mp3", composite.Extensions);
+    }
+
+    [Fact]
+    public void AnMp4WithoutAMoov_IsDecodedFromItsFirstSample_AndWarnsWithTheFileNameOnly()
+    {
+        var dir = Path.Combine(Path.GetTempPath(), "murmur-mf-log-tests", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(dir);
+        try
+        {
+            var path = Path.Combine(dir, "damaged clip.mp4");
+            File.WriteAllBytes(path, [0, 0, 0, 8, (byte)'f', (byte)'r', (byte)'e', (byte)'e']);
+            var log = new RecordingAppLog();
+
+            var start = MediaFoundationDecoder.AudioStartOf(path, log);
+
+            Assert.Equal(Mp4AudioStart.None, start);
+            var warning = Assert.Single(log.Events);
+            Assert.Equal(LogLevel.Warning, warning.Level);
+            Assert.Equal("import", warning.Area);
+            Assert.Equal("editlist.unreadable", warning.Code);
+            Assert.StartsWith("damaged clip.mp4: ", warning.Detail, StringComparison.Ordinal);
+            Assert.DoesNotContain(dir, warning.Detail, StringComparison.Ordinal);
+        }
+        finally
+        {
+            Directory.Delete(dir, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void AMissingMp4_WarnsWithoutItsPath()
+    {
+        var path = Path.Combine(Path.GetTempPath(), "murmur-missing-dir", "gone.mp4");
+        var log = new RecordingAppLog();
+
+        MediaFoundationDecoder.AudioStartOf(path, log);
+
+        var warning = Assert.Single(log.Events);
+        Assert.Equal("editlist.unreadable", warning.Code);
+        Assert.StartsWith("gone.mp4: ", warning.Detail, StringComparison.Ordinal);
+        Assert.DoesNotContain("murmur-missing-dir", warning.Detail, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void AFileThatHasNoEditList_WritesNothingToTheLog()
+    {
+        var log = new RecordingAppLog();
+
+        Assert.Equal(Mp4AudioStart.None, MediaFoundationDecoder.AudioStartOf("song.mp3", log));
+
+        Assert.Empty(log.Events);
     }
 
     [Theory]
