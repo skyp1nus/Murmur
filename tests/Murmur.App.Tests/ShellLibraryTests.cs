@@ -785,20 +785,6 @@ public sealed class ShellLibraryTests
     }
 
     [Fact]
-    public void FramePages_AreTheOnesThatSayTheyFillTheFrame()
-    {
-        using var rig = new DesignRig();
-
-        Assert.False(rig.Shell.PageUsesFrameInset);
-        rig.Shell.ShowRecording();
-        Assert.False(rig.Shell.PageUsesFrameInset);
-        rig.Shell.ShowSettings();
-        Assert.False(rig.Shell.PageUsesFrameInset);
-        Assert.IsAssignableFrom<IFillsFrame>(rig.Library);
-        Assert.True(typeof(IFillsFrame).IsAssignableFrom(typeof(RecordingViewModel)));
-    }
-
-    [Fact]
     public void DayHeading_ShowsTheYearOnlyWhenItIsNotTheCurrentOne()
     {
         using var scope = UiCulture.Override("en");

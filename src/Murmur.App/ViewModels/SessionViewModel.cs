@@ -58,7 +58,7 @@ public enum TranscriptStatus
 /// <para><b>Threads.</b> Everything runs on the UI thread; player and pipeline events are marshalled with the
 /// <c>post</c> callback.</para>
 /// </remarks>
-public sealed partial class SessionViewModel : ObservableObject, IDisposable, IFillsFrame
+public sealed partial class SessionViewModel : ObservableObject, IDisposable
 {
     private readonly SessionRecord _record;
     private readonly SessionFiles _files;

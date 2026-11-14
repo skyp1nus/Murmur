@@ -19,7 +19,7 @@ namespace Murmur.App.ViewModels;
 /// recording or paused; the orb polls <see cref="Level"/> from its own render tick. No per-buffer events are used.
 /// While <see cref="RecorderState.Paused"/> the timer stands still, the orb rests and the tracks say "Paused".
 /// </remarks>
-public sealed partial class RecordingViewModel : ObservableObject, ILevelSource, IFillsFrame
+public sealed partial class RecordingViewModel : ObservableObject, ILevelSource
 {
     private readonly IRecorder _recorder;
     private readonly ICapture _capture;

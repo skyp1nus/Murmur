@@ -71,11 +71,10 @@
         <views:TopBarView DataContext="{Binding TopBar}" />
       </Border>
 
-      <!-- The page. Pages not yet redrawn after the canvas keep the 48 px inset of the old frame (PageUsesFrameInset). -->
+      <!-- The page: it fills the area under the top bar itself (its own padding, scrolling and spacing). -->
       <ContentControl Grid.Row="1"
                       Classes="page"
                       Classes.fullWindow="{Binding IsOnboarding}"
-                      Classes.inset="{Binding PageUsesFrameInset}"
                       HorizontalContentAlignment="Stretch"
                       VerticalContentAlignment="Stretch"
                       Content="{Binding CurrentPage}" />
