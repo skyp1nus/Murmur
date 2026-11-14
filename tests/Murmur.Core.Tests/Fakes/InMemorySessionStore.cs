@@ -53,9 +53,12 @@ internal sealed class InMemorySessionStore : ISessionStore
         }
     }
 
-    public ValueTask<SessionRecord> CreateSessionAsync(string title, DateTimeOffset startedAt, CancellationToken cancellationToken)
+    public ValueTask<SessionRecord> CreateSessionAsync(string title, DateTimeOffset startedAt, CancellationToken cancellationToken) =>
+        CreateSessionAsync(title, startedAt, SessionSource.Recorded, cancellationToken);
+
+    public ValueTask<SessionRecord> CreateSessionAsync(string title, DateTimeOffset startedAt, SessionSource source, CancellationToken cancellationToken)
     {
-        var record = new SessionRecord { Id = SessionId.New(), Title = title, StartedAt = startedAt, State = SessionState.Recording };
+        var record = new SessionRecord { Id = SessionId.New(), Title = title, StartedAt = startedAt, State = SessionState.Recording, Source = source };
         Directory.CreateDirectory(GetFiles(record.Id).Directory);
         Seed(record);
         return ValueTask.FromResult(record);

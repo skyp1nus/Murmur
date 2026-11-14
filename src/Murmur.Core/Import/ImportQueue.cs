@@ -19,7 +19,8 @@ namespace Murmur.Core.Import;
 /// rules (never during a recording).</para>
 /// <para><b>Steps of an import.</b> Probe the file (<see cref="IMediaDecoder.ProbeAsync"/>), create the session (title =
 /// file name without extension, underscores to spaces; started at = the file's creation time, else its last write time)
-/// and mark it right away as <see cref="SessionSource.Imported"/> with its final <see cref="SessionRecord.OriginalPath"/>,
+/// as <see cref="SessionSource.Imported"/> in the same write (a crash never shows a lost recording), then record its final
+/// <see cref="SessionRecord.OriginalPath"/>,
 /// copy the original into the session folder as <c>original&lt;ext&gt;</c> (<see cref="OriginalFileMode.CopyToLibrary"/>)
 /// or only remember its path (<see cref="OriginalFileMode.LeaveInPlace"/>), decode the first audio stream into
 /// <see cref="SessionFiles.SystemAudio"/>, and for an <c>.mp4</c> video put the file in as screen segment 0
@@ -567,21 +568,20 @@ public sealed class ImportQueue : IImportQueue, IDisposable
 
             var path = request.Path;
             var probe = await _decoder.ProbeAsync(path, cancellationToken).ConfigureAwait(false);
-            var created = await _sessions.CreateSessionAsync(TitleOf(path), StartedAtOf(path), cancellationToken).ConfigureAwait(false);
+            // Created as an import in the one write, so a crash right after it never shows a lost recording.
+            var created = await _sessions.CreateSessionAsync(TitleOf(path), StartedAtOf(path), SessionSource.Imported, cancellationToken).ConfigureAwait(false);
             lock (_gate)
             {
                 entry.Session = created.Id;
                 _languages[created.Id] = request.Options.Language;
             }
 
-            // Marked as an import at once, so the library, the recovery and the session screen never take it for a dead recording.
             var files = _sessions.GetFiles(created.Id);
             var extension = CompositeMediaDecoder.ExtensionOf(path);
             var copy = request.Options.OriginalFile == OriginalFileMode.CopyToLibrary;
             var source = copy ? Path.Combine(files.Directory, "original" + extension) : Path.GetFullPath(path);
             var record = created with
             {
-                Source = SessionSource.Imported,
                 OriginalPath = source,
                 Duration = probe.Duration,
                 HasMicrophone = false,

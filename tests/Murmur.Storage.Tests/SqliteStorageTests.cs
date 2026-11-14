@@ -1,5 +1,6 @@
 using System.Globalization;
 using Microsoft.Data.Sqlite;
+using Murmur.Core.Recording;
 using Murmur.Core.Sessions;
 using Murmur.Core.Transcription;
 
@@ -42,6 +43,55 @@ public sealed class SqliteStorageTests : IDisposable
         Assert.Equal(T0, session.StartedAt);
         Assert.True(Directory.Exists(storage.GetFiles(session.Id).Directory));
         Assert.True(File.Exists(Path.Combine(_root.Path, "murmur.db")));
+    }
+
+    [Theory]
+    [InlineData(SessionSource.Recorded)]
+    [InlineData(SessionSource.Imported)]
+    public async Task Create_WithASource_StoresItInTheSameWrite_AndItSurvivesAReopen(SessionSource source)
+    {
+        SessionId id;
+        using (var storage = _root.Open())
+        {
+            var created = await storage.CreateSessionAsync("Import", T0, source, Ct);
+
+            Assert.Equal(source, created.Source);
+            Assert.Equal(source, (await storage.GetSessionAsync(created.Id, Ct))!.Source);
+            id = created.Id;
+        }
+
+        using var reopened = _root.Open();
+        Assert.Equal(source, (await reopened.GetSessionAsync(id, Ct))!.Source);
+    }
+
+    [Fact]
+    public async Task Create_WithoutASource_IsARecordedSession()
+    {
+        var storage = Open();
+
+        var created = await storage.CreateSessionAsync("Standup", T0, Ct);
+
+        Assert.Equal(SessionSource.Recorded, created.Source);
+        Assert.Equal(SessionSource.Recorded, (await ((ISessionStore)storage).GetSessionAsync(created.Id, Ct))!.Source);
+    }
+
+    [Fact]
+    public async Task ACrashRightAfterCreatingAnImport_IsNotReportedByRecoveryAsALostRecording()
+    {
+        // The app dies after the session row exists and before anything else was written: the row is the only trace.
+        SessionId id;
+        using (var before = _root.Open())
+        {
+            id = (await before.CreateSessionAsync("Import", T0, SessionSource.Imported, Ct)).Id;
+        }
+
+        using var after = _root.Open();
+        var recovered = await new RecoveryService(after).RecoverAsync(Ct);
+
+        Assert.Empty(recovered);
+        var session = (await after.GetSessionAsync(id, Ct))!;
+        Assert.Equal(SessionState.Recording, session.State);
+        Assert.Equal(SessionSource.Imported, session.Source);
     }
 
     [Fact]
