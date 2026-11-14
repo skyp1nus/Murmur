@@ -31,11 +31,11 @@
                  Text="{x:Static res:Strings.Session_BookmarksEmpty}" />
 
       <ScrollViewer Classes="bookmarksScroll"
+                    Margin="{StaticResource Margin.BookmarkRows}"
                     IsVisible="{Binding HasBookmarks}"
                     HorizontalScrollBarVisibility="Disabled"
                     VerticalScrollBarVisibility="Auto">
         <ItemsControl x:Name="Rows"
-                      Margin="{StaticResource Margin.BookmarkRows}"
                       ItemsSource="{Binding Bookmarks}">
           <ItemsControl.ItemTemplate>
             <DataTemplate x:DataType="vm:BookmarkViewModel">

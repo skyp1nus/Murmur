@@ -918,6 +918,63 @@ public sealed class BookmarkTests : IDisposable
         Assert.Equal((1d, true), hovered);
     }
 
+    [Theory]
+    [Trait("Category", "Slow")]
+    [InlineData("Light")]
+    [InlineData("Dark")]
+    public async Task TheHoverFill_ReachesBothEdgesOfTheRow_NotClippedByTheScrollViewer(string theme)
+    {
+        _store.Put(_fixture.Record.Id, (761, "Pricing question"), (1205, "Demo date"));
+        var (_, shell) = await OpenAsync();
+        var variant = theme == "Dark" ? Avalonia.Styling.ThemeVariant.Dark : Avalonia.Styling.ThemeVariant.Light;
+
+        var (edges, stone, surface, viewport, rowBox) = await Session.Dispatch(
+            () =>
+            {
+                var window = new MainWindow { DataContext = shell, RequestedThemeVariant = variant };
+                window.Show();
+                UiHarness.Pump();
+                var row = window.GetVisualDescendants().OfType<Border>().First(b => b.Classes.Contains("bookmarkRow"));
+                var scroll = row.FindAncestorOfType<ScrollViewer>()!;
+                var origin = row.TranslatePoint(new Avalonia.Point(0, 0), window)!.Value;
+                var middle = new Avalonia.Point(row.Bounds.Width / 2, row.Bounds.Height / 2);
+                window.MouseMove(row.TranslatePoint(middle, window)!.Value, RawInputModifiers.None);
+                UiHarness.Pump();
+                Assert.True(row.IsPointerOver);
+
+                using var frame = window.CaptureRenderedFrame()!;
+                using var buffer = frame.Lock();
+                Avalonia.Media.Color At(double x, double y)
+                {
+                    var offset = ((int)y * buffer.RowBytes) + ((int)x * 4);
+                    var bytes = new byte[4];
+                    System.Runtime.InteropServices.Marshal.Copy(buffer.Address + offset, bytes, 0, 4);
+                    return buffer.Format == Avalonia.Platform.PixelFormat.Rgba8888
+                        ? Avalonia.Media.Color.FromRgb(bytes[0], bytes[1], bytes[2])
+                        : Avalonia.Media.Color.FromRgb(bytes[2], bytes[1], bytes[0]);
+                }
+
+                var y = origin.Y + (row.Bounds.Height / 2);
+                Avalonia.Media.Color Token(string key) =>
+                    Avalonia.Application.Current!.TryGetResource(key, variant, out var value) && value is Avalonia.Media.ISolidColorBrush brush ? brush.Color : throw new InvalidOperationException(key);
+                var brushes = (Token("Brush.Stone"), Token("Brush.Surface"));
+                var left = At(origin.X + 1, y);
+                var right = At(origin.X + row.Bounds.Width - 2, y);
+                var scrollOrigin = scroll.TranslatePoint(new Avalonia.Point(0, 0), window)!.Value;
+                var result = ((left, right), brushes.Item1, brushes.Item2, (scrollOrigin.X, scroll.Bounds.Width), (origin.X, row.Bounds.Width));
+                window.Close();
+                return result;
+            },
+            Ct);
+
+        Assert.NotEqual(stone, surface);
+        Assert.Equal(stone, edges.left);
+        Assert.Equal(stone, edges.right);
+        // The row spans the viewport: nothing of the fill is cut off, and nothing of it is left outside.
+        Assert.Equal(viewport.Item1, rowBox.Item1, 0.5);
+        Assert.Equal(viewport.Item2, rowBox.Item2, 0.5);
+    }
+
     [Fact]
     [Trait("Category", "Slow")]
     public async Task TheMKey_AddsABookmarkAtThePlayhead()
