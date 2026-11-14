@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Fakes shared by the test projects (in-memory stores, a scripted ASR and recorder, manual clocks, WAV writers, the
+    recording log). A library, not a test project: it has no tests and no packages. The namespace stays
+    Murmur.Core.Tests.Fakes, where the fakes lived before they were shared.
+  -->
+  <PropertyGroup>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>false</IsTestProject>
+    <RootNamespace>Murmur.Core.Tests.Fakes</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Murmur.Core\Murmur.Core.csproj" />
+  </ItemGroup>
+
+</Project>

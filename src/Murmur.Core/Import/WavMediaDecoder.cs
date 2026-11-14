@@ -158,14 +158,15 @@ public sealed class WavMediaDecoder : IMediaDecoder
 
     /// <summary>
     /// Tells a format we do not decode (a valid <c>fmt </c> chunk with another encoding: ADPCM, µ-law...) from a damaged
-    /// file (no RIFF/WAVE header, a short or inconsistent <c>fmt </c> chunk, no <c>data</c> chunk).
+    /// file (no RIFF/WAVE header, a short or inconsistent <c>fmt </c> chunk, no <c>data</c> chunk). The chunks before
+    /// <c>data</c> are skipped by their size with a seek, so a large LIST/iXML/cover-art chunk is no obstacle; at most
+    /// <see cref="WavLayout.MaxChunksBeforeData"/> chunks are looked at.
     /// </summary>
     internal static void Classify(Stream stream, string name)
     {
         const ushort Pcm = 1;
         const ushort Float = 3;
         const ushort Extensible = 0xFFFE;
-        const int MaxHeaderScan = 1 << 20;
 
         stream.Position = 0;
         Span<byte> riff = stackalloc byte[12];
@@ -178,7 +179,7 @@ public sealed class WavMediaDecoder : IMediaDecoder
         Span<byte> chunk = stackalloc byte[8];
         Span<byte> fmt = stackalloc byte[40];
         var haveFormat = false;
-        while (stream.Position < MaxHeaderScan && stream.ReadAtLeast(chunk, chunk.Length, throwOnEndOfStream: false) == chunk.Length)
+        for (var chunks = 0; chunks < WavLayout.MaxChunksBeforeData && stream.ReadAtLeast(chunk, chunk.Length, throwOnEndOfStream: false) == chunk.Length; chunks++)
         {
             var size = BinaryPrimitives.ReadUInt32LittleEndian(chunk[4..]);
             if (chunk[..4].SequenceEqual("fmt "u8))
@@ -220,8 +221,11 @@ public sealed class WavMediaDecoder : IMediaDecoder
                     throw new InvalidDataException($"'{name}' has a damaged format chunk.");
                 }
 
-                stream.Position += size - take + (size & 1);
                 haveFormat = true;
+                if (!WavLayout.TrySkip(stream, (long)(size - take) + (size & 1)))
+                {
+                    break; // the rest of the format chunk is cut off: no data chunk behind it
+                }
             }
             else if (chunk[..4].SequenceEqual("data"u8))
             {
@@ -232,9 +236,9 @@ public sealed class WavMediaDecoder : IMediaDecoder
 
                 return;
             }
-            else
+            else if (!WavLayout.TrySkip(stream, (long)size + (size & 1)))
             {
-                stream.Position += size + (size & 1);
+                break; // a chunk cut off by the end of the file: no data chunk behind it
             }
         }
 

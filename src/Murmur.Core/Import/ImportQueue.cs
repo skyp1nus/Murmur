@@ -19,7 +19,8 @@ namespace Murmur.Core.Import;
 /// rules (never during a recording).</para>
 /// <para><b>Steps of an import.</b> Probe the file (<see cref="IMediaDecoder.ProbeAsync"/>), create the session (title =
 /// file name without extension, underscores to spaces; started at = the file's creation time, else its last write time)
-/// and mark it right away as <see cref="SessionSource.Imported"/> with its final <see cref="SessionRecord.OriginalPath"/>,
+/// as <see cref="SessionSource.Imported"/> in the same write (a crash never shows a lost recording), then record its final
+/// <see cref="SessionRecord.OriginalPath"/>,
 /// copy the original into the session folder as <c>original&lt;ext&gt;</c> (<see cref="OriginalFileMode.CopyToLibrary"/>)
 /// or only remember its path (<see cref="OriginalFileMode.LeaveInPlace"/>), decode the first audio stream into
 /// <see cref="SessionFiles.SystemAudio"/>, and for an <c>.mp4</c> video put the file in as screen segment 0
@@ -34,7 +35,8 @@ namespace Murmur.Core.Import;
 /// save fails the session is kept. <see cref="StartAsync"/> (once at start-up, after the crash recovery and before
 /// <see cref="SessionProcessor.ResumePendingAsync"/>) restarts the imports that were queued or decoding (a half-made
 /// session is deleted first; one whose decode had finished is handed off) and deletes the half-made imported sessions no
-/// entry refers to (a crash between creating the session and saving the entry). Done entries stay stored with their
+/// entry refers to (a crash between creating the session and saving the entry; the entries deleted in the same pass, Failed and
+/// Cancelled, do not count as referring). Done entries stay stored with their
 /// session so <see cref="LanguageOf"/> still knows the spoken language after a restart. Failed and cancelled entries are
 /// removed from the store and stay in <see cref="Items"/> until dismissed.</para>
 /// <para><b>Errors.</b> <see cref="ImportItem.Error"/> holds a code (the App words it), optionally followed by
@@ -61,6 +63,9 @@ public sealed class ImportQueue : IImportQueue, IDisposable
 
     private const int CopyBufferBytes = 1 << 20;
 
+    /// <summary>How often a running import looks whether the user deleted its session (see <see cref="SessionWatch"/>).</summary>
+    internal static readonly TimeSpan SessionCheckInterval = TimeSpan.FromSeconds(1);
+
     private readonly ISessionStore _sessions;
     private readonly IImportStore _store;
     private readonly IMediaDecoder _decoder;
@@ -69,8 +74,10 @@ public sealed class ImportQueue : IImportQueue, IDisposable
     private readonly object _gate = new();
     private readonly List<Entry> _entries = [];
     private readonly Dictionary<SessionId, string?> _languages = [];
+    private readonly TimeProvider _time;
 
     private Entry? _inFlight;
+    private ITimer? _retryTimer;
     private long _transientId;
     private int _changedRequested;
     private int _dispatching;
@@ -78,7 +85,8 @@ public sealed class ImportQueue : IImportQueue, IDisposable
     private bool _disposed;
 
     /// <param name="queue">The job queue the <paramref name="processor"/> works on (it pauses it while recording).</param>
-    public ImportQueue(ISessionStore sessions, IImportStore store, IMediaDecoder decoder, JobQueue queue, SessionProcessor processor)
+    /// <param name="time">The clock of the retry delays of deferred entries; the system clock when <c>null</c>.</param>
+    public ImportQueue(ISessionStore sessions, IImportStore store, IMediaDecoder decoder, JobQueue queue, SessionProcessor processor, TimeProvider? time = null)
     {
         ArgumentNullException.ThrowIfNull(sessions);
         ArgumentNullException.ThrowIfNull(store);
@@ -90,6 +98,7 @@ public sealed class ImportQueue : IImportQueue, IDisposable
         _decoder = decoder;
         _queue = queue;
         _processor = processor;
+        _time = time ?? TimeProvider.System;
     }
 
     /// <summary>Raised on the thread pool after changes of <see cref="Items"/>: coalesced, one handler call at a time, never concurrently.</summary>
@@ -115,6 +124,12 @@ public sealed class ImportQueue : IImportQueue, IDisposable
         }
     }
 
+    /// <summary>
+    /// How long a deferred entry (its leftover session could not be deleted) waits before the next try: one delay per failed
+    /// try, the last one repeated.
+    /// </summary>
+    internal static IReadOnlyList<TimeSpan> RetryDelays { get; } = [TimeSpan.FromSeconds(5), TimeSpan.FromSeconds(30), TimeSpan.FromMinutes(2)];
+
     /// <summary>Test seam: <c>File.CreateHardLink(link, target)</c>.</summary>
     internal Action<string, string> CreateHardLink { get; set; } = static (link, target) => File.CreateHardLink(link, target);
 
@@ -127,9 +142,49 @@ public sealed class ImportQueue : IImportQueue, IDisposable
     /// </summary>
     public string? LanguageOf(SessionId session)
     {
+        bool known;
+        string? language;
         lock (_gate)
         {
-            return _languages.GetValueOrDefault(session);
+            known = _languages.TryGetValue(session, out language);
+        }
+
+        if (known)
+        {
+            // The answer is given now; a session deleted since the import must not keep its entry for the rest of the run.
+            _ = ForgetLanguageIfGoneAsync(session);
+        }
+
+        return language;
+    }
+
+    /// <summary>Number of sessions whose import language is remembered (for tests).</summary>
+    internal int RememberedLanguages
+    {
+        get
+        {
+            lock (_gate)
+            {
+                return _languages.Count;
+            }
+        }
+    }
+
+    private async Task ForgetLanguageIfGoneAsync(SessionId session)
+    {
+        try
+        {
+            if (await _sessions.GetSessionAsync(session, CancellationToken.None).ConfigureAwait(false) is null)
+            {
+                lock (_gate)
+                {
+                    _languages.Remove(session);
+                }
+            }
+        }
+        catch (Exception)
+        {
+            // Best effort: the entry is tiny and the next lookup tries again.
         }
     }
 
@@ -154,16 +209,12 @@ public sealed class ImportQueue : IImportQueue, IDisposable
         foreach (var import in stored)
         {
             var item = import.Item;
-            if (item.Session is { } session)
-            {
-                referenced.Add(session);
-            }
-
             switch (item.State)
             {
                 case ImportState.Done:
                     if (item.Session is { } done)
                     {
+                        referenced.Add(done);
                         lock (_gate)
                         {
                             _languages[done] = import.Request.Options.Language;
@@ -174,10 +225,16 @@ public sealed class ImportQueue : IImportQueue, IDisposable
 
                 case ImportState.Queued or ImportState.Decoding:
                     // A decode that was running when the app stopped starts again; its half-made session goes first.
+                    if (item.Session is { } half)
+                    {
+                        referenced.Add(half);
+                    }
+
                     resumed.Add(new Entry(item.Id, import.Request) { Session = item.Session });
                     break;
 
                 default:
+                    // Failed or Cancelled: the entry goes now, so the half-made session it names is an orphan of this very pass.
                     await _store.DeleteImportAsync(item.Id, cancellationToken).ConfigureAwait(false);
                     break;
             }
@@ -316,10 +373,15 @@ public sealed class ImportQueue : IImportQueue, IDisposable
     /// <summary>Stops queuing further imports. A running decode is stopped by the job queue's disposal (it restarts next time).</summary>
     public void Dispose()
     {
+        ITimer? timer;
         lock (_gate)
         {
             _disposed = true;
+            timer = _retryTimer;
+            _retryTimer = null;
         }
+
+        timer?.Dispose();
     }
 
     /// <summary>Session title of an imported file: the file name without extension, underscores to spaces.</summary>
@@ -389,6 +451,7 @@ public sealed class ImportQueue : IImportQueue, IDisposable
     private void Pump()
     {
         Entry? next = null;
+        var wait = Timeout.InfiniteTimeSpan;
         lock (_gate)
         {
             if (_disposed || !_started || _inFlight is not null)
@@ -396,17 +459,35 @@ public sealed class ImportQueue : IImportQueue, IDisposable
                 return;
             }
 
+            var now = _time.GetUtcNow();
             foreach (var entry in _entries)
             {
-                if (entry.State == ImportState.Queued && !entry.CancelRequested && !entry.Deferred)
+                if (entry.State != ImportState.Queued || entry.CancelRequested)
+                {
+                    continue;
+                }
+
+                if (!entry.Deferred || entry.RetryAt <= now)
                 {
                     next = entry;
                     break;
+                }
+
+                var left = entry.RetryAt - now;
+                if (wait == Timeout.InfiniteTimeSpan || left < wait)
+                {
+                    wait = left;
                 }
             }
 
             if (next is null)
             {
+                // Only deferred entries are left: wake up when the first of them is due.
+                if (wait != Timeout.InfiniteTimeSpan)
+                {
+                    ScheduleRetry(wait);
+                }
+
                 return;
             }
 
@@ -437,6 +518,18 @@ public sealed class ImportQueue : IImportQueue, IDisposable
             TaskScheduler.Default);
     }
 
+    /// <summary>Called with the gate held. One timer, moved to the next due time; its tick pumps again.</summary>
+    private void ScheduleRetry(TimeSpan wait)
+    {
+        if (_retryTimer is { } timer)
+        {
+            timer.Change(wait, Timeout.InfiniteTimeSpan);
+            return;
+        }
+
+        _retryTimer = _time.CreateTimer(static state => ((ImportQueue)state!).Pump(), this, wait, Timeout.InfiniteTimeSpan);
+    }
+
     private void OnJobFinished()
     {
         lock (_gate)
@@ -458,6 +551,7 @@ public sealed class ImportQueue : IImportQueue, IDisposable
             }
 
             entry.Running = true;
+            entry.Deferred = false; // a retry of a deferred entry starts now; a new deferral sets it again
             attempt = entry.Attempt = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         }
 
@@ -496,8 +590,14 @@ public sealed class ImportQueue : IImportQueue, IDisposable
 
                 if (!await ReleaseSessionAsync(entry).ConfigureAwait(false))
                 {
-                    // The leftover cannot be deleted now (a file held open): stays queued, tried again at the next start.
-                    Update(entry, e => e.Deferred = true);
+                    // The leftover cannot be deleted now (a file held open): stays queued, tried again after a delay (see RetryDelays) and at the next start.
+                    Update(entry, e =>
+                    {
+                        var delays = RetryDelays;
+                        e.Deferred = true;
+                        e.RetryAt = _time.GetUtcNow() + delays[Math.Min(e.Deferrals, delays.Count - 1)];
+                        e.Deferrals++;
+                    });
                     return;
                 }
             }
@@ -511,21 +611,23 @@ public sealed class ImportQueue : IImportQueue, IDisposable
 
             var path = request.Path;
             var probe = await _decoder.ProbeAsync(path, cancellationToken).ConfigureAwait(false);
-            var created = await _sessions.CreateSessionAsync(TitleOf(path), StartedAtOf(path), cancellationToken).ConfigureAwait(false);
+            // Created as an import in the one write, so a crash right after it never shows a lost recording.
+            var created = await _sessions.CreateSessionAsync(TitleOf(path), StartedAtOf(path), SessionSource.Imported, cancellationToken).ConfigureAwait(false);
             lock (_gate)
             {
                 entry.Session = created.Id;
                 _languages[created.Id] = request.Options.Language;
             }
 
-            // Marked as an import at once, so the library, the recovery and the session screen never take it for a dead recording.
+            // The store has no deletion event: a timer looks (off the decode loop) and stops the decode when the session is gone.
+            using var watch = new SessionWatch(_sessions, created.Id, linked, _time);
+
             var files = _sessions.GetFiles(created.Id);
             var extension = CompositeMediaDecoder.ExtensionOf(path);
             var copy = request.Options.OriginalFile == OriginalFileMode.CopyToLibrary;
             var source = copy ? Path.Combine(files.Directory, "original" + extension) : Path.GetFullPath(path);
             var record = created with
             {
-                Source = SessionSource.Imported,
                 OriginalPath = source,
                 Duration = probe.Duration,
                 HasMicrophone = false,
@@ -922,12 +1024,72 @@ public sealed class ImportQueue : IImportQueue, IDisposable
 
         public bool Running { get; set; }
 
-        /// <summary>Waits for the next start: the half-made session of an earlier attempt could not be deleted.</summary>
+        /// <summary>Waits until <see cref="RetryAt"/>: the half-made session of an earlier attempt could not be deleted.</summary>
         public bool Deferred { get; set; }
+
+        public DateTimeOffset RetryAt { get; set; }
+
+        /// <summary>How many times the entry was deferred (picks the delay of the next retry).</summary>
+        public int Deferrals { get; set; }
 
         public TaskCompletionSource? Attempt { get; set; }
 
         public ImportItem Snapshot() => new(Id, Request.Path, State, Progress, Session, Error);
+    }
+
+    /// <summary>
+    /// Cancels a running import when its session was deleted from the library: every <see cref="SessionCheckInterval"/> a
+    /// timer asks the store whether the session still exists. Nothing runs inside the decode loop.
+    /// </summary>
+    private sealed class SessionWatch : IDisposable
+    {
+        private readonly ISessionStore _sessions;
+        private readonly SessionId _session;
+        private readonly CancellationTokenSource _import;
+        private readonly ITimer _timer;
+        private int _checking;
+        private volatile bool _disposed;
+
+        public SessionWatch(ISessionStore sessions, SessionId session, CancellationTokenSource import, TimeProvider time)
+        {
+            _sessions = sessions;
+            _session = session;
+            _import = import;
+            _timer = time.CreateTimer(static state => ((SessionWatch)state!).Tick(), this, SessionCheckInterval, SessionCheckInterval);
+        }
+
+        public void Dispose()
+        {
+            _disposed = true;
+            _timer.Dispose();
+        }
+
+        private void Tick()
+        {
+            if (!_disposed && Interlocked.CompareExchange(ref _checking, 1, 0) == 0)
+            {
+                _ = CheckAsync();
+            }
+        }
+
+        private async Task CheckAsync()
+        {
+            try
+            {
+                if (!_disposed && await _sessions.GetSessionAsync(_session, CancellationToken.None).ConfigureAwait(false) is null)
+                {
+                    await _import.CancelAsync().ConfigureAwait(false);
+                }
+            }
+            catch (Exception)
+            {
+                // A store error or an import that has ended meanwhile (its token source is disposed): nothing to stop.
+            }
+            finally
+            {
+                Volatile.Write(ref _checking, 0);
+            }
+        }
     }
 
     /// <summary>Synchronous <see cref="IProgress{T}"/> (no <see cref="SynchronizationContext"/> capture).</summary>

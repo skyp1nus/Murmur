@@ -10,6 +10,7 @@ using Murmur.App.Views;
 using Murmur.Core.Diagnostics;
 using Murmur.Core.Settings;
 using Murmur.Core.Tests.Fakes;
+using FakeRecorder = Murmur.App.Tests.Fakes.FakeRecorder; // TestSupport has a FakeRecorder of its own (the Core one)
 using Murmur.Storage;
 
 namespace Murmur.App.Tests;

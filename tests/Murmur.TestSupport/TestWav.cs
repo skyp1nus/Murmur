@@ -3,7 +3,7 @@ using Murmur.Core.Audio;
 namespace Murmur.Core.Tests.Fakes;
 
 /// <summary>Writes small synthetic 16 kHz mono PCM16 WAVs.</summary>
-internal static class TestWav
+public static class TestWav
 {
     public const int Rate = 16_000;
 
