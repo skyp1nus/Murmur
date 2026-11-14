@@ -1,7 +1,7 @@
 namespace Murmur.Core.Tests.Fakes;
 
 /// <summary>A <see cref="TimeProvider"/> that only moves on <see cref="Advance"/>; due timers fire inside it.</summary>
-internal sealed class ManualTimeProvider : TimeProvider
+public sealed class ManualTimeProvider : TimeProvider
 {
     private readonly object _gate = new();
     private readonly List<ManualTimer> _timers = [];

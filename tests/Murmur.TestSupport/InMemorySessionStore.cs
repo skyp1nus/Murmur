@@ -6,7 +6,7 @@ namespace Murmur.Core.Tests.Fakes;
 /// Minimal <see cref="ISessionStore"/> for tests: rows in memory, one folder per session under <see cref="Root"/>.
 /// Also compiled into the crash-test helper (internal, so the two copies never clash).
 /// </summary>
-internal sealed class InMemorySessionStore : ISessionStore
+public sealed class InMemorySessionStore : ISessionStore
 {
     private readonly Dictionary<SessionId, SessionRecord> _sessions = [];
     private readonly List<SessionRecord> _updates = [];
