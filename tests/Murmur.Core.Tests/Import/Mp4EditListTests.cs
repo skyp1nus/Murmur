@@ -1,6 +1,7 @@
 using System.Buffers.Binary;
 using System.Text;
 using Murmur.Core.Import;
+using Allocations = Murmur.Core.Tests.Fakes.Allocations;
 
 namespace Murmur.Core.Tests.Import;
 
@@ -331,13 +332,15 @@ public sealed class Mp4EditListTests
         var stream = new MemoryStream(LateAudioSample());
         _ = Mp4EditList.ReadAudioStart(stream, out _);
 
-        var before = GC.GetAllocatedBytesForCurrentThread();
-        for (var i = 0; i < 100; i++)
-        {
-            _ = Mp4EditList.ReadAudioStart(stream, out _);
-        }
-
-        Assert.Equal(0, GC.GetAllocatedBytesForCurrentThread() - before);
+        Assert.Equal(
+            0,
+            Allocations.SteadyState(() =>
+            {
+                for (var i = 0; i < 100; i++)
+                {
+                    _ = Mp4EditList.ReadAudioStart(stream, out _);
+                }
+            }));
     }
 
     [Fact]

@@ -2,6 +2,7 @@ using System.Runtime.InteropServices;
 using System.Runtime.InteropServices.Marshalling;
 using Murmur.Capture.Windows.Audio.Interop;
 using Murmur.Capture.Windows.Playback;
+using Allocations = Murmur.Core.Tests.Fakes.Allocations;
 
 namespace Murmur.Capture.Windows.Tests;
 
@@ -58,14 +59,16 @@ public sealed unsafe class PlaybackInteropLayoutTests
             rcw.GetBuffer(1, out _);
             rcw.ReleaseBuffer(1, 0);
             var failures = 0;
-            var before = GC.GetAllocatedBytesForCurrentThread();
-            for (var i = 0; i < 1_000; i++)
-            {
-                failures += rcw.GetBuffer(160, out var data) == 3 && data == 160 ? 0 : 1;
-                failures += rcw.ReleaseBuffer(160, 0) == 4 ? 0 : 1;
-            }
-
-            Assert.Equal(0, GC.GetAllocatedBytesForCurrentThread() - before);
+            Assert.Equal(
+                0,
+                Allocations.SteadyState(() =>
+                {
+                    for (var i = 0; i < 1_000; i++)
+                    {
+                        failures += rcw.GetBuffer(160, out var data) == 3 && data == 160 ? 0 : 1;
+                        failures += rcw.ReleaseBuffer(160, 0) == 4 ? 0 : 1;
+                    }
+                }));
             Assert.Equal(0, failures);
         }
         finally

@@ -1,5 +1,6 @@
 using Murmur.Capture.Windows.Screen;
 using Murmur.Capture.Windows.Screen.Interop;
+using Allocations = Murmur.Core.Tests.Fakes.Allocations;
 
 namespace Murmur.Capture.Windows.Tests;
 
@@ -128,9 +129,7 @@ public sealed class HeldSampleTests : IDisposable
         var sink = new FakeSink { Record = false };
         WriteMany(sample, sink, 16); // warm-up (JIT, dictionary lookups)
 
-        var before = GC.GetAllocatedBytesForCurrentThread();
-        WriteMany(sample, sink, 1_000);
-        var allocated = GC.GetAllocatedBytesForCurrentThread() - before;
+        var allocated = Allocations.SteadyState(() => WriteMany(sample, sink, 1_000));
 
         Assert.Equal(0, allocated);
         Assert.Equal(1, sample.References);

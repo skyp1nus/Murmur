@@ -1,4 +1,5 @@
 using Murmur.Capture.Windows.Screen;
+using Allocations = Murmur.Core.Tests.Fakes.Allocations;
 
 namespace Murmur.Capture.Windows.Tests;
 
@@ -86,10 +87,15 @@ public sealed class RepeatPolicyEdgeTests
             sum += last;
         }
 
-        Run();
-        var before = GC.GetAllocatedBytesForCurrentThread();
-        Run();
-        Assert.Equal(0, GC.GetAllocatedBytesForCurrentThread() - before);
-        Assert.Equal(2000 * Second, sum);
+        var perRun = 0L;
+        Assert.Equal(
+            0,
+            Allocations.SteadyState(() =>
+            {
+                sum = 0;
+                Run();
+                perRun = sum;
+            }));
+        Assert.Equal(1000 * Second, perRun);
     }
 }

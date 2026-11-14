@@ -2,6 +2,7 @@ using System.Buffers.Binary;
 using System.Runtime.InteropServices;
 using Murmur.Capture.Windows.Audio;
 using Murmur.Capture.Windows.Audio.Interop;
+using Allocations = Murmur.Core.Tests.Fakes.Allocations;
 
 namespace Murmur.Capture.Windows.Tests;
 
@@ -254,13 +255,13 @@ public sealed class CapturePumpTests
 
         Round(32); // warm up: JIT, statics
 
-        var before = GC.GetAllocatedBytesForCurrentThread();
-        for (var r = 0; r < 100; r++)
+        var allocated = Allocations.SteadyState(() =>
         {
-            Round(32);
-        }
-
-        var allocated = GC.GetAllocatedBytesForCurrentThread() - before;
+            for (var r = 0; r < 100; r++)
+            {
+                Round(32);
+            }
+        });
         Assert.Equal(0, allocated);
         Assert.Equal(0, failures);
         Assert.Equal(frame, sink.Frames);
