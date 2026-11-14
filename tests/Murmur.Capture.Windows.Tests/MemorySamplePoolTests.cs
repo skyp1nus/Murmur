@@ -152,10 +152,9 @@ public sealed class MemorySamplePoolTests
             }
         }
 
-        Cycle();
-        var before = GC.GetAllocatedBytesForCurrentThread();
-        Cycle();
-        Assert.Equal(0, GC.GetAllocatedBytesForCurrentThread() - before);
+        // The minimum over several rounds: a one-off allocation of the runtime on this thread (a parallel test run, the
+        // thread pool) is not the pool's; a pool that allocated per call would never reach 0.
+        Assert.Equal(0, Murmur.Core.Tests.Fakes.Allocations.SteadyState(Cycle));
     }
 
     [Fact]

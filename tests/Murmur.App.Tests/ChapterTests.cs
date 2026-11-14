@@ -146,13 +146,15 @@ public sealed class ChapterTests : IDisposable
 
         // Warm up, then count: a binary search over the rows that touches nothing while the chapter is the same.
         vm.UpdateCurrentChapter(S(301));
-        var before = GC.GetAllocatedBytesForCurrentThread();
-        for (var i = 0; i < 10_000; i++)
+        var allocated = Murmur.Core.Tests.Fakes.Allocations.SteadyState(() =>
         {
-            vm.UpdateCurrentChapter(S(300 + (i % 400)));
-        }
+            for (var i = 0; i < 10_000; i++)
+            {
+                vm.UpdateCurrentChapter(S(300 + (i % 400)));
+            }
+        });
 
-        Assert.Equal(0, GC.GetAllocatedBytesForCurrentThread() - before);
+        Assert.Equal(0, allocated);
         Assert.Equal("Roadmap & search", vm.CurrentChapter?.Title);
     }
 
