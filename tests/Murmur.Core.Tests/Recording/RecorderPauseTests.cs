@@ -10,14 +10,14 @@ namespace Murmur.Core.Tests.Recording;
 
 /// <summary>
 /// Pause and resume: the paused time is left out of the session timeline, the files and the screen segments; the sources
-/// run on (no device is re-opened) and the writer stays allocation-free. The synthetic sources run in real time (speed 1),
-/// so recorded time and wall time are comparable, with slack for a loaded machine.
+/// run on (no device is re-opened) and the writer stays allocation-free. The recorder and the synthetic sources run on a
+/// <see cref="SampleClock"/>: the test moves the clock and every move waits for the sources to deliver the frames due, so the
+/// timeline, the files and the screen segments are compared exactly and a starved test machine cannot change the outcome.
 /// </summary>
 [Collection(RealtimeCollection.Name)]
 public sealed class RecorderPauseTests : IDisposable
 {
-    private static readonly TimeSpan Slack = TimeSpan.FromMilliseconds(250);
-
+    private readonly SampleClock _clock = new();
     private readonly TempDirectory _dir = new();
     private readonly InMemorySessionStore _store;
 
@@ -26,6 +26,12 @@ public sealed class RecorderPauseTests : IDisposable
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
 
     public void Dispose() => _dir.Dispose();
+
+    private SyntheticCapture NewCapture(SyntheticCaptureOptions? options = null) => new((options ?? new SyntheticCaptureOptions()) with { TimeProvider = _clock });
+
+    private Recorder NewRecorder(ICapture capture, RecorderSettings? settings = null) => new(capture, _store, _clock, settings ?? RecorderSettings.Default);
+
+    private static TimeSpan At(int milliseconds) => TimeSpan.FromMilliseconds(milliseconds);
 
     private static TimeSpan AudioLength(string path)
     {
@@ -36,29 +42,30 @@ public sealed class RecorderPauseTests : IDisposable
     [Fact]
     public async Task Pause_StopsTheTimelineAndTheLevels_ResumeContinuesIt()
     {
-        var recorder = new Recorder(new SyntheticCapture(), _store, TimeProvider.System, RecorderSettings.Default);
+        var capture = NewCapture();
+        var recorder = NewRecorder(capture);
         var states = new List<RecorderState>();
         recorder.StateChanged += states.Add;
 
         await recorder.StartAsync(new RecordingOptions(), Ct);
-        await Task.Delay(400, Ct);
-        Assert.True(recorder.Levels.Microphone > 0.05f);
+        _clock.Advance(At(400), capture);
+        SampleClock.WaitUntil(() => recorder.Levels.Microphone > 0.05f, "the microphone level");
 
         await recorder.PauseAsync(Ct);
         Assert.Equal(RecorderState.Paused, recorder.State);
         var elapsedAtPause = recorder.Elapsed;
-        Assert.InRange(elapsedAtPause, TimeSpan.FromMilliseconds(300), TimeSpan.FromMilliseconds(400) + Slack);
+        Assert.Equal(At(400), elapsedAtPause);
         Assert.Equal(default, recorder.Levels);
 
-        await Task.Delay(500, Ct);
+        _clock.Advance(At(500), capture);
         Assert.Equal(elapsedAtPause, recorder.Elapsed);
         Assert.Equal(default, recorder.Levels);
 
         await recorder.ResumeAsync(Ct);
         Assert.Equal(RecorderState.Recording, recorder.State);
-        await Task.Delay(300, Ct);
-        Assert.InRange(recorder.Elapsed, elapsedAtPause + TimeSpan.FromMilliseconds(250), elapsedAtPause + TimeSpan.FromMilliseconds(300) + Slack);
-        Assert.True(recorder.Levels.Microphone > 0.05f, $"mic level {recorder.Levels.Microphone}");
+        _clock.Advance(At(300), capture);
+        Assert.Equal(elapsedAtPause + At(300), recorder.Elapsed);
+        SampleClock.WaitUntil(() => recorder.Levels.Microphone > 0.05f, "the microphone level after the resume");
 
         await recorder.StopAsync(Ct);
         Assert.Equal([RecorderState.Starting, RecorderState.Recording, RecorderState.Paused, RecorderState.Recording, RecorderState.Stopping, RecorderState.Idle], states);
@@ -67,21 +74,21 @@ public sealed class RecorderPauseTests : IDisposable
     [Fact]
     public async Task PausedTime_IsLeftOutOfTheFiles_AndTheSourcesKeepRunning()
     {
-        var capture = new SyntheticCapture();
-        var recorder = new Recorder(capture, _store, TimeProvider.System, RecorderSettings.Default);
+        var capture = NewCapture();
+        var recorder = NewRecorder(capture);
 
         var started = await recorder.StartAsync(new RecordingOptions(), Ct);
-        await Task.Delay(400, Ct);
+        _clock.Advance(At(400), capture);
         await recorder.PauseAsync(Ct);
         var atPause = recorder.Elapsed;
-        await Task.Delay(700, Ct);
+        _clock.Advance(At(700), capture);
         await recorder.ResumeAsync(Ct);
-        await Task.Delay(400, Ct);
+        _clock.Advance(At(400), capture);
         var finished = await recorder.StopAsync(Ct);
 
         // 0.8 s were recorded, 0.7 s were paused: the files hold the first, not the second.
         Assert.Equal(SessionState.Recorded, finished.State);
-        Assert.InRange(finished.Duration, TimeSpan.FromMilliseconds(650), TimeSpan.FromMilliseconds(800) + Slack);
+        Assert.Equal(At(800), finished.Duration);
         var files = _store.GetFiles(started.Id);
         foreach (var path in new[] { files.MicrophoneAudio, files.SystemAudio })
         {
@@ -92,25 +99,25 @@ public sealed class RecorderPauseTests : IDisposable
         Assert.Equal(2, capture.CreatedSources.Count);
         foreach (var source in capture.CreatedSources)
         {
-            Assert.True(source.FramesEmitted >= 1.4 * SyntheticSignals.SampleRate, $"{source.FramesEmitted} frames emitted");
+            Assert.Equal(1.5 * SyntheticSignals.SampleRate, source.FramesEmitted);
         }
 
         Assert.Equal(0, recorder.Stats.DroppedFrames);
-        Assert.True(atPause < finished.Duration);
+        Assert.Equal(At(400), atPause);
     }
 
     [Fact]
     public async Task Resume_LeavesNeitherAGapNorSilenceAtTheSeam()
     {
-        var capture = new SyntheticCapture();
-        var recorder = new Recorder(capture, _store, TimeProvider.System, RecorderSettings.Default);
+        var capture = NewCapture();
+        var recorder = NewRecorder(capture);
 
         var started = await recorder.StartAsync(new RecordingOptions(SystemAudio: false), Ct);
-        await Task.Delay(500, Ct);
+        _clock.Advance(At(500), capture);
         await recorder.PauseAsync(Ct);
-        await Task.Delay(400, Ct);
+        _clock.Advance(At(400), capture);
         await recorder.ResumeAsync(Ct);
-        await Task.Delay(500, Ct);
+        _clock.Advance(At(500), capture);
         await recorder.StopAsync(Ct);
 
         // The microphone is a 440 Hz sine with an envelope of at least 0.2: every 5 ms window of the file has sound, also
@@ -132,31 +139,31 @@ public sealed class RecorderPauseTests : IDisposable
     [Fact]
     public async Task ScreenSegment_EndsAtThePause_AndANewOneStartsOnResume()
     {
-        var capture = new SyntheticCapture(new SyntheticCaptureOptions(Screen: true));
-        var recorder = new Recorder(capture, _store, TimeProvider.System, RecorderSettings.Default);
+        var capture = NewCapture(new SyntheticCaptureOptions(Screen: true));
+        var recorder = NewRecorder(capture);
 
         await recorder.StartAsync(new RecordingOptions(Screen: true), Ct);
-        await Task.Delay(400, Ct);
+        _clock.Advance(At(400), capture);
         Assert.True(recorder.IsScreenRecording);
         await recorder.PauseAsync(Ct);
         var atPause = recorder.Elapsed;
         Assert.False(recorder.IsScreenRecording);
-        await Task.Delay(600, Ct);
+        _clock.Advance(At(600), capture);
         await recorder.ResumeAsync(Ct);
         Assert.True(recorder.IsScreenRecording);
-        await Task.Delay(300, Ct);
+        _clock.Advance(At(300), capture);
         var finished = await recorder.StopAsync(Ct);
 
         Assert.Equal(2, finished.ScreenSegments.Count);
         var (first, second) = (finished.ScreenSegments[0], finished.ScreenSegments[1]);
         Assert.Equal([0, 1], finished.ScreenSegments.Select(s => s.Index));
-        Assert.InRange(first.Offset, TimeSpan.Zero, Slack);
+        Assert.Equal(TimeSpan.Zero, first.Offset);
 
-        // The first one ends where the pause was called (the audio stops a writer period later); the second one starts where the
-        // timeline continues: the 600 ms of the pause are not between them.
-        Assert.InRange(first.Offset + first.Duration, atPause - Slack, atPause + Slack);
-        Assert.InRange(second.Offset, atPause - Slack, atPause + Slack);
-        Assert.InRange(second.Duration, TimeSpan.FromMilliseconds(250), TimeSpan.FromMilliseconds(300) + Slack);
+        // The first one ends where the pause was called; the second one starts where the timeline continues: the 600 ms of
+        // the pause are not between them.
+        Assert.Equal(atPause, first.Offset + first.Duration);
+        Assert.Equal(atPause, second.Offset);
+        Assert.Equal(At(300), second.Duration);
         Assert.Equal(2, Assert.Single(capture.CreatedScreenRecorders).Segments.Count);
     }
 
@@ -204,22 +211,23 @@ public sealed class RecorderPauseTests : IDisposable
     [Fact]
     public async Task Stop_WhilePaused_EndsTheFilesWhereThePauseLeftThem()
     {
-        var capture = new SyntheticCapture();
-        var recorder = new Recorder(capture, _store, TimeProvider.System, RecorderSettings.Default);
+        var capture = NewCapture();
+        var recorder = NewRecorder(capture);
         var states = new List<RecorderState>();
         recorder.StateChanged += states.Add;
 
         var started = await recorder.StartAsync(new RecordingOptions(), Ct);
-        await Task.Delay(500, Ct);
+        _clock.Advance(At(500), capture);
         await recorder.PauseAsync(Ct);
         var atPause = recorder.Elapsed;
-        await Task.Delay(500, Ct);
+        _clock.Advance(At(500), capture);
         var finished = await recorder.StopAsync(Ct);
 
         Assert.Equal(RecorderState.Idle, recorder.State);
         Assert.Equal(SessionState.Recorded, finished.State);
         Assert.Null(finished.Error);
-        Assert.Equal(atPause.TotalSeconds, finished.Duration.TotalSeconds, 0.08);
+        Assert.Equal(At(500), atPause);
+        Assert.Equal(atPause, finished.Duration);
         var files = _store.GetFiles(started.Id);
         foreach (var path in new[] { files.MicrophoneAudio, files.SystemAudio })
         {
@@ -232,16 +240,16 @@ public sealed class RecorderPauseTests : IDisposable
     [Fact]
     public async Task Stop_WhilePaused_ClosesTheScreenSegmentThatTheResumeDidNotStart()
     {
-        var capture = new SyntheticCapture(new SyntheticCaptureOptions(Screen: true));
-        var recorder = new Recorder(capture, _store, TimeProvider.System, RecorderSettings.Default);
+        var capture = NewCapture(new SyntheticCaptureOptions(Screen: true));
+        var recorder = NewRecorder(capture);
 
         await recorder.StartAsync(new RecordingOptions(Screen: true), Ct);
-        await Task.Delay(300, Ct);
+        _clock.Advance(At(300), capture);
         await recorder.PauseAsync(Ct);
         var finished = await recorder.StopAsync(Ct);
 
         var segment = Assert.Single(finished.ScreenSegments);
-        Assert.InRange(segment.Duration, TimeSpan.FromMilliseconds(250), TimeSpan.FromMilliseconds(300) + Slack);
+        Assert.Equal(At(300), segment.Duration);
         Assert.True(Assert.Single(capture.CreatedScreenRecorders).IsDisposed);
     }
 
@@ -275,47 +283,34 @@ public sealed class RecorderPauseTests : IDisposable
     [Fact]
     public async Task ManyPauses_KeepTheFilesAndTheTimelineInStep()
     {
-        var capture = new SyntheticCapture();
-        var settings = RecorderSettings.Default;
-        var recorder = new Recorder(capture, _store, TimeProvider.System, settings);
-        var wall = Stopwatch.StartNew();
-        var paused = TimeSpan.Zero;
+        var capture = NewCapture();
+        var recorder = NewRecorder(capture);
 
         var started = await recorder.StartAsync(new RecordingOptions(), Ct);
         for (var i = 0; i < 6; i++)
         {
-            await Task.Delay(80, Ct);
-            var pauseAt = wall.Elapsed;
+            _clock.Advance(At(80), capture);
             await recorder.PauseAsync(Ct);
-            await Task.Delay(40, Ct);
+            _clock.Advance(At(40), capture);
             await recorder.ResumeAsync(Ct);
-            paused += wall.Elapsed - pauseAt;
         }
 
-        await Task.Delay(80, Ct);
+        _clock.Advance(At(80), capture);
         var elapsed = recorder.Elapsed;
         var finished = await recorder.StopAsync(Ct);
-        var total = wall.Elapsed;
 
-        // The files hold the wall time without the pauses (each pause call is measured from its call to the end of the resume, so
-        // the handshakes are inside "paused"): every one of the twelve switches may be up to one writer period late, and the
-        // measuring itself has a few milliseconds of slack per step.
-        var expected = total - paused;
-        var tolerance = TimeSpan.FromTicks(settings.WriterPeriod.Ticks * 12) + Slack;
-        Assert.InRange(finished.Duration, expected - tolerance, expected + tolerance);
-        Assert.Equal(elapsed.TotalSeconds, finished.Duration.TotalSeconds, 0.15);
+        // Seven stretches of 80 ms were recorded, six of 40 ms were paused: the timeline and the files leave the pauses out.
+        Assert.Equal(At(560), elapsed);
+        Assert.Equal(At(560), finished.Duration);
         var files = _store.GetFiles(started.Id);
 
-        // Each file is as long as the frames its own source thread delivered while recording; a thread that is late at a
-        // switch (a loaded machine) hands its backlog to the other side of it, so the two files may differ by a little per
-        // pause/resume pair (the first CI failure: 44 ms over twelve switches). One writer period per pair is the bound;
-        // a track that kept the paused time would be 240 ms longer than the other.
+        // Each file ends where its own source delivered the last frame before each switch, so on the sample clock the tracks
+        // differ by resampler rounding only (a few samples per switch); a track that kept the paused time would be 240 ms
+        // longer than the other.
         var micLength = AudioLength(files.MicrophoneAudio).TotalSeconds;
         var systemLength = AudioLength(files.SystemAudio).TotalSeconds;
-        var inStep = settings.WriterPeriod.TotalSeconds * 6;
-        Assert.True(
-            Math.Abs(micLength - systemLength) <= inStep,
-            $"Microphone {micLength:F4} s and system {systemLength:F4} s differ by more than {inStep:F3} s (duration {finished.Duration.TotalSeconds:F4} s).");
+        Assert.Equal(0.560, micLength, 0.02);
+        Assert.Equal(0.560, systemLength, 0.02);
         Assert.Equal(0, recorder.Stats.DroppedFrames);
     }
 
@@ -424,14 +419,15 @@ public sealed class RecorderPauseTests : IDisposable
     public async Task ThePausedTimeline_IsExactlyWhatAFaultedTrackIsPaddedTo()
     {
         // The microphone dies after 0.2 s: its file is filled with silence up to the timeline, which stops at the pause.
-        var capture = new SyntheticCapture(new SyntheticCaptureOptions(MicrophoneFaultAfter: TimeSpan.FromMilliseconds(200)));
-        var recorder = new Recorder(capture, _store, TimeProvider.System, RecorderSettings.Default);
+        var fault = At(200);
+        var capture = NewCapture(new SyntheticCaptureOptions(MicrophoneFaultAfter: fault));
+        var recorder = NewRecorder(capture);
 
         var started = await recorder.StartAsync(new RecordingOptions(), Ct);
-        await Task.Delay(700, Ct);
+        _clock.Advance(At(700), capture, microphoneFaultAfter: fault);
         await recorder.PauseAsync(Ct);
         var frozen = recorder.Elapsed;
-        await Task.Delay(300, Ct);
+        _clock.Advance(At(300), capture, microphoneFaultAfter: fault);
         Assert.Equal(frozen, recorder.Elapsed);
         var finished = await recorder.StopAsync(Ct);
 
@@ -439,28 +435,27 @@ public sealed class RecorderPauseTests : IDisposable
         var mic = AudioLength(files.MicrophoneAudio).TotalSeconds;
         var system = AudioLength(files.SystemAudio).TotalSeconds;
 
-        // The faulted microphone is padded to the frozen timeline (wall clock), the healthy system track holds the frames its
-        // source thread delivered: on a loaded machine that thread is a few milliseconds late (the first CI failure: 14 ms), so
-        // the system file may fall short of the microphone's, never exceed it by more than a sample rounding. The microphone
-        // alone proves the padding: without it the file would end at 0.2 s.
-        Assert.True(
-            mic - system >= -0.01 && mic - system <= 0.1,
-            $"Microphone {mic:F4} s, system {system:F4} s, frozen timeline {frozen.TotalSeconds:F4} s.");
-        Assert.Equal(frozen.TotalSeconds, mic, 0.06);
-        Assert.Equal(frozen.TotalSeconds, finished.Duration.TotalSeconds, 0.06);
+        // The faulted microphone is padded to the frozen timeline, the healthy system track holds the frames its source
+        // delivered before the pause: both end at the pause. The microphone alone proves the padding: without it the file
+        // would end at 0.2 s.
+        Assert.Equal(At(700), frozen);
+        Assert.Equal(frozen.TotalSeconds, system, 0.02);
+        Assert.Equal(frozen.TotalSeconds, mic, 0.02);
+        Assert.Equal(frozen, finished.Duration);
     }
 
     [Fact]
     public async Task AScreenSegmentThatCannotBeFinalizedAtThePause_IsFailedAtThePauseMark_AndTheResumeStartsANewOne()
     {
         var screen = new StubbornScreenRecorder();
-        var capture = new ScreenCapture(new SyntheticCapture(new SyntheticCaptureOptions(Screen: true)), screen);
-        var recorder = new Recorder(capture, _store, TimeProvider.System, RecorderSettings.Default);
+        var inner = NewCapture(new SyntheticCaptureOptions(Screen: true));
+        var capture = new ScreenCapture(inner, screen);
+        var recorder = NewRecorder(capture);
         var warnings = new List<RecorderWarning>();
         recorder.Warning += warnings.Add;
 
         await recorder.StartAsync(new RecordingOptions(Screen: true), Ct);
-        await Task.Delay(300, Ct);
+        _clock.Advance(At(300), inner);
         screen.FailNextStop = true;
         await recorder.PauseAsync(Ct);
         var pauseMark = recorder.Elapsed;
@@ -469,17 +464,17 @@ public sealed class RecorderPauseTests : IDisposable
         Assert.False(recorder.IsScreenRecording); // the segment is marked failed
         Assert.Contains(warnings, w => w.Code == RecorderWarningCode.ScreenStopped);
 
-        await Task.Delay(500, Ct);
+        _clock.Advance(At(500), inner);
         await recorder.ResumeAsync(Ct);
         Assert.True(recorder.IsScreenRecording); // the failed one was finished, a new one runs
         Assert.Equal(2, screen.Starts);
-        await Task.Delay(200, Ct);
+        _clock.Advance(At(200), inner);
         var finished = await recorder.StopAsync(Ct);
 
         Assert.Equal(2, finished.ScreenSegments.Count);
         var (first, second) = (finished.ScreenSegments[0], finished.ScreenSegments[1]);
-        Assert.InRange(first.Offset + first.Duration, pauseMark - Slack, pauseMark + Slack); // not the 500 ms later it was finished at
-        Assert.InRange(second.Offset, pauseMark - Slack, pauseMark + Slack);
+        Assert.Equal(pauseMark, first.Offset + first.Duration); // not the 500 ms later it was finished at
+        Assert.Equal(pauseMark, second.Offset);
     }
 
     private sealed class ScreenCapture(SyntheticCapture inner, IScreenRecorder screen) : ICapture

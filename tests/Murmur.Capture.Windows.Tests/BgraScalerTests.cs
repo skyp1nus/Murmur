@@ -1,6 +1,7 @@
 using System.Buffers.Binary;
 using System.Diagnostics;
 using Murmur.Capture.Windows.Screen;
+using Allocations = Murmur.Core.Tests.Fakes.Allocations;
 
 namespace Murmur.Capture.Windows.Tests;
 
@@ -205,14 +206,16 @@ public sealed class BgraScalerTests(ITestOutputHelper output)
         scaled.Convert(source, 1024 * 4, destination, 960 * 4);
         direct.Convert(source, 1024 * 4, destination, 960 * 4);
 
-        var before = GC.GetAllocatedBytesForCurrentThread();
-        for (var i = 0; i < 3; i++)
-        {
-            scaled.Convert(source, 1024 * 4, destination, 960 * 4);
-            direct.Convert(source, 1024 * 4, destination, 960 * 4);
-        }
-
-        Assert.Equal(0, GC.GetAllocatedBytesForCurrentThread() - before);
+        Assert.Equal(
+            0,
+            Allocations.SteadyState(() =>
+            {
+                for (var i = 0; i < 3; i++)
+                {
+                    scaled.Convert(source, 1024 * 4, destination, 960 * 4);
+                    direct.Convert(source, 1024 * 4, destination, 960 * 4);
+                }
+            }));
     }
 
     [Fact]

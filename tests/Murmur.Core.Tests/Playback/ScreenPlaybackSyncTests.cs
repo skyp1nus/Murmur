@@ -291,10 +291,7 @@ public sealed class ScreenPlaybackSyncTests
             }
         }
 
-        Run();
-        var before = GC.GetAllocatedBytesForCurrentThread();
-        Run();
-        Assert.Equal(0, GC.GetAllocatedBytesForCurrentThread() - before);
+        Assert.Equal(0, Allocations.SteadyState(Run));
     }
 
     [Fact]

@@ -1,4 +1,5 @@
 using Murmur.Capture.Windows.Screen;
+using Allocations = Murmur.Core.Tests.Fakes.Allocations;
 
 namespace Murmur.Capture.Windows.Tests;
 
@@ -118,10 +119,13 @@ public sealed class PlaceholderFrameTests
             }
         }
 
-        Run();
-        var before = GC.GetAllocatedBytesForCurrentThread();
-        Run();
-        Assert.Equal(0, GC.GetAllocatedBytesForCurrentThread() - before);
-        Assert.Equal(2 * 250, hits); // two runs; i % 4 == 1: nothing written, writer healthy
+        Assert.Equal(
+            0,
+            Allocations.SteadyState(() =>
+            {
+                hits = 0;
+                Run();
+            }));
+        Assert.Equal(250, hits); // i % 4 == 1: nothing written, writer healthy
     }
 }

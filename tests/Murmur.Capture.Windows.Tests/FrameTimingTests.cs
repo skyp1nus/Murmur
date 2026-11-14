@@ -1,4 +1,5 @@
 using Murmur.Capture.Windows.Screen;
+using Allocations = Murmur.Core.Tests.Fakes.Allocations;
 
 namespace Murmur.Capture.Windows.Tests;
 
@@ -396,9 +397,14 @@ public sealed class FrameTimingTests
         }
 
         Run(0);
-        var before = GC.GetAllocatedBytesForCurrentThread();
-        Run(600);
-        Assert.Equal(0, GC.GetAllocatedBytesForCurrentThread() - before);
+        var next = 600;
+        Assert.Equal(
+            0,
+            Allocations.SteadyState(() =>
+            {
+                Run(next);
+                next += 600;
+            }));
         Assert.True(sum > 0);
     }
 }

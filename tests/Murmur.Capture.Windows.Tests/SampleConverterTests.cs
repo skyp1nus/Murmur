@@ -1,6 +1,7 @@
 using System.Buffers.Binary;
 using System.Runtime.InteropServices;
 using Murmur.Capture.Windows.Audio;
+using Allocations = Murmur.Core.Tests.Fakes.Allocations;
 
 namespace Murmur.Capture.Windows.Tests;
 
@@ -127,12 +128,14 @@ public sealed class SampleConverterTests
         var dst = new float[Samples];
         SampleConverter.ToFloat(src, type, dst); // warm up (JIT, statics)
 
-        var before = GC.GetAllocatedBytesForCurrentThread();
-        for (var i = 0; i < 100; i++)
-        {
-            SampleConverter.ToFloat(src, type, dst);
-        }
-
-        Assert.Equal(0, GC.GetAllocatedBytesForCurrentThread() - before);
+        Assert.Equal(
+            0,
+            Allocations.SteadyState(() =>
+            {
+                for (var i = 0; i < 100; i++)
+                {
+                    SampleConverter.ToFloat(src, type, dst);
+                }
+            }));
     }
 }

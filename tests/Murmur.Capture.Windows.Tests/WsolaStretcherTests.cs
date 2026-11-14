@@ -1,4 +1,5 @@
 using Murmur.Capture.Windows.Playback;
+using Allocations = Murmur.Core.Tests.Fakes.Allocations;
 
 namespace Murmur.Capture.Windows.Tests;
 
@@ -375,9 +376,7 @@ public sealed class WsolaStretcherTests
             Exercise(stretcher, buffer);
         }
 
-        var before = GC.GetAllocatedBytesForCurrentThread();
-        Exercise(stretcher, buffer);
-        Assert.Equal(0, GC.GetAllocatedBytesForCurrentThread() - before);
+        Assert.Equal(0, Allocations.SteadyState(() => Exercise(stretcher, buffer)));
     }
 
     private static void Exercise(WsolaStretcher stretcher, short[] buffer)

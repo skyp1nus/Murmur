@@ -11,8 +11,9 @@ namespace Murmur.Core.Tests.Recording;
 /// The recorder places a screen segment on the session timeline by the moment it calls the screen recorder:
 /// <see cref="ScreenSegment.Offset"/> is the session time at the start call and <see cref="ScreenSegment.Duration"/>
 /// the time from the start call to the stop call, however long starting or stopping takes (the screen recorder's own
-/// start-up and finalize time must neither shift nor stretch the segment). The slow screen recorder does not sleep: it
-/// jumps the recorder's clock, which makes the check exact.
+/// start-up and finalize time must neither shift nor stretch the segment). The recorder runs on a clock that only moves
+/// when the test (or the slow screen recorder, or a slow audio stop) jumps it, so the check is exact: no scheduling noise
+/// of a loaded machine can sit between the clock reads of the recorder and of the fake.
 /// </summary>
 [Collection(RealtimeCollection.Name)]
 public sealed class RecorderScreenSegmentClockTests : IDisposable
@@ -37,11 +38,11 @@ public sealed class RecorderScreenSegmentClockTests : IDisposable
         var recorder = new Recorder(capture, _store, clock, RecorderSettings.Default);
 
         await recorder.StartAsync(new RecordingOptions(Screen: true), Ct);
-        await Task.Delay(150, Ct);
+        clock.Jump(TimeSpan.FromMilliseconds(150));
         await recorder.SetScreenEnabledAsync(false, Ct);
-        await Task.Delay(150, Ct);
+        clock.Jump(TimeSpan.FromMilliseconds(150));
         await recorder.SetScreenEnabledAsync(true, Ct);
-        await Task.Delay(150, Ct);
+        clock.Jump(TimeSpan.FromMilliseconds(150));
         var finished = await recorder.StopAsync(Ct);
 
         var screen = Assert.Single(capture.Recorders);
@@ -52,14 +53,14 @@ public sealed class RecorderScreenSegmentClockTests : IDisposable
         var (first, second) = (finished.ScreenSegments[0], finished.ScreenSegments[1]);
 
         // Duration = start call to stop call (it includes the slow start, not the slow stop).
-        AssertNear(clock.Between(calls.Starts[0], calls.Stops[0]), first.Duration);
-        AssertNear(clock.Between(calls.Starts[1], calls.Stops[1]), second.Duration);
+        AssertExact(clock.Between(calls.Starts[0], calls.Stops[0]), first.Duration);
+        AssertExact(clock.Between(calls.Starts[1], calls.Stops[1]), second.Duration);
         Assert.True(first.Duration >= SlowStart + TimeSpan.FromMilliseconds(100), $"first {first}");
 
         // Offsets are the session times of the start calls: the distance between them is exactly the distance
         // between the calls (the audio start cancels out), and the first one is the audio start plus a short wait.
-        AssertNear(clock.Between(calls.Starts[0], calls.Starts[1]), second.Offset - first.Offset);
-        Assert.InRange(first.Offset, TimeSpan.Zero, TimeSpan.FromSeconds(1));
+        AssertExact(clock.Between(calls.Starts[0], calls.Starts[1]), second.Offset - first.Offset);
+        Assert.Equal(TimeSpan.Zero, first.Offset);
         Assert.True(second.Offset >= first.Offset + first.Duration + SlowStop, $"first {first}, second {second}");
     }
 
@@ -73,13 +74,13 @@ public sealed class RecorderScreenSegmentClockTests : IDisposable
         await recorder.StartAsync(new RecordingOptions(Screen: true), Ct);
         for (var i = 0; i < 3; i++)
         {
-            await Task.Delay(60, Ct);
+            clock.Jump(TimeSpan.FromMilliseconds(60));
             await recorder.SetScreenEnabledAsync(false, Ct);
-            await Task.Delay(60, Ct);
+            clock.Jump(TimeSpan.FromMilliseconds(60));
             await recorder.SetScreenEnabledAsync(true, Ct);
         }
 
-        await Task.Delay(60, Ct);
+        clock.Jump(TimeSpan.FromMilliseconds(60));
         var finished = await recorder.StopAsync(Ct);
 
         var calls = Assert.Single(capture.Recorders).Calls;
@@ -89,7 +90,7 @@ public sealed class RecorderScreenSegmentClockTests : IDisposable
         Assert.Equal([0, 1, 2, 3], finished.ScreenSegments.Select(s => s.Index));
         for (var i = 0; i < 4; i++)
         {
-            AssertNear(clock.Between(calls.Starts[i], calls.Stops[i]), finished.ScreenSegments[i].Duration);
+            AssertExact(clock.Between(calls.Starts[i], calls.Stops[i]), finished.ScreenSegments[i].Duration);
             Assert.True(finished.ScreenSegments[i].Duration >= SlowStart, $"segment {i}: {finished.ScreenSegments[i]}");
             if (i > 0)
             {
@@ -107,12 +108,12 @@ public sealed class RecorderScreenSegmentClockTests : IDisposable
         var recorder = new Recorder(capture, _store, clock, RecorderSettings.Default);
 
         await recorder.StartAsync(new RecordingOptions(Screen: true), Ct);
-        await Task.Delay(200, Ct);
+        clock.Jump(TimeSpan.FromMilliseconds(200));
         var finished = await recorder.StopAsync(Ct);
 
         var calls = Assert.Single(capture.Recorders).Calls;
         var segment = Assert.Single(finished.ScreenSegments);
-        AssertNear(clock.Between(calls.Starts[0], calls.Stops[0]), segment.Duration);
+        AssertExact(clock.Between(calls.Starts[0], calls.Stops[0]), segment.Duration);
         Assert.True(segment.Duration >= SlowStart, $"segment {segment}");
         Assert.True(segment.Duration < SlowStart + SlowStop, $"segment {segment}");
         Assert.True(Assert.Single(capture.Recorders).IsDisposed);
@@ -130,44 +131,25 @@ public sealed class RecorderScreenSegmentClockTests : IDisposable
         var recorder = new Recorder(capture, _store, clock, RecorderSettings.Default);
 
         await recorder.StartAsync(new RecordingOptions(Screen: true), Ct);
-        await Task.Delay(150, Ct);
+        clock.Jump(TimeSpan.FromMilliseconds(150));
         var finished = await recorder.StopAsync(Ct);
 
         var calls = Assert.Single(capture.Recorders).Calls;
         var screenStop = Assert.Single(calls.Stops);
         Assert.NotEmpty(capture.AudioStops);
-        // The screen stop is called before the audio stop is queued, so it normally precedes every audio Stop(); the
-        // margin is only scheduling noise, never the time the audio needs (the old order stopped the screen after the
-        // audio: 3+ s).
+        // The screen stop is called before the audio stop is queued, so it precedes every audio Stop() (the old order
+        // stopped the screen after the audio: 3+ s later).
         Assert.All(capture.AudioStops, audioStop => Assert.True(
-            clock.Between(audioStop, screenStop) < TimeSpan.FromSeconds(1),
+            clock.Between(audioStop, screenStop) <= TimeSpan.Zero,
             $"the screen stop came {clock.Between(audioStop, screenStop)} after an audio source had stopped"));
 
         var segment = Assert.Single(finished.ScreenSegments);
-        AssertNear(clock.Between(calls.Starts[0], screenStop), segment.Duration);
+        AssertExact(clock.Between(calls.Starts[0], screenStop), segment.Duration);
         Assert.True(segment.Duration < audioStopTime, $"segment {segment} includes the audio stop time");
     }
 
-    /// <summary>
-    /// The recorder reads the clock a few microseconds before the call (the screen recorder notes it on entry): equal up
-    /// to scheduling noise, nowhere near the 450 ms / 700 ms the slow calls take.
-    /// </summary>
-    private static void AssertNear(TimeSpan expected, TimeSpan actual) =>
-        Assert.InRange(actual, expected - TimeSpan.FromMilliseconds(100), expected + TimeSpan.FromMilliseconds(100));
-
-    /// <summary>A clock that runs with the wall clock and can be moved forward at once (a slow call without waiting).</summary>
-    private sealed class JumpingTimeProvider : TimeProvider
-    {
-        private long _jumpTicks;
-
-        public override long TimestampFrequency => System.TimestampFrequency;
-
-        public override long GetTimestamp() => System.GetTimestamp() + Volatile.Read(ref _jumpTicks);
-
-        public void Jump(TimeSpan by) => Interlocked.Add(ref _jumpTicks, (long)(by.TotalSeconds * TimestampFrequency));
-
-        public TimeSpan Between(long from, long to) => GetElapsedTime(from, to);
-    }
+    /// <summary>The recorder reads the clock just before the call and the screen recorder notes it on entry: the same value.</summary>
+    private static void AssertExact(TimeSpan expected, TimeSpan actual) => Assert.Equal(expected, actual);
 
     private sealed class SlowScreenCapture(SyntheticCapture inner, JumpingTimeProvider clock, TimeSpan startTime, TimeSpan stopTime, TimeSpan audioStopTime = default) : ICapture
     {

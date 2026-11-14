@@ -12,6 +12,7 @@ namespace Murmur.App.Tests.Design;
 /// PNGs go to <c>MURMUR_SIZEFIT_DIR</c> (default: the temp folder, murmur-sizefit-<process id>).
 /// </summary>
 [Trait("Category", "Slow")]
+[Collection(ExclusiveUiCollection.Name)]
 public sealed class WindowSizeFitTests
 {
     private static readonly string[] Boards =
