@@ -17,6 +17,7 @@ public sealed partial class SqliteStorage : IStorage, IDisposable
 
     private readonly StoragePaths _paths;
     private readonly Func<string?>? _recordingsFolder;
+    private readonly RecordingsFolderProbe _folderProbe;
     private readonly string _connectionString;
     private readonly object _initLock = new();
     private readonly object _folderLock = new();
@@ -39,14 +40,22 @@ public sealed partial class SqliteStorage : IStorage, IDisposable
     /// Asked at every <see cref="CreateSessionAsync"/> for the folder that receives the new session folder (the
     /// <c>AppSettings.RecordingsDirectory</c> setting). <c>null</c> provider or a <c>null</c>/blank result = the default
     /// <c>&lt;data root&gt;/Recordings</c>. Existing sessions never move when the setting changes. An unusable value
-    /// (not an absolute path, cannot be created or written) falls back to the default and is reported through
-    /// <see cref="RecordingsFolderFallback"/>.
+    /// (not an absolute path, cannot be created or written, or does not answer within about two seconds, as an unreachable
+    /// network share) falls back to the default and is reported through <see cref="RecordingsFolderFallback"/>.
     /// </param>
     public SqliteStorage(StoragePaths paths, Func<string?>? recordingsFolder)
+        : this(paths, recordingsFolder, RecordingsFolderProbe.CreateDefault())
+    {
+    }
+
+    /// <summary>Test seam: the folder probe (blocking file-system work, clock and timeout) is supplied by the caller.</summary>
+    internal SqliteStorage(StoragePaths paths, Func<string?>? recordingsFolder, RecordingsFolderProbe folderProbe)
     {
         ArgumentNullException.ThrowIfNull(paths);
+        ArgumentNullException.ThrowIfNull(folderProbe);
         _paths = paths;
         _recordingsFolder = recordingsFolder;
+        _folderProbe = folderProbe;
         _connectionString = new SqliteConnectionStringBuilder
         {
             DataSource = paths.DatabasePath,
