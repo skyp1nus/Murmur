@@ -47,6 +47,7 @@ internal sealed class CompositionRoot : IDisposable
     private ModelManager? _modelManager;
     private AiAwareModelManager? _aiModels;
     private AiReindexScheduler? _reindex;
+    private ChunkRefresher? _chunkRefresher;
     private IAccelerationProbe? _acceleration;
     private CancellationTokenSource? _recoveryRetry;
     private IGlobalHotkeys? _hotkeys;
@@ -184,6 +185,16 @@ internal sealed class CompositionRoot : IDisposable
             };
         }
 
+        // A fixed word (#58) leaves the embedded chunks of its session with the old wording: they are refreshed lazily, ten seconds after the last
+        // fix, never while recording, and only the chunks whose text changed are embedded again. A failure is a warning; FTS stays right meanwhile.
+        if (_chunkRefresher is null)
+        {
+            var refresher = _chunkRefresher = new ChunkRefresher(llm, storage, TimeProvider.System, () => activity.IsRecording, storage.GetChunksAsync, log);
+            activity.RecordingStopped += refresher.NotifyRecordingStopped;
+        }
+
+        var chunkRefresher = _chunkRefresher;
+
         // Start-up work runs before the library loads; the shell awaits it off the UI thread.
         var recovery = new RecoveryService(storage);
         return new AppServices(
@@ -238,7 +249,13 @@ internal sealed class CompositionRoot : IDisposable
             BookmarkStore: storage,
             Vocabulary: storage,
             FloatingWindowStyle: CreateFloatingWindowStyle(),
-            Log: log);
+            Log: log,
+            TranscriptFixed: session =>
+            {
+                // The speaker-name views of its chunks were built from the old wording; the refresher then brings the stored chunks up to date.
+                assistant.InvalidateSession(session);
+                chunkRefresher.Notify(session);
+            });
     }
 
     public void Dispose()
@@ -255,6 +272,7 @@ internal sealed class CompositionRoot : IDisposable
         _heapTrimmer?.Dispose();
         _marks?.Dispose();
         _reindex?.Dispose();
+        _chunkRefresher?.Dispose();
         _activityFeed?.Dispose();
         _imports?.Dispose();
         _processor?.Dispose();

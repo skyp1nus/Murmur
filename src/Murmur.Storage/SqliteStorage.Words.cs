@@ -9,7 +9,7 @@ public sealed partial class SqliteStorage
     /// <summary>
     /// Replaces the text of one word (trimmed) and sets its confidence to unknown, rewrites the segment's text with the new word in the same
     /// place, and through the update trigger its FTS5 row, in one transaction. The summary, the chapters, the embedded chunks and every other
-    /// table are left alone (the chunks keep the old wording until the session is indexed again). An unknown session or an index out of range
+    /// table are left alone (the chunks keep the old wording until the session is indexed again or the host refreshes them, see ChunkRefresher). An unknown session or an index out of range
     /// throws <see cref="ArgumentOutOfRangeException"/>, a blank text <see cref="ArgumentException"/>.
     /// </summary>
     public ValueTask ReplaceWordAsync(SessionId session, int segmentIndex, int wordIndex, string text, CancellationToken cancellationToken)

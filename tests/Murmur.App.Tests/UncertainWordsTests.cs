@@ -54,6 +54,10 @@ public sealed class UncertainWordsTests : IDisposable
         new(_fixture.Record, _fixture.Files, _fixture.Transcripts, _fixture.Player, _fixture.Processing, _fixture.Time, action => action(),
             services: new SessionServices(Vocabulary: vocabulary ? _vocabulary : null, WordSuggester: suggester ? _suggester : null));
 
+    private SessionViewModel CreateTold(List<SessionId> told) =>
+        new(_fixture.Record, _fixture.Files, _fixture.Transcripts, _fixture.Player, _fixture.Processing, _fixture.Time, action => action(),
+            services: new SessionServices(Vocabulary: _vocabulary, WordSuggester: _suggester, TranscriptFixed: told.Add));
+
     private async Task<SessionViewModel> LoadAsync(bool vocabulary = true, bool suggester = true)
     {
         UseTranscript();
@@ -247,6 +251,37 @@ public sealed class UncertainWordsTests : IDisposable
         Assert.Null(vm.DidYouMean);
         Assert.Equal([1], vm.SearchHits);
         Assert.Null(vm.ActionMessage);
+    }
+
+    [Fact]
+    public async Task AStoredFix_TellsTheHostWhichSessionChanged_SoItCanRefreshItsChunksLater()
+    {
+        UseTranscript();
+        var told = new List<SessionId>();
+        var vm = CreateTold(told);
+        await vm.LoadAsync();
+        vm.Segments[1].OpenWordCommand.Execute(5);
+
+        vm.DidYouMean!.Choices[^1].PickCommand.Execute(null);
+        await WaitForAsync(() => _vocabulary.Adds.Count > 0);
+
+        Assert.Equal([_fixture.Record.Id], told);
+    }
+
+    [Fact]
+    public async Task AFixThatCannotBeStored_TellsNobody()
+    {
+        UseTranscript();
+        var told = new List<SessionId>();
+        var vm = CreateTold(told);
+        await vm.LoadAsync();
+        _fixture.Transcripts.ReplaceFailure = new IOException("disk full");
+        vm.Segments[1].OpenWordCommand.Execute(5);
+
+        vm.DidYouMean!.Choices[0].PickCommand.Execute(null);
+        await WaitForAsync(() => vm.ActionMessage is not null);
+
+        Assert.Empty(told);
     }
 
     [Fact]

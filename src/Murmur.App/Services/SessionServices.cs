@@ -22,6 +22,7 @@ namespace Murmur.App.Services;
 /// <param name="WordSuggester">Asks the local model for alternatives to an uncertain word; <c>null</c> = only the vocabulary's.</param>
 /// <param name="CreatePlayer">Makes a new audio player; used to bring the playback back when deleting the recording failed (the first one was released for the delete). <c>null</c> = the playback stays closed then.</param>
 /// <param name="Log">Records why a summary or the chapters failed; <c>null</c> = nowhere.</param>
+/// <param name="TranscriptFixed">Told the session after a fixed word was stored (#95), so the host can refresh its embedded chunks later; <c>null</c> = nobody is told.</param>
 public sealed record SessionServices(
     ISessionSummarizer? Summarizer = null,
     ISummaryStore? Summaries = null,
@@ -35,4 +36,5 @@ public sealed record SessionServices(
     IBookmarkStore? Bookmarks = null,
     IVocabularyStore? Vocabulary = null,
     IWordSuggester? WordSuggester = null,
-    IAppLog? Log = null);
+    IAppLog? Log = null,
+    Action<SessionId>? TranscriptFixed = null);
