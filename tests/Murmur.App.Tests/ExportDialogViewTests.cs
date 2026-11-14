@@ -547,6 +547,57 @@ public sealed class ExportDialogViewTests : IDisposable
 
     [Fact]
     [Trait("Category", "Slow")]
+    public async Task TheEmptyRangeLine_IsSetInInter_InSrtAndPlainText_WhileTheFileTextIsMono()
+    {
+        var shell = await OpenShellAsync();
+
+        var (file, empty) = await Session.Dispatch(
+            () =>
+            {
+                var window = UiHarness.Show(shell);
+                shell.Session!.UpdateCurrentChapter(S(800));
+                var actions = window.GetVisualDescendants().OfType<SessionActionsView>().Single();
+                Click(window, ExportButton(actions));
+                var dialog = actions.OpenDialog!;
+                var viewModel = (ExportDialogViewModel)dialog.DataContext!;
+                var text = dialog.GetVisualDescendants().OfType<SelectableTextBlock>().Single(t => t.Name == "PreviewText");
+
+                void Settle()
+                {
+                    for (var i = 0; i < 100 && !viewModel.PreviewTask.IsCompleted; i++)
+                    {
+                        Thread.Sleep(20);
+                        UiHarness.Pump(1);
+                    }
+
+                    UiHarness.Pump(6);
+                }
+
+                var faces = new List<(string Format, string Face)>();
+                var emptyFaces = new List<(string Format, string Face)>();
+                foreach (var name in new[] { "FormatPlainText", "FormatSrt" })
+                {
+                    dialog.GetVisualDescendants().OfType<RadioButton>().Single(r => r.Name == "RangeWhole").IsChecked = true;
+                    dialog.GetVisualDescendants().OfType<RadioButton>().Single(r => r.Name == name).IsChecked = true;
+                    Settle();
+                    faces.Add((name, text.FontFamily.Name));
+                    dialog.GetVisualDescendants().OfType<RadioButton>().Single(r => r.Name == "RangeChapter").IsChecked = true;
+                    Settle();
+                    Assert.Equal("Nothing was said in this range.", viewModel.Preview);
+                    emptyFaces.Add((name, text.FontFamily.Name));
+                }
+
+                window.Close();
+                return (faces, emptyFaces);
+            },
+            Ct);
+
+        Assert.All(file, f => Assert.Contains("Geist", f.Face, StringComparison.Ordinal));
+        Assert.All(empty, f => Assert.DoesNotContain("Geist", f.Face, StringComparison.Ordinal));
+    }
+
+    [Fact]
+    [Trait("Category", "Slow")]
     public async Task Tab_CyclesInsideTheDialog_AndNeverLeavesIt()
     {
         var shell = await OpenShellAsync();

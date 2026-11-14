@@ -32,6 +32,7 @@ public sealed partial class ExportDialogViewModel : ObservableObject, IDisposabl
     private readonly TimeSpan _debounce;
     private CancellationTokenSource? _previewCts;
     private bool _disposed;
+    private bool _previewIsMessage;
 
     private bool _summaryOn = true;
     private bool _actionItemsOn = true;
@@ -216,7 +217,8 @@ public sealed partial class ExportDialogViewModel : ObservableObject, IDisposabl
     public string SaveLabel => UiText.Format(Strings.Export_SaveAs, TranscriptExport.Extension(Format));
 
     /// <summary>The preview is set in Geist Mono (SRT, plain text); Markdown and Word use the text face.</summary>
-    public bool PreviewIsMono => Format is not (ExportFormat.Markdown or ExportFormat.Docx);
+    /// <summary>A line of the dialog's own (the empty range, a failed build) is not file content: it stays in the text face in every format.</summary>
+    public bool PreviewIsMono => Format is not (ExportFormat.Markdown or ExportFormat.Docx) && !_previewIsMessage;
 
     /// <summary>A .docx cannot be put on the clipboard as text.</summary>
     public bool CanCopy => Clipboard is not null && Format != ExportFormat.Docx && !IsBusy && HasSpeech;
@@ -307,6 +309,7 @@ public sealed partial class ExportDialogViewModel : ObservableObject, IDisposabl
         var options = Options;
         var range = Range;
         string text;
+        var message = false;
         try
         {
             if (!immediately && _debounce > TimeSpan.Zero)
@@ -314,7 +317,7 @@ public sealed partial class ExportDialogViewModel : ObservableObject, IDisposabl
                 await Task.Delay(_debounce, token).ConfigureAwait(true);
             }
 
-            text = await Task.Run(() => PreviewOf(format, options, range, token), token).ConfigureAwait(true);
+            (text, message) = await Task.Run(() => PreviewOf(format, options, range, token), token).ConfigureAwait(true);
         }
         catch (OperationCanceledException)
         {
@@ -325,24 +328,27 @@ public sealed partial class ExportDialogViewModel : ObservableObject, IDisposabl
         {
             // A formatter that fails must not leave the task faulted and the preview stale: the dialog says so where the text would be.
             text = Strings.Export_PreviewFailed;
+            message = true;
         }
 
         if (!token.IsCancellationRequested && !_disposed)
         {
+            _previewIsMessage = message;
             Preview = text;
+            OnPropertyChanged(nameof(PreviewIsMono));
         }
     }
 
     /// <summary>The preview: the export built up to <see cref="MaxPreviewChars"/> characters, or the empty-state line when the range holds no speech.</summary>
-    private string PreviewOf(ExportFormat format, ExportOptions options, ExportRange? range, CancellationToken cancellationToken)
+    private (string Text, bool IsMessage) PreviewOf(ExportFormat format, ExportOptions options, ExportRange? range, CancellationToken cancellationToken)
     {
         if (range is { } part && !_transcript.Segments.Any(segment => Overlaps(part, segment)))
         {
-            return Strings.Export_PreviewEmpty;
+            return (Strings.Export_PreviewEmpty, true);
         }
 
         // The formatter stops building at the budget: a three-hour transcript is never formatted whole for the preview.
-        return TranscriptExport.Format(format, _record with { Title = Title }, _transcript, _summary, _labels, options, range, MaxPreviewChars, cancellationToken);
+        return (TranscriptExport.Format(format, _record with { Title = Title }, _transcript, _summary, _labels, options, range, MaxPreviewChars, cancellationToken), false);
     }
 
     /// <summary>The same test the formatter makes: the segment overlaps <c>[Start, End)</c>, a segment without length counts as a point.</summary>

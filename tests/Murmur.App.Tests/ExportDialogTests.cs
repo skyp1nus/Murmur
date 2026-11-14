@@ -155,6 +155,30 @@ public sealed class ExportDialogTests : IDisposable
     }
 
     [Fact]
+    public async Task TheEmptyRangeLine_IsNeverMono_ButTheFileTextOfTheSameFormatIs()
+    {
+        var quiet = new ExportChapterRange("Silence", TimeSpan.FromSeconds(2000), TimeSpan.FromSeconds(3000));
+        using var vm = await Settled(Create(quiet));
+
+        foreach (var format in new[] { ExportFormat.PlainText, ExportFormat.Srt, ExportFormat.WebVtt })
+        {
+            vm.IsWholeRange = true;
+            vm.Format = format;
+            await vm.PreviewTask;
+            Assert.True(vm.PreviewIsMono, $"{format}: the file text is Geist Mono");
+
+            vm.IsChapterRange = true;
+            await vm.PreviewTask;
+            Assert.Equal("Nothing was said in this range.", vm.Preview);
+            Assert.False(vm.PreviewIsMono, $"{format}: the empty-range line is Inter");
+        }
+
+        vm.IsWholeRange = true;
+        await vm.PreviewTask;
+        Assert.True(vm.PreviewIsMono);
+    }
+
+    [Fact]
     public async Task AChangeInARow_RunsOnce_AfterTheDebounce_AndAnOvertakenRunNeverShows()
     {
         using var vm = await Settled(Create(debounce: TimeSpan.FromMilliseconds(80)));
