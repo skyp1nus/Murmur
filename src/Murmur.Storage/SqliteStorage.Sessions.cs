@@ -301,14 +301,14 @@ public sealed partial class SqliteStorage
             failure = ex.Message;
         }
 
-        // Preparing the configured parent can block (an unreachable network share), so it happens outside the lock;
-        // only the uniqueness loop and the creation of the session folder itself are serialized.
+        // Preparing the configured parent can block (an unreachable network share), so it happens outside the lock and
+        // is bounded (RecordingsFolderProbe: ~2 s, then the default folder is used); only the uniqueness loop and the creation of the session folder itself are serialized.
         string? parent = null;
         string? trimmed = null;
         if (failure is null && !string.IsNullOrWhiteSpace(requested))
         {
             trimmed = requested.Trim();
-            failure = TryPrepareParent(trimmed, out parent);
+            failure = _folderProbe.Probe(trimmed, out parent);
         }
 
         string full;
@@ -351,28 +351,6 @@ public sealed partial class SqliteStorage
 
     private static bool IsFolderProblem(Exception ex) =>
         ex is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException;
-
-    /// <summary>Returns <c>null</c> on success (the existing parent in <paramref name="parent"/>), otherwise why the folder is unusable.</summary>
-    private static string? TryPrepareParent(string folder, out string? parent)
-    {
-        parent = null;
-        if (!Path.IsPathFullyQualified(folder))
-        {
-            return "The recordings folder is not an absolute path.";
-        }
-
-        try
-        {
-            var full = Path.GetFullPath(folder);
-            Directory.CreateDirectory(full);
-            parent = full;
-            return null;
-        }
-        catch (Exception ex) when (IsFolderProblem(ex))
-        {
-            return ex.Message;
-        }
-    }
 
     /// <summary>Creates <paramref name="name"/> (or <c>name_N</c>) inside the existing <paramref name="parent"/>.</summary>
     private static string CreateUnique(string parent, string name)
