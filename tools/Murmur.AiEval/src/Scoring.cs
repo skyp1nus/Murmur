@@ -84,9 +84,8 @@ public static class Scoring
     /// only the assistant's fallback citation of the top excerpt is within it (that is the chip the user clicks) and
     /// the answer conveys the fact (<see cref="ConveysFact"/>): the fallback is added whatever the model wrote, so an
     /// empty, "not found" or off-topic answer must not ride on good retrieval. Unanswerable: pass
-    /// when the answer says it is not in the recording and wrote no timestamp of its own. The assistant strips the
-    /// "not found" marker and returns such an answer without citations; a fallback citation of the top excerpt
-    /// (the model skipped the marker) is not a confident claim, so it does not fail the question by itself.
+    /// when the answer says it is not in the recording and wrote no timestamp of its own (the assistant always adds
+    /// the top excerpt as a fallback citation, which is not a confident claim).
     /// </summary>
     public static QuestionScore ScoreAnswer(EvalQuestion question, string answer, IReadOnlyList<Citation> citations)
     {
