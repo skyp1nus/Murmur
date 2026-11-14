@@ -547,6 +547,65 @@ public sealed class ExportDialogViewTests : IDisposable
 
     [Fact]
     [Trait("Category", "Slow")]
+    public async Task Tab_CyclesInsideTheDialog_AndNeverLeavesIt()
+    {
+        var shell = await OpenShellAsync();
+
+        var (forward, backward, visited) = await Session.Dispatch(
+            () =>
+            {
+                var window = UiHarness.Show(shell);
+                var actions = window.GetVisualDescendants().OfType<SessionActionsView>().Single();
+                Click(window, ExportButton(actions));
+                UiHarness.Pump(4);
+                var dialog = actions.OpenDialog!;
+
+                IInputElement? Focused() => window.FocusManager!.GetFocusedElement();
+                bool Inside(IInputElement? element) => element is Visual visual && (ReferenceEquals(visual, dialog) || dialog.IsVisualAncestorOf(visual));
+
+                void Press(RawInputModifiers modifiers)
+                {
+                    window.KeyPressQwerty(PhysicalKey.Tab, modifiers);
+                    window.KeyReleaseQwerty(PhysicalKey.Tab, modifiers);
+                    UiHarness.Pump(3);
+                }
+
+                var start = Focused();
+                var stops = new List<IInputElement?> { start };
+                var forwardInside = Inside(start);
+                // More presses than the dialog has tab stops: a walk that leaves the dialog (the session behind it) would be seen.
+                for (var i = 0; i < 60; i++)
+                {
+                    Press(RawInputModifiers.None);
+                    forwardInside &= Inside(Focused());
+                    stops.Add(Focused());
+                }
+
+                // Shift+Tab from the first stop wraps to the last one of the dialog instead of going behind it.
+                start!.Focus();
+                UiHarness.Pump(2);
+                var backwardInside = true;
+                for (var i = 0; i < 60; i++)
+                {
+                    Press(RawInputModifiers.Shift);
+                    backwardInside &= Inside(Focused());
+                }
+
+                var distinct = stops.Distinct().Count();
+                var cycled = stops.Skip(1).Contains(start);
+                window.Close();
+                return (forwardInside, backwardInside, (distinct, cycled));
+            },
+            Ct);
+
+        Assert.True(forward, "Tab stayed inside the dialog");
+        Assert.True(backward, "Shift+Tab stayed inside the dialog");
+        Assert.True(visited.distinct >= 8, "the walk goes through the options and the buttons, not one control");
+        Assert.True(visited.cycled, "after the last stop Tab comes back to the first");
+    }
+
+    [Fact]
+    [Trait("Category", "Slow")]
     public async Task ThePreview_ShowsTheText_InTheFaceOfTheFormat()
     {
         var shell = await OpenShellAsync();
