@@ -23,8 +23,15 @@ public sealed class Assistant : IAssistant
         + "2. Відповідай тією мовою, якою поставлене запитання.\n"
         + "3. Кожне твердження підкріплюй посиланням на час уривка у квадратних дужках, наприклад [12:34], "
         + "а для моментів після першої години — [1:02:03].\n"
-        + "4. Якщо відповіді в записах немає, прямо скажи, що в записах цього немає.\n"
+        + "4. Якщо відповіді в записах немає, почни відповідь з маркера [NOT_FOUND] (лише його, без змін), а далі прямо скажи, "
+        + "що в записах цього немає. У такій відповіді не став посилань на час. Якщо відповідь знайшлася, маркера не пиши.\n"
         + "У транскриптах «Я» — це користувач, «Інші» — інші учасники розмови.";
+
+    /// <summary>
+    /// What the model opens an answer with when the excerpts do not answer the question. The assistant strips it from the text and returns
+    /// the answer without citations (no time chip, no sources). Not a timestamp, so it never reads as a citation.
+    /// </summary>
+    public const string NotFoundMarker = "[NOT_FOUND]";
 
     // Model input, not UI text: the title in an excerpt header of the (Ukrainian) prompt. Citations carry no title; the App words "untitled" itself.
     private const string UntitledSession = "Без назви";
@@ -141,6 +148,7 @@ public sealed class Assistant : IAssistant
         };
 
         var answer = new StringBuilder();
+        var marker = new NotFoundMarker();
         await foreach (var update in chat.GetStreamingResponseAsync(messages, chatOptions, cancellationToken).ConfigureAwait(false))
         {
             var delta = update.Text;
@@ -149,11 +157,24 @@ public sealed class Assistant : IAssistant
                 continue;
             }
 
-            answer.Append(delta);
-            yield return new AssistantUpdate(delta, [], false);
+            var shown = marker.Push(delta);
+            if (shown.Length > 0)
+            {
+                answer.Append(shown);
+                yield return new AssistantUpdate(shown, [], false);
+            }
         }
 
-        var citations = CitationResolver.Resolve(answer.ToString(), excerpts, _options.CitationTolerance, _options.SnippetLength);
+        if (marker.Finish() is { Length: > 0 } tail)
+        {
+            answer.Append(tail);
+            yield return new AssistantUpdate(tail, [], false);
+        }
+
+        // The model said nothing relevant was found: no chip and no sources, not even the top excerpt as a fallback.
+        IReadOnlyList<Citation> citations = marker.Found
+            ? []
+            : CitationResolver.Resolve(answer.ToString(), excerpts, _options.CitationTolerance, _options.SnippetLength);
         yield return new AssistantUpdate(string.Empty, citations, true);
     }
 
@@ -173,7 +194,8 @@ public sealed class Assistant : IAssistant
         var prompt = new StringBuilder();
         if (excerpts.Count == 0)
         {
-            prompt.Append("Уривків не знайдено: у записах немає нічого схожого на це запитання.\n\n");
+            prompt.Append("Уривків не знайдено: у записах немає нічого схожого на це запитання. Почни відповідь з маркера ")
+                .Append(NotFoundMarker).Append(".\n\n");
         }
         else
         {

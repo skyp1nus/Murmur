@@ -306,6 +306,23 @@ public sealed class ChatRobustnessTests
     }
 
     [Fact]
+    public async Task AnAnswerWithoutCitations_ShowsNoChipAndNoSourcesRow()
+    {
+        var page = CreatePage();
+        var chat = page.Chat;
+        Ask(chat, "Q");
+        _assistant.Answer(["У записах цього немає."]);
+        await chat.AskTask;
+
+        var answer = chat.Messages[1];
+        Assert.False(answer.HasCitations);
+        Assert.False(answer.HasSources);
+        Assert.Empty(answer.Citations);
+        Assert.Empty(answer.Sources);
+        Assert.DoesNotContain(answer.Paragraphs.SelectMany(p => p.Parts), part => part.Kind == AnswerPartKind.Chip);
+    }
+
+    [Fact]
     public async Task ADeletedRecording_ExplainsItselfInTheTooltipOfItsChipAndCard()
     {
         using var culture = UiCulture.Override("en");

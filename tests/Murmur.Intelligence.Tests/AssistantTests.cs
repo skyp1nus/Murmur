@@ -233,6 +233,91 @@ public sealed class AssistantTests
     }
 
     [Fact]
+    public async Task Ask_NotFoundMarker_GivesNoCitationsAndTheMarkerNeverShows()
+    {
+        _storage.VectorHits = [Hit(S2, 125, 180, 0.9, SearchSource.Vector, "top"), Hit(S1, 0, 60, 0.5, SearchSource.Vector, "second")];
+        _llm.Chat.Pieces = ["[NOT_FOUND] У записах цього немає."];
+
+        var updates = await CollectAsync(Create().AskAsync(new AskRequest("q"), Ct));
+
+        Assert.Empty(updates[^1].Citations);
+        Assert.True(updates[^1].IsFinal);
+        Assert.Equal("У записах цього немає.", Text(updates));
+        Assert.DoesNotContain("NOT_FOUND", Text(updates), StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData("[NOT", "_FOUND] У ", "записах цього немає.")]
+    [InlineData("  [not_fo", "und]\n", "У записах цього немає.")]
+    [InlineData("[", "NOT_FOUND]", " У записах цього немає.")]
+    public async Task Ask_NotFoundMarkerSplitAcrossDeltas_IsStrippedFromEveryUpdate(string first, string second, string third)
+    {
+        _storage.VectorHits = [Hit(S2, 125, 180, 0.9, SearchSource.Vector, "top")];
+        _llm.Chat.Pieces = [first, second, third];
+
+        var updates = await CollectAsync(Create().AskAsync(new AskRequest("q"), Ct));
+
+        Assert.All(updates, u => Assert.DoesNotContain("NOT_FOUND", u.TextDelta, StringComparison.OrdinalIgnoreCase));
+        Assert.Equal("У записах цього немає.", Text(updates).Trim());
+        Assert.Empty(updates[^1].Citations);
+    }
+
+    [Fact]
+    public async Task Ask_NotFoundMarkerWithTimestamps_StillGivesNoCitations()
+    {
+        _storage.VectorHits = [Hit(S1, 0, 60, 0.9, SearchSource.Vector, "top")];
+        _llm.Chat.Pieces = ["[NOT_FOUND] Схоже на [00:10], але ні."];
+
+        var final = await LastAsync(Create().AskAsync(new AskRequest("q"), Ct));
+
+        Assert.Empty(final.Citations);
+    }
+
+    [Fact]
+    public async Task Ask_CitedAnswer_KeepsItsChipsAndTextUnchanged()
+    {
+        _storage.VectorHits = [Hit(S1, 0, 60, 0.9, SearchSource.Vector, "бюджет"), Hit(S2, 125, 180, 0.5, SearchSource.Vector, "other")];
+        _llm.Chat.Pieces = ["  Бюджет ", "[00:42]."];
+
+        var updates = await CollectAsync(Create().AskAsync(new AskRequest("q"), Ct));
+
+        Assert.Equal("  Бюджет [00:42].", Text(updates));
+        var citation = Assert.Single(updates[^1].Citations);
+        Assert.Equal((S1, TimeSpan.FromSeconds(42)), (citation.Session, citation.At));
+    }
+
+    [Fact]
+    public async Task Ask_AnswerThatMerelyStartsLikeTheMarker_IsShownAsIs()
+    {
+        _storage.VectorHits = [Hit(S1, 0, 60, 0.9, SearchSource.Vector, "top")];
+        _llm.Chat.Pieces = ["[NOT"];
+
+        var updates = await CollectAsync(Create().AskAsync(new AskRequest("q"), Ct));
+
+        Assert.Equal("[NOT", Text(updates));
+        Assert.Single(updates[^1].Citations); // no marker: the fallback citation stays
+    }
+
+    [Fact]
+    public async Task Ask_InvalidCitedIndexWithMarker_GivesNoFallbackChip()
+    {
+        _storage.VectorHits = [Hit(S1, 0, 60, 0.9, SearchSource.Vector, "top")];
+        _llm.Chat.Pieces = ["[NOT_FOUND] Немає. [45:00]"];
+
+        var final = await LastAsync(Create().AskAsync(new AskRequest("q"), Ct));
+
+        Assert.Empty(final.Citations);
+    }
+
+    [Fact]
+    public void SystemPrompt_AsksForTheMarkerOnlyWhenNothingIsFound()
+    {
+        Assert.Contains(Assistant.NotFoundMarker, Assistant.DefaultSystemPrompt, StringComparison.Ordinal);
+        Assert.DoesNotContain("[00:00]", Assistant.NotFoundMarker, StringComparison.Ordinal);
+        Assert.Empty(CitationResolver.Parse(Assistant.NotFoundMarker));
+    }
+
+    [Fact]
     public async Task Ask_NoExcerpts_TellsTheModelAndReturnsNoCitations()
     {
         _llm.Chat.Pieces = ["У записах цього немає."];
@@ -260,6 +345,19 @@ public sealed class AssistantTests
     {
         await Assert.ThrowsAsync<ArgumentException>(() => LastAsync(Create().AskAsync(new AskRequest(" "), Ct)));
     }
+
+    private static async Task<List<AssistantUpdate>> CollectAsync(IAsyncEnumerable<AssistantUpdate> updates)
+    {
+        var all = new List<AssistantUpdate>();
+        await foreach (var update in updates)
+        {
+            all.Add(update);
+        }
+
+        return all;
+    }
+
+    private static string Text(IEnumerable<AssistantUpdate> updates) => string.Concat(updates.Select(u => u.TextDelta));
 
     private static async Task<AssistantUpdate> LastAsync(IAsyncEnumerable<AssistantUpdate> updates)
     {
