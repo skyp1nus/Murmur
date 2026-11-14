@@ -12,6 +12,7 @@ namespace Murmur.Core.Tests.Recording;
 /// <summary>
 /// Faults of the screen recorder (raised on other threads, like the real one does) reach the stats, the
 /// <see cref="IRecorder.Warning"/> event and the session's warnings; a fatal one ends the segment without touching the audio.
+/// The recorder runs on a clock that stands still until the test jumps it, so the segment times can be compared exactly.
 /// </summary>
 [Collection(RealtimeCollection.Name)]
 public sealed class RecorderScreenFaultTests : IDisposable
@@ -20,6 +21,7 @@ public sealed class RecorderScreenFaultTests : IDisposable
     private const string CpuMessage = "CPU readback: the zero-copy writer picked a software encoder (Microsoft H.264)";
     private static readonly TimeSpan Timeout = TimeSpan.FromSeconds(10);
 
+    private readonly JumpingTimeProvider _clock = new();
     private readonly TempDirectory _dir = new();
     private readonly InMemorySessionStore _store;
     private readonly ConcurrentQueue<RecorderWarning> _warnings = new();
@@ -144,7 +146,7 @@ public sealed class RecorderScreenFaultTests : IDisposable
     {
         var (recorder, screen) = Create();
         await recorder.StartAsync(new RecordingOptions(Screen: true), Ct);
-        await Task.Delay(150, Ct);
+        _clock.Jump(TimeSpan.FromMilliseconds(150));
         var systemBefore = recorder.Stats.SystemFrames;
 
         await screen.RaiseFromOtherThreadAsync(Fault("device lost", fatal: true));
@@ -153,8 +155,8 @@ public sealed class RecorderScreenFaultTests : IDisposable
         Assert.False(recorder.IsScreenRecording);
         await WaitUntilAsync(() => screen.StopTimestamps.Count == 1);
         Assert.Equal(RecorderState.Recording, recorder.State);
-        await Task.Delay(300, Ct);
-        Assert.True(recorder.Stats.SystemFrames > systemBefore, "the audio stopped with the screen");
+        _clock.Jump(TimeSpan.FromMilliseconds(300));
+        await WaitUntilAsync(() => recorder.Stats.SystemFrames > systemBefore); // "the audio stopped with the screen" otherwise
         var finished = await recorder.StopAsync(Ct);
 
         var warning = Assert.Single(_warnings);
@@ -171,9 +173,11 @@ public sealed class RecorderScreenFaultTests : IDisposable
 
         // The segment ends where the recorder stopped the screen (right after the fault), not at the final stop.
         var segment = finished.ScreenSegments[0];
-        var expected = Stopwatch.GetElapsedTime(screen.StartTimestamps[0], screen.StopTimestamps[0]);
-        Assert.InRange(segment.Duration, expected - TimeSpan.FromMilliseconds(100), expected + TimeSpan.FromMilliseconds(100));
-        Assert.True(segment.Duration < finished.Duration - TimeSpan.FromMilliseconds(200), $"segment {segment.Duration}, session {finished.Duration}");
+        var expected = _clock.Between(screen.StartTimestamps[0], screen.StopTimestamps[0]);
+        Assert.Equal(TimeSpan.FromMilliseconds(150), expected);
+        Assert.Equal(expected, segment.Duration);
+        var timeline = _clock.Between(0, _clock.GetTimestamp()); // what the recorder's clock ran by the final stop
+        Assert.True(segment.Duration < timeline - TimeSpan.FromMilliseconds(200), $"segment {segment.Duration}, timeline {timeline}");
         Assert.Single(screen.StopTimestamps);
         Assert.Equal(0, screen.Subscribers);
     }
@@ -189,16 +193,16 @@ public sealed class RecorderScreenFaultTests : IDisposable
         screen.OnStart = () =>
         {
             screen.RaiseFromOtherThreadAsync(Fault("device lost", fatal: true)).GetAwaiter().GetResult();
-            faultAt = Stopwatch.GetTimestamp();
-            Thread.Sleep(400);
+            faultAt = _clock.GetTimestamp();
+            _clock.Jump(TimeSpan.FromMilliseconds(400));
         };
         await recorder.SetScreenEnabledAsync(true, Ct).AsTask().WaitAsync(Timeout, Ct);
         await WaitUntilAsync(() => screen.StopTimestamps.Count == 1);
         var finished = await recorder.StopAsync(Ct);
 
         var segment = Assert.Single(finished.ScreenSegments);
-        var expected = Stopwatch.GetElapsedTime(screen.StartTimestamps[0], faultAt);
-        Assert.InRange(segment.Duration, TimeSpan.Zero, expected + TimeSpan.FromMilliseconds(100));
+        var expected = _clock.Between(screen.StartTimestamps[0], faultAt);
+        Assert.Equal(expected, segment.Duration);
         Assert.True(segment.Duration < TimeSpan.FromMilliseconds(300), $"segment {segment.Duration} includes the wait for the cleanup");
     }
 
@@ -395,9 +399,9 @@ public sealed class RecorderScreenFaultTests : IDisposable
 
     private (Recorder Recorder, FaultingScreenRecorder Screen) Create()
     {
-        var screen = new FaultingScreenRecorder();
+        var screen = new FaultingScreenRecorder(_clock);
         var capture = new FaultingScreenCapture(new SyntheticCapture(new SyntheticCaptureOptions(SpeedFactor: 1, Screen: true)), screen);
-        var recorder = new Recorder(capture, _store, TimeProvider.System, RecorderSettings.Default, _log);
+        var recorder = new Recorder(capture, _store, _clock, RecorderSettings.Default, _log);
         recorder.Warning += _warnings.Enqueue;
         return (recorder, screen);
     }
@@ -435,7 +439,7 @@ public sealed class RecorderScreenFaultTests : IDisposable
     /// A screen recorder that raises the faults it is told to, like the real one on a thread-pool thread. It stays
     /// "recording" after a fatal fault until the segment is stopped, as the real one does.
     /// </summary>
-    private sealed class FaultingScreenRecorder : IScreenRecorder
+    private sealed class FaultingScreenRecorder(JumpingTimeProvider clock) : IScreenRecorder
     {
         private readonly List<long> _starts = [];
         private readonly List<long> _stops = [];
@@ -504,7 +508,7 @@ public sealed class RecorderScreenFaultTests : IDisposable
         {
             lock (_starts)
             {
-                _starts.Add(Stopwatch.GetTimestamp());
+                _starts.Add(clock.GetTimestamp());
             }
 
             File.Create(filePath).Dispose();
@@ -522,7 +526,7 @@ public sealed class RecorderScreenFaultTests : IDisposable
 
             lock (_stops)
             {
-                _stops.Add(Stopwatch.GetTimestamp());
+                _stops.Add(clock.GetTimestamp());
             }
 
             OnStop?.Invoke();

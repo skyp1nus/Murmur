@@ -452,13 +452,15 @@ public sealed class FileAppLogTests
             log.Write(LogLevel.Info, "bench", "write", "constant");
         }
 
-        var before = GC.GetAllocatedBytesForCurrentThread();
-        for (var i = 0; i < 100_000; i++)
-        {
-            log.Write(LogLevel.Info, "bench", "write", "constant");
-        }
-
-        Assert.Equal(0, GC.GetAllocatedBytesForCurrentThread() - before);
+        Assert.Equal(
+            0,
+            Allocations.SteadyState(() =>
+            {
+                for (var i = 0; i < 100_000; i++)
+                {
+                    log.Write(LogLevel.Info, "bench", "write", "constant");
+                }
+            }));
     }
 
     [Fact]

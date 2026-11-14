@@ -544,6 +544,119 @@ public sealed class ImportQueueTests : IAsyncDisposable
     }
 
     [Fact]
+    public async Task ADeferredEntry_IsRetriedAfterTheBackoff_5Seconds_Then30Seconds_Then2Minutes()
+    {
+        var path = await NewFileAsync("held.mp3");
+        var half = await _sessions.CreateSessionAsync("held", DateTimeOffset.Now, Ct);
+        _store.Seed(new StoredImport(new ImportItem(4, path, ImportState.Decoding, 0.3, half.Id, null), new ImportRequest(path, Copy)));
+        var attempts = 0;
+        var failures = 4;
+        _sessions.FailDelete = id =>
+        {
+            if (id != half.Id)
+            {
+                return null;
+            }
+
+            Interlocked.Increment(ref attempts);
+            return Volatile.Read(ref failures) > 0 && Interlocked.Decrement(ref failures) >= 0 ? new IOException("a file is held open") : null;
+        };
+        var decoder = new FakeMediaDecoder(".mp3");
+        var time = new ManualTimeProvider();
+
+        var imports = await StartAsync(decoder, time);
+        await WaitUntilAsync(() => Volatile.Read(ref attempts) == 1 && _queue.Status is { Pending: 0, Running: 0 } && time.ActiveTimers == 1);
+
+        async Task AdvanceAsync(TimeSpan by, int expectedAttempts)
+        {
+            time.Advance(by);
+            await WaitUntilAsync(() => Volatile.Read(ref attempts) == expectedAttempts && _queue.Status is { Pending: 0, Running: 0 }, $"{expectedAttempts} delete attempts");
+        }
+
+        await AdvanceAsync(TimeSpan.FromSeconds(4.9), 1);
+        Assert.Equal(ImportState.Queued, Assert.Single(imports.Items).State);
+        await AdvanceAsync(TimeSpan.FromSeconds(0.1), 2); // 5 s
+        await WaitUntilAsync(() => time.ActiveTimers == 1);
+        await AdvanceAsync(TimeSpan.FromSeconds(29.9), 2);
+        await AdvanceAsync(TimeSpan.FromSeconds(0.1), 3); // + 30 s
+        await WaitUntilAsync(() => time.ActiveTimers == 1);
+        await AdvanceAsync(TimeSpan.FromSeconds(119.9), 3);
+        await AdvanceAsync(TimeSpan.FromSeconds(0.1), 4); // + 2 min
+        await WaitUntilAsync(() => time.ActiveTimers == 1);
+        await AdvanceAsync(TimeSpan.FromMinutes(2), 5); // the delay stays 2 min; this try succeeds
+
+        await WaitForItemAsync(imports, 4, ImportState.Done);
+        Assert.Null(_sessions.Get(half.Id));
+        Assert.Single(decoder.Decoded);
+    }
+
+    [Fact]
+    public async Task LanguageOf_ForgetsASessionThatNoLongerExists_AndKeepsTheOthers()
+    {
+        var imports = await StartAsync(new FakeMediaDecoder(".mp3"));
+        var items = await imports.EnqueueAsync(
+        [
+            new ImportRequest(await NewFileAsync("a.mp3"), new ImportOptions("uk", OriginalFileMode.CopyToLibrary)),
+            new ImportRequest(await NewFileAsync("b.mp3"), new ImportOptions("en", OriginalFileMode.CopyToLibrary)),
+        ], Ct);
+        var a = (await WaitForItemAsync(imports, items[0].Id, ImportState.Done)).Session!.Value;
+        var b = (await WaitForItemAsync(imports, items[1].Id, ImportState.Done)).Session!.Value;
+        await _sessions.DeleteSessionAsync(a, Ct);
+
+        Assert.Equal("uk", imports.LanguageOf(a)); // the answer itself is still given
+        await WaitUntilAsync(() => imports.RememberedLanguages == 1, "the deleted session to be forgotten");
+
+        Assert.Null(imports.LanguageOf(a));
+        Assert.Equal("en", imports.LanguageOf(b));
+        Assert.Equal(1, imports.RememberedLanguages);
+    }
+
+    [Fact]
+    public async Task DeletingTheSession_OfARunningDecode_StopsTheDecodePromptly_AndCancelsTheImport()
+    {
+        using var gate = new SemaphoreSlim(0); // never released: the decode only ends by cancellation
+        var decoder = new FakeMediaDecoder(".mp3") { Gate = gate };
+        var time = new ManualTimeProvider();
+        var imports = await StartAsync(decoder, time);
+        var items = await imports.EnqueueAsync([new ImportRequest(await NewFileAsync("long.mp3"), Copy)], Ct);
+        await decoder.Started.Task.WaitAsync(Timeout, Ct);
+        var half = (await WaitForItemAsync(imports, items[0].Id, ImportState.Decoding)).Session!.Value;
+
+        await _sessions.DeleteSessionAsync(half, Ct); // from the library, while the decode is blocked
+        time.Advance(ImportQueue.SessionCheckInterval);
+
+        var cancelled = await WaitForItemAsync(imports, items[0].Id, ImportState.Cancelled);
+        Assert.Null(cancelled.Session);
+        Assert.Null(cancelled.Error);
+        Assert.Empty(_store.Rows);
+        await WaitUntilAsync(() => _queue.Status is { Pending: 0, Running: 0 }, "the job to end");
+        Assert.Single(decoder.Decoded);
+        Assert.Equal(0, time.ActiveTimers); // the watch is gone with the import
+    }
+
+    [Fact]
+    public async Task ARunningDecode_WhoseSessionStillExists_IsNotStopped()
+    {
+        using var gate = new SemaphoreSlim(0);
+        var decoder = new FakeMediaDecoder(".mp3") { Gate = gate };
+        var time = new ManualTimeProvider();
+        var imports = await StartAsync(decoder, time);
+        var items = await imports.EnqueueAsync([new ImportRequest(await NewFileAsync("long.mp3"), Copy)], Ct);
+        await decoder.Started.Task.WaitAsync(Timeout, Ct);
+        await WaitForItemAsync(imports, items[0].Id, ImportState.Decoding);
+
+        for (var i = 0; i < 3; i++)
+        {
+            time.Advance(ImportQueue.SessionCheckInterval);
+        }
+
+        await Task.Delay(100, Ct);
+        Assert.Equal(ImportState.Decoding, Assert.Single(imports.Items).State);
+        gate.Release();
+        await WaitForItemAsync(imports, items[0].Id, ImportState.Done);
+    }
+
+    [Fact]
     public async Task AtStart_HalfMadeImportedSessionsNoEntryRefersTo_AreDeleted_OthersAreKept()
     {
         async Task<SessionRecord> SeedAsync(string title, SessionState state, SessionSource source, bool track = false)
@@ -784,17 +897,17 @@ public sealed class ImportQueueTests : IAsyncDisposable
         return await WaitForSessionStateAsync(done.Session!.Value, SessionState.Ready);
     }
 
-    private ImportQueue Create(IMediaDecoder decoder)
+    private ImportQueue Create(IMediaDecoder decoder, TimeProvider? time = null)
     {
         ImportQueue? imports = null;
         _processor = new SessionProcessor(_recorder, _sessions, _transcripts, _asr, _queue, languageOf: id => imports?.LanguageOf(id));
-        imports = _imports = new ImportQueue(_sessions, _store, decoder, _queue, _processor);
+        imports = _imports = new ImportQueue(_sessions, _store, decoder, _queue, _processor, time);
         return imports;
     }
 
-    private async Task<ImportQueue> StartAsync(IMediaDecoder decoder)
+    private async Task<ImportQueue> StartAsync(IMediaDecoder decoder, TimeProvider? time = null)
     {
-        var imports = Create(decoder);
+        var imports = Create(decoder, time);
         await imports.StartAsync(Ct);
         return imports;
     }

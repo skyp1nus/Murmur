@@ -5,7 +5,7 @@ using Murmur.Core.Sessions;
 namespace Murmur.Core.Tests.Fakes;
 
 /// <summary>In-memory <see cref="IImportStore"/> (rows keyed by id, oldest first).</summary>
-internal sealed class InMemoryImportStore : IImportStore
+public sealed class InMemoryImportStore : IImportStore
 {
     private readonly SortedDictionary<long, StoredImport> _rows = [];
     private long _next;
@@ -95,7 +95,7 @@ internal sealed class InMemoryImportStore : IImportStore
 /// <see cref="ProbeError"/> for a file name in <see cref="FailOn"/>), decodes write a 16 kHz mono square-wave WAV of
 /// <see cref="Duration"/>, optionally waiting for <see cref="Gate"/> (cancellable) after reporting half the progress.
 /// </summary>
-internal sealed class FakeMediaDecoder(params string[] extensions) : IMediaDecoder
+public sealed class FakeMediaDecoder(params string[] extensions) : IMediaDecoder
 {
     private readonly List<string> _decoded = [];
 
@@ -168,7 +168,7 @@ internal sealed class FakeMediaDecoder(params string[] extensions) : IMediaDecod
 }
 
 /// <summary>Writes WAVs of any format for the decoder tests.</summary>
-internal static class AnyWav
+public static class AnyWav
 {
     /// <summary>Interleaved float samples as 32-bit IEEE-float WAV.</summary>
     public static string Float32(string path, int sampleRate, int channels, ReadOnlySpan<float> interleaved)

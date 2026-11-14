@@ -1,6 +1,6 @@
 namespace Murmur.Core.Tests.Fakes;
 
-internal static class Allocations
+public static class Allocations
 {
     /// <summary>
     /// Bytes allocated on the current thread by <paramref name="body"/> in steady state: the minimum over several rounds,

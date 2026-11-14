@@ -5,8 +5,12 @@ namespace Murmur.Core.Sessions;
 
 public interface ISessionStore
 {
-    /// <summary>Creates the session row and its folder.</summary>
-    ValueTask<SessionRecord> CreateSessionAsync(string title, DateTimeOffset startedAt, CancellationToken cancellationToken);
+    /// <summary>Creates a session of the given source in one write, so a crash right after it never shows an import as a lost recording.</summary>
+    ValueTask<SessionRecord> CreateSessionAsync(string title, DateTimeOffset startedAt, SessionSource source, CancellationToken cancellationToken);
+
+    /// <summary>Creates a recorded session (<see cref="SessionSource.Recorded"/>).</summary>
+    ValueTask<SessionRecord> CreateSessionAsync(string title, DateTimeOffset startedAt, CancellationToken cancellationToken)
+        => CreateSessionAsync(title, startedAt, SessionSource.Recorded, cancellationToken);
 
     /// <summary>
     /// Writes every column of the row except the title (the title is the user's: <see cref="RenameSessionAsync"/> is the only way

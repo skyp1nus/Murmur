@@ -18,16 +18,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <!-- The fakes of the Core tests: the import queue runs here against the real SQLite storage. -->
-    <Compile Include="..\Murmur.Core.Tests\Fakes\ProcessingFakes.cs" Link="Fakes\ProcessingFakes.cs" />
-    <Compile Include="..\Murmur.Core.Tests\Fakes\ImportFakes.cs" Link="Fakes\ImportFakes.cs" />
-    <Compile Include="..\Murmur.Core.Tests\Fakes\InMemorySessionStore.cs" Link="Fakes\InMemorySessionStore.cs" />
-    <Compile Include="..\Murmur.Core.Tests\Fakes\TestWav.cs" Link="Fakes\TestWav.cs" />
-    <!-- The clock of the diagnostic log's batching tests (#100). -->
-    <Compile Include="..\Murmur.Core.Tests\Fakes\ManualTimeProvider.cs" Link="Fakes\ManualTimeProvider.cs" />
-  </ItemGroup>
-
-  <ItemGroup>
+    <ProjectReference Include="..\Murmur.TestSupport\Murmur.TestSupport.csproj" />
     <ProjectReference Include="..\..\src\Murmur.Storage\Murmur.Storage.csproj" />
   </ItemGroup>
 

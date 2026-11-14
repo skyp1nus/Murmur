@@ -6,7 +6,7 @@ using Murmur.Core.Transcription;
 namespace Murmur.Core.Tests.Fakes;
 
 /// <summary>In-memory <see cref="ITranscriptStore"/>.</summary>
-internal sealed class InMemoryTranscriptStore : ITranscriptStore
+public sealed class InMemoryTranscriptStore : ITranscriptStore
 {
     private readonly Dictionary<SessionId, Transcript> _transcripts = [];
 
@@ -58,7 +58,7 @@ internal sealed class InMemoryTranscriptStore : ITranscriptStore
 /// Scriptable in-process <see cref="IAsr"/>: per audio file name, a list of (start, end, text) segments.
 /// Optionally blocks each request on <see cref="Gate"/> so tests can observe the running state.
 /// </summary>
-internal sealed class FakeAsr : IAsr
+public sealed class FakeAsr : IAsr
 {
     private readonly Dictionary<string, (double Start, double End, string Text)[]> _script = new(StringComparer.Ordinal);
     private readonly List<AsrRequest> _requests = [];
@@ -134,7 +134,7 @@ internal sealed class FakeAsr : IAsr
 }
 
 /// <summary><see cref="IRecorder"/> whose state is driven by the test.</summary>
-internal sealed class FakeRecorder : IRecorder
+public sealed class FakeRecorder : IRecorder
 {
     public RecorderState State { get; private set; } = RecorderState.Idle;
 

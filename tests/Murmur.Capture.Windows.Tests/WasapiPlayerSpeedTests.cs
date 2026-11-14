@@ -1,5 +1,6 @@
 using Murmur.Capture.Windows.Playback;
 using Murmur.Core.Capture;
+using Allocations = Murmur.Core.Tests.Fakes.Allocations;
 
 namespace Murmur.Capture.Windows.Tests;
 
@@ -327,9 +328,7 @@ public sealed class WasapiPlayerSpeedTests : IDisposable
             Drain(stretcher, mixer, buffer);
         }
 
-        var before = GC.GetAllocatedBytesForCurrentThread();
-        Drain(stretcher, mixer, buffer);
-        Assert.Equal(0, GC.GetAllocatedBytesForCurrentThread() - before);
+        Assert.Equal(0, Allocations.SteadyState(() => Drain(stretcher, mixer, buffer)));
     }
 
     private static void Drain(WsolaStretcher stretcher, TrackMixer mixer, short[] buffer)

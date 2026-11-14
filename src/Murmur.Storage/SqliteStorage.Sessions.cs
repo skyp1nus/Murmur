@@ -7,11 +7,15 @@ namespace Murmur.Storage;
 
 public sealed partial class SqliteStorage
 {
-    public ValueTask<SessionRecord> CreateSessionAsync(string title, DateTimeOffset startedAt, CancellationToken cancellationToken)
+    /// <summary>Creates the session row (with its <paramref name="source"/>, in the same INSERT) and its folder.</summary>
+    public ValueTask<SessionRecord> CreateSessionAsync(string title, DateTimeOffset startedAt, SessionSource source, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(title);
-        return Run(() => CreateSession(title, startedAt), cancellationToken);
+        return Run(() => CreateSession(title, startedAt, source), cancellationToken);
     }
+
+    public ValueTask<SessionRecord> CreateSessionAsync(string title, DateTimeOffset startedAt, CancellationToken cancellationToken) =>
+        CreateSessionAsync(title, startedAt, SessionSource.Recorded, cancellationToken);
 
     public ValueTask UpdateSessionAsync(SessionRecord session, CancellationToken cancellationToken)
     {
@@ -61,7 +65,7 @@ public sealed partial class SqliteStorage
         return new SessionFiles(ResolveFolder(relative));
     }
 
-    private SessionRecord CreateSession(string title, DateTimeOffset startedAt)
+    private SessionRecord CreateSession(string title, DateTimeOffset startedAt, SessionSource source)
     {
         var started = DateTimeOffset.FromUnixTimeMilliseconds(startedAt.ToUnixTimeMilliseconds());
         var id = SessionId.New();
@@ -72,13 +76,14 @@ public sealed partial class SqliteStorage
         {
             using var command = connection.CreateCommand();
             command.CommandText =
-                "INSERT INTO sessions (id, title, started_at, duration_ms, state, has_mic, has_system, screen_segments, folder, error) " +
-                "VALUES ($id, $title, $started, 0, $state, 0, 0, '[]', $folder, NULL)";
+                "INSERT INTO sessions (id, title, started_at, duration_ms, state, has_mic, has_system, screen_segments, folder, error, source) " +
+                "VALUES ($id, $title, $started, 0, $state, 0, 0, '[]', $folder, NULL, $source)";
             command.Parameters.AddWithValue("$id", id.ToString());
             command.Parameters.AddWithValue("$title", title);
             command.Parameters.AddWithValue("$started", started.ToUnixTimeMilliseconds());
             command.Parameters.AddWithValue("$state", (int)SessionState.Recording);
             command.Parameters.AddWithValue("$folder", relative);
+            command.Parameters.AddWithValue("$source", (int)source);
             command.ExecuteNonQuery();
         }
         catch
@@ -94,6 +99,7 @@ public sealed partial class SqliteStorage
             Title = title,
             StartedAt = started.ToLocalTime(),
             State = SessionState.Recording,
+            Source = source,
         };
     }
 

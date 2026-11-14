@@ -8,11 +8,8 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\Murmur.TestSupport\Murmur.TestSupport.csproj" />
     <ProjectReference Include="..\..\src\Murmur.Core\Murmur.Core.csproj" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <Compile Include="..\Murmur.Core.Tests\Fakes\InMemorySessionStore.cs" Link="InMemorySessionStore.cs" />
   </ItemGroup>
 
 </Project>

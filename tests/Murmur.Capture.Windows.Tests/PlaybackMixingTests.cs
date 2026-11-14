@@ -320,27 +320,25 @@ public sealed class TrackMixerTests
         using var mixer = new TrackMixer([TestWav.Reader(TestWav.Ramp(Total, 0, 0)), TestWav.Reader(TestWav.Constant(Total, 1))]);
         var output = new short[800];
 
-        // Warm up with full passes (render to the end, seek) so tiered JIT / OSR recompilation of the loop,
-        // which can allocate a few bytes on this thread on a busy CI runner, happens before measuring.
-        for (var pass = 0; pass < 3; pass++)
+        void Pass()
         {
+            mixer.Seek(0);
             while (mixer.Render(output) > 0)
             {
             }
 
             mixer.Seek(Total / 2);
             mixer.Render(output);
-            mixer.Seek(0);
         }
 
-        var before = GC.GetAllocatedBytesForCurrentThread();
-        while (mixer.Render(output) > 0)
+        // A whole pass (render to the end, seek) per round, the minimum over several rounds: a one-off allocation of the
+        // runtime on this thread (tier-up, a parallel test run) is not the mixer's; a mixer that allocated per call never reaches 0.
+        for (var i = 0; i < 3; i++)
         {
+            Pass();
         }
 
-        mixer.Seek(Total / 2);
-        mixer.Render(output);
-        Assert.Equal(0, GC.GetAllocatedBytesForCurrentThread() - before);
+        Assert.Equal(0, Murmur.Core.Tests.Fakes.Allocations.SteadyState(Pass));
     }
 }
 

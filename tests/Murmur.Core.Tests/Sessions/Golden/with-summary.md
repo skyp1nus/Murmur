@@ -23,7 +23,7 @@ Walked the client through the roadmap. PDF export moved to next sprint.
 Okay, a quick run through the roadmap.
 
 **Others** `12:08`  
-Does search match <exact> words & phrases, or can I ask in my own words?
+Does search match \<exact\> words & phrases, or can I ask in my own words?
 
 **You** `12:21`  
 Both.

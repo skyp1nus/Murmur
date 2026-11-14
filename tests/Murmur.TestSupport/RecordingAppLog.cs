@@ -3,7 +3,7 @@ using Murmur.Core.Diagnostics;
 namespace Murmur.Core.Tests.Fakes;
 
 /// <summary>An <see cref="IAppLog"/> that keeps what it was told, for asserting which failures a component reports.</summary>
-internal sealed class RecordingAppLog : IAppLog
+public sealed class RecordingAppLog : IAppLog
 {
     private readonly Lock _gate = new();
     private readonly List<(LogLevel Level, string Area, string Code, string? Detail)> _events = [];

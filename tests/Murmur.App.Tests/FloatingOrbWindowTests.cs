@@ -16,6 +16,7 @@ using Murmur.App.Views;
 using Murmur.Core.Platform;
 using Murmur.Core.Recording;
 using Murmur.Core.Settings;
+using Allocations = Murmur.Core.Tests.Fakes.Allocations;
 
 namespace Murmur.App.Tests;
 
@@ -1214,14 +1215,14 @@ public sealed class FloatingOrbWindowTests
 
     private static long Measure(FloatingOrbDisc disc, TestTime clock, TimeSpan step, int ticks)
     {
-        var before = GC.GetAllocatedBytesForCurrentThread();
-        for (var i = 0; i < ticks; i++)
+        return Allocations.SteadyState(() =>
         {
-            clock.Advance(step);
-            disc.Tick();
-        }
-
-        return GC.GetAllocatedBytesForCurrentThread() - before;
+            for (var i = 0; i < ticks; i++)
+            {
+                clock.Advance(step);
+                disc.Tick();
+            }
+        });
     }
 
     [Fact]

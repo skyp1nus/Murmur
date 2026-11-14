@@ -1,6 +1,7 @@
 using System.Buffers.Binary;
 using Murmur.Capture.Windows.Screen;
 using Murmur.Capture.Windows.Screen.Interop;
+using Allocations = Murmur.Core.Tests.Fakes.Allocations;
 
 namespace Murmur.Capture.Windows.Tests;
 
@@ -261,10 +262,7 @@ public sealed unsafe class CpuFrameCopierTests : IDisposable
             }
         }
 
-        Frames();
-        var before = GC.GetAllocatedBytesForCurrentThread();
-        Frames();
-        Assert.Equal(0, GC.GetAllocatedBytesForCurrentThread() - before);
+        Assert.Equal(0, Allocations.SteadyState(Frames));
         Assert.Equal(ScreenConstants.SOk, copier.LastFailure.HResult);
     }
 

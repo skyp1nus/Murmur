@@ -23,10 +23,10 @@
     <!-- tokens.json -> Tokens.axaml generator, compiled in so the test can regenerate without launching a process. -->
     <Compile Include="..\..\tools\Murmur.TokenGen\TokenGenerator.cs" Link="TokenGen\TokenGenerator.cs" />
     <!-- The log fake of the Core tests (#100). -->
-    <Compile Include="..\Murmur.Core.Tests\Fakes\RecordingAppLog.cs" Link="Fakes\RecordingAppLog.cs" />
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\Murmur.TestSupport\Murmur.TestSupport.csproj" />
     <ProjectReference Include="..\..\src\Murmur.App\Murmur.App.csproj" />
     <ProjectReference Include="..\..\src\Murmur.Storage\Murmur.Storage.csproj" />
   </ItemGroup>

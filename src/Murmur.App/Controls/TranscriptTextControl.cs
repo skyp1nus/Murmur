@@ -6,6 +6,7 @@ using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Media;
 using Avalonia.Media.TextFormatting;
+using Avalonia.Platform;
 using Avalonia.Utilities;
 
 namespace Murmur.App.Controls;
@@ -31,9 +32,11 @@ namespace Murmur.App.Controls;
 /// the letters and digits of the word, not its punctuation) and its text in <see cref="UncertainForeground"/>, like the word of
 /// "Idea 4 / Low-confidence fix". Neither changes a metric. The underline segments are worked out once per layout and kept, so a frame
 /// only draws them. While the line is coloured for "Follow along" its colours win, and the word under the chip has no underline.</para>
-/// <para><b>Click.</b> A press is hit-tested against the layout, mapped to the nearest word and passed to
+/// <para><b>Click.</b> With a mouse a press is hit-tested against the layout, mapped to the nearest word and passed to
 /// <see cref="Command"/> as its parameter (the word index; 0 when the segment has no word timings). A press on an uncertain word
-/// raises <see cref="UncertainWordInvokedEvent"/> (with the word's bounds, for the popover) and runs <see cref="UncertainCommand"/> instead.</para>
+/// raises <see cref="UncertainWordInvokedEvent"/> (with the word's bounds, for the popover) and runs <see cref="UncertainCommand"/> instead. Touch and pen act on the tap instead of the press (<see cref="TapGesture"/>): the press only remembers the word,
+/// and the release acts if the contact stayed within half the platform's tap size (<see cref="FallbackTapSlop"/> without one) and
+/// the scroll did not take it over (capture lost, a scroll gesture, a second contact). The pointer is not captured for touch.</para>
 /// <para><b>Keyboard.</b> The control takes the focus (Tab) only while it has uncertain words: Left and Right move between them (a 1.5 px
 /// ring in <see cref="FocusBrush"/> shows which, when the focus came from the keyboard), Enter or Space opens it like a click.</para>
 /// </remarks>
@@ -175,10 +178,16 @@ public sealed class TranscriptTextControl : Control
             UncertainWordsProperty, UnderlineBrushProperty, UnderlineThicknessProperty, UnderlineOffsetProperty, FocusBrushProperty, FocusThicknessProperty);
     }
 
+    /// <summary>The tap slop (DIPs) when the platform does not report a tap size; roughly the Windows drag threshold of a touch screen.</summary>
+    internal const double FallbackTapSlop = 8;
+
+    private TapGesture _tap;
+
     public TranscriptTextControl()
     {
         Cursor = new Cursor(StandardCursorType.Hand);
         Focusable = false;
+        AddHandler(ScrollGestureEvent, OnScrollGesture, RoutingStrategies.Bubble | RoutingStrategies.Tunnel, handledEventsToo: true);
     }
 
     public string? Text
@@ -874,20 +883,76 @@ public sealed class TranscriptTextControl : Control
         }
 
         var word = WordAt(e.GetPosition(this));
+        if (e.Pointer.Type is PointerType.Touch or PointerType.Pen)
+        {
+            // Touch and pen report the left button as pressed, and every drag-to-scroll starts with a press: only remember it.
+            // The pointer is not captured and the event is not handled, so the parent ScrollViewer can take the gesture over.
+            _tap.Press(e.Pointer.Id, e.GetPosition(this), word);
+            return;
+        }
+
+        e.Handled = Activate(word);
+    }
+
+    protected override void OnPointerMoved(PointerEventArgs e)
+    {
+        base.OnPointerMoved(e);
+        if (_tap.IsActive)
+        {
+            _tap.Move(e.Pointer.Id, e.GetPosition(this), TapSlop());
+        }
+    }
+
+    protected override void OnPointerReleased(PointerReleasedEventArgs e)
+    {
+        base.OnPointerReleased(e);
+        if (!_tap.IsActive)
+        {
+            return;
+        }
+
+        var word = _tap.Release(e.Pointer.Id, e.GetPosition(this), TapSlop());
+        if (word >= 0)
+        {
+            e.Handled = Activate(word);
+        }
+    }
+
+    /// <summary>The scroll (a <see cref="ScrollViewer"/> taking the capture) or anything else took the pointer: it is no tap.</summary>
+    protected override void OnPointerCaptureLost(PointerCaptureLostEventArgs e)
+    {
+        base.OnPointerCaptureLost(e);
+        _tap.Cancel();
+    }
+
+    private void OnScrollGesture(object? sender, ScrollGestureEventArgs e) => _tap.Cancel();
+
+    /// <summary>
+    /// How far, in DIPs, a touch or pen contact may stray from the press and still be a tap: half the platform's tap rectangle
+    /// (<see cref="IPlatformSettings.GetTapSize"/>), or <see cref="FallbackTapSlop"/> when the platform tells nothing.
+    /// </summary>
+    private double TapSlop()
+    {
+        var size = Application.Current?.PlatformSettings?.GetTapSize(PointerType.Touch).Width ?? 0;
+        return size > 0 ? size / 2 : FallbackTapSlop;
+    }
+
+    /// <summary>Opens the uncertain word under the pointer, or else seeks to the word. Returns whether anything ran.</summary>
+    private bool Activate(int word)
+    {
         if (InvokeUncertain(word, fromKeyboard: false))
         {
             _focusVisible = false;
-            e.Handled = true;
-            return;
+            return true;
         }
 
         if (word < 0 || Command is not { } command || !command.CanExecute(word))
         {
-            return;
+            return false;
         }
 
         command.Execute(word);
-        e.Handled = true;
+        return true;
     }
 
     protected override void OnPropertyChanged(AvaloniaPropertyChangedEventArgs change)
