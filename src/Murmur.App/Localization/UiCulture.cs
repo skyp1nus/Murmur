@@ -20,15 +20,33 @@ public static class UiCulture
 
     public const string English = "en";
 
-    private static readonly AsyncLocal<(string Language, CultureInfo Culture)?> Scoped = new();
+    private static readonly AsyncLocal<State?> Scoped = new();
 
-    private static (string Language, CultureInfo Culture) s_process = (English, Resolve(English));
+    // The one process-wide state: an immutable object swapped as a whole (Volatile.Write in Store, Volatile.Read in Current), so a
+    // reader on another thread never sees the language of one Apply together with the culture of another.
+    private static State s_process = new(English, Resolve(English));
 
     /// <summary>The UI language in effect, <c>en</c> or <c>uk</c>.</summary>
-    public static string Language => (Scoped.Value ?? s_process).Language;
+    public static string Language => Current.Language;
 
     /// <summary>The culture for formatting numbers and dates in the UI language.</summary>
-    public static CultureInfo Culture => (Scoped.Value ?? s_process).Culture;
+    public static CultureInfo Culture => Current.Culture;
+
+    /// <summary>
+    /// The language and its culture in effect, read once: the two always belong together, even while another thread calls
+    /// <see cref="Apply(string?)"/>. Use it when both are needed; two separate reads of <see cref="Language"/> and
+    /// <see cref="Culture"/> may straddle an <see cref="Apply(string?)"/>.
+    /// </summary>
+    internal static (string Language, CultureInfo Culture) Snapshot
+    {
+        get
+        {
+            var state = Current;
+            return (state.Language, state.Culture);
+        }
+    }
+
+    private static State Current => Scoped.Value ?? Volatile.Read(ref s_process);
 
     /// <summary>
     /// The language for a settings value: <c>uk</c> and any <c>uk-*</c> region variant (case-insensitive, surrounding spaces
@@ -60,7 +78,7 @@ public static class UiCulture
     /// <summary>Makes <paramref name="language"/> the UI language of the process. Call once, before any text is looked up.</summary>
     public static CultureInfo Apply(string? language) => Apply(language, Store);
 
-    /// <summary>The seam for tests: <paramref name="store"/> receives the language and culture instead of the process-wide field.</summary>
+    /// <summary>The seam for tests: <paramref name="store"/> receives the language and culture instead of the process-wide state.</summary>
     internal static CultureInfo Apply(string? language, Action<string, CultureInfo> store)
     {
         ArgumentNullException.ThrowIfNull(store);
@@ -75,16 +93,24 @@ public static class UiCulture
     /// </summary>
     internal static IDisposable Override(string language) => new Scope(Normalize(language), Resolve(language));
 
-    private static void Store(string language, CultureInfo culture) => s_process = (language, culture);
+    private static void Store(string language, CultureInfo culture) => Volatile.Write(ref s_process, new State(language, culture));
+
+    /// <summary>An immutable language with its culture; replaced as a whole, never edited.</summary>
+    private sealed class State(string language, CultureInfo culture)
+    {
+        public string Language { get; } = language;
+
+        public CultureInfo Culture { get; } = culture;
+    }
 
     private sealed class Scope : IDisposable
     {
-        private readonly (string Language, CultureInfo Culture)? _previous;
+        private readonly State? _previous;
 
         public Scope(string language, CultureInfo culture)
         {
             _previous = Scoped.Value;
-            Scoped.Value = (language, culture);
+            Scoped.Value = new State(language, culture);
         }
 
         public void Dispose() => Scoped.Value = _previous;
