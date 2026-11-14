@@ -26,6 +26,8 @@
   <ItemGroup>
     <!-- Expected output of the export formatters (TranscriptExportTests). -->
     <None Include="Sessions\Golden\*" CopyToOutputDirectory="PreserveNewest" />
+    <!-- The reference MP4 of the Windows late-audio test: the edit-list reader is checked on the same file (Mp4EditListTests). -->
+    <None Include="..\Murmur.Capture.Windows.Tests\Resources\late-audio.mp4" Link="Resources\late-audio.mp4" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
   <ItemGroup>
